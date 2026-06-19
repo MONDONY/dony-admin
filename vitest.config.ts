@@ -13,6 +13,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
+      all: true,
+      include: ['app/**/*.{ts,vue}'],
       exclude: [
         'node_modules/',
         '.nuxt/',
@@ -21,6 +23,7 @@ export default defineConfig({
         '**/*.config.ts',
         '**/*.d.ts',
         'app/components/ui/**',
+        'app/plugins/**',
       ],
       thresholds: {
         lines: 90,

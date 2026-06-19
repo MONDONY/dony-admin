@@ -11,7 +11,7 @@ const admin = (): AuthUser => ({
   id: 'u', phoneNumber: '+33', displayName: 'A',
   isProAccount: false, roles: ['ADMIN'], avatarUrl: null,
 })
-type Mw = (to: { path: string }) => unknown
+type Mw = (_to: { path: string }) => unknown
 
 describe('auth.global middleware', () => {
   beforeEach(() => {

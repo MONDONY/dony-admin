@@ -1,7 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceId } from '@/lib/deviceId'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let apiInstance: any = null
 
 export function useApi(): ReturnType<typeof $fetch.create> {

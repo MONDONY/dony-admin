@@ -14,6 +14,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 
 const fullPhone = computed(() => {
+  // eslint-disable-next-line no-useless-escape
   const local = localNumber.value.replace(/[\s\-]/g, '').replace(/^0/, '')
   return `${country.value.dial}${local}`
 })
