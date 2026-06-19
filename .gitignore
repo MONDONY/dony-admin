@@ -30,3 +30,6 @@ playwright/.cache
 # Logs
 *.log
 .worktrees/
+
+# Playwright MCP snapshots — may contain cleartext form values (passwords, tokens)
+.playwright-mcp/
