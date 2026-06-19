@@ -4,6 +4,7 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
+  assetsInclude: ['**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.svg', '**/*.webp'],
   test: {
     environment: 'happy-dom',
     globals: true,
@@ -12,6 +13,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
+      all: true,
+      include: ['app/**/*.{ts,vue}'],
       exclude: [
         'node_modules/',
         '.nuxt/',
@@ -20,6 +23,8 @@ export default defineConfig({
         '**/*.config.ts',
         '**/*.d.ts',
         'app/components/ui/**',
+        'app/plugins/**',
+        'app/pages/**',
       ],
       thresholds: {
         lines: 90,

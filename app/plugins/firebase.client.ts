@@ -7,6 +7,14 @@ export default defineNuxtPlugin(async () => {
   const config = useRuntimeConfig()
   const pub = config.public as Record<string, string>
 
+  // Sans clés Firebase (mode démo local / e2e), on n'initialise PAS Firebase :
+  // getAuth() jetterait `auth/invalid-api-key` et casserait toute l'application.
+  // La session est alors fournie par seed (window.__donyAuthSeed via expose-auth)
+  // ou par la connexion démo ; $firebaseAuth reste null.
+  if (!pub.firebaseApiKey) {
+    return { provide: { firebaseApp: null, firebaseAuth: null } }
+  }
+
   const firebaseConfig = {
     apiKey: pub.firebaseApiKey,
     authDomain: pub.firebaseAuthDomain,
