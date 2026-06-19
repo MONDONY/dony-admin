@@ -5,8 +5,8 @@ import type { AdminOverview } from '@/features/overview/types/index'
 export interface KpiData { id: string; label: string; value: string; subLabel?: string }
 export interface QueueCard { id: string; label: string; count: number; tone: 'danger' | 'warning' | 'info' | 'neutral'; href: string }
 
-export function formatEuros(cents: number): string {
-  return (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+export function formatEuros(euros: number): string {
+  return euros.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
 export function useOverview() {
@@ -29,12 +29,12 @@ export function useOverview() {
       { id: 'users-total', label: 'Utilisateurs', value: String(d.users.total), subLabel: `${d.users.active} actifs` },
       { id: 'users-new', label: 'Nouveaux (30j)', value: String(d.users.newLast30d), subLabel: `${d.users.newLast7d} sur 7j` },
       { id: 'users-pro', label: 'Comptes PRO', value: String(d.users.pro) },
-      { id: 'trips-active', label: 'Trajets actifs', value: String(d.trips.active), subLabel: `${d.trips.inProgress} en cours` },
+      { id: 'trips-active', label: 'Annonces actives', value: String(d.announcements.active), subLabel: `${d.announcements.inProgress} en cours` },
       { id: 'bids-pending', label: 'Bids en attente', value: String(d.bids.pending), subLabel: `${d.bids.total} au total` },
       { id: 'bids-completed', label: 'Livraisons', value: String(d.bids.completed) },
-      { id: 'gmv-escrow', label: 'Escrow détenu', value: formatEuros(d.gmv.escrowHeldCents) },
-      { id: 'gmv-released', label: 'Libéré', value: formatEuros(d.gmv.releasedCents) },
-      { id: 'gmv-commission', label: 'Commission', value: formatEuros(d.gmv.commissionCents) },
+      { id: 'gmv-escrow', label: 'Escrow détenu', value: formatEuros(d.gmv.escrowHeld) },
+      { id: 'gmv-released', label: 'Libéré', value: formatEuros(d.gmv.released) },
+      { id: 'gmv-commission', label: 'Commission', value: formatEuros(d.gmv.commission) },
     ]
   })
 
