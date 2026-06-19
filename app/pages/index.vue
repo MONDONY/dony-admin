@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Vue d\'ensemble' })
+definePageMeta({ middleware: 'admin-only', pageTitle: 'Vue d’ensemble' })
 </script>
 
 <template>
