@@ -65,9 +65,9 @@ function confirmReason(reason: string) {
 
       <ConfirmActionDialog
         :open="pending !== null"
-        :title="pending === 'ban' ? 'Bannir ce compte' : 'Suspendre ce compte'"
-        :message="pending === 'ban' ? 'Le compte sera banni définitivement.' : 'Le compte sera suspendu.'"
-        :confirm-label="pending === 'ban' ? 'Bannir' : 'Suspendre'"
+        :title="pending === 'ban' ? 'Bannir ce compte' : pending === 'suspend' ? 'Suspendre ce compte' : ''"
+        :message="pending === 'ban' ? 'Le compte sera banni définitivement.' : pending === 'suspend' ? 'Le compte sera suspendu.' : ''"
+        :confirm-label="pending === 'ban' ? 'Bannir' : pending === 'suspend' ? 'Suspendre' : ''"
         :require-reason="true"
         @confirm="confirmReason"
         @cancel="pending = null"

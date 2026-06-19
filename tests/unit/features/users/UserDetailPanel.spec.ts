@@ -34,4 +34,25 @@ describe('UserDetailPanel', () => {
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('suspend')![0]).toEqual(['fraude'])
   })
+
+  it('emits ban with reason via the confirm dialog', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="action-ban"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('abus répété')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('ban')![0]).toEqual(['abus répété'])
+  })
+
+  it('emits unsuspend directly without a dialog for a SUSPENDED user', async () => {
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'SUSPENDED' }, open: true } })
+    await w.find('[data-test="action-unsuspend"]').trigger('click')
+    expect(w.emitted('unsuspend')).toBeTruthy()
+    expect(w.find('[data-test="reason"]').exists()).toBe(false)
+  })
+
+  it('hides Suspend and Ban for a SUSPENDED user', () => {
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'SUSPENDED' }, open: true } })
+    expect(w.find('[data-test="action-suspend"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-ban"]').exists()).toBe(false)
+  })
 })
