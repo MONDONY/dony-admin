@@ -49,11 +49,13 @@ export default withNuxt(
       'no-unused-vars': 'off',
     },
   },
-  // Test files: suppress unused imports that existed before this task
+  // Test files: vitest requires mock factories (vi.mock / const mock = vi.fn())
+  // to be declared before the imports they intercept, so import/first does not apply.
   {
     files: ['tests/**/*.ts'],
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_' }],
+      'import/first': 'off',
     },
   },
   // Nuxt auto-import globals for Nuxt composables/utilities used without explicit import

@@ -4,7 +4,7 @@ import BidTimeline from './BidTimeline.vue'
 import { bidStatusMeta } from './bidStatus'
 import type { AdminBidDetail, AdminBidTimeline } from '@/features/bids/types/index'
 
-const props = defineProps<{ bid: AdminBidDetail; timeline: AdminBidTimeline | null; open: boolean }>()
+defineProps<{ bid: AdminBidDetail; timeline: AdminBidTimeline | null; open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 </script>
 

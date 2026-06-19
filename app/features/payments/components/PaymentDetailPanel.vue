@@ -6,7 +6,7 @@ import { paymentStatusMeta } from './paymentStatus'
 import { formatEuros } from '@/features/payments/types/index'
 import type { AdminPaymentDetail } from '@/features/payments/types/index'
 
-const props = defineProps<{ payment: AdminPaymentDetail; open: boolean }>()
+defineProps<{ payment: AdminPaymentDetail; open: boolean }>()
 const emit = defineEmits<{ close: []; 'force-release': []; refund: [] }>()
 
 const pending = ref<'release' | 'refund' | null>(null)

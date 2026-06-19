@@ -31,20 +31,24 @@ test('admin navigates across the 11 modules', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('h1').first()).toContainText(/Vue d.ensemble/)
 
-  const sections: [string, RegExp][] = [
-    ['Utilisateurs', /Utilisateurs/],
-    ['Transactions', /Transactions/],
-    ['Colis', /Colis/],
-    ['Incidents', /Incidents/],
-    ['Alertes', /Alertes/],
-    ['Modération', /Modération/],
-    ['Codes promo', /Codes promo/],
-    ['Audit', /Audit/],
-    ['Exports', /Exports/],
-    ['Signalements', /Signalements/],
+  const sections: [string, RegExp, RegExp][] = [
+    ['Utilisateurs', /Utilisateurs/, /\/users$/],
+    ['Transactions', /Transactions/, /\/transactions$/],
+    ['Colis', /Colis/, /\/colis$/],
+    ['Incidents', /Incidents/, /\/incidents$/],
+    ['Alertes', /Alertes/, /\/alertes$/],
+    ['Modération', /Modération/, /\/moderation$/],
+    ['Codes promo', /Codes promo/, /\/promo$/],
+    ['Audit', /Audit/, /\/audit$/],
+    ['Exports', /Exports/, /\/exports$/],
+    ['Signalements', /Signalements/, /\/signalements$/],
   ]
-  for (const [link, title] of sections) {
+  for (const [link, title, url] of sections) {
     await page.getByRole('link', { name: link }).first().click()
+    // Attendre la fin de la navigation (URL + titre) avant le clic suivant :
+    // la sidebar se re-render au changement de route, sinon le lien suivant
+    // peut être détaché du DOM pendant le clic (flake).
+    await expect(page).toHaveURL(url)
     await expect(page.locator('h1').first()).toContainText(title)
   }
 })

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DisputeDetailPanel from '@/features/incidents/components/DisputeDetailPanel.vue'
 import type { AdminDisputeDetail } from '@/features/incidents/types/index'

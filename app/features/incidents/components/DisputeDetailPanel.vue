@@ -6,7 +6,7 @@ import GuaranteeFundForm from './GuaranteeFundForm.vue'
 import { disputeStatusMeta } from './disputeStatus'
 import type { AdminDisputeDetail, DisputeResolution } from '@/features/incidents/types/index'
 
-const props = defineProps<{ dispute: AdminDisputeDetail; open: boolean }>()
+defineProps<{ dispute: AdminDisputeDetail; open: boolean }>()
 const emit = defineEmits<{ close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, reason: string] }>()
 
 const pending = ref<DisputeResolution | null>(null)
