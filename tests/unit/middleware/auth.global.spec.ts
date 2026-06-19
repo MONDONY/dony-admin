@@ -15,6 +15,7 @@ type Mw = (to: { path: string }) => unknown
 
 describe('auth.global middleware', () => {
   beforeEach(() => {
+    vi.resetModules()
     setActivePinia(createPinia())
     navigateToMock.mockClear()
   })

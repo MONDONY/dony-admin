@@ -14,6 +14,7 @@ type Mw = () => unknown
 
 describe('admin-only middleware', () => {
   beforeEach(() => {
+    vi.resetModules()
     setActivePinia(createPinia())
     navigateToMock.mockClear()
   })
