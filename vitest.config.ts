@@ -10,6 +10,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     exclude: ['node_modules/**', '.nuxt/**', '.output/**', 'tests/e2e/**'],
+    isolate: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -24,6 +25,7 @@ export default defineConfig({
         '**/*.d.ts',
         'app/components/ui/**',
         'app/plugins/**',
+        'app/pages/**',
       ],
       thresholds: {
         lines: 90,

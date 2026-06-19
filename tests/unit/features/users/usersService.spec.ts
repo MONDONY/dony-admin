@@ -41,4 +41,17 @@ describe('usersService', () => {
     await usersService.setCommissionRate('u1', 0.1)
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/commission-rate', { method: 'PUT', body: { rate: 0.1 } })
   })
+
+  it('get() fetches a single user', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', status: 'ACTIVE' })
+    const r = await usersService.get('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1')
+    expect(r.id).toBe('u1')
+  })
+
+  it('unsuspend() POSTs without body', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', status: 'ACTIVE' })
+    await usersService.unsuspend('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/unsuspend', { method: 'POST' })
+  })
 })
