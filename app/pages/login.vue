@@ -1,14 +1,36 @@
 <!-- app/pages/login.vue -->
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import PhoneNumberForm from '@/features/auth/components/PhoneNumberForm.vue'
 import OtpForm from '@/features/auth/components/OtpForm.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
+import { useAuthStore } from '@/stores/auth'
 
 definePageMeta({ layout: 'auth' })
 
 const step = ref<'phone' | 'otp'>('phone')
 const phone = ref('')
+
+// Le bouton démo n'est actif qu'après hydratation (évite un clic perdu côté SSR).
+const ready = ref(false)
+onMounted(() => { ready.value = true })
+
+// Connexion démo : visible uniquement en dev sans configuration Firebase.
+// useRuntimeConfig est appelé lazily après import.meta.dev pour ne pas
+// s'exécuter dans les tests unitaires (où import.meta.dev est falsy).
+const showDemoLogin = computed(() => import.meta.dev && !useRuntimeConfig().public.firebaseApiKey)
+
+function demoLogin() {
+  useAuthStore().setSession('demo-token', {
+    id: 'demo-admin',
+    phoneNumber: '+33600000000',
+    displayName: 'Admin Démo',
+    isProAccount: false,
+    roles: ['ADMIN'],
+    avatarUrl: null,
+  })
+  navigateTo('/')
+}
 
 function onSent(p: string) {
   phone.value = p
@@ -87,5 +109,17 @@ function handleBack() {
     <!-- Formulaires -->
     <PhoneNumberForm v-if="step === 'phone'" @sent="onSent" />
     <OtpForm v-else :phone="phone" @resend="step = 'phone'" />
+
+    <!-- Connexion démo (dev sans Firebase) -->
+    <div v-if="showDemoLogin" class="border-t border-border pt-4">
+      <button
+        type="button" data-test="demo-login" :disabled="!ready"
+        class="w-full rounded-btn px-4 py-2 text-sm border border-dashed border-primary/50 text-primary hover:bg-primary/10 disabled:opacity-40 transition-colors"
+        @click="demoLogin"
+      >
+        Connexion démo (admin)
+      </button>
+      <p class="mt-2 text-center text-[11px] text-subtle">Mode local — aucune authentification Firebase requise</p>
+    </div>
   </div>
 </template>
