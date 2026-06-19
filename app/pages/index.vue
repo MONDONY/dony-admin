@@ -4,7 +4,7 @@ definePageMeta({ middleware: 'admin-only', pageTitle: 'Vue d’ensemble' })
 
 <template>
   <div class="rounded-card border border-border bg-surface p-8 text-center">
-    <h2 class="font-display text-lg font-semibold mb-1">Vue d'ensemble</h2>
+    <h2 class="font-display text-lg font-semibold mb-1">Vue d’ensemble</h2>
     <p class="text-sm text-text-muted">Module à venir.</p>
   </div>
 </template>

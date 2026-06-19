@@ -8,9 +8,9 @@ describe('LoginLeftPanel', () => {
     expect(wrapper.text()).toContain('dony')
   })
 
-  it('renders the PRO badge', () => {
+  it('renders the ADMIN badge', () => {
     const wrapper = mount(LoginLeftPanel)
-    expect(wrapper.text()).toContain('PRO')
+    expect(wrapper.text()).toContain('ADMIN')
   })
 
   it('renders the securise mascot image', () => {

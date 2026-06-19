@@ -41,7 +41,7 @@ const items = [
       <span
         class="text-xs font-bold px-2.5 py-0.5 rounded-full border"
         style="background:rgb(var(--primary-rgb)/0.15);color:var(--primary);border-color:rgb(var(--primary-rgb)/0.3);"
-      >PRO</span>
+      >ADMIN</span>
     </div>
 
     <!-- Mascotte -->
