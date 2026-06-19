@@ -40,7 +40,7 @@ function confirm() {
       <button type="button" data-test="payment-close" class="mt-6 rounded-btn px-4 py-2 text-sm border border-border" @click="emit('close')">Fermer</button>
       <ConfirmActionDialog
         :open="pending !== null"
-        :title="pending === 'refund' ? 'Rembourser l'expéditeur' : 'Débloquer le paiement'"
+        :title="pending === 'refund' ? 'Rembourser l\\\'expéditeur' : 'Débloquer le paiement'"
         :message="pending === 'refund' ? 'Le paiement sera remboursé.' : 'Le paiement sera libéré au voyageur.'"
         :confirm-label="pending === 'refund' ? 'Rembourser' : 'Débloquer'"
         :require-reason="true"
