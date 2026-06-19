@@ -1,0 +1,36 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+const apiMock = vi.fn()
+vi.mock('@/composables/useApi', () => ({ useApi: () => apiMock }))
+import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
+
+describe('bidsAdminService', () => {
+  beforeEach(() => apiMock.mockReset())
+
+  it('listBids builds query, omitting TOUS', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await bidsAdminService.listBids({ status: 'COMPLETED', announcementId: null, query: 'b1' }, 0, 20)
+    const [url, opts] = apiMock.mock.calls[0]
+    expect(url).toBe('/admin/bids')
+    expect(opts.query).toMatchObject({ status: 'COMPLETED', query: 'b1', page: 0, size: 20 })
+  })
+  it('listBids omits TOUS status', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await bidsAdminService.listBids({ status: 'TOUS', announcementId: null, query: '' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.status).toBeUndefined()
+  })
+  it('getBid GETs detail', async () => {
+    apiMock.mockResolvedValue({ id: 'b1' })
+    await bidsAdminService.getBid('b1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/bids/b1')
+  })
+  it('getTimeline GETs timeline', async () => {
+    apiMock.mockResolvedValue({ bidId: 'b1', entries: [] })
+    await bidsAdminService.getTimeline('b1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/bids/b1/timeline')
+  })
+  it('listAnnouncements GETs paged announcements', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await bidsAdminService.listAnnouncements(0, 20)
+    expect(apiMock).toHaveBeenCalledWith('/admin/announcements', { query: { page: 0, size: 20 } })
+  })
+})
