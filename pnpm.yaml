@@ -1,0 +1,9 @@
+onlyBuiltDependencies:
+  - "@firebase/util"
+  - "@parcel/watcher"
+  - esbuild
+  - protobufjs
+  - unrs-resolver
+  - vue-demi
+overrides:
+  vite: "6.4.2"

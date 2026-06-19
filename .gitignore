@@ -1,0 +1,32 @@
+# Nuxt
+.nuxt
+.output
+.nitro
+.cache
+dist
+
+# Node
+node_modules
+
+# Env
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+
+# IDE
+.vscode
+.idea
+.DS_Store
+
+# Tests
+coverage
+test-results
+playwright-report
+playwright/.cache
+
+# Logs
+*.log
+.worktrees/
