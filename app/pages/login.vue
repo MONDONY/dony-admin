@@ -1,119 +1,128 @@
-<!-- app/pages/login.vue -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import PhoneNumberForm from '@/features/auth/components/PhoneNumberForm.vue'
-import OtpForm from '@/features/auth/components/OtpForm.vue'
-import ThemeToggle from '@/components/ui/ThemeToggle.vue'
+import { ref, onMounted, computed } from 'vue'
+import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import { useAuthStore } from '@/stores/auth'
+import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
 
-const step = ref<'phone' | 'otp'>('phone')
-const phone = ref('')
+const { signIn } = useFirebaseAuth()
 
-// Le bouton démo n'est actif qu'après hydratation (évite un clic perdu côté SSR).
+const login = ref('')
+const password = ref('')
+const error = ref('')
+const loading = ref(false)
 const ready = ref(false)
 onMounted(() => { ready.value = true })
 
-// Connexion démo : visible uniquement en dev sans configuration Firebase.
-// useRuntimeConfig est appelé lazily après import.meta.dev pour ne pas
-// s'exécuter dans les tests unitaires (où import.meta.dev est falsy).
 const showDemoLogin = computed(() => import.meta.dev && !useRuntimeConfig().public.firebaseApiKey)
+
+async function handleSubmit() {
+  error.value = ''
+  if (!login.value.trim() || !password.value) return
+  loading.value = true
+  try {
+    const adminUser = await signIn(login.value.trim(), password.value)
+    if (adminUser.mustChangePassword) {
+      await navigateTo('/change-password')
+    } else {
+      await navigateTo('/')
+    }
+  } catch (e: unknown) {
+    const code = (e as { code?: string })?.code
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      error.value = 'Identifiants incorrects'
+    } else if (code === 'auth/too-many-requests') {
+      error.value = 'Trop de tentatives. Réessaie dans quelques minutes.'
+    } else {
+      error.value = 'Erreur de connexion. Réessaie.'
+    }
+  } finally {
+    loading.value = false
+  }
+}
 
 function demoLogin() {
   useAuthStore().setSession('demo-token', {
     id: 'demo-admin',
-    phoneNumber: '+33600000000',
-    displayName: 'Admin Démo',
-    isProAccount: false,
-    roles: ['ADMIN'],
-    avatarUrl: null,
+    login: 'demo',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    mustChangePassword: false,
+    permissionOverrides: {},
   })
   navigateTo('/')
-}
-
-function onSent(p: string) {
-  phone.value = p
-  step.value = 'otp'
-}
-
-function handleBack() {
-  if (step.value === 'otp') {
-    step.value = 'phone'
-  } else {
-    navigateTo('/')
-  }
 }
 </script>
 
 <template>
   <div class="w-full max-w-md flex flex-col gap-6">
-    <!-- Barre de navigation interne -->
     <div class="flex items-center justify-between">
-      <button
-        type="button"
-        class="flex items-center gap-1.5 text-sm text-subtle hover:text-text transition-colors"
-        @click="handleBack"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-        {{ step === 'otp' ? 'Changer de numéro' : 'Accueil' }}
-      </button>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <span class="text-sm font-semibold text-text">Dony Admin</span>
+      </div>
       <ThemeToggle />
     </div>
 
-    <!-- Titre -->
     <div>
-      <h1 class="font-display text-2xl font-extrabold text-text">
-        {{ step === 'phone' ? 'Connexion' : 'Code de vérification' }}
-      </h1>
-      <p class="text-sm text-subtle mt-1">
-        {{ step === 'phone'
-          ? 'Accède au back-office administrateur'
-          : `Code envoyé au ${phone}` }}
-      </p>
+      <h1 class="font-display text-2xl font-extrabold text-text">Connexion</h1>
+      <p class="text-sm text-subtle mt-1">Accède au back-office administrateur</p>
     </div>
 
-    <!-- Indicateur d'étapes -->
-    <div>
-      <div class="flex items-center gap-2">
-        <div
-          class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
-          :class="step === 'otp' ? 'bg-success/20 text-success' : 'bg-primary text-white'"
-        >
-          <svg v-if="step === 'otp'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-          <span v-else>1</span>
-        </div>
-        <div
-          class="flex-1 h-px transition-colors"
-          :class="step === 'otp' ? 'bg-primary' : 'bg-border'"
+    <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
+      <div class="flex flex-col gap-1.5">
+        <label for="login" class="text-sm font-medium text-text">Identifiant</label>
+        <input
+          id="login"
+          v-model="login"
+          type="text"
+          autocomplete="username"
+          placeholder="admin.1"
+          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          :disabled="loading"
         />
-        <div
-          class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors border"
-          :class="step === 'otp'
-            ? 'bg-primary text-white border-primary'
-            : 'bg-surface-el border-border text-subtle'"
-        >
-          2
-        </div>
       </div>
-      <div class="flex justify-between mt-1">
-        <span class="text-[10px]" :class="step === 'otp' ? 'text-success' : 'text-primary'">Téléphone</span>
-        <span class="text-[10px]" :class="step === 'otp' ? 'text-primary' : 'text-subtle'">Code SMS</span>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="password" class="text-sm font-medium text-text">Mot de passe</label>
+        <input
+          id="password"
+          v-model="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="••••••••••••"
+          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          :disabled="loading"
+        />
       </div>
-    </div>
 
-    <!-- Formulaires -->
-    <PhoneNumberForm v-if="step === 'phone'" @sent="onSent" />
-    <OtpForm v-else :phone="phone" @resend="step = 'phone'" />
+      <div v-if="error" class="rounded-btn bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
+        {{ error }}
+      </div>
 
-    <!-- Connexion démo (dev sans Firebase) -->
+      <button
+        type="submit"
+        :disabled="loading || !login.trim() || !password"
+        class="w-full rounded-btn bg-primary text-white font-semibold py-2.5 text-sm hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+      >
+        <svg v-if="loading" class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+          <path d="M12 2a10 10 0 0 1 10 10" />
+        </svg>
+        {{ loading ? 'Connexion…' : 'Se connecter' }}
+      </button>
+    </form>
+
     <div v-if="showDemoLogin" class="border-t border-border pt-4">
       <button
-        type="button" data-test="demo-login" :disabled="!ready"
+        type="button"
+        data-test="demo-login"
+        :disabled="!ready"
         class="w-full rounded-btn px-4 py-2 text-sm border border-dashed border-primary/50 text-primary hover:bg-primary/10 disabled:opacity-40 transition-colors"
         @click="demoLogin"
       >

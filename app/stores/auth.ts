@@ -1,17 +1,19 @@
 import { defineStore } from 'pinia'
 
-export interface AuthUser {
+export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
+
+export interface AdminUser {
   id: string
-  phoneNumber: string
-  displayName: string
-  isProAccount: boolean
-  roles: string[]
-  avatarUrl: string | null
+  login: string
+  role: AdminRole
+  status: string
+  mustChangePassword: boolean
+  permissionOverrides: Record<string, boolean>
 }
 
 interface AuthState {
   idToken: string | null
-  user: AuthUser | null
+  user: AdminUser | null
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -23,10 +25,10 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: (state): boolean =>
       state.idToken !== null && state.user !== null,
     isAdmin: (state): boolean =>
-      (state.user?.roles ?? []).some(r => r === 'ADMIN' || r === 'ROLE_ADMIN'),
+      state.user?.role != null,
   },
   actions: {
-    setSession(token: string, user: AuthUser) {
+    setSession(token: string, user: AdminUser) {
       this.idToken = token
       this.user = user
     },
