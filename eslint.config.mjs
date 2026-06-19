@@ -1,14 +1,7 @@
 // @ts-check
-import { createRequire } from 'node:module'
 import withNuxt from './.nuxt/eslint.config.mjs'
-
-// Resolve TypeScript-eslint packages from the transitively-installed location
-// (@typescript-eslint/* ships with @nuxt/eslint-config but is not a direct dep of dony-admin)
-const _require = createRequire(import.meta.url)
-const tsParserPath = 'node_modules/.pnpm/@typescript-eslint+parser@8.59.3_eslint@10.3.0_jiti@2.7.0__typescript@6.0.3/node_modules/@typescript-eslint/parser/dist/index.js'
-const tsPluginPath = 'node_modules/.pnpm/@typescript-eslint+eslint-plugin@8.59.3_@typescript-eslint+parser@8.59.3_eslint@10.3.0__80497659fb9a4eea504aca5562850d79/node_modules/@typescript-eslint/eslint-plugin/dist/index.js'
-const tsParser = _require('./' + tsParserPath)
-const tsPlugin = _require('./' + tsPluginPath)
+import tsParser from '@typescript-eslint/parser'
+import tsPlugin from '@typescript-eslint/eslint-plugin'
 
 export default withNuxt(
   // For plain TypeScript files: use @typescript-eslint/parser directly
