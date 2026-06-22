@@ -5,11 +5,11 @@ export default defineNuxtPlugin(() => {
   const auth = useAuthStore()
   const w = window as unknown as {
     __donyAuth: ReturnType<typeof useAuthStore>
-    __donyAuthSeed?: AdminUser
+    __donyAuthSeed?: AdminUser | null
   }
   w.__donyAuth = auth
   // Re-hydrate the store on every page load from a seed injected via addInitScript.
-  // Used by E2E tests to keep the session alive across full navigations.
+  // null seed = unauthenticated E2E test (don't set session).
   if (w.__donyAuthSeed) {
     auth.setSession('fake-token', w.__donyAuthSeed)
   }

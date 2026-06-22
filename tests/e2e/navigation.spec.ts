@@ -1,13 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const ADMIN_USER = {
-  id: 'user-1',
-  phoneNumber: '+33612345678',
-  displayName: 'Admin Dony',
-  isProAccount: false,
-  roles: ['ADMIN'],
-  avatarUrl: null,
-}
+const ADMIN_USER = { id: 'user-1', login: 'admin.1', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
 async function fakeLogin(page: import('@playwright/test').Page, user = ADMIN_USER) {
   await page.addInitScript((u) => {
@@ -15,13 +8,23 @@ async function fakeLogin(page: import('@playwright/test').Page, user = ADMIN_USE
   }, user)
 }
 
+// Abort all admin API calls so 401s don't trigger auth.clear() / navigateTo('/login')
+// during navigation tests that don't set up per-endpoint mocks.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/admin/**', (route) => route.abort())
+})
+
 test('unauthenticated user is redirected to /login', async ({ page }) => {
+  // null seed = explicitly unauthenticated (skips Firebase, no session set)
+  await page.addInitScript(() => {
+    ;(window as unknown as { __donyAuthSeed: null }).__donyAuthSeed = null
+  })
   await page.goto('/users')
   await expect(page).toHaveURL(/\/login$/)
 })
 
 test('non-admin user is redirected to /denied', async ({ page }) => {
-  await fakeLogin(page, { ...ADMIN_USER, roles: ['SENDER'] })
+  await fakeLogin(page, { ...ADMIN_USER, role: null })
   await page.goto('/users')
   await expect(page).toHaveURL(/\/denied$/)
 })

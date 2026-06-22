@@ -3,6 +3,13 @@ import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 
 export default defineNuxtPlugin(async () => {
+  // E2E fast-path: skip Firebase entirely when addInitScript set __donyAuthSeed
+  // (null = unauthenticated test, object = authenticated test).
+  // This unblocks onMounted hooks and keeps plugin init < 1 ms in tests.
+  if ('__donyAuthSeed' in (window as unknown as Record<string, unknown>)) {
+    return { provide: { firebaseApp: null, firebaseAuth: null } }
+  }
+
   const config = useRuntimeConfig()
   const pub = config.public as Record<string, string>
 

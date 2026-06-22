@@ -15,7 +15,7 @@ const loading = ref(false)
 const ready = ref(false)
 onMounted(() => { ready.value = true })
 
-const showDemoLogin = computed(() => import.meta.dev && !useRuntimeConfig().public.firebaseApiKey)
+const showDemoLogin = computed(() => import.meta.dev)
 
 async function handleSubmit() {
   error.value = ''
