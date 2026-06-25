@@ -32,17 +32,22 @@ export default defineNuxtPlugin(async () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       unsubscribe()
 
-      if (firebaseUser && !authStore.isAuthenticated) {
+      if (firebaseUser) {
         try {
           const idToken = await firebaseUser.getIdToken()
-          const adminUser = await $fetch<AdminUser>(`${pub.apiBaseUrl}/admin/me`, {
-            headers: { Authorization: `Bearer ${idToken}` },
-          }).catch(() => null)
-
-          if (adminUser) {
-            authStore.setSession(idToken, adminUser)
+          if (authStore.user) {
+            // Already have user data — just refresh the token
+            authStore.idToken = idToken
           } else {
-            await auth.signOut()
+            const adminUser = await $fetch<AdminUser>(`${pub.apiBaseUrl}/admin/me`, {
+              headers: { Authorization: `Bearer ${idToken}` },
+            }).catch(() => null)
+
+            if (adminUser) {
+              authStore.setSession(idToken, adminUser)
+            } else {
+              await auth.signOut()
+            }
           }
         } catch {
           authStore.clear()
