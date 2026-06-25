@@ -9,7 +9,7 @@ export function usePayments() {
   const totalPages = ref(0)
   const currentPage = ref(0)
   const pageSize = ref(20)
-  const filters = reactive<PaymentsFilterState>({ status: 'TOUS', method: 'TOUS' })
+  const filters = reactive<PaymentsFilterState>({ status: 'TOUS', method: 'TOUS', dateFrom: null, dateTo: null })
 
   async function fetchPayments() {
     isLoading.value = true; error.value = null
@@ -21,6 +21,7 @@ export function usePayments() {
   async function goToPage(p: number) { currentPage.value = p; await fetchPayments() }
   async function setStatusFilter(s: PaymentStatusFilter) { filters.status = s; currentPage.value = 0; await fetchPayments() }
   async function setMethodFilter(m: PaymentMethodFilter) { filters.method = m; currentPage.value = 0; await fetchPayments() }
+  async function setDateRange(from: string | null, to: string | null) { filters.dateFrom = from; filters.dateTo = to; currentPage.value = 0; await fetchPayments() }
 
-  return { payments, isLoading, error, totalPages, currentPage, pageSize, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter }
+  return { payments, isLoading, error, totalPages, currentPage, pageSize, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setDateRange }
 }

@@ -6,6 +6,8 @@ function buildQuery(f: BidsFilterState, page: number, size: number): Record<stri
   if (f.status && f.status !== 'TOUS') q.status = f.status
   if (f.announcementId) q.announcementId = f.announcementId
   if (f.query.trim()) q.query = f.query.trim()
+  if (f.dateFrom) q.dateFrom = f.dateFrom + 'T00:00:00'
+  if (f.dateTo) q.dateTo = f.dateTo + 'T23:59:59'
   return q
 }
 

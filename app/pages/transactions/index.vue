@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import PaymentsTable from '@/features/payments/components/PaymentsTable.vue'
+import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import ChargebacksTable from '@/features/payments/components/ChargebacksTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -12,7 +13,7 @@ import type { AdminChargeback } from '@/features/payments/types/index'
 definePageMeta({ middleware: 'admin-only', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
 
 const tab = ref<'payments' | 'chargebacks'>('payments')
-const { payments, isLoading, totalPages, currentPage, fetchPayments, goToPage } = usePayments()
+const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setDateRange } = usePayments()
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
@@ -31,6 +32,15 @@ onMounted(fetchPayments)
       <button type="button" data-test="tab-chargebacks" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'chargebacks' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('chargebacks')">Litiges bancaires</button>
     </div>
     <template v-if="tab === 'payments'">
+      <PaymentFilters
+        :model-status="filters.status"
+        :model-method="filters.method"
+        :model-date-from="filters.dateFrom"
+        :model-date-to="filters.dateTo"
+        @update:status="setStatusFilter"
+        @update:method="setMethodFilter"
+        @update:date-range="(from, to) => setDateRange(from, to)"
+      />
       <PaymentsTable :payments="payments" :loading="isLoading" @select="detail.open" />
       <div class="mt-4"><PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" /></div>
       <PaymentDetailPanel

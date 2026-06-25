@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import BidsTable from '@/features/bids/components/BidsTable.vue'
+import BidFilters from '@/features/bids/components/BidFilters.vue'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
 import AnnouncementsTable from '@/features/bids/components/AnnouncementsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -12,7 +13,7 @@ import type { AdminAnnouncementListItem } from '@/features/bids/types/index'
 definePageMeta({ middleware: 'admin-only', pageTitle: 'Colis', pageSubtitle: 'Bids & annonces' })
 
 const tab = ref<'bids' | 'announcements'>('bids')
-const { bids, isLoading, totalPages, currentPage, fetchBids, goToPage } = useAdminBids()
+const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange } = useAdminBids()
 const detail = useBidTimeline()
 const anns = ref<AdminAnnouncementListItem[]>([])
 const annLoading = ref(false)
@@ -40,30 +41,27 @@ onMounted(fetchBids)
   <div>
     <div class="flex gap-1 mb-4">
       <button
-        type="button"
-        data-test="tab-bids"
-        :class="[
-          'rounded-full px-3 py-1.5 text-sm',
-          tab === 'bids' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted',
-        ]"
+        type="button" data-test="tab-bids"
+        :class="['rounded-full px-3 py-1.5 text-sm', tab === 'bids' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
         @click="switchTab('bids')"
-      >
-        Bids
-      </button>
+      >Bids</button>
       <button
-        type="button"
-        data-test="tab-announcements"
-        :class="[
-          'rounded-full px-3 py-1.5 text-sm',
-          tab === 'announcements' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted',
-        ]"
+        type="button" data-test="tab-announcements"
+        :class="['rounded-full px-3 py-1.5 text-sm', tab === 'announcements' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
         @click="switchTab('announcements')"
-      >
-        Annonces
-      </button>
+      >Annonces</button>
     </div>
 
     <template v-if="tab === 'bids'">
+      <BidFilters
+        :model-status="filters.status"
+        :model-query="filters.query"
+        :model-date-from="filters.dateFrom"
+        :model-date-to="filters.dateTo"
+        @update:status="setStatusFilter"
+        @update:query="setSearch"
+        @update:date-range="(from, to) => setDateRange(from, to)"
+      />
       <BidsTable :bids="bids" :loading="isLoading" @select="detail.open" />
       <div class="mt-4">
         <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />
