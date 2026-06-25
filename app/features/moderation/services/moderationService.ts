@@ -14,7 +14,7 @@ export const moderationService = {
   getMessages(conversationId: string): Promise<AdminMessage[]> {
     return useApi()<AdminMessage[]>(`/admin/conversations/${conversationId}/messages`)
   },
-  deleteMessage(id: string): Promise<void> {
-    return useApi()(`/admin/messages/${id}`, { method: 'DELETE' })
+  deleteMessage(conversationId: string, messageId: string): Promise<void> {
+    return useApi()(`/admin/conversations/${conversationId}/messages/${messageId}`, { method: 'DELETE' })
   },
 }
