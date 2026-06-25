@@ -42,16 +42,17 @@ async function handleSubmit() {
   }
 }
 
-function demoLogin() {
-  useAuthStore().setSession('demo-token', {
-    id: 'demo-admin',
-    login: 'demo',
-    role: 'SUPER_ADMIN',
-    status: 'ACTIVE',
-    mustChangePassword: false,
-    permissionOverrides: {},
-  })
-  navigateTo('/')
+async function demoLogin() {
+  error.value = ''
+  loading.value = true
+  try {
+    await signIn('demo', 'Demo2024!')
+    await navigateTo('/')
+  } catch {
+    error.value = 'Connexion démo échouée. Vérifie que le backend tourne.'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
