@@ -21,6 +21,11 @@ const cbLoading = ref(false)
 async function loadCbs() { cbLoading.value = true; try { cbs.value = (await paymentsService.listChargebacks(0, 20)).content } finally { cbLoading.value = false } }
 async function switchTab(t: 'payments' | 'chargebacks') { tab.value = t; if (t === 'chargebacks' && cbs.value.length === 0) await loadCbs() }
 async function afterAction() { await fetchPayments() }
+async function onAction(fn: () => Promise<boolean>) {
+  const ok = await fn()
+  await afterAction()
+  if (ok) detail.close()
+}
 
 onMounted(fetchPayments)
 </script>
@@ -46,9 +51,10 @@ onMounted(fetchPayments)
       <PaymentDetailPanel
         v-if="detail.payment.value"
         :payment="detail.payment.value" :open="detail.payment.value !== null"
+        :error="detail.error.value" :busy="detail.busy.value"
         @close="detail.close"
-        @force-release="async () => { await detail.forceRelease(); await afterAction() }"
-        @refund="async () => { await detail.refund(); await afterAction() }"
+        @force-release="onAction(detail.forceRelease)"
+        @refund="onAction(detail.refund)"
       />
     </template>
     <ChargebacksTable v-else :chargebacks="cbs" :loading="cbLoading" />
