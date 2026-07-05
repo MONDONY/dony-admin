@@ -31,10 +31,28 @@ export const useAuthStore = defineStore('auth', {
     setSession(token: string, user: AdminUser) {
       this.idToken = token
       this.user = user
+      if (import.meta.client) {
+        localStorage.setItem('dony-admin-session', JSON.stringify({ token, user }))
+      }
     },
     clear() {
       this.idToken = null
       this.user = null
+      if (import.meta.client) {
+        localStorage.removeItem('dony-admin-session')
+      }
+    },
+    rehydrate() {
+      if (!import.meta.client) return
+      const stored = localStorage.getItem('dony-admin-session')
+      if (!stored) return
+      try {
+        const { token, user } = JSON.parse(stored)
+        this.idToken = token
+        this.user = user
+      } catch {
+        localStorage.removeItem('dony-admin-session')
+      }
     },
   },
 })
