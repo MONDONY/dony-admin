@@ -29,6 +29,7 @@ const reportActions: { value: ReportAction; label: string }[] = [
 const pendingReportId = ref<string | null>(null)
 const chosenAction = ref<ReportAction>('WARN')
 const resolveNote = ref('')
+const viewerUrls = ref<string[] | null>(null)
 
 function openResolve(id: string) {
   pendingReportId.value = id
@@ -94,7 +95,7 @@ onMounted(r.fetchReports)
         >{{ t.label }}</button>
       </div>
 
-      <ReportsTable :reports="r.reports.value" :loading="r.isLoading.value" @resolve="openResolve" />
+      <ReportsTable :reports="r.reports.value" :loading="r.isLoading.value" @resolve="openResolve" @view-photos="(urls) => viewerUrls = urls" />
 
       <div class="mt-4">
         <PaginationControls :page="r.currentPage.value" :total-pages="r.totalPages.value" @change="r.goToPage" />
@@ -119,6 +120,30 @@ onMounted(r.fetchReports)
 
       <div class="mt-4">
         <PaginationControls :page="rt.currentPage.value" :total-pages="rt.totalPages.value" @change="rt.goToPage" />
+      </div>
+    </div>
+
+    <!-- Visionneuse des captures d'écran jointes -->
+    <div
+      v-if="viewerUrls !== null"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" data-test="photo-viewer"
+      @click.self="viewerUrls = null"
+    >
+      <div class="max-h-full max-w-4xl overflow-auto rounded-card bg-surface p-4 shadow-xl">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="font-display text-lg font-semibold">Captures jointes</h2>
+          <button
+            type="button" data-test="photo-viewer-close"
+            class="rounded-btn px-3 py-1.5 text-sm border border-border hover:bg-surface-elevated"
+            @click="viewerUrls = null"
+          >Fermer</button>
+        </div>
+        <div class="flex flex-wrap gap-4">
+          <img
+            v-for="(url, i) in viewerUrls" :key="i" :src="url" alt="Capture d'écran jointe"
+            class="max-h-[70vh] max-w-full rounded border border-border object-contain"
+          >
+        </div>
       </div>
     </div>
 

@@ -1,7 +1,7 @@
 // ----- Signalements (reports) -----
 export type ReportStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
 export type ReportStatusFilter = 'ALL' | ReportStatus
-export type ReportTargetType = 'USER' | 'ANNOUNCEMENT' | 'BID' | 'MESSAGE' | 'RATING'
+export type ReportTargetType = 'USER' | 'ANNOUNCEMENT' | 'BID' | 'MESSAGE' | 'RATING' | 'APP'
 export type ReportAction = 'DISMISS' | 'WARN' | 'SUSPEND_TARGET' | 'REMOVE_CONTENT'
 
 export interface AdminReport {
@@ -16,6 +16,7 @@ export interface AdminReport {
   resolutionNote: string | null
   resolvedAt: string | null
   createdAt: string
+  photoUrls: string[]
 }
 
 export interface AdminReportPage {

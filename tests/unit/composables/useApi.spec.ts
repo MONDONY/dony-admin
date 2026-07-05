@@ -6,6 +6,7 @@ const fetchCreate = vi.fn((opts: unknown) => ({ __opts: opts }))
 vi.stubGlobal('$fetch', { create: fetchCreate })
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: 'http://api.test/api/v1' } }))
 vi.stubGlobal('navigateTo', vi.fn())
+vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
 
 describe('useApi', () => {
   beforeEach(async () => {
@@ -31,7 +32,7 @@ describe('useApi', () => {
     useApi()
     const opts = fetchCreate.mock.calls[0][0]
     const req = { options: { headers: {} } }
-    opts.onRequest(req)
+    await opts.onRequest(req)
     expect(req.options.headers.Authorization).toBe('Bearer the-token')
   })
 
