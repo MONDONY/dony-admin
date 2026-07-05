@@ -10,7 +10,10 @@ const OVERVIEW = {
   queues: { openDisputes: 0, pendingNoShows: 0, unresolvedAlerts: 0, pendingKyc: 0, escrowJ48: 0 },
 }
 
-test('demo login opens an admin session and reaches the dashboard', async ({ page }) => {
+// Depuis 580c4b2, le bouton démo fait un VRAI signIn Firebase — impossible à
+// réussir en e2e (pas de Firebase). On vérifie le comportement dégradé : le
+// clic reste sur /login et affiche l'erreur, sans crash.
+test('demo login without Firebase stays on login with an error', async ({ page }) => {
   await page.route('**/api/v1/admin/metrics/overview**', (route) => route.fulfill({ json: OVERVIEW }))
 
   await page.goto('/login')
@@ -18,8 +21,8 @@ test('demo login opens an admin session and reaches the dashboard', async ({ pag
   await expect(page.locator('[data-test="demo-login"]')).toBeEnabled()
   await page.locator('[data-test="demo-login"]').click()
 
-  await expect(page).toHaveURL(/\/$/)
-  await expect(page.locator('h1').first()).toContainText(/Vue d.ensemble/)
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByText('Connexion démo échouée', { exact: false })).toBeVisible()
 })
 
 test('unauthenticated access still redirects to login', async ({ page }) => {
