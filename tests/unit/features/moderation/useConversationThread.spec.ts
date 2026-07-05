@@ -33,7 +33,7 @@ describe('useConversationThread', () => {
     await t.open('c1')
     svc.getMessages.mockClear()
     await t.deleteMessage('m1')
-    expect(svc.deleteMessage).toHaveBeenCalledWith('m1')
+    expect(svc.deleteMessage).toHaveBeenCalledWith('c1', 'm1')
     expect(svc.getMessages).toHaveBeenCalledWith('c1')
   })
 

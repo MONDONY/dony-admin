@@ -1,14 +1,14 @@
 import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, it, expect } from 'vitest'
-import { useAuthStore, type AuthUser } from '@/stores/auth'
+import { useAuthStore, type AdminUser } from '@/stores/auth'
 
-const adminUser: AuthUser = {
+const adminUser: AdminUser = {
   id: 'user-1',
-  phoneNumber: '+33612345678',
-  displayName: 'Admin Dony',
-  isProAccount: false,
-  roles: ['ADMIN'],
-  avatarUrl: null,
+  login: 'admin.1',
+  role: 'ADMIN',
+  status: 'ACTIVE',
+  mustChangePassword: false,
+  permissionOverrides: {},
 }
 
 describe('useAuthStore (admin)', () => {
@@ -27,16 +27,16 @@ describe('useAuthStore (admin)', () => {
     expect(store.isAdmin).toBe(true)
   })
 
-  it('accepts ROLE_ADMIN prefix too', () => {
+  it('setSession with SUPER_ADMIN makes isAdmin true', () => {
     const store = useAuthStore()
-    store.setSession('tok', { ...adminUser, roles: ['ROLE_ADMIN'] })
+    store.setSession('tok', { ...adminUser, role: 'SUPER_ADMIN' })
     expect(store.isAdmin).toBe(true)
   })
 
-  it('non-admin roles → isAdmin false', () => {
+  it('setSession with SUPPORT makes isAdmin true', () => {
     const store = useAuthStore()
-    store.setSession('tok', { ...adminUser, roles: ['SENDER', 'TRAVELER'] })
-    expect(store.isAdmin).toBe(false)
+    store.setSession('tok', { ...adminUser, role: 'SUPPORT' })
+    expect(store.isAdmin).toBe(true)
   })
 
   it('clear() resets and drops admin', () => {

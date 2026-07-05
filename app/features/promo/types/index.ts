@@ -1,39 +1,41 @@
-export type PromoType = 'PERCENT' | 'FIXED_AMOUNT'
+export type PromoTarget = 'SENDER' | 'TRAVELER' | 'ANY'
+export type PromoStatus = 'ACTIVE' | 'DISABLED'
 
 export interface AdminPromoCode {
   id: string
   code: string
-  type: PromoType
-  value: number
+  /** Taux de réduction en fraction [0, 1[ — ex. 0.15 = 15 %. */
+  rate: number
+  target: PromoTarget
+  validFrom: string | null
+  validTo: string | null
   maxRedemptions: number | null
-  redemptionCount: number
-  expiresAt: string | null
-  active: boolean
+  perUserLimit: number
+  redeemedCount: number
+  status: PromoStatus
   createdAt: string
 }
 
-export interface AdminPromoCodePage {
-  content: AdminPromoCode[]
-  totalElements: number
-  totalPages: number
-  number: number
-  size: number
-}
-
 export interface PromoFilterState {
-  active: boolean | null
+  status: PromoStatus | null
 }
 
 export interface PromoCodeInput {
   code: string
-  type: PromoType
-  value: number
+  rate: number
+  target: PromoTarget
+  validFrom: string | null
+  validTo: string | null
   maxRedemptions: number | null
-  expiresAt: string | null
-  active: boolean
+  perUserLimit: number | null
 }
 
-export function formatPromoValue(type: PromoType, value: number): string {
-  if (type === 'PERCENT') return `${value} %`
-  return (value / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+export const PROMO_TARGET_LABELS: Record<PromoTarget, string> = {
+  SENDER: 'Expéditeurs',
+  TRAVELER: 'Voyageurs',
+  ANY: 'Tous',
+}
+
+export function formatPromoRate(rate: number): string {
+  return (rate * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %'
 }

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const ADMIN = { id: 'a1', phoneNumber: '+33600000000', displayName: 'Admin Dony', isProAccount: false, roles: ['ADMIN'], avatarUrl: null }
+const ADMIN = { id: 'a1', login: 'admin.1', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
 const CONV_PAGE = {
   content: [
@@ -38,9 +38,16 @@ test('admin opens a conversation thread', async ({ page }) => {
 
 test('admin deletes a message', async ({ page }) => {
   const deletes: string[] = []
-  await page.route('**/api/v1/admin/messages/**', (route) => {
-    if (route.request().method() === 'DELETE') deletes.push(route.request().url())
-    return route.fulfill({ status: 204, body: '' })
+  // La route DELETE vit sous /admin/conversations/{id}/messages/{msgId} :
+  // on ré-enregistre le handler pour capter le DELETE avant le catch-all du beforeEach.
+  await page.route('**/api/v1/admin/conversations**', (route) => {
+    const req = route.request()
+    if (req.method() === 'DELETE') {
+      deletes.push(req.url())
+      return route.fulfill({ status: 204, body: '' })
+    }
+    if (req.url().includes('/messages')) return route.fulfill({ json: MESSAGES })
+    return route.fulfill({ json: CONV_PAGE })
   })
   await page.goto('/moderation')
   await expect(page.locator('[data-test="conv-row-c1"]')).toBeVisible()

@@ -6,6 +6,8 @@ export const paymentsService = {
     const query: Record<string, string | number> = { page, size }
     if (f.status !== 'TOUS') query.status = f.status
     if (f.method !== 'TOUS') query.method = f.method
+    if (f.dateFrom) query.dateFrom = f.dateFrom + 'T00:00:00'
+    if (f.dateTo) query.dateTo = f.dateTo + 'T23:59:59'
     return useApi()<AdminPaymentPage>('/admin/payments', { query })
   },
   get(id: string): Promise<AdminPaymentDetail> { return useApi()<AdminPaymentDetail>(`/admin/payments/${id}`) },

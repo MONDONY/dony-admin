@@ -1,3 +1,4 @@
+import type { Auth } from 'firebase/auth'
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceId } from '@/lib/deviceId'
 
@@ -11,8 +12,16 @@ export function useApi(): ReturnType<typeof $fetch.create> {
 
   apiInstance = $fetch.create({
     baseURL: config.public.apiBaseUrl as string,
-    onRequest({ options }) {
-      const token = auth.idToken
+    async onRequest({ options }) {
+      const { $firebaseAuth } = useNuxtApp()
+      const firebaseUser = ($firebaseAuth as Auth | null)?.currentUser
+      let token = auth.idToken
+      if (firebaseUser) {
+        try {
+          token = await firebaseUser.getIdToken()
+          if (token !== auth.idToken) auth.idToken = token
+        } catch { /* use cached token */ }
+      }
       const existing = (options.headers as Record<string, string>) ?? {}
       const headers: Record<string, string> = { ...existing }
       if (token) {

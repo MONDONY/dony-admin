@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const ADMIN = { id: 'a1', phoneNumber: '+33600000000', displayName: 'Admin Dony', isProAccount: false, roles: ['ADMIN'], avatarUrl: null }
+const ADMIN = { id: 'a1', login: 'admin.1', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 const DISPUTES = { content: [
   { id: 'd1', bidId: 'b1', type: 'SENDER_NO_SHOW_CONTESTED', status: 'OPEN', senderName: 'Jean', travelerName: 'Awa', refundFrozen: true, createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }

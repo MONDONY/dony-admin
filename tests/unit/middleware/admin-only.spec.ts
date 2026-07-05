@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useAuthStore, type AuthUser } from '@/stores/auth'
+import { useAuthStore, type AdminUser } from '@/stores/auth'
 
 const navigateToMock = vi.fn()
 vi.stubGlobal('navigateTo', navigateToMock)
 vi.stubGlobal('defineNuxtRouteMiddleware', (fn: unknown) => fn)
 
-const user = (roles: string[]): AuthUser => ({
-  id: 'u', phoneNumber: '+33', displayName: 'A',
-  isProAccount: false, roles, avatarUrl: null,
+const makeAdmin = (role: AdminUser['role']): AdminUser => ({
+  id: 'u', login: 'admin', role, status: 'ACTIVE',
+  mustChangePassword: false, permissionOverrides: {},
 })
 type Mw = () => unknown
 
@@ -19,15 +19,28 @@ describe('admin-only middleware', () => {
     navigateToMock.mockClear()
   })
 
-  it('redirects non-admin to /denied', async () => {
-    useAuthStore().setSession('t', user(['SENDER']))
+  it('redirects unauthenticated to /denied', async () => {
     const mw = (await import('@/middleware/admin-only')).default as Mw
     mw()
     expect(navigateToMock).toHaveBeenCalledWith('/denied')
   })
 
-  it('allows admin through', async () => {
-    useAuthStore().setSession('t', user(['ADMIN']))
+  it('allows ADMIN through', async () => {
+    useAuthStore().setSession('t', makeAdmin('ADMIN'))
+    const mw = (await import('@/middleware/admin-only')).default as Mw
+    mw()
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('allows SUPER_ADMIN through', async () => {
+    useAuthStore().setSession('t', makeAdmin('SUPER_ADMIN'))
+    const mw = (await import('@/middleware/admin-only')).default as Mw
+    mw()
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('allows SUPPORT through', async () => {
+    useAuthStore().setSession('t', makeAdmin('SUPPORT'))
     const mw = (await import('@/middleware/admin-only')).default as Mw
     mw()
     expect(navigateToMock).not.toHaveBeenCalled()

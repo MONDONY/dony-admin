@@ -5,16 +5,16 @@ import PromoForm from '@/features/promo/components/PromoForm.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { usePromoCodes } from '@/features/promo/composables/usePromoCodes'
-import type { AdminPromoCode, PromoCodeInput } from '@/features/promo/types/index'
+import type { AdminPromoCode, PromoCodeInput, PromoStatus } from '@/features/promo/types/index'
 
 definePageMeta({ middleware: 'admin-only', pageTitle: 'Codes promo', pageSubtitle: 'Gestion des codes de réduction' })
 
-const { codes, isLoading, totalPages, currentPage, filters, fetchCodes, goToPage, setActiveFilter, create, update, remove } = usePromoCodes()
+const { codes, isLoading, totalPages, currentPage, filters, fetchCodes, goToPage, setStatusFilter, create, update, setStatus, remove } = usePromoCodes()
 
-const tabs: { value: boolean | null; label: string }[] = [
+const tabs: { value: PromoStatus | null; label: string }[] = [
   { value: null, label: 'Tous' },
-  { value: true, label: 'Actifs' },
-  { value: false, label: 'Inactifs' },
+  { value: 'ACTIVE', label: 'Actifs' },
+  { value: 'DISABLED', label: 'Désactivés' },
 ]
 
 const showForm = ref(false)
@@ -35,6 +35,9 @@ async function onSubmit(input: PromoCodeInput) {
   showForm.value = false
   editing.value = null
 }
+async function toggleStatus(code: AdminPromoCode) {
+  await setStatus(code.id, code.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')
+}
 async function confirmRemove() {
   if (pendingRemoveId.value) await remove(pendingRemoveId.value)
   pendingRemoveId.value = null
@@ -52,8 +55,8 @@ onMounted(fetchCodes)
         <button
           v-for="t in tabs" :key="String(t.value)" type="button" :data-test="`promo-tab-${t.value}`"
           :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
-            filters.active === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
-          @click="setActiveFilter(t.value)"
+            filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+          @click="setStatusFilter(t.value)"
         >{{ t.label }}</button>
       </div>
       <button
@@ -63,7 +66,10 @@ onMounted(fetchCodes)
       >Nouveau code</button>
     </div>
 
-    <PromoTable :codes="codes" :loading="isLoading" @edit="openEdit" @remove="(id) => pendingRemoveId = id" />
+    <PromoTable
+      :codes="codes" :loading="isLoading"
+      @edit="openEdit" @remove="(id) => pendingRemoveId = id" @toggle-status="toggleStatus"
+    />
 
     <div class="mt-4">
       <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />

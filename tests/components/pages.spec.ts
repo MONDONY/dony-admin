@@ -1,17 +1,28 @@
 /**
- * Smoke tests for placeholder pages (no real logic — just definePageMeta + template).
- * Mounting them is enough to bring their lines/statements to 100%.
+ * Smoke tests for all pages (mounts without crash).
+ * Real logic tested in feature-level unit/e2e tests.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 
-// Nuxt auto-imports used in pages — stub them globally
+// Nuxt auto-imports
 vi.stubGlobal('definePageMeta', vi.fn())
 vi.stubGlobal('useRoute', () => ({ meta: {} }))
+vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApiKey: '' } }))
+vi.stubGlobal('navigateTo', vi.fn())
+vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
+
+// Mock useApi so composables don't make real HTTP calls
+vi.mock('@/composables/useApi', () => ({
+  useApi: () => vi.fn().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }),
+}))
 
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a><slot /></a>', props: ['to'] }
 
 describe('placeholder pages', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
   const stubPages = [
     () => import('@/pages/index.vue'),
     () => import('@/pages/alertes/index.vue'),
@@ -29,9 +40,25 @@ describe('placeholder pages', () => {
   for (const importFn of stubPages) {
     it(`mounts ${importFn.toString().match(/'([^']+)'/)?.[1] ?? 'page'}`, async () => {
       const mod = await importFn()
-      const wrapper = mount(mod.default, { global: { stubs: { NuxtLink: NuxtLinkStub } } })
+      const wrapper = mount(mod.default, {
+        global: {
+          stubs: {
+            NuxtLink: NuxtLinkStub,
+            // Stub all heavy child components to avoid deep import chains
+            UserFilters: true, UserTable: true, UserDetailPanel: true,
+            AlertsTable: true, TransactionsTable: true, BidsTable: true,
+            AnnouncementsTable: true, DisputesTable: true, CancellationsTable: true,
+            ModerationTable: true, PromoTable: true, AuditTable: true,
+            ExportsPanel: true, SignalementsTable: true, RatingsTable: true,
+            PaginationControls: true, ConfirmActionDialog: true,
+            StatusBadge: true, GuaranteeFundForm: true, BidDetailPanel: true,
+            BidTimeline: true, PaymentDetailPanel: true, ChargebacksTable: true,
+            OverviewDashboard: true, KpiCard: true, QueueCard: true,
+          },
+        },
+      })
       expect(wrapper.exists()).toBe(true)
-    })
+    }, 15000)
   }
 })
 

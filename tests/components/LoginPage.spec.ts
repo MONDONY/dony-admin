@@ -1,74 +1,62 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 
 vi.stubGlobal('definePageMeta', vi.fn())
-const navigateMock = vi.fn()
-vi.stubGlobal('navigateTo', navigateMock)
+vi.stubGlobal('useRuntimeConfig', () => ({ public: { firebaseApiKey: 'key' } }))
+vi.stubGlobal('navigateTo', vi.fn())
+vi.stubGlobal('import.meta', { dev: false })
 
-vi.mock('@/features/auth/components/PhoneNumberForm.vue', () => ({
-  default: { name: 'PhoneNumberForm', template: '<div class="phone-form" />', emits: ['sent'] },
-}))
-vi.mock('@/features/auth/components/OtpForm.vue', () => ({
-  default: { name: 'OtpForm', template: '<div class="otp-form" />', props: ['phone'], emits: ['resend'] },
+const signInMock = vi.fn()
+vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
+  useFirebaseAuth: () => ({ signIn: signInMock }),
 }))
 vi.mock('@/components/ui/ThemeToggle.vue', () => ({
   default: { name: 'ThemeToggle', template: '<div />' },
 }))
 
-describe('login page', () => {
-  beforeEach(() => navigateMock.mockClear())
+async function mountLogin() {
+  const mod = await import('@/pages/login.vue')
+  return mount(mod.default)
+}
 
-  it('starts at phone step showing PhoneNumberForm', async () => {
-    const mod = await import('@/pages/login.vue')
-    const wrapper = mount(mod.default)
-    expect(wrapper.find('.phone-form').exists()).toBe(true)
-    expect(wrapper.find('.otp-form').exists()).toBe(false)
+describe('login page (email+password)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    signInMock.mockReset()
+    vi.mocked(vi.stubGlobal('navigateTo', vi.fn()))
+  })
+
+  it('renders the login form with identifiant and password fields', async () => {
+    const wrapper = await mountLogin()
+    expect(wrapper.find('input#login').exists()).toBe(true)
+    expect(wrapper.find('input#password').exists()).toBe(true)
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Connexion')
   })
 
-  it('transitions to otp step when @sent is emitted', async () => {
-    const mod = await import('@/pages/login.vue')
-    const wrapper = mount(mod.default)
-
-    await wrapper.findComponent({ name: 'PhoneNumberForm' }).vm.$emit('sent', '+33600000000')
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.find('.otp-form').exists()).toBe(true)
-    expect(wrapper.find('.phone-form').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Code de vérification')
+  it('submit button disabled when fields empty', async () => {
+    const wrapper = await mountLogin()
+    const btn = wrapper.find('button[type="submit"]')
+    expect(btn.attributes('disabled')).toBeDefined()
   })
 
-  it('back button calls navigateTo("/") when at phone step', async () => {
-    const mod = await import('@/pages/login.vue')
-    const wrapper = mount(mod.default)
-    await wrapper.find('button').trigger('click')
-    expect(navigateMock).toHaveBeenCalledWith('/')
+  it('submit button enabled when both fields filled', async () => {
+    const wrapper = await mountLogin()
+    await wrapper.find('input#login').setValue('admin.1')
+    await wrapper.find('input#password').setValue('pass123')
+    const btn = wrapper.find('button[type="submit"]')
+    expect(btn.attributes('disabled')).toBeUndefined()
   })
 
-  it('back button returns to phone step when at otp step', async () => {
-    const mod = await import('@/pages/login.vue')
-    const wrapper = mount(mod.default)
-
-    // Go to OTP step
-    await wrapper.findComponent({ name: 'PhoneNumberForm' }).vm.$emit('sent', '+33600000000')
-    await wrapper.vm.$nextTick()
-    expect(wrapper.find('.otp-form').exists()).toBe(true)
-
-    // Click back
-    await wrapper.find('button').trigger('click')
-    await wrapper.vm.$nextTick()
-    expect(wrapper.find('.phone-form').exists()).toBe(true)
-  })
-
-  it('@resend on OtpForm resets to phone step', async () => {
-    const mod = await import('@/pages/login.vue')
-    const wrapper = mount(mod.default)
-
-    await wrapper.findComponent({ name: 'PhoneNumberForm' }).vm.$emit('sent', '+33600000000')
-    await wrapper.vm.$nextTick()
-
-    await wrapper.findComponent({ name: 'OtpForm' }).vm.$emit('resend')
-    await wrapper.vm.$nextTick()
-    expect(wrapper.find('.phone-form').exists()).toBe(true)
+  it('shows error message on invalid-credential', async () => {
+    const err = Object.assign(new Error('bad creds'), { code: 'auth/invalid-credential' })
+    signInMock.mockRejectedValueOnce(err)
+    const wrapper = await mountLogin()
+    await wrapper.find('input#login').setValue('admin.1')
+    await wrapper.find('input#password').setValue('wrongpass')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Identifiants incorrects')
   })
 })

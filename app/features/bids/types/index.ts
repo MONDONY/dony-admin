@@ -23,4 +23,4 @@ export interface AdminAnnouncementListItem {
 }
 export interface AdminBidPage { content: AdminBidListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminAnnouncementPage { content: AdminAnnouncementListItem[]; totalElements: number; totalPages: number; number: number; size: number }
-export interface BidsFilterState { status: BidStatusFilter; announcementId: string | null; query: string }
+export interface BidsFilterState { status: BidStatusFilter; announcementId: string | null; query: string; dateFrom: string | null; dateTo: string | null }

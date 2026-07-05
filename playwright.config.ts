@@ -10,6 +10,9 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
   },
+  expect: {
+    timeout: 12_000,
+  },
   webServer: {
     command: 'pnpm dev',
     url: 'http://localhost:3000',

@@ -29,7 +29,7 @@ describe('moderationService', () => {
 
   it('deleteMessage DELETEs', async () => {
     apiMock.mockResolvedValue(undefined)
-    await moderationService.deleteMessage('m1')
-    expect(apiMock).toHaveBeenCalledWith('/admin/messages/m1', { method: 'DELETE' })
+    await moderationService.deleteMessage('c1', 'm1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/conversations/c1/messages/m1', { method: 'DELETE' })
   })
 })

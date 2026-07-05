@@ -1,21 +1,19 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminPromoCode, AdminPromoCodePage, PromoCodeInput, PromoFilterState } from '@/features/promo/types/index'
+import type { AdminPromoCode, PromoCodeInput, PromoStatus } from '@/features/promo/types/index'
 
-function buildQuery(f: PromoFilterState, page: number, size: number): Record<string, string | number | boolean> {
-  const q: Record<string, string | number | boolean> = { page, size }
-  if (f.active !== null) q.active = f.active
-  return q
-}
-
+/** Le back renvoie la liste complète (non paginée) ; filtres/pagination côté client. */
 export const promoService = {
-  list(filters: PromoFilterState, page: number, size: number): Promise<AdminPromoCodePage> {
-    return useApi()<AdminPromoCodePage>('/admin/promo-codes', { query: buildQuery(filters, page, size) })
+  list(): Promise<AdminPromoCode[]> {
+    return useApi()<AdminPromoCode[]>('/admin/promo-codes')
   },
   create(input: PromoCodeInput): Promise<AdminPromoCode> {
     return useApi()<AdminPromoCode>('/admin/promo-codes', { method: 'POST', body: input })
   },
   update(id: string, input: PromoCodeInput): Promise<AdminPromoCode> {
     return useApi()<AdminPromoCode>(`/admin/promo-codes/${id}`, { method: 'PUT', body: input })
+  },
+  setStatus(id: string, status: PromoStatus): Promise<AdminPromoCode> {
+    return useApi()<AdminPromoCode>(`/admin/promo-codes/${id}/status`, { method: 'PUT', body: { status } })
   },
   remove(id: string): Promise<void> {
     return useApi()(`/admin/promo-codes/${id}`, { method: 'DELETE' })

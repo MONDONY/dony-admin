@@ -33,7 +33,8 @@ export function useConversationThread() {
   }
 
   async function deleteMessage(id: string) {
-    await moderationService.deleteMessage(id)
+    if (!activeId.value) return
+    await moderationService.deleteMessage(activeId.value, id)
     await load()
   }
 

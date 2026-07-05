@@ -3,7 +3,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import type { AdminReport } from '@/features/signalements/types/index'
 defineProps<{ reports: AdminReport[]; loading: boolean }>()
-const emit = defineEmits<{ resolve: [id: string] }>()
+const emit = defineEmits<{ resolve: [id: string]; viewPhotos: [urls: string[]] }>()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 </script>
 
@@ -26,6 +26,16 @@ function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
           <td class="px-4 py-3 text-sm">
             <div class="font-medium">{{ r.reason }}</div>
             <div v-if="r.description" class="text-xs text-text-muted">{{ r.description }}</div>
+            <div v-if="r.photoUrls?.length" class="mt-1.5 flex gap-1.5">
+              <button
+                v-for="(url, i) in r.photoUrls" :key="i" type="button"
+                :data-test="`report-photo-${r.id}-${i}`"
+                class="h-10 w-10 overflow-hidden rounded border border-border hover:ring-2 hover:ring-primary"
+                @click="emit('viewPhotos', r.photoUrls)"
+              >
+                <img :src="url" alt="Capture jointe" class="h-full w-full object-cover">
+              </button>
+            </div>
           </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ r.reporterName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
