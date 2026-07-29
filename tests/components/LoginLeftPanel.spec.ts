@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import LoginLeftPanel from '@/features/auth/components/LoginLeftPanel.vue'
@@ -20,6 +21,12 @@ describe('LoginLeftPanel', () => {
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('/mascots/securise.png')
     expect(img.attributes('alt')).toBe('Mascotte Yadony avec bouclier de sécurité vérifié')
+  })
+
+  it('ships the full-size security mascot asset', () => {
+    const mascot = readFileSync('public/mascots/securise.png')
+    expect(mascot.readUInt32BE(16)).toBe(768)
+    expect(mascot.readUInt32BE(20)).toBe(768)
   })
 
   it('renders 3 security reassurance items', () => {
