@@ -40,7 +40,7 @@ const items = [
       <img src="/logos/logo-yadony.png" alt="Yadony" class="h-7 w-auto" />
       <span
         class="text-xs font-bold px-2.5 py-0.5 rounded-full border"
-        style="background:rgb(var(--primary-rgb)/0.15);color:var(--primary);border-color:rgb(var(--primary-rgb)/0.3);"
+        style="background:rgb(var(--primary-rgb)/0.15);color:var(--primary-h);border-color:rgb(var(--primary-rgb)/0.3);"
       >ADMIN</span>
     </div>
 
@@ -48,7 +48,7 @@ const items = [
     <div class="relative flex-1 flex items-center justify-center py-6">
       <img
         src="/mascots/securise.png"
-        alt="Mascotte Yadony avec bouclier de sécurité vérifié"
+        alt="Mascotte Yadony avec médaillon de validation et valise"
         class="w-48 h-48 object-contain"
       />
     </div>
