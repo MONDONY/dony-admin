@@ -3,9 +3,10 @@ import { mount } from '@vue/test-utils'
 import LoginLeftPanel from '@/features/auth/components/LoginLeftPanel.vue'
 
 describe('LoginLeftPanel', () => {
-  it('renders the dony logo text', () => {
+  it('renders the Yadony ADMIN logo', () => {
     const wrapper = mount(LoginLeftPanel)
-    expect(wrapper.text()).toContain('dony')
+    expect(wrapper.find('img[alt="Yadony"]').attributes('src')).toBe('/logos/logo-yadony.png')
+    expect(wrapper.text()).toContain('ADMIN')
   })
 
   it('renders the ADMIN badge', () => {
@@ -15,9 +16,10 @@ describe('LoginLeftPanel', () => {
 
   it('renders the securise mascot image', () => {
     const wrapper = mount(LoginLeftPanel)
-    const img = wrapper.find('img')
+    const img = wrapper.find('img[src="/mascots/securise.png"]')
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('/mascots/securise.png')
+    expect(img.attributes('alt')).toBe('Mascotte Yadony avec bouclier de sécurité vérifié')
   })
 
   it('renders 3 security reassurance items', () => {
