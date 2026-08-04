@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
-import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
@@ -65,7 +64,7 @@ async function demoLogin() {
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
         </div>
-        <span class="text-sm font-semibold text-text">Dony Admin</span>
+        <span class="text-sm font-semibold text-text">Yadony ADMIN</span>
       </div>
       <ThemeToggle />
     </div>

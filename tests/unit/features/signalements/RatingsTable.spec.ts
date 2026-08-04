@@ -41,4 +41,19 @@ describe('RatingsTable', () => {
   it('empty state', () => {
     expect(mount(RatingsTable, { props: { ratings: [], loading: false } }).text()).toMatch(/Aucun avis/i)
   })
+
+  it('loading state', () => {
+    expect(mount(RatingsTable, { props: { ratings: [], loading: true } }).text()).toMatch(/Chargement/i)
+  })
+
+  it('renders placeholders for missing optional fields', () => {
+    const w = mount(RatingsTable, {
+      props: {
+        ratings: [{ ...ratings[0], flagged: false, comment: null, raterName: null, ratedName: null }],
+        loading: false,
+      },
+    })
+    expect(w.find('[data-test="flagged-rt1"]').exists()).toBe(false)
+    expect(w.text()).toContain('— → —')
+  })
 })

@@ -17,8 +17,9 @@ const initials = computed(() =>
 <template>
   <aside class="w-sidebar shrink-0 bg-surface border-r border-border flex flex-col">
     <div class="px-6 py-5 border-b border-border">
-      <NuxtLink to="/" class="font-display font-bold text-xl text-primary">
-        dony <span class="text-text">ADMIN</span>
+      <NuxtLink to="/" class="flex items-center gap-2">
+        <img src="/logos/logo-yadony.png" alt="Yadony" class="h-7 w-auto" />
+        <span class="text-text">ADMIN</span>
       </NuxtLink>
     </div>
 

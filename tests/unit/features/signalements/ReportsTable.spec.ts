@@ -33,4 +33,17 @@ describe('ReportsTable', () => {
   it('empty state', () => {
     expect(mount(ReportsTable, { props: { reports: [], loading: false } }).text()).toMatch(/Aucun signalement/i)
   })
+
+  it('loading state', () => {
+    expect(mount(ReportsTable, { props: { reports: [], loading: true } }).text()).toMatch(/Chargement/i)
+  })
+
+  it('emits viewPhotos when a report photo is clicked', async () => {
+    const withPhotos = [{ ...reports[0], photoUrls: ['https://example.test/a.png'] }]
+    const w = mount(ReportsTable, { props: { reports: withPhotos, loading: false } })
+
+    await w.find('[data-test="report-photo-r1-0"]').trigger('click')
+
+    expect(w.emitted('viewPhotos')?.[0]).toEqual([['https://example.test/a.png']])
+  })
 })

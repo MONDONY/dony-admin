@@ -27,7 +27,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'dony ADMIN',
+      title: 'Yadony ADMIN',
       htmlAttrs: { lang: 'fr' },
       script: [
         {

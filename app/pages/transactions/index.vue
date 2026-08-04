@@ -22,9 +22,8 @@ async function loadCbs() { cbLoading.value = true; try { cbs.value = (await paym
 async function switchTab(t: 'payments' | 'chargebacks') { tab.value = t; if (t === 'chargebacks' && cbs.value.length === 0) await loadCbs() }
 async function afterAction() { await fetchPayments() }
 async function onAction(fn: () => Promise<boolean>) {
-  const ok = await fn()
+  await fn()
   await afterAction()
-  if (ok) detail.close()
 }
 
 onMounted(fetchPayments)

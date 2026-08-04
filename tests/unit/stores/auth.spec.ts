@@ -12,7 +12,10 @@ const adminUser: AdminUser = {
 }
 
 describe('useAuthStore (admin)', () => {
-  beforeEach(() => setActivePinia(createPinia()))
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
 
   it('starts unauthenticated, not admin', () => {
     const store = useAuthStore()
@@ -37,6 +40,7 @@ describe('useAuthStore (admin)', () => {
     const store = useAuthStore()
     store.setSession('tok', { ...adminUser, role: 'SUPPORT' })
     expect(store.isAdmin).toBe(true)
+    expect(store.isSupport).toBe(true)
   })
 
   it('clear() resets and drops admin', () => {
@@ -45,5 +49,7 @@ describe('useAuthStore (admin)', () => {
     store.clear()
     expect(store.isAuthenticated).toBe(false)
     expect(store.isAdmin).toBe(false)
+    expect(localStorage.getItem('dony-admin-session')).toBeNull()
   })
+
 })

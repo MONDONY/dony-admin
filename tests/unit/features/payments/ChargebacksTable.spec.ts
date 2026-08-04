@@ -7,4 +7,9 @@ const cbs = [{ id: 'cb1', bidId: 'b1', amountCents: 5000, reason: 'fraudulent', 
 describe('ChargebacksTable', () => {
   it('renders rows', () => { expect(mount(ChargebacksTable, { props: { chargebacks: cbs, loading: false } }).find('[data-test="cb-row-cb1"]').exists()).toBe(true) })
   it('empty state', () => { expect(mount(ChargebacksTable, { props: { chargebacks: [], loading: false } }).text()).toMatch(/Aucun litige bancaire/i) })
+  it('loading state', () => { expect(mount(ChargebacksTable, { props: { chargebacks: [], loading: true } }).text()).toMatch(/Chargement/i) })
+  it('renders placeholders for missing optional values', () => {
+    const w = mount(ChargebacksTable, { props: { chargebacks: [{ ...cbs[0], bidId: null, reason: null }], loading: false } })
+    expect(w.text()).toContain('—')
+  })
 })

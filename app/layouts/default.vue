@@ -5,7 +5,7 @@ import AppTopbar from '@/components/layout/AppTopbar.vue'
 
 const route = useRoute()
 const meta = computed(() => ({
-  title: (route.meta.pageTitle as string) ?? 'dony ADMIN',
+  title: (route.meta.pageTitle as string) ?? 'Yadony ADMIN',
   subtitle: route.meta.pageSubtitle as string | undefined,
 }))
 </script>
