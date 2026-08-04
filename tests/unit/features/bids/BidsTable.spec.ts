@@ -26,4 +26,11 @@ describe('BidsTable', () => {
   it('empty state', () => {
     expect(mount(BidsTable, { props: { bids: [], loading: false } }).text()).toMatch(/Aucun colis/i)
   })
+  it('loading state', () => {
+    expect(mount(BidsTable, { props: { bids: [], loading: true } }).text()).toMatch(/Chargement/i)
+  })
+  it('renders placeholders for missing names', () => {
+    const w = mount(BidsTable, { props: { bids: [{ ...bids[0], senderName: null, travelerName: null }], loading: false } })
+    expect(w.text()).toContain('— → —')
+  })
 })

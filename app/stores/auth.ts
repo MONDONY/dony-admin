@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: (state): boolean =>
       state.idToken !== null && state.user !== null,
     isAdmin: (state): boolean =>
-      state.user?.role === 'SUPER_ADMIN' || state.user?.role === 'ADMIN',
+      state.user?.role === 'SUPER_ADMIN' || state.user?.role === 'ADMIN' || state.user?.role === 'SUPPORT',
     isSupport: (state): boolean =>
       state.user?.role === 'SUPPORT',
   },

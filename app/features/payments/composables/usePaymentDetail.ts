@@ -13,7 +13,7 @@ export function usePaymentDetail() {
   }
   function close() { payment.value = null; error.value = null }
 
-  /** Retourne true si l'action a réussi (permet à la page de fermer le panneau). */
+  /** Retourne true si l'action a réussi, false si l'API renvoie une erreur. */
   async function run(fn: () => Promise<AdminPaymentDetail>): Promise<boolean> {
     error.value = null
     busy.value = true

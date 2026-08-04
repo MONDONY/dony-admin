@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
-import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
