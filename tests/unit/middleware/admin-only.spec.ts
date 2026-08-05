@@ -7,7 +7,7 @@ vi.stubGlobal('navigateTo', navigateToMock)
 vi.stubGlobal('defineNuxtRouteMiddleware', (fn: unknown) => fn)
 
 const makeAdmin = (role: AdminUser['role']): AdminUser => ({
-  id: 'u', login: 'admin', role, status: 'ACTIVE',
+  id: 'u', email: 'admin@yadony.com', role, status: 'ACTIVE',
   mustChangePassword: false, permissionOverrides: {},
 })
 type Mw = () => unknown

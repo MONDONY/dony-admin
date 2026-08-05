@@ -10,7 +10,7 @@ import NavItem from './NavItem.vue'
 
 const auth = useAuthStore()
 const initials = computed(() =>
-  auth.user?.login?.slice(0, 2).toUpperCase() ?? '?',
+  auth.user?.email?.slice(0, 2).toUpperCase() ?? '?',
 )
 </script>
 
@@ -29,7 +29,7 @@ const initials = computed(() =>
           <AvatarFallback class="bg-primary text-white text-sm">{{ initials }}</AvatarFallback>
         </Avatar>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium truncate">{{ auth.user?.login }}</p>
+          <p class="text-sm font-medium truncate">{{ auth.user?.email }}</p>
           <span class="text-xs bg-danger/20 text-danger px-1.5 py-0.5 rounded">{{ auth.user?.role }}</span>
         </div>
       </div>

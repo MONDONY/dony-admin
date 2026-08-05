@@ -33,23 +33,17 @@ export default defineNuxtPlugin(async () => {
       unsubscribe()
 
       if (firebaseUser) {
+        // Le backend est la seule source de vérité pour role/status/mustChangePassword :
+        // on recharge toujours /admin/me au démarrage, jamais de cache local.
         try {
           const idToken = await firebaseUser.getIdToken()
-          if (authStore.user) {
-            // Already have user data — just refresh the token
-            authStore.idToken = idToken
-          } else {
-            const adminUser = await $fetch<AdminUser>(`${pub.apiBaseUrl}/admin/me`, {
-              headers: { Authorization: `Bearer ${idToken}` },
-            }).catch(() => null)
-
-            if (adminUser) {
-              authStore.setSession(idToken, adminUser)
-            } else {
-              await auth.signOut()
-            }
-          }
+          authStore.idToken = idToken
+          const adminUser = await $fetch<AdminUser>(`${pub.apiBaseUrl}/admin/me`, {
+            headers: { Authorization: `Bearer ${idToken}` },
+          })
+          authStore.setSession(idToken, adminUser)
         } catch {
+          await auth.signOut().catch(() => {})
           authStore.clear()
         }
       }

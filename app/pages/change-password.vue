@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import type { Auth } from 'firebase/auth'
 import { useApi } from '@/composables/useApi'
+import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
 
-const authStore = useAuthStore()
 const api = useApi()
+const { refreshProfile } = useFirebaseAuth()
 
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -30,9 +31,9 @@ async function handleSubmit() {
       method: 'POST',
       body: { newPassword: newPassword.value },
     })
-    if (authStore.user) {
-      authStore.user.mustChangePassword = false
-    }
+    const { $firebaseAuth } = useNuxtApp()
+    const freshToken = await ($firebaseAuth as Auth | null)?.currentUser?.getIdToken(true)
+    await refreshProfile(freshToken)
     await navigateTo('/')
   } catch {
     error.value = 'Erreur lors du changement de mot de passe. Réessaie.'

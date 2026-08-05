@@ -1,4 +1,5 @@
 import type { Auth } from 'firebase/auth'
+import { signOut as fbSignOut } from 'firebase/auth'
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceId } from '@/lib/deviceId'
 
@@ -9,6 +10,15 @@ export function useApi(): ReturnType<typeof $fetch.create> {
 
   const config = useRuntimeConfig()
   const auth = useAuthStore()
+
+  async function clearFirebaseSession(): Promise<void> {
+    const { $firebaseAuth } = useNuxtApp()
+    if ($firebaseAuth) {
+      await Promise.resolve(fbSignOut($firebaseAuth as Auth)).catch(() => {})
+    }
+    auth.clear()
+    await navigateTo('/login')
+  }
 
   apiInstance = $fetch.create({
     baseURL: config.public.apiBaseUrl as string,
@@ -22,22 +32,26 @@ export function useApi(): ReturnType<typeof $fetch.create> {
           if (token !== auth.idToken) auth.idToken = token
         } catch { /* use cached token */ }
       }
-      const existing = (options.headers as Record<string, string>) ?? {}
-      const headers: Record<string, string> = { ...existing }
+      const headers = new Headers(options.headers)
       if (token) {
-        headers.Authorization = `Bearer ${token}`
+        headers.set('Authorization', `Bearer ${token}`)
       }
       const deviceId = getDeviceId()
       if (deviceId) {
-        headers['X-Device-Id'] = deviceId
+        headers.set('X-Device-Id', deviceId)
       }
       options.headers = headers
     },
-    onResponseError({ response }) {
+    async onResponseError({ response }) {
       if (response.status === 401) {
-        auth.clear()
-        navigateTo('/login')
+        await clearFirebaseSession()
+        return
       }
+      const code = (response._data as { code?: string } | undefined)?.code
+      if (response.status === 403 && code === 'PASSWORD_CHANGE_REQUIRED') {
+        await navigateTo('/change-password')
+      }
+      // Other 403s keep the session — the caller decides how to react.
     },
   })
 

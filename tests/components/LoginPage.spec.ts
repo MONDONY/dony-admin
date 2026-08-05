@@ -27,12 +27,20 @@ describe('login page (email+password)', () => {
     vi.mocked(vi.stubGlobal('navigateTo', vi.fn()))
   })
 
-  it('renders the login form with identifiant and password fields', async () => {
+  it('renders the login form with an email and password field', async () => {
     const wrapper = await mountLogin()
-    expect(wrapper.find('input#login').exists()).toBe(true)
+    const emailInput = wrapper.find('input#email')
+    expect(emailInput.exists()).toBe(true)
+    expect(emailInput.attributes('type')).toBe('email')
+    expect(emailInput.attributes('autocomplete')).toBe('email')
     expect(wrapper.find('input#password').exists()).toBe(true)
     expect(wrapper.find('button[type="submit"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Connexion')
+  })
+
+  it('does not render a demo login button', async () => {
+    const wrapper = await mountLogin()
+    expect(wrapper.find('[data-test="demo-login"]').exists()).toBe(false)
   })
 
   it('submit button disabled when fields empty', async () => {
@@ -43,7 +51,7 @@ describe('login page (email+password)', () => {
 
   it('submit button enabled when both fields filled', async () => {
     const wrapper = await mountLogin()
-    await wrapper.find('input#login').setValue('admin.1')
+    await wrapper.find('input#email').setValue('admin@yadony.com')
     await wrapper.find('input#password').setValue('pass123')
     const btn = wrapper.find('button[type="submit"]')
     expect(btn.attributes('disabled')).toBeUndefined()
@@ -53,7 +61,7 @@ describe('login page (email+password)', () => {
     const err = Object.assign(new Error('bad creds'), { code: 'auth/invalid-credential' })
     signInMock.mockRejectedValueOnce(err)
     const wrapper = await mountLogin()
-    await wrapper.find('input#login').setValue('admin.1')
+    await wrapper.find('input#email').setValue('admin@yadony.com')
     await wrapper.find('input#password').setValue('wrongpass')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
