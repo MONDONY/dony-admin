@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const ADMIN = { id: 'a1', login: 'admin.1', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
+const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 const BIDS_PAGE = { content: [
   { id: 'b1', status: 'COMPLETED', announcementId: 'a1', senderName: 'Jean', travelerName: 'Awa', corridor: 'Paris → Dakar', weightKg: 5, netEur: 30, paymentMethod: 'STRIPE', createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }

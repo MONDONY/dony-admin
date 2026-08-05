@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const ADMIN_USER = { id: 'user-1', login: 'admin.1', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
+const ADMIN_USER = { id: 'user-1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
 async function fakeLogin(page: import('@playwright/test').Page, user = ADMIN_USER) {
   await page.addInitScript((u) => {

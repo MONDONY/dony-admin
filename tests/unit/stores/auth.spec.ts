@@ -4,7 +4,7 @@ import { useAuthStore, type AdminUser } from '@/stores/auth'
 
 const adminUser: AdminUser = {
   id: 'user-1',
-  login: 'admin.1',
+  email: 'admin@yadony.com',
   role: 'ADMIN',
   status: 'ACTIVE',
   mustChangePassword: false,
@@ -49,7 +49,15 @@ describe('useAuthStore (admin)', () => {
     store.clear()
     expect(store.isAuthenticated).toBe(false)
     expect(store.isAdmin).toBe(false)
+  })
+
+  it('does not persist the token in localStorage', () => {
+    useAuthStore().setSession('token', adminUser)
     expect(localStorage.getItem('dony-admin-session')).toBeNull()
   })
 
+  it('does not expose a rehydrate action', () => {
+    const store = useAuthStore() as unknown as Record<string, unknown>
+    expect(store.rehydrate).toBeUndefined()
+  })
 })

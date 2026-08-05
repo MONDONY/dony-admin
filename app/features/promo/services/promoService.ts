@@ -16,6 +16,6 @@ export const promoService = {
     return useApi()<AdminPromoCode>(`/admin/promo-codes/${id}/status`, { method: 'PUT', body: { status } })
   },
   remove(id: string): Promise<void> {
-    return useApi()(`/admin/promo-codes/${id}`, { method: 'DELETE' })
+    return useApi()<void>(`/admin/promo-codes/${id}`, { method: 'DELETE' })
   },
 }

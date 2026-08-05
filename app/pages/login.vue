@@ -1,27 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
+import PasswordField from '@/features/auth/components/PasswordField.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
 
 const { signIn } = useFirebaseAuth()
 
-const login = ref('')
+const email = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
-const ready = ref(false)
-onMounted(() => { ready.value = true })
-
-const showDemoLogin = computed(() => import.meta.dev)
 
 async function handleSubmit() {
   error.value = ''
-  if (!login.value.trim() || !password.value) return
+  if (!email.value.trim() || !password.value) return
   loading.value = true
   try {
-    const adminUser = await signIn(login.value.trim(), password.value)
+    const adminUser = await signIn(email.value.trim(), password.value)
     if (adminUser.mustChangePassword) {
       await navigateTo('/change-password')
     } else {
@@ -36,19 +33,6 @@ async function handleSubmit() {
     } else {
       error.value = 'Erreur de connexion. Réessaie.'
     }
-  } finally {
-    loading.value = false
-  }
-}
-
-async function demoLogin() {
-  error.value = ''
-  loading.value = true
-  try {
-    await signIn('demo', 'Demo2024!')
-    await navigateTo('/')
-  } catch {
-    error.value = 'Connexion démo échouée. Vérifie que le backend tourne.'
   } finally {
     loading.value = false
   }
@@ -76,30 +60,23 @@ async function demoLogin() {
 
     <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
       <div class="flex flex-col gap-1.5">
-        <label for="login" class="text-sm font-medium text-text">Identifiant</label>
+        <label for="email" class="text-sm font-medium text-text">Email</label>
         <input
-          id="login"
-          v-model="login"
-          type="text"
-          autocomplete="username"
-          placeholder="admin.1"
+          id="email"
+          v-model="email"
+          type="email"
+          autocomplete="email"
+          placeholder="admin@yadony.com"
           class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
           :disabled="loading"
         />
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="password" class="text-sm font-medium text-text">Mot de passe</label>
-        <input
-          id="password"
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="••••••••••••"
-          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          :disabled="loading"
-        />
-      </div>
+      <PasswordField
+        id="password" v-model="password"
+        label="Mot de passe" autocomplete="current-password"
+        placeholder="••••••••••••" :disabled="loading"
+      />
 
       <div v-if="error" class="rounded-btn bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
         {{ error }}
@@ -107,7 +84,7 @@ async function demoLogin() {
 
       <button
         type="submit"
-        :disabled="loading || !login.trim() || !password"
+        :disabled="loading || !email.trim() || !password"
         class="w-full rounded-btn bg-primary text-white font-semibold py-2.5 text-sm hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
       >
         <svg v-if="loading" class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -117,18 +94,5 @@ async function demoLogin() {
         {{ loading ? 'Connexion…' : 'Se connecter' }}
       </button>
     </form>
-
-    <div v-if="showDemoLogin" class="border-t border-border pt-4">
-      <button
-        type="button"
-        data-test="demo-login"
-        :disabled="!ready"
-        class="w-full rounded-btn px-4 py-2 text-sm border border-dashed border-primary/50 text-primary hover:bg-primary/10 disabled:opacity-40 transition-colors"
-        @click="demoLogin"
-      >
-        Connexion démo (admin)
-      </button>
-      <p class="mt-2 text-center text-[11px] text-subtle">Mode local — aucune authentification Firebase requise</p>
-    </div>
   </div>
 </template>

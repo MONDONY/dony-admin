@@ -2,7 +2,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
 import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 
-export default defineNuxtPlugin(async () => {
+export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth: Auth | null }>(async () => {
   // E2E fast-path: skip Firebase entirely when addInitScript set __donyAuthSeed
   // (null = unauthenticated test, object = authenticated test).
   // This unblocks onMounted hooks and keeps plugin init < 1 ms in tests.
@@ -33,23 +33,17 @@ export default defineNuxtPlugin(async () => {
       unsubscribe()
 
       if (firebaseUser) {
+        // Le backend est la seule source de vérité pour role/status/mustChangePassword :
+        // on recharge toujours /admin/me au démarrage, jamais de cache local.
         try {
           const idToken = await firebaseUser.getIdToken()
-          if (authStore.user) {
-            // Already have user data — just refresh the token
-            authStore.idToken = idToken
-          } else {
-            const adminUser = await $fetch<AdminUser>(`${pub.apiBaseUrl}/admin/me`, {
-              headers: { Authorization: `Bearer ${idToken}` },
-            }).catch(() => null)
-
-            if (adminUser) {
-              authStore.setSession(idToken, adminUser)
-            } else {
-              await auth.signOut()
-            }
-          }
+          authStore.idToken = idToken
+          const adminUser = await $fetch<AdminUser>(`${pub.apiBaseUrl}/admin/me`, {
+            headers: { Authorization: `Bearer ${idToken}` },
+          })
+          authStore.setSession(idToken, adminUser)
         } catch {
+          await auth.signOut().catch(() => {})
           authStore.clear()
         }
       }
