@@ -2,13 +2,15 @@
 import { ref, computed } from 'vue'
 import type { ManagedAdminRole } from '@/features/admin-accounts/types/index'
 
+const props = defineProps<{ pending?: boolean; error?: string | null }>()
 const emit = defineEmits<{ submit: [email: string, role: ManagedAdminRole]; cancel: [] }>()
 
 const roles: ManagedAdminRole[] = ['ADMIN', 'SUPPORT']
 const email = ref('')
 const role = ref<ManagedAdminRole>('ADMIN')
 
-const canSubmit = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
+const canSubmit = computed(() =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()) && !props.pending)
 
 function onSubmit() {
   if (!canSubmit.value) return
@@ -23,6 +25,8 @@ function onSubmit() {
       @submit.prevent="onSubmit"
     >
       <h2 class="font-display text-lg font-semibold">Nouvel administrateur</h2>
+
+      <p v-if="error" data-test="create-admin-error" class="text-sm text-danger">{{ error }}</p>
 
       <label class="text-sm text-text-muted">Email
         <input
@@ -46,7 +50,7 @@ function onSubmit() {
         <button
           type="submit" data-test="create-admin-submit" :disabled="!canSubmit"
           class="rounded-btn px-4 py-2 text-sm bg-primary text-white disabled:opacity-40 hover:bg-primary/90"
-        >Créer</button>
+        >{{ pending ? 'Création…' : 'Créer' }}</button>
       </div>
     </form>
   </div>

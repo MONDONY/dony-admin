@@ -20,6 +20,8 @@ const {
 } = useAdminAccounts()
 
 const showCreate = ref(false)
+const creating = ref(false)
+const createError = ref<string | null>(null)
 
 type PendingAction =
   | { kind: 'role'; id: string; role: ManagedAdminRole }
@@ -66,8 +68,22 @@ async function confirmPending() {
 }
 
 async function onCreate(email: string, role: ManagedAdminRole) {
-  await createAccount(email, role)
+  if (creating.value) return
+  creating.value = true
+  createError.value = null
+  try {
+    await createAccount(email, role)
+    showCreate.value = false
+  } catch (e) {
+    createError.value = e instanceof Error ? e.message : 'La création a échoué'
+  } finally {
+    creating.value = false
+  }
+}
+
+function onCreateCancel() {
   showCreate.value = false
+  createError.value = null
 }
 
 function onCredentialsClose() {
@@ -89,7 +105,7 @@ onMounted(fetchAccounts)
       <button
         type="button" data-test="new-admin"
         class="rounded-btn px-4 py-2 text-sm bg-primary text-white hover:bg-primary/90"
-        @click="showCreate = true"
+        @click="createError = null; showCreate = true"
       >Nouvel administrateur</button>
     </div>
 
@@ -102,7 +118,10 @@ onMounted(fetchAccounts)
       <PaginationControls :page="pagination.currentPage" :total-pages="pagination.totalPages" @change="onPageChange" />
     </div>
 
-    <CreateAdminDialog v-if="showCreate" @submit="onCreate" @cancel="showCreate = false" />
+    <CreateAdminDialog
+      v-if="showCreate" :pending="creating" :error="createError"
+      @submit="onCreate" @cancel="onCreateCancel"
+    />
 
     <TemporaryCredentialsDialog
       v-if="temporaryCredentials" :credentials="temporaryCredentials"
