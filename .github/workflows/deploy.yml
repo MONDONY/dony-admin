@@ -1,0 +1,190 @@
+name: Deploy VPS
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/mondony/dony-admin
+
+jobs:
+
+  check-ci:
+    name: Vérification CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: La CI a-t-elle réussi ?
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "❌ CI échouée — déploiement bloqué"
+            exit 1
+          fi
+          echo "✅ CI validée — déploiement autorisé"
+
+  build-push:
+    name: Build & Push image
+    runs-on: ubuntu-latest
+    needs: check-ci
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Métadonnées image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-,format=short,enable=true
+            type=raw,value=latest
+      - name: Build & Push vers GHCR (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    name: Déploiement VPS
+    runs-on: ubuntu-latest
+    needs: [check-ci, build-push]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Valider les secrets critiques
+        run: |
+          for s in OVH_HOST OVH_USER OVH_SSH_KEY OVH_KNOWN_HOSTS GHCR_USERNAME GHCR_PAT; do
+            if [ -z "${!s}" ]; then
+              echo "❌ Secret manquant: $s"
+              exit 1
+            fi
+          done
+          echo "✅ Tous les secrets critiques sont présents"
+        env:
+          OVH_HOST: ${{ secrets.OVH_HOST }}
+          OVH_USER: ${{ secrets.OVH_USER }}
+          OVH_SSH_KEY: ${{ secrets.OVH_SSH_KEY }}
+          OVH_KNOWN_HOSTS: ${{ secrets.OVH_KNOWN_HOSTS }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+
+      - name: Créer .env depuis les variables (config publique Nuxt runtime)
+        run: |
+          cat > .env << 'EOF'
+          NUXT_PUBLIC_API_BASE_URL=${{ vars.NUXT_PUBLIC_API_BASE_URL }}
+          NUXT_PUBLIC_FIREBASE_API_KEY=${{ vars.NUXT_PUBLIC_FIREBASE_API_KEY }}
+          NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NUXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.NUXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NUXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NUXT_PUBLIC_FIREBASE_APP_ID }}
+          EOF
+          chmod 600 .env
+          echo "✅ Fichier .env créé (600 permissions)"
+
+      - name: Préparer répertoire sur le VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_KEY }}
+          script: |
+            set -e
+            mkdir -p ~/yadony-admin
+            echo "✅ Répertoire prêt"
+
+      - name: Transférer docker-compose.yml et .env au VPS
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.OVH_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.OVH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          SSH_OPTS="-o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -i ~/.ssh/id_ed25519"
+          DEST="${{ secrets.OVH_USER }}@${{ secrets.OVH_HOST }}:~/yadony-admin"
+
+          echo "📤 docker-compose.yml (source unique)..."
+          scp $SSH_OPTS docker-compose.yml "$DEST/"
+
+          echo "📤 .env..."
+          scp $SSH_OPTS .env "$DEST/"
+
+          echo "✅ Tous les fichiers transférés"
+
+      - name: Déploiement Docker Compose
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/yadony-admin
+
+            echo "🔐 Connexion à GHCR..."
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            echo "📥 Pull de l'image..."
+            docker compose pull
+
+            echo "🚀 Redémarrage du service..."
+            docker compose up -d --force-recreate --remove-orphans
+
+            echo "🧹 Nettoyage des images inutiles..."
+            docker image prune -f
+
+            echo "✅ Déploiement effectué"
+
+      - name: Health check (60s)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_KEY }}
+          script: |
+            set -e
+            echo "🔍 Vérification du conteneur yadony_admin..."
+            for i in $(seq 1 12); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' yadony_admin 2>/dev/null || echo "starting")
+              if [ "$STATUS" = "healthy" ]; then
+                echo "✅ yadony_admin healthy (tentative $i/12)"
+                exit 0
+              fi
+              echo "  ⏳ Tentative $i/12 — état: $STATUS"
+              sleep 5
+            done
+            echo "❌ yadony_admin non healthy après 60s"
+            docker logs yadony_admin --tail 30
+            exit 1
+
+      - name: Rapport de déploiement
+        if: always()
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_KEY }}
+          script: |
+            set +e
+            echo "═════════════════════════════════════════"
+            echo "📊 RAPPORT DE DÉPLOIEMENT"
+            echo "═════════════════════════════════════════"
+            docker ps --filter name=yadony_admin --format "table {{.Names}}\t{{.Status}}"
+            echo ""
+            echo "📝 Logs (dernières 10 lignes):"
+            docker logs yadony_admin --tail 10
+            echo "═════════════════════════════════════════"
