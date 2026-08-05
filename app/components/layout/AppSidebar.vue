@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   LayoutDashboard, Users, CreditCard, Package, AlertTriangle,
-  Bell, MessageSquare, Ticket, ScrollText, Download, Flag,
+  Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck,
 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -12,6 +12,7 @@ const auth = useAuthStore()
 const initials = computed(() =>
   auth.user?.email?.slice(0, 2).toUpperCase() ?? '?',
 )
+const isSuperAdmin = computed(() => auth.user?.role === 'SUPER_ADMIN')
 </script>
 
 <template>
@@ -56,6 +57,7 @@ const initials = computed(() =>
       <NavItem to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
       <NavItem to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
       <NavItem to="/signalements" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="isSuperAdmin" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
     </nav>
   </aside>
 </template>
