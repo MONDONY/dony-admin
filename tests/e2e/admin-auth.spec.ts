@@ -79,3 +79,29 @@ test('admin completes the required password change and reaches the dashboard', a
   await expect(page).toHaveURL('/')
   await expect(page.locator('h1').first()).toContainText(/Vue d.ensemble/)
 })
+
+test('voluntary password change (mustChangePassword=false) requires the current password', async ({ page }) => {
+  // Session already up to date — reaching /change-password is voluntary
+  // (profile menu), not a forced redirect. The form must ask for the
+  // current password before accepting a new one.
+  await seedAdmin(page, { ...ADMIN, mustChangePassword: false })
+
+  await page.goto('/change-password')
+  await expect(page.locator('#current-password')).toBeVisible()
+
+  const submit = page.getByRole('button', { name: 'Enregistrer' })
+  await expect(async () => {
+    await page.locator('#new-password').fill('NewPassw0rd1234!')
+    await page.locator('#confirm-password').fill('NewPassw0rd1234!')
+    await expect(page.locator('#new-password')).toHaveValue('NewPassw0rd1234!', { timeout: 2000 })
+  }).toPass({ timeout: 15000 })
+
+  // Current password left empty on purpose: the button must stay disabled.
+  await expect(submit).toBeDisabled()
+})
+
+test('forced password change (mustChangePassword=true) does not ask for the current password', async ({ page }) => {
+  await seedAdmin(page, { ...ADMIN, mustChangePassword: true })
+  await page.goto('/change-password')
+  await expect(page.locator('#current-password')).toHaveCount(0)
+})
