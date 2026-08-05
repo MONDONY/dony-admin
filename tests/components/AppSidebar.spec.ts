@@ -55,4 +55,27 @@ describe('AppSidebar', () => {
   it('hides Administrateurs when unauthenticated', () => {
     expect(mountSidebar().text()).not.toContain('Administrateurs')
   })
+
+  it('profile menu is closed by default', () => {
+    useAuthStore().setSession('token', makeAdmin('ADMIN'))
+    const wrapper = mountSidebar()
+    expect(wrapper.find('[data-test="profile-change-password"]').exists()).toBe(false)
+  })
+
+  it('opens the profile menu on click and shows "Changer mon mot de passe"', async () => {
+    useAuthStore().setSession('token', makeAdmin('ADMIN'))
+    const wrapper = mountSidebar()
+    await wrapper.find('[data-test="profile-menu-trigger"]').trigger('click')
+    const link = wrapper.find('[data-test="profile-change-password"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toBe('/change-password')
+  })
+
+  it('closes the profile menu after clicking the change-password link', async () => {
+    useAuthStore().setSession('token', makeAdmin('ADMIN'))
+    const wrapper = mountSidebar()
+    await wrapper.find('[data-test="profile-menu-trigger"]').trigger('click')
+    await wrapper.find('[data-test="profile-change-password"]').trigger('click')
+    expect(wrapper.find('[data-test="profile-change-password"]').exists()).toBe(false)
+  })
 })
