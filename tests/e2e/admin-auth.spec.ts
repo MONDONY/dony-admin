@@ -76,7 +76,7 @@ test('admin completes the required password change and reaches the dashboard', a
   }).toPass({ timeout: 15000 })
   await submit.click()
 
-  await expect(page).toHaveURL('/')
+  await expect(page).toHaveURL(/\/$/)
   await expect(page.locator('h1').first()).toContainText(/Vue d.ensemble/)
 })
 

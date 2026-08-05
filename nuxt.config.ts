@@ -26,6 +26,7 @@ export default defineNuxtConfig({
     },
   },
   app: {
+    baseURL: '/siragbe/',
     head: {
       title: 'Yadony ADMIN',
       htmlAttrs: { lang: 'fr' },
