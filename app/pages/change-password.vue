@@ -5,6 +5,7 @@ import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
 import { useApi } from '@/composables/useApi'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import { useAuthStore } from '@/stores/auth'
+import PasswordField from '@/features/auth/components/PasswordField.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
@@ -97,43 +98,24 @@ async function handleSubmit() {
     </div>
 
     <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
-      <div v-if="requiresCurrentPassword" class="flex flex-col gap-1.5">
-        <label for="current-password" class="text-sm font-medium text-text">Mot de passe actuel</label>
-        <input
-          id="current-password"
-          v-model="currentPassword"
-          type="password"
-          autocomplete="current-password"
-          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          :disabled="loading"
-        />
-      </div>
+      <PasswordField
+        v-if="requiresCurrentPassword"
+        id="current-password" v-model="currentPassword"
+        label="Mot de passe actuel" autocomplete="current-password"
+        :disabled="loading"
+      />
 
-      <div class="flex flex-col gap-1.5">
-        <label for="new-password" class="text-sm font-medium text-text">Nouveau mot de passe</label>
-        <input
-          id="new-password"
-          v-model="newPassword"
-          type="password"
-          autocomplete="new-password"
-          placeholder="12 caractères minimum"
-          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          :disabled="loading"
-        />
-      </div>
+      <PasswordField
+        id="new-password" v-model="newPassword"
+        label="Nouveau mot de passe" autocomplete="new-password"
+        placeholder="12 caractères minimum" :disabled="loading"
+      />
 
-      <div class="flex flex-col gap-1.5">
-        <label for="confirm-password" class="text-sm font-medium text-text">Confirmer</label>
-        <input
-          id="confirm-password"
-          v-model="confirmPassword"
-          type="password"
-          autocomplete="new-password"
-          placeholder="Répète le mot de passe"
-          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          :disabled="loading"
-        />
-      </div>
+      <PasswordField
+        id="confirm-password" v-model="confirmPassword"
+        label="Confirmer" autocomplete="new-password"
+        placeholder="Répète le mot de passe" :disabled="loading"
+      />
 
       <div v-if="error" class="rounded-btn bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
         {{ error }}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
+import PasswordField from '@/features/auth/components/PasswordField.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 definePageMeta({ layout: 'auth' })
@@ -71,18 +72,11 @@ async function handleSubmit() {
         />
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="password" class="text-sm font-medium text-text">Mot de passe</label>
-        <input
-          id="password"
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="••••••••••••"
-          class="w-full rounded-btn border border-border bg-surface-el px-3 py-2 text-sm text-text placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          :disabled="loading"
-        />
-      </div>
+      <PasswordField
+        id="password" v-model="password"
+        label="Mot de passe" autocomplete="current-password"
+        placeholder="••••••••••••" :disabled="loading"
+      />
 
       <div v-if="error" class="rounded-btn bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
         {{ error }}
