@@ -22,6 +22,6 @@ export const incidentsService = {
     return useApi()<AdminCancellationPage>('/admin/cancellations', { query })
   },
   confirmNoShow(bidId: string): Promise<unknown> {
-    return useApi()(`/cancellations/bids/${bidId}/confirm-noshow`, { method: 'POST' })
+    return useApi()<unknown>(`/cancellations/bids/${bidId}/confirm-noshow`, { method: 'POST' })
   },
 }

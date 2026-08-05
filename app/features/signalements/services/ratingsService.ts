@@ -15,6 +15,6 @@ export const ratingsService = {
     return useApi()<AdminRating>(`/admin/ratings/${id}/exclude`, { method: 'POST', body: { excluded, reason } })
   },
   remove(id: string): Promise<void> {
-    return useApi()(`/admin/ratings/${id}`, { method: 'DELETE' })
+    return useApi()<void>(`/admin/ratings/${id}`, { method: 'DELETE' })
   },
 }

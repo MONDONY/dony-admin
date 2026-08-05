@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   class?: HTMLAttributes['class']
-  src?: string
+  src: string
   alt?: string
 }
 

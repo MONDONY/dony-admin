@@ -20,6 +20,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm typecheck
       - run: pnpm test:coverage
       - uses: actions/upload-artifact@v4
         if: always()
@@ -43,7 +44,8 @@ jobs:
       - run: pnpm e2e
         env:
           # Clés Firebase laissées vides : le plugin firebase.client.ts saute alors
-          # l'initialisation (mode démo/e2e) et la connexion démo est disponible.
+          # l'initialisation. Les sessions E2E sont seedées directement dans le
+          # store via app/plugins/expose-auth.client.ts (voir tests/e2e/*.spec.ts).
           # NUXT_PUBLIC_API_BASE_URL est requis pour que les mocks page.route matchent.
           NUXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
       - uses: actions/upload-artifact@v4

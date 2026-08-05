@@ -86,6 +86,11 @@ function onCreateCancel() {
   createError.value = null
 }
 
+function openCreate() {
+  createError.value = null
+  showCreate.value = true
+}
+
 function onCredentialsClose() {
   clearTemporaryCredentials()
 }
@@ -105,7 +110,7 @@ onMounted(fetchAccounts)
       <button
         type="button" data-test="new-admin"
         class="rounded-btn px-4 py-2 text-sm bg-primary text-white hover:bg-primary/90"
-        @click="createError = null; showCreate = true"
+        @click="openCreate"
       >Nouvel administrateur</button>
     </div>
 
