@@ -10,7 +10,7 @@ const OVERVIEW = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
   await page.route('**/api/v1/admin/metrics/overview', (route) => route.fulfill({ json: OVERVIEW }))
 })
 

@@ -53,7 +53,7 @@ describe('useAuthStore (admin)', () => {
 
   it('does not persist the token in localStorage', () => {
     useAuthStore().setSession('token', adminUser)
-    expect(localStorage.getItem('dony-admin-session')).toBeNull()
+    expect(localStorage.getItem('yadony-admin-session')).toBeNull()
   })
 
   it('does not expose a rehydrate action', () => {

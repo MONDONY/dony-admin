@@ -61,7 +61,7 @@ const DETAIL_U1_SUSPENDED = { ...DETAIL_U1, status: 'SUSPENDED' }
 
 async function seedAdmin(page: import('@playwright/test').Page) {
   await page.addInitScript((u) => {
-    ;(window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u
+    ;(window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u
   }, ADMIN)
 }
 

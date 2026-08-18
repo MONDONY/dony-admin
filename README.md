@@ -1,6 +1,6 @@
-# dony ADMIN
+# Yadony ADMIN
 
-Back-office web réservé aux administrateurs dony (`SUPER_ADMIN`, `ADMIN`, `SUPPORT`).
+Back-office web réservé aux administrateurs Yadony (`SUPER_ADMIN`, `ADMIN`, `SUPPORT`).
 
 ## Stack
 - Nuxt 4 (SSR) + TypeScript + TailwindCSS + shadcn-vue

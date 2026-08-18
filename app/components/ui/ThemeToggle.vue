@@ -26,7 +26,7 @@
 const isDark = ref(false)
 
 onMounted(() => {
-  const saved = localStorage.getItem('dony-theme')
+  const saved = localStorage.getItem('yadony-theme')
   isDark.value = saved
     ? saved === 'dark'
     : window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -35,7 +35,7 @@ onMounted(() => {
 
 function toggle() {
   isDark.value = !isDark.value
-  localStorage.setItem('dony-theme', isDark.value ? 'dark' : 'light')
+  localStorage.setItem('yadony-theme', isDark.value ? 'dark' : 'light')
   applyTheme()
 }
 

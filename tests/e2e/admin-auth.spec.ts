@@ -23,7 +23,7 @@ const OVERVIEW = {
 
 async function seedAdmin(page: Page, user: typeof ADMIN) {
   await page.addInitScript((u) => {
-    ;(window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u
+    ;(window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u
   }, user)
 }
 

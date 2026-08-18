@@ -4,7 +4,7 @@ const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'A
 const BIDS_PAGE = { content: [
   { id: 'b1', status: 'COMPLETED', announcementId: 'a1', senderName: 'Jean', travelerName: 'Awa', corridor: 'Paris → Dakar', weightKg: 5, netEur: 30, paymentMethod: 'STRIPE', createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }
-const BID_DETAIL = { ...BIDS_PAGE.content[0], declaredValueEur: 100, contentCategory: 'Vêtements', recipientName: 'Fatou', trackingNumber: 'DONY12345678', commissionRate: 0.12, refusalReason: null }
+const BID_DETAIL = { ...BIDS_PAGE.content[0], declaredValueEur: 100, contentCategory: 'Vêtements', recipientName: 'Fatou', trackingNumber: 'YADONY12345678', commissionRate: 0.12, refusalReason: null }
 const TIMELINE = { bidId: 'b1', entries: [
   { at: '2026-06-01T08:00:00Z', kind: 'SCAN', label: 'Scan départ', detail: 'Paris CDG', photoUrl: null, gpsLat: 49.0, gpsLon: 2.5 },
   { at: '2026-06-02T08:00:00Z', kind: 'SCAN', label: 'Scan arrivée', detail: 'Dakar', photoUrl: null },
@@ -12,7 +12,7 @@ const TIMELINE = { bidId: 'b1', entries: [
 const ANNS = { content: [{ id: 'an1', status: 'ACTIVE', travelerName: 'Awa', corridor: 'Lyon → Abidjan', departureDate: '2026-07-01', availableKg: 10, pricePerKg: 8 }], totalElements: 1, totalPages: 1, number: 0, size: 20 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
 
   // Single consolidated handler for all /api/v1/admin/bids** requests.
   // Branches on URL to avoid multi-route ordering/precedence issues.
@@ -39,7 +39,7 @@ test('admin sees the bids list', async ({ page }) => {
 test('admin opens a bid detail with transaction timeline', async ({ page }) => {
   await page.goto('/colis')
   await page.locator('[data-test="bid-row-b1"]').click()
-  await expect(page.getByText('DONY12345678')).toBeVisible()
+  await expect(page.getByText('YADONY12345678')).toBeVisible()
   await expect(page.locator('[data-test="timeline-entry"]')).toHaveCount(2)
   await expect(page.getByText('Scan départ')).toBeVisible()
 })

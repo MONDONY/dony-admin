@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import TemporaryCredentialsDialog from '@/features/admin-accounts/components/TemporaryCredentialsDialog.vue'
 import type { TemporaryCredentials } from '@/features/admin-accounts/types/index'
 
-const credentials: TemporaryCredentials = { email: 'new-admin@dony.app', temporaryPassword: 'Tmp-Str0ng!23' }
+const credentials: TemporaryCredentials = { email: 'new-admin@yadony.com', temporaryPassword: 'Tmp-Str0ng!23' }
 
 describe('TemporaryCredentialsDialog', () => {
   it('displays the email and temporary password', () => {

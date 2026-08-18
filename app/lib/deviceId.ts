@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'dony_device_id'
+const STORAGE_KEY = 'yadony_device_id'
 
 /**
  * Retourne un identifiant stable pour ce navigateur, généré une fois et

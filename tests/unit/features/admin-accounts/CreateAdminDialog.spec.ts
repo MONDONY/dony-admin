@@ -17,11 +17,11 @@ describe('CreateAdminDialog', () => {
 
   it('emits submit with the entered email and role', async () => {
     const w = mount(CreateAdminDialog)
-    await w.find('[data-test="create-admin-email"]').setValue('new-admin@dony.app')
+    await w.find('[data-test="create-admin-email"]').setValue('new-admin@yadony.com')
     await w.find('[data-test="create-admin-role"]').setValue('SUPPORT')
     expect((w.find('[data-test="create-admin-submit"]').element as HTMLButtonElement).disabled).toBe(false)
     await w.find('[data-test="create-admin-submit"]').trigger('submit')
-    expect(w.emitted('submit')![0]).toEqual(['new-admin@dony.app', 'SUPPORT'])
+    expect(w.emitted('submit')![0]).toEqual(['new-admin@yadony.com', 'SUPPORT'])
   })
 
   it('emits cancel', async () => {

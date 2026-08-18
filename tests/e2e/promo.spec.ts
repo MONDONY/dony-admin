@@ -29,7 +29,7 @@ function routePromo(page: import('@playwright/test').Page, sink: { method: strin
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
 })
 
 test('admin sees promo codes', async ({ page }) => {

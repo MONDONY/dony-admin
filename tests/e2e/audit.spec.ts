@@ -6,7 +6,7 @@ const AUDIT_PAGE = {
   content: [
     {
       id: 'e1', action: 'USER_SUSPENDED', entityType: 'USER', entityId: 'u9',
-      actorId: 'a1', actorName: 'Admin Dony', ipAddress: '10.0.0.1',
+      actorId: 'a1', actorName: 'Admin Yadony', ipAddress: '10.0.0.1',
       payload: { reason: 'fraude avérée' }, createdAt: '2026-06-01T10:00:00Z',
     },
   ],
@@ -14,7 +14,7 @@ const AUDIT_PAGE = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
 })
 
 test('admin sees audit entries', async ({ page }) => {

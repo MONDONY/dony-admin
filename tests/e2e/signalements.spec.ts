@@ -26,7 +26,7 @@ const RATINGS_PAGE = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
 
   await page.route('**/api/v1/admin/reports**', (route) => {
     const url = route.request().url()

@@ -5,7 +5,7 @@ import AuditTable from '@/features/audit/components/AuditTable.vue'
 const entries = [
   {
     id: 'e1', action: 'USER_SUSPENDED', entityType: 'USER', entityId: 'u9',
-    actorId: 'a1', actorName: 'Admin Dony', ipAddress: '10.0.0.1',
+    actorId: 'a1', actorName: 'Admin Yadony', ipAddress: '10.0.0.1',
     payload: { reason: 'fraude' }, createdAt: '2026-06-01T10:00:00Z',
   },
 ]
@@ -15,7 +15,7 @@ describe('AuditTable', () => {
     const w = mount(AuditTable, { props: { entries, loading: false } })
     expect(w.find('[data-test="audit-row-e1"]').exists()).toBe(true)
     expect(w.text()).toContain('USER_SUSPENDED')
-    expect(w.text()).toContain('Admin Dony')
+    expect(w.text()).toContain('Admin Yadony')
   })
 
   it('toggles the payload viewer', async () => {
