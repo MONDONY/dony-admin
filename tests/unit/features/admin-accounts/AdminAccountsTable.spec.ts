@@ -5,15 +5,15 @@ import type { AdminAccount } from '@/features/admin-accounts/types/index'
 
 const accounts: AdminAccount[] = [
   {
-    id: 'root', email: 'root@dony.app', role: 'SUPER_ADMIN', status: 'ACTIVE',
+    id: 'root', email: 'root@yadony.com', role: 'SUPER_ADMIN', status: 'ACTIVE',
     mustChangePassword: false, createdAt: '2026-01-01T00:00:00Z', lastLoginAt: '2026-08-01T00:00:00Z',
   },
   {
-    id: 'a1', email: 'admin@dony.app', role: 'ADMIN', status: 'ACTIVE',
+    id: 'a1', email: 'admin@yadony.com', role: 'ADMIN', status: 'ACTIVE',
     mustChangePassword: true, createdAt: '2026-02-01T00:00:00Z', lastLoginAt: null,
   },
   {
-    id: 's1', email: 'support@dony.app', role: 'SUPPORT', status: 'DISABLED',
+    id: 's1', email: 'support@yadony.com', role: 'SUPPORT', status: 'DISABLED',
     mustChangePassword: false, createdAt: '2026-03-01T00:00:00Z', lastLoginAt: null,
   },
 ]
@@ -22,7 +22,7 @@ describe('AdminAccountsTable', () => {
   it('renders accounts with email, role, status and change-required indicator', () => {
     const w = mount(AdminAccountsTable, { props: { accounts, loading: false } })
     const row = w.find('[data-test="admin-row-a1"]')
-    expect(row.text()).toContain('admin@dony.app')
+    expect(row.text()).toContain('admin@yadony.com')
     expect(row.text()).toContain('ADMIN')
     expect(row.text()).toContain('Oui')
     expect(w.find('[data-test="admin-row-s1"]').text()).toContain('Désactivé')

@@ -1,6 +1,6 @@
 services:
   admin:
-    image: ghcr.io/mondony/dony-admin:latest
+    image: ghcr.io/mondony/yadony-admin:latest
     container_name: yadony_admin
     restart: unless-stopped
     env_file:

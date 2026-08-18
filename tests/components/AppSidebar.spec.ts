@@ -12,7 +12,7 @@ const NuxtLinkStub = {
 const ClientOnlyStub = { name: 'ClientOnly', template: '<div><slot /></div>' }
 
 const makeAdmin = (role: AdminUser['role']): AdminUser => ({
-  id: 'u', email: 'admin@dony.app', role, status: 'ACTIVE',
+  id: 'u', email: 'admin@yadony.com', role, status: 'ACTIVE',
   mustChangePassword: false, permissionOverrides: {},
 })
 

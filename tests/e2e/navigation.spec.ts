@@ -4,7 +4,7 @@ const ADMIN_USER = { id: 'user-1', email: 'admin.1@yadony.com', role: 'ADMIN', s
 
 async function fakeLogin(page: import('@playwright/test').Page, user = ADMIN_USER) {
   await page.addInitScript((u) => {
-    ;(window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u
+    ;(window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u
   }, user)
 }
 
@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 test('unauthenticated user is redirected to /login', async ({ page }) => {
   // null seed = explicitly unauthenticated (skips Firebase, no session set)
   await page.addInitScript(() => {
-    ;(window as unknown as { __donyAuthSeed: null }).__donyAuthSeed = null
+    ;(window as unknown as { __yadonyAuthSeed: null }).__yadonyAuthSeed = null
   })
   await page.goto('/users')
   await expect(page).toHaveURL(/\/login$/)

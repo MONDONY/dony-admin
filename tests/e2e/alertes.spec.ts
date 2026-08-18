@@ -10,7 +10,7 @@ const OPEN_PAGE = {
 const RESOLVED_ALERT = { ...OPEN_PAGE.content[0], resolved: true, resolvedAt: '2026-06-03T10:00:00Z' }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
   await page.route('**/api/v1/admin/alerts**', (route) => {
     const url = route.request().url()
     const method = route.request().method()

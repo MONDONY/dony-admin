@@ -36,7 +36,7 @@ const EMPTY_PAGE = { content: [], totalElements: 0, totalPages: 0, number: 0, si
 
 async function seedAdmin(page: Page, user: typeof SUPER_ADMIN | typeof ADMIN | typeof SUPPORT) {
   await page.addInitScript((u) => {
-    ;(window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u
+    ;(window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u
   }, user)
 }
 

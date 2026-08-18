@@ -9,7 +9,7 @@ const RELEASED = { ...DETAIL, status: 'RELEASED' }
 const CBS = { content: [{ id: 'cb1', bidId: 'b1', amountCents: 5000, reason: 'fraudulent', status: 'OPEN', openedAt: '2026-06-01T10:00:00Z' }], totalElements: 1, totalPages: 1, number: 0, size: 20 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((u) => { (window as unknown as { __donyAuthSeed: typeof u }).__donyAuthSeed = u }, ADMIN)
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
   await page.route('**/api/v1/admin/payments**', (route) => {
     const url = route.request().url(); const m = route.request().method()
     if (m === 'POST' && url.includes('/force-release')) return route.fulfill({ json: RELEASED })

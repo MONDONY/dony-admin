@@ -14,7 +14,6 @@ describe('public Yadony ADMIN brand', () => {
     ]
     const offenders = files.filter((file) => {
       const source = readFileSync(file, 'utf8')
-        .replaceAll(/dony-theme|dony-admin-session|admin\.dony\.invalid/gi, '')
       return /\bdony\b/i.test(source)
     })
     expect(offenders).toEqual([])

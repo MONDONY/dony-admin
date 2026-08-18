@@ -3,10 +3,10 @@ import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 
 export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth: Auth | null }>(async () => {
-  // E2E fast-path: skip Firebase entirely when addInitScript set __donyAuthSeed
+  // E2E fast-path: skip Firebase entirely when addInitScript set __yadonyAuthSeed
   // (null = unauthenticated test, object = authenticated test).
   // This unblocks onMounted hooks and keeps plugin init < 1 ms in tests.
-  if (import.meta.dev && '__donyAuthSeed' in (window as unknown as Record<string, unknown>)) {
+  if (import.meta.dev && '__yadonyAuthSeed' in (window as unknown as Record<string, unknown>)) {
     return { provide: { firebaseApp: null, firebaseAuth: null } }
   }
 
@@ -52,7 +52,7 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
     })
   })
 
-  const hasE2ESeed = import.meta.dev && !!(window as unknown as { __donyAuthSeed?: unknown }).__donyAuthSeed
+  const hasE2ESeed = import.meta.dev && !!(window as unknown as { __yadonyAuthSeed?: unknown }).__yadonyAuthSeed
   onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
       const freshToken = await firebaseUser.getIdToken()
