@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { AdminCancellation } from '@/features/incidents/types/index'
+import { useAuthStore } from '@/stores/auth'
 
 defineProps<{ cancellations: AdminCancellation[]; loading: boolean }>()
 const emit = defineEmits<{ confirm: [bidId: string] }>()
+const auth = useAuthStore()
 
 function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') : '—' }
 </script>
@@ -21,6 +23,7 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') 
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(c.contestationDeadline) }}</td>
           <td class="px-4 py-3 text-right">
             <button
+              v-if="auth.can('DISPUTE_RESOLVE')"
               type="button"
               :data-test="`confirm-noshow-${c.bidId}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-warning/20 text-warning hover:bg-warning/30"

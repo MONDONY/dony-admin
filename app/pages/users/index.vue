@@ -7,7 +7,7 @@ import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { useUsers } from '@/features/users/composables/useUsers'
 import { useUserDetail } from '@/features/users/composables/useUserDetail'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Utilisateurs', pageSubtitle: 'Recherche & modération des comptes' })
+definePageMeta({ middleware: 'admin-only', permission: 'USER_VIEW', pageTitle: 'Utilisateurs', pageSubtitle: 'Recherche & modération des comptes' })
 
 const { users, isLoading, totalPages, currentPage, filters, fetchUsers, goToPage, setStatusFilter, setSearch } = useUsers()
 const detail = useUserDetail()

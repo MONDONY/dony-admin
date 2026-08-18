@@ -10,7 +10,7 @@ import { usePaymentDetail } from '@/features/payments/composables/usePaymentDeta
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import type { AdminChargeback } from '@/features/payments/types/index'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
+definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
 
 const tab = ref<'payments' | 'chargebacks'>('payments')
 const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setDateRange } = usePayments()

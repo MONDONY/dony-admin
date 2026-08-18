@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useExports } from '@/features/exports/composables/useExports'
 import { EXPORT_TYPES } from '@/features/exports/types/index'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Exports', pageSubtitle: 'Exports CSV pour conformité et comptabilité' })
+definePageMeta({ middleware: 'admin-only', permission: 'EXPORT_RUN', pageTitle: 'Exports', pageSubtitle: 'Exports CSV pour conformité et comptabilité' })
 
 const { isLoading, error, filters, run } = useExports()
 

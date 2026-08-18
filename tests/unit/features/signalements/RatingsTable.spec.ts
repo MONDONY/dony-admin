@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const ratings = [
   {
@@ -11,6 +12,7 @@ const ratings = [
 ]
 
 describe('RatingsTable', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('renders rows with score + comment + names', () => {
     const w = mount(RatingsTable, { props: { ratings, loading: false } })
     expect(w.find('[data-test="rating-row-rt1"]').exists()).toBe(true)

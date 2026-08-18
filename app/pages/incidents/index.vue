@@ -8,7 +8,7 @@ import { useDisputes } from '@/features/incidents/composables/useDisputes'
 import { useDisputeDetail } from '@/features/incidents/composables/useDisputeDetail'
 import { useNoShows } from '@/features/incidents/composables/useNoShows'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Incidents', pageSubtitle: 'Litiges & no-shows' })
+definePageMeta({ middleware: 'admin-only', permission: 'DISPUTE_VIEW', pageTitle: 'Incidents', pageSubtitle: 'Litiges & no-shows' })
 
 const tab = ref<'disputes' | 'noshows'>('disputes')
 const { disputes, isLoading, totalPages, currentPage, fetchDisputes, goToPage } = useDisputes()

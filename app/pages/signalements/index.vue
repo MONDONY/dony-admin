@@ -8,7 +8,7 @@ import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import type { ReportAction, ReportStatusFilter } from '@/features/signalements/types/index'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
+definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
 const activeTab = ref<'reports' | 'ratings'>('reports')
 

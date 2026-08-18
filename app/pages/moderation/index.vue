@@ -7,7 +7,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useConversations } from '@/features/moderation/composables/useConversations'
 import { useConversationThread } from '@/features/moderation/composables/useConversationThread'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Modération', pageSubtitle: 'Conversations et messages' })
+definePageMeta({ middleware: 'admin-only', permission: 'MODERATION_VIEW', pageTitle: 'Modération', pageSubtitle: 'Conversations et messages' })
 
 const { conversations, isLoading, totalPages, currentPage, filters, fetchConversations, goToPage, setFlaggedOnly } = useConversations()
 const thread = useConversationThread()

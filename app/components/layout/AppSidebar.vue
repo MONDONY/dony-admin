@@ -5,14 +5,14 @@ import {
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, type AdminPermission } from '@/stores/auth'
 import NavItem from './NavItem.vue'
 
 const auth = useAuthStore()
 const initials = computed(() =>
   auth.user?.email?.slice(0, 2).toUpperCase() ?? '?',
 )
-const isSuperAdmin = computed(() => auth.user?.role === 'SUPER_ADMIN')
+const can = (p: AdminPermission) => auth.can(p)
 
 const showProfileMenu = ref(false)
 const profileMenuRef = ref<HTMLElement | null>(null)
@@ -102,18 +102,18 @@ onBeforeUnmount(() => {
     </ClientOnly>
 
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-      <NavItem to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/transactions" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/incidents" label="Incidents"><template #icon><AlertTriangle class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/alertes" label="Alertes"><template #icon><Bell class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/moderation" label="Modération"><template #icon><MessageSquare class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/promo" label="Codes promo"><template #icon><Ticket class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
-      <NavItem to="/signalements" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="isSuperAdmin" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('METRICS_VIEW')" to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('USER_VIEW')" to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('BID_VIEW')" to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('DISPUTE_VIEW')" to="/incidents" label="Incidents"><template #icon><AlertTriangle class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('ALERT_VIEW')" to="/alertes" label="Alertes"><template #icon><Bell class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('MODERATION_VIEW')" to="/moderation" label="Modération"><template #icon><MessageSquare class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('PROMO_MANAGE')" to="/promo" label="Codes promo"><template #icon><Ticket class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('AUDIT_VIEW')" to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('EXPORT_RUN')" to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('REPORT_VIEW')" to="/signalements" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('ADMIN_MANAGE')" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
     </nav>
   </aside>
 </template>

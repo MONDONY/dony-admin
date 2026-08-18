@@ -9,7 +9,8 @@ import { useAdminAccounts } from '@/features/admin-accounts/composables/useAdmin
 import type { ManagedAdminRole, AdminStatus } from '@/features/admin-accounts/types/index'
 
 definePageMeta({
-  middleware: ['admin-only', 'super-admin-only'],
+  middleware: 'admin-only',
+  permission: 'ADMIN_MANAGE',
   pageTitle: 'Administrateurs',
   pageSubtitle: 'Comptes et accès au back-office',
 })

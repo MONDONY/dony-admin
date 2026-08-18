@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminRating } from '@/features/signalements/types/index'
+import { useAuthStore } from '@/stores/auth'
 defineProps<{ ratings: AdminRating[]; loading: boolean }>()
 const emit = defineEmits<{ exclude: [id: string]; remove: [id: string] }>()
+const auth = useAuthStore()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n)) }
 </script>
@@ -35,11 +37,12 @@ function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
           <td class="px-4 py-3 text-right whitespace-nowrap">
             <button
-              v-if="!r.excluded" type="button" :data-test="`exclude-${r.id}`"
+              v-if="!r.excluded && auth.can('RATING_MODERATE')" type="button" :data-test="`exclude-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-warning/15 text-warning hover:bg-warning/25"
               @click="emit('exclude', r.id)"
             >Exclure</button>
             <button
+              v-if="auth.can('RATING_MODERATE')"
               type="button" :data-test="`remove-${r.id}`"
               class="ml-2 rounded-btn px-3 py-1.5 text-sm bg-danger/15 text-danger hover:bg-danger/25"
               @click="emit('remove', r.id)"

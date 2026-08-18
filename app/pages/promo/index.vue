@@ -7,7 +7,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { usePromoCodes } from '@/features/promo/composables/usePromoCodes'
 import type { AdminPromoCode, PromoCodeInput, PromoStatus } from '@/features/promo/types/index'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Codes promo', pageSubtitle: 'Gestion des codes de réduction' })
+definePageMeta({ middleware: 'admin-only', permission: 'PROMO_MANAGE', pageTitle: 'Codes promo', pageSubtitle: 'Gestion des codes de réduction' })
 
 const { codes, isLoading, totalPages, currentPage, filters, fetchCodes, goToPage, setStatusFilter, create, update, setStatus, remove } = usePromoCodes()
 

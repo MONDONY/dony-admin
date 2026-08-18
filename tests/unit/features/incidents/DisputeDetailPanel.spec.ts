@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DisputeDetailPanel from '@/features/incidents/components/DisputeDetailPanel.vue'
 import type { AdminDisputeDetail } from '@/features/incidents/types/index'
+import { seedAuth } from '~/tests/helpers/auth'
 
 vi.mock('@/components/ui/StatusBadge.vue', () => ({ default: { name: 'StatusBadge', template: '<div></div>' } }))
 vi.mock('@/components/ui/ConfirmActionDialog.vue', () => ({ default: { name: 'ConfirmActionDialog', template: '<div></div>', props: ['open', 'title', 'message', 'confirmLabel', 'requireReason'], emits: ['confirm', 'cancel'] } }))
@@ -9,6 +10,7 @@ vi.mock('@/features/incidents/components/GuaranteeFundForm.vue', () => ({ defaul
 vi.mock('@/features/incidents/components/disputeStatus.ts', () => ({ disputeStatusMeta: () => ({ status: 'open', label: 'Ouvert' }) }))
 
 describe('DisputeDetailPanel', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   const mockDispute: AdminDisputeDetail = {
     id: 'd1',
     type: 'Colis endommagé',

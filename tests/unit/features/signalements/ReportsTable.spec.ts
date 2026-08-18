@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const reports = [
   {
@@ -11,6 +12,7 @@ const reports = [
 ]
 
 describe('ReportsTable', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('renders rows with target + reason + reporter', () => {
     const w = mount(ReportsTable, { props: { reports, loading: false } })
     expect(w.find('[data-test="report-row-r1"]').exists()).toBe(true)

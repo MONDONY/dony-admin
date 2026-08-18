@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const mockPayment = {
   id: 'pay_123',
@@ -14,6 +15,7 @@ const mockPayment = {
 }
 
 describe('PaymentDetailPanel', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('renders when open prop is true', () => {
     const wrapper = mount(PaymentDetailPanel, {
       props: {

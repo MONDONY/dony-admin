@@ -6,7 +6,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useAlerts } from '@/features/alerts/composables/useAlerts'
 import type { ResolvedFilter } from '@/features/alerts/types/index'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Alertes', pageSubtitle: 'Alertes opérationnelles' })
+definePageMeta({ middleware: 'admin-only', permission: 'ALERT_VIEW', pageTitle: 'Alertes', pageSubtitle: 'Alertes opérationnelles' })
 
 const { alerts, isLoading, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, resolve } = useAlerts()
 const pendingId = ref<string | null>(null)

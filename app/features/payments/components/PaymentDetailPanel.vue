@@ -5,10 +5,12 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { paymentStatusMeta } from './paymentStatus'
 import { formatEuros } from '@/features/payments/types/index'
 import type { AdminPaymentDetail } from '@/features/payments/types/index'
+import { useAuthStore } from '@/stores/auth'
 
 defineProps<{ payment: AdminPaymentDetail; open: boolean; error?: string | null; busy?: boolean }>()
 const emit = defineEmits<{ close: []; 'force-release': []; refund: [] }>()
 
+const auth = useAuthStore()
 const pending = ref<'release' | 'refund' | null>(null)
 
 function confirm() {
@@ -35,8 +37,8 @@ function confirm() {
       </dl>
       <p v-if="error" data-test="payment-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
       <div v-if="payment.status === 'ESCROW'" class="flex flex-wrap gap-2">
-        <button type="button" data-test="action-release" :disabled="busy" class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30 disabled:opacity-40" @click="pending = 'release'">{{ busy ? 'En cours…' : 'Débloquer (force-release)' }}</button>
-        <button type="button" data-test="action-refund" :disabled="busy" class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30 disabled:opacity-40" @click="pending = 'refund'">{{ busy ? 'En cours…' : 'Rembourser' }}</button>
+        <button v-if="auth.can('PAYMENT_RELEASE')" type="button" data-test="action-release" :disabled="busy" class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30 disabled:opacity-40" @click="pending = 'release'">{{ busy ? 'En cours…' : 'Débloquer (force-release)' }}</button>
+        <button v-if="auth.can('PAYMENT_REFUND')" type="button" data-test="action-refund" :disabled="busy" class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30 disabled:opacity-40" @click="pending = 'refund'">{{ busy ? 'En cours…' : 'Rembourser' }}</button>
       </div>
       <button type="button" data-test="payment-close" class="mt-6 rounded-btn px-4 py-2 text-sm border border-border" @click="emit('close')">Fermer</button>
       <ConfirmActionDialog
