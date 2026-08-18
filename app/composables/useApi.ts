@@ -6,7 +6,10 @@ import { getDeviceId } from '@/lib/deviceId'
 let apiInstance: any = null
 
 export function useApi(): ReturnType<typeof $fetch.create> {
-  if (apiInstance) return apiInstance
+  // Cache uniquement côté client : en SSR une instance module-scope serait
+  // partagée entre requêtes (fuite du store Pinia de la 1re requête).
+  const isClient = typeof window !== 'undefined'
+  if (isClient && apiInstance) return apiInstance
 
   const config = useRuntimeConfig()
   const auth = useAuthStore()
@@ -20,7 +23,7 @@ export function useApi(): ReturnType<typeof $fetch.create> {
     await navigateTo('/login')
   }
 
-  apiInstance = $fetch.create({
+  const instance = $fetch.create({
     baseURL: config.public.apiBaseUrl as string,
     async onRequest({ options }) {
       const { $firebaseAuth } = useNuxtApp()
@@ -55,7 +58,8 @@ export function useApi(): ReturnType<typeof $fetch.create> {
     },
   })
 
-  return apiInstance
+  if (isClient) apiInstance = instance
+  return instance
 }
 
 export function _resetApiInstance(): void {
