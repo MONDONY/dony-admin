@@ -29,7 +29,7 @@ const commissionPercent = ref<string>(
 
 function applyCommission() {
   const pct = Number.parseFloat(commissionPercent.value)
-  if (Number.isNaN(pct) || pct < 0 || pct >= 100) return
+  if (Number.isNaN(pct) || pct < 0 || pct > 99.9) return
   emit('setCommission', Math.round(pct * 10) / 1000) // % → fraction, 1 décimale de %
 }
 </script>

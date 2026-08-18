@@ -97,6 +97,20 @@ describe('UserDetailPanel', () => {
     expect(w.emitted('setCommission')![0]).toEqual([null])
   })
 
+  it('commission editor: rejects a value above the back-end max (99.9 %) and does not emit', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="commission-input"]').setValue('99.95')
+    await w.find('[data-test="commission-apply"]').trigger('click')
+    expect(w.emitted('setCommission')).toBeUndefined()
+  })
+
+  it('commission editor: accepts the boundary value 99.9 % and emits the back-end max fraction', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="commission-input"]').setValue('99.9')
+    await w.find('[data-test="commission-apply"]').trigger('click')
+    expect(w.emitted('setCommission')![0]).toEqual([0.999])
+  })
+
   it('hides commission editor without USER_COMMISSION permission', () => {
     seedAuth('SUPPORT')
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
