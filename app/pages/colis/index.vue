@@ -34,6 +34,19 @@ async function switchTab(t: 'bids' | 'announcements') {
   }
 }
 
+function replaceAnn(updated: AdminAnnouncementListItem) {
+  const idx = anns.value.findIndex((a) => a.id === updated.id)
+  if (idx !== -1) anns.value[idx] = updated
+}
+
+async function removeAnnouncement(id: string, reason: string) {
+  replaceAnn(await bidsAdminService.removeAnnouncement(id, reason))
+}
+
+async function restoreAnnouncement(id: string) {
+  replaceAnn(await bidsAdminService.restoreAnnouncement(id))
+}
+
 onMounted(fetchBids)
 </script>
 
@@ -75,6 +88,9 @@ onMounted(fetchBids)
       />
     </template>
 
-    <AnnouncementsTable v-else :announcements="anns" :loading="annLoading" />
+    <AnnouncementsTable
+      v-else :announcements="anns" :loading="annLoading"
+      @remove="removeAnnouncement" @restore="restoreAnnouncement"
+    />
   </div>
 </template>
