@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/features/users/services/usersService', () => {
-  const svc = { get: vi.fn(), suspend: vi.fn(), ban: vi.fn(), unsuspend: vi.fn(), setCommissionRate: vi.fn() }
+  const svc = {
+    get: vi.fn(),
+    suspend: vi.fn(),
+    ban: vi.fn(),
+    unsuspend: vi.fn(),
+    setCommissionRate: vi.fn(),
+    suspendPublishing: vi.fn(),
+    liftPublishingSuspension: vi.fn(),
+  }
   return { usersService: svc }
 })
 
@@ -73,5 +81,22 @@ describe('useUserDetail', () => {
     await d.open('u1')
     await d.suspend('x')
     expect(d.error.value).toBe('nope')
+  })
+
+  it('suspendPublishing calls the service then refetches the detail', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE', publishingSuspended: true })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.suspendPublishing('fraude')
+    expect(svc.suspendPublishing).toHaveBeenCalledWith('u1', 'fraude')
+    expect(d.user.value?.publishingSuspended).toBe(true)
+  })
+
+  it('liftPublishing calls the service then refetches the detail', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE', publishingSuspended: false })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.liftPublishing()
+    expect(svc.liftPublishingSuspension).toHaveBeenCalledWith('u1')
   })
 })

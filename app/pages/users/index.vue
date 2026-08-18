@@ -36,6 +36,9 @@ onMounted(fetchUsers)
       @suspend="async (r) => { await detail.suspend(r); await afterAction() }"
       @ban="async (r) => { await detail.ban(r); await afterAction() }"
       @unsuspend="async () => { await detail.unsuspend(); await afterAction() }"
+      @suspend-publishing="async (r) => { await detail.suspendPublishing(r); await afterAction() }"
+      @lift-publishing="async () => { await detail.liftPublishing(); await afterAction() }"
+      @set-commission="async (rate) => { await detail.setCommissionRate(rate); await afterAction() }"
     />
   </div>
 </template>

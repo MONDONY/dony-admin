@@ -68,19 +68,35 @@ async function seedAdmin(page: import('@playwright/test').Page) {
 test.beforeEach(async ({ page }) => {
   await seedAdmin(page)
 
+  // Local mutable state for the publishing-suspension toggle, mirrored by the
+  // GET detail response below (suspend-publishing/lift-publishing-suspension
+  // return 204 with no body, so the panel re-fetches the detail afterwards).
+  let publishingSuspended = false
+
   // Single consolidated handler for all /api/v1/admin/users** requests.
   // Branches on URL and method to avoid multi-route ordering/precedence issues.
   await page.route('**/api/v1/admin/users**', (route) => {
     const url = route.request().url()
     const method = route.request().method()
 
+    // POST suspend-publishing (checked before the generic '/u1/suspend' match below,
+    // since '/u1/suspend-publishing' also contains the '/u1/suspend' substring)
+    if (method === 'POST' && url.includes('/suspend-publishing')) {
+      publishingSuspended = true
+      return route.fulfill({ status: 204, body: '' })
+    }
+    // POST lift-publishing-suspension
+    if (method === 'POST' && url.includes('/lift-publishing-suspension')) {
+      publishingSuspended = false
+      return route.fulfill({ status: 204, body: '' })
+    }
     // POST suspend
     if (url.includes('/u1/suspend')) {
       return route.fulfill({ json: DETAIL_U1_SUSPENDED })
     }
     // GET detail /admin/users/u1
     if (url.includes('/u1') && method === 'GET') {
-      return route.fulfill({ json: DETAIL_U1 })
+      return route.fulfill({ json: { ...DETAIL_U1, publishingSuspended } })
     }
     // GET list (with or without query string)
     return route.fulfill({ json: LIST_PAGE })
@@ -110,4 +126,13 @@ test('admin suspends a user with a reason', async ({ page }) => {
   // After action, detail.user.value is updated to DETAIL_U1_SUSPENDED → status badge becomes Suspendu
   // Scope assertion to the detail aside panel to avoid conflict with list row badges
   await expect(page.locator('aside').getByText('Suspendu')).toBeVisible()
+})
+
+test('admin suspend la publication depuis la fiche user', async ({ page }) => {
+  await page.goto('/users')
+  await page.locator('[data-test="row-u1"]').click()
+  await page.locator('[data-test="action-suspend-publishing"]').click()
+  await page.locator('[data-test="reason"]').fill('annonces frauduleuses')
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="action-lift-publishing"]')).toBeVisible()
 })

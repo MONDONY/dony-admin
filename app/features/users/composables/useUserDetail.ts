@@ -25,6 +25,10 @@ export function useUserDetail() {
   const ban = (reason: string) => run(() => usersService.ban(user.value!.id, reason))
   const unsuspend = () => run(() => usersService.unsuspend(user.value!.id))
   const setCommissionRate = (rate: number | null) => run(() => usersService.setCommissionRate(user.value!.id, rate))
+  const suspendPublishing = (reason: string) =>
+    run(async () => { await usersService.suspendPublishing(user.value!.id, reason); return usersService.get(user.value!.id) })
+  const liftPublishing = () =>
+    run(async () => { await usersService.liftPublishingSuspension(user.value!.id); return usersService.get(user.value!.id) })
 
-  return { user, isLoading, error, open, close, suspend, ban, unsuspend, setCommissionRate }
+  return { user, isLoading, error, open, close, suspend, ban, unsuspend, setCommissionRate, suspendPublishing, liftPublishing }
 }

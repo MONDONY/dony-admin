@@ -31,4 +31,10 @@ export const usersService = {
   setCommissionRate(id: string, rate: number | null): Promise<AdminUserDetail> {
     return useApi()<AdminUserDetail>(`/admin/users/${id}/commission-rate`, { method: 'PUT', body: { rate } })
   },
+  suspendPublishing(id: string, reason: string): Promise<void> {
+    return useApi()<void>(`/admin/users/${id}/suspend-publishing`, { method: 'POST', query: { reason } })
+  },
+  liftPublishingSuspension(id: string): Promise<void> {
+    return useApi()<void>(`/admin/users/${id}/lift-publishing-suspension`, { method: 'POST' })
+  },
 }
