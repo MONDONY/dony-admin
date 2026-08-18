@@ -1,6 +1,6 @@
 export type BidStatus = 'AWAITING_PAYMENT' | 'PENDING' | 'PAYMENT_ESCROWED' | 'ACCEPTED' | 'HANDED_OVER' | 'IN_TRANSIT' | 'REJECTED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'PARCEL_REFUSED' | 'EXPIRED'
 export type BidStatusFilter = 'TOUS' | BidStatus
-export type AnnouncementStatus = 'ACTIVE' | 'FULL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+export type AnnouncementStatus = 'ACTIVE' | 'FULL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'REMOVED_BY_ADMIN'
 export type TimelineKind = 'SCAN' | 'PHOTO' | 'PAYMENT' | 'EVENT'
 
 export interface AdminBidListItem {

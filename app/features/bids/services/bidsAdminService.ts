@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminBidDetail, AdminBidPage, AdminBidTimeline, AdminAnnouncementPage, BidsFilterState } from '@/features/bids/types/index'
+import type { AdminBidDetail, AdminBidPage, AdminBidTimeline, AdminAnnouncementPage, AdminAnnouncementListItem, BidsFilterState } from '@/features/bids/types/index'
 
 function buildQuery(f: BidsFilterState, page: number, size: number): Record<string, string | number> {
   const q: Record<string, string | number> = { page, size }
@@ -23,5 +23,11 @@ export const bidsAdminService = {
   },
   listAnnouncements(page: number, size: number): Promise<AdminAnnouncementPage> {
     return useApi()<AdminAnnouncementPage>('/admin/announcements', { query: { page, size } })
+  },
+  removeAnnouncement(id: string, reason: string): Promise<AdminAnnouncementListItem> {
+    return useApi()<AdminAnnouncementListItem>(`/admin/announcements/${id}/remove`, { method: 'POST', body: { reason } })
+  },
+  restoreAnnouncement(id: string): Promise<AdminAnnouncementListItem> {
+    return useApi()<AdminAnnouncementListItem>(`/admin/announcements/${id}/restore`, { method: 'POST' })
   },
 }

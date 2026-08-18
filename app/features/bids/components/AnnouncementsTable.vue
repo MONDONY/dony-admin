@@ -10,6 +10,7 @@ const annTone: Record<AnnouncementStatus, 'success' | 'info' | 'neutral' | 'dang
   IN_PROGRESS: 'info',
   COMPLETED: 'neutral',
   CANCELLED: 'danger',
+  REMOVED_BY_ADMIN: 'danger',
 }
 
 function fmt(d: string) {
