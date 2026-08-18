@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (25 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (26 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -22,6 +22,8 @@ export type AdminPermission =
   | 'ALERT_RESOLVE'
   | 'MODERATION_VIEW'
   | 'MESSAGE_DELETE'
+  | 'CONTENT_REMOVE'
+  | 'USER_MESSAGE_MUTE'
   | 'REPORT_VIEW'
   | 'REPORT_RESOLVE'
   | 'RATING_MODERATE'
@@ -48,6 +50,8 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'ALERT_RESOLVE',
   'MODERATION_VIEW',
   'MESSAGE_DELETE',
+  'CONTENT_REMOVE',
+  'USER_MESSAGE_MUTE',
   'REPORT_VIEW',
   'REPORT_RESOLVE',
   'RATING_MODERATE',

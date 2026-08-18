@@ -1,6 +1,7 @@
 import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, it, expect } from 'vitest'
 import { useAuthStore, effectivePermissions, ALL_PERMISSIONS, type AdminUser } from '@/stores/auth'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const adminUser: AdminUser = {
   id: 'user-1',
@@ -109,5 +110,28 @@ describe('useAuthStore (admin)', () => {
     const set = effectivePermissions('SUPPORT', { NOT_A_PERMISSION: true, USER_VIEW: false })
     expect(set.has('USER_VIEW')).toBe(false)
     expect([...set].every((p) => (ALL_PERMISSIONS as readonly string[]).includes(p))).toBe(true)
+  })
+
+  it('ADMIN can remove content and mute messaging', () => {
+    seedAuth('ADMIN')
+    const auth = useAuthStore()
+    expect(auth.can('CONTENT_REMOVE')).toBe(true)
+    expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
+  })
+
+  it('SUPPORT can neither remove content nor mute messaging', () => {
+    seedAuth('SUPPORT')
+    const auth = useAuthStore()
+    expect(auth.can('CONTENT_REMOVE')).toBe(false)
+    expect(auth.can('USER_MESSAGE_MUTE')).toBe(false)
+  })
+
+  it('SUPPORT can receive CONTENT_REMOVE via an override', () => {
+    seedAuth('SUPPORT', { CONTENT_REMOVE: true })
+    expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
+  })
+
+  it('exposes 26 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(26)
   })
 })
