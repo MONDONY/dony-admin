@@ -7,16 +7,30 @@ import type { AdminUserDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ user: AdminUserDetail; open: boolean }>()
-const emit = defineEmits<{ close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [] }>()
+const emit = defineEmits<{
+  close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
+  suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
+}>()
 const auth = useAuthStore()
 
-type Pending = 'suspend' | 'ban' | null
+type Pending = 'suspend' | 'ban' | 'suspendPublishing' | null
 const pending = ref<Pending>(null)
 const fullName = () => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || '—'
 function confirmReason(reason: string) {
   if (pending.value === 'suspend') emit('suspend', reason)
   else if (pending.value === 'ban') emit('ban', reason)
+  else if (pending.value === 'suspendPublishing') emit('suspendPublishing', reason)
   pending.value = null
+}
+
+const commissionPercent = ref<string>(
+  props.user.commissionRateOverride !== null ? String(props.user.commissionRateOverride * 100) : ''
+)
+
+function applyCommission() {
+  const pct = Number.parseFloat(commissionPercent.value)
+  if (Number.isNaN(pct) || pct < 0 || pct >= 100) return
+  emit('setCommission', Math.round(pct * 10) / 1000) // % → fraction, 1 décimale de %
 }
 </script>
 
@@ -40,6 +54,8 @@ function confirmReason(reason: string) {
         <div><dt class="text-text-muted">Envois</dt><dd class="tabular-nums">{{ user.totalShipments }}</dd></div>
         <div><dt class="text-text-muted">No-shows</dt><dd class="tabular-nums">{{ user.noShowCount }}</dd></div>
         <div><dt class="text-text-muted">Annulations</dt><dd class="tabular-nums">{{ user.cancellationCount }}</dd></div>
+        <div><dt class="text-text-muted">Publication</dt>
+          <dd>{{ user.publishingSuspended ? 'Suspendue' : 'Autorisée' }}</dd></div>
       </dl>
 
       <div class="flex flex-wrap gap-2">
@@ -59,17 +75,53 @@ function confirmReason(reason: string) {
           @click="emit('unsuspend')"
         >Réactiver</button>
         <button
+          v-if="!user.publishingSuspended && auth.can('USER_SUSPEND')" type="button" data-test="action-suspend-publishing"
+          class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30"
+          @click="pending = 'suspendPublishing'"
+        >Suspendre la publication</button>
+        <button
+          v-if="user.publishingSuspended && auth.can('USER_SUSPEND')" type="button" data-test="action-lift-publishing"
+          class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30"
+          @click="emit('liftPublishing')"
+        >Lever la suspension de publication</button>
+        <button
           type="button" data-test="action-close"
           class="rounded-btn px-4 py-2 text-sm border border-border ml-auto"
           @click="emit('close')"
         >Fermer</button>
       </div>
 
+      <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">
+        <p class="text-text-muted">Commission
+          <span v-if="user.commissionRateOverride !== null">
+            — dérogation actuelle : {{ (user.commissionRateOverride * 100).toFixed(1) }} %</span>
+          <span v-else> — taux global appliqué</span>
+        </p>
+        <div class="flex items-center gap-2">
+          <input
+            v-model="commissionPercent" data-test="commission-input" type="number"
+            min="0" max="99.9" step="0.1" placeholder="ex. 8"
+            class="rounded-btn border border-border bg-surface px-3 py-2 text-sm tabular-nums"
+          >
+          <button
+            type="button" data-test="commission-apply"
+            class="rounded-btn px-4 py-2 text-sm border border-border"
+            @click="applyCommission"
+          >Appliquer</button>
+          <button
+            v-if="user.commissionRateOverride !== null" type="button"
+            data-test="commission-reset"
+            class="rounded-btn px-4 py-2 text-sm border border-border"
+            @click="emit('setCommission', null)"
+          >Réinitialiser</button>
+        </div>
+      </div>
+
       <ConfirmActionDialog
         :open="pending !== null"
-        :title="pending === 'ban' ? 'Bannir ce compte' : pending === 'suspend' ? 'Suspendre ce compte' : ''"
-        :message="pending === 'ban' ? 'Le compte sera banni définitivement.' : pending === 'suspend' ? 'Le compte sera suspendu.' : ''"
-        :confirm-label="pending === 'ban' ? 'Bannir' : pending === 'suspend' ? 'Suspendre' : ''"
+        :title="pending === 'ban' ? 'Bannir ce compte' : pending === 'suspend' ? 'Suspendre ce compte' : pending === 'suspendPublishing' ? 'Suspendre la publication' : ''"
+        :message="pending === 'ban' ? 'Le compte sera banni définitivement.' : pending === 'suspend' ? 'Le compte sera suspendu.' : pending === 'suspendPublishing' ? 'L\'utilisateur ne pourra plus publier ni trajets ni colis.' : ''"
+        :confirm-label="pending === 'ban' ? 'Bannir' : pending === 'suspend' ? 'Suspendre' : pending === 'suspendPublishing' ? 'Suspendre la publication' : ''"
         :require-reason="true"
         @confirm="confirmReason"
         @cancel="pending = null"
