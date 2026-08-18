@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { userStatusMeta } from './userStatus'
@@ -13,25 +13,66 @@ const emit = defineEmits<{
 }>()
 const auth = useAuthStore()
 
-type Pending = 'suspend' | 'ban' | 'suspendPublishing' | null
+type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | null
 const pending = ref<Pending>(null)
 const fullName = () => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || '—'
 function confirmReason(reason: string) {
   if (pending.value === 'suspend') emit('suspend', reason)
   else if (pending.value === 'ban') emit('ban', reason)
   else if (pending.value === 'suspendPublishing') emit('suspendPublishing', reason)
+  else if (pending.value === 'setCommission') emit('setCommission', pendingCommissionRate.value)
+  else if (pending.value === 'resetCommission') emit('setCommission', null)
   pending.value = null
 }
 
 const commissionPercent = ref<string>(
   props.user.commissionRateOverride !== null ? String(props.user.commissionRateOverride * 100) : ''
 )
+const pendingCommissionRate = ref<number | null>(null)
 
 function applyCommission() {
   const pct = Number.parseFloat(commissionPercent.value)
   if (Number.isNaN(pct) || pct < 0 || pct > 99.9) return
-  emit('setCommission', Math.round(pct * 10) / 1000) // % → fraction, 1 décimale de %
+  pendingCommissionRate.value = Math.round(pct * 10) / 1000 // % → fraction, 1 décimale de %
+  pending.value = 'setCommission'
 }
+
+type DialogConfig = { title: string; message: string; confirmLabel: string; requireReason: boolean }
+const dialogConfig = computed<DialogConfig>(() => {
+  switch (pending.value) {
+    case 'suspend':
+      return { title: 'Suspendre ce compte', message: 'Le compte sera suspendu.', confirmLabel: 'Suspendre', requireReason: true }
+    case 'ban':
+      return {
+        title: 'Bannir ce compte', message: 'Le compte sera banni définitivement.', confirmLabel: 'Bannir', requireReason: true,
+      }
+    case 'suspendPublishing':
+      return {
+        title: 'Suspendre la publication',
+        message: 'L\'utilisateur ne pourra plus publier ni trajets ni colis.',
+        confirmLabel: 'Suspendre la publication',
+        requireReason: true,
+      }
+    case 'setCommission': {
+      const pct = pendingCommissionRate.value !== null ? (pendingCommissionRate.value * 100).toFixed(1) : ''
+      return {
+        title: 'Appliquer la dérogation de commission',
+        message: `Un taux de commission de ${pct} % sera appliqué à cet utilisateur, en remplacement du taux global de la plateforme.`,
+        confirmLabel: 'Appliquer',
+        requireReason: false,
+      }
+    }
+    case 'resetCommission':
+      return {
+        title: 'Réinitialiser la commission',
+        message: 'La dérogation de commission sera supprimée : l\'utilisateur repassera au taux global de la plateforme.',
+        confirmLabel: 'Réinitialiser',
+        requireReason: false,
+      }
+    default:
+      return { title: '', message: '', confirmLabel: '', requireReason: false }
+  }
+})
 </script>
 
 <template>
@@ -112,17 +153,17 @@ function applyCommission() {
             v-if="user.commissionRateOverride !== null" type="button"
             data-test="commission-reset"
             class="rounded-btn px-4 py-2 text-sm border border-border"
-            @click="emit('setCommission', null)"
+            @click="pending = 'resetCommission'"
           >Réinitialiser</button>
         </div>
       </div>
 
       <ConfirmActionDialog
         :open="pending !== null"
-        :title="pending === 'ban' ? 'Bannir ce compte' : pending === 'suspend' ? 'Suspendre ce compte' : pending === 'suspendPublishing' ? 'Suspendre la publication' : ''"
-        :message="pending === 'ban' ? 'Le compte sera banni définitivement.' : pending === 'suspend' ? 'Le compte sera suspendu.' : pending === 'suspendPublishing' ? 'L\'utilisateur ne pourra plus publier ni trajets ni colis.' : ''"
-        :confirm-label="pending === 'ban' ? 'Bannir' : pending === 'suspend' ? 'Suspendre' : pending === 'suspendPublishing' ? 'Suspendre la publication' : ''"
-        :require-reason="true"
+        :title="dialogConfig.title"
+        :message="dialogConfig.message"
+        :confirm-label="dialogConfig.confirmLabel"
+        :require-reason="dialogConfig.requireReason"
         @confirm="confirmReason"
         @cancel="pending = null"
       />
