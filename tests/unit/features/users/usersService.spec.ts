@@ -54,4 +54,19 @@ describe('usersService', () => {
     await usersService.unsuspend('u1')
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/unsuspend', { method: 'POST' })
   })
+
+  it('suspendPublishing POSTs reason as query param', async () => {
+    await usersService.suspendPublishing('u1', 'annonces frauduleuses')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/suspend-publishing', {
+      method: 'POST',
+      query: { reason: 'annonces frauduleuses' },
+    })
+  })
+
+  it('liftPublishingSuspension POSTs without body', async () => {
+    await usersService.liftPublishingSuspension('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/lift-publishing-suspension', {
+      method: 'POST',
+    })
+  })
 })
