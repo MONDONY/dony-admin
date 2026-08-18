@@ -196,30 +196,116 @@ ne peut pas écrire.
 
 ## 5. Lot C — Users avancé : KYC + RGPD
 
+> **Section réécrite après reconnaissance du code réel** (rapport :
+> `recon-lot-c.md`). La version initiale décrivait un existant qui n'est plus
+> vrai depuis la migration `V46__kyc_cleanup.sql`. Les écarts sont signalés par
+> ⚠️ ci-dessous. Les permissions `USER_KYC` et `USER_GDPR_DELETE` sont **déjà
+> déclarées** back (`AdminPermission.java`) et front (`auth.ts`), déjà attribuées
+> au rôle `ADMIN`, mais **jamais consommées** — pur scaffolding à câbler.
+
 ### KYC (`USER_KYC`)
+
+⚠️ **`kyc_schema` ne contient plus aucune donnée sensible ni document.** Les
+colonnes `id_document_encrypted` et `selfie_url` ont été supprimées par `V46`
+(« never written, Stripe is source of truth »). La table
+`kyc_schema.kyc_verifications` ne porte plus que le statut et un pointeur de
+session Stripe. Une consultation KYC admin doit donc interroger **l'API Stripe
+Identity**, pas du stockage local — il n'y a ni document ni URL présignée à
+exposer.
+
+⚠️ **Il n'existe aucun historique de sessions.** `uq_kyc_user_id` impose une
+seule ligne par utilisateur ; chaque nouvelle session écrase le
+`stripe_verification_session_id` précédent. La vue admin montre donc **la
+session courante**, pas un historique.
+
 - Back :
-  - `GET /admin/users/{userId}/kyc` — statut Stripe Identity détaillé + historique des
-    sessions (données depuis `kyc_schema`, jamais d'URL directe de fichier — presigned
-    uniquement si des documents sont exposés).
-  - `POST /admin/users/{userId}/kyc/reset` — invalide la session Identity en cours,
-    statut KYC → `PENDING`, audit_log `KYC_RESET_BY_ADMIN`, notification à l'utilisateur.
-- Front : onglet « KYC » dans la fiche user (statut, historique, bouton Réinitialiser
-  avec confirmation), gated `can('USER_KYC')`.
+  - `GET /admin/users/{userId}/kyc` — statut local (les **deux** statuts, voir
+    ci-dessous) enrichi par un appel live à Stripe Identity sur la session
+    courante (statut Stripe, motif de rejet, dates). Dégradation propre : si
+    l'appel Stripe échoue, renvoyer l'état local avec un indicateur
+    `stripeUnavailable`, jamais une erreur 500.
+  - `POST /admin/users/{userId}/kyc/reset` — annule la session Identity en cours
+    côté Stripe, puis **UPDATE en place** de la ligne KYC (statut, effacement du
+    `stripe_verification_session_id`, du motif et du code de rejet), audit_log
+    `KYC_RESET_BY_ADMIN`, notification à l'utilisateur.
+
+⚠️ **Deux pièges de cohérence, tous deux vérifiés dans le code :**
+1. **Deux enums de statut désynchronisés** : `KycVerificationStatus`
+   (`PENDING/VERIFIED/REJECTED`, sur `kyc_schema`) et `KycStatus`
+   (`NOT_STARTED/PENDING/VERIFIED/REJECTED`, sur `public.users`). Un reset doit
+   remettre **les deux** en cohérence, sinon les sources de vérité divergent en
+   silence.
+2. **Jamais de soft-delete + recréation** pour le reset : `uq_kyc_user_id` est
+   une contrainte UNIQUE classique, pas un index partiel — la ligne soft-deletée
+   reste physiquement présente et une insertion violerait la contrainte. Le motif
+   employé par `AccountFinalizationService` n'est donc **pas** réutilisable ici.
+
+⚠️ **Incompatibilité d'identifiant** : `AdminUserController` est entièrement
+keyé sur `UUID userId`, alors que `KycService.createSession/abandonSession/
+getStatus` est keyé sur `String firebaseUid`. Les méthodes existantes ne sont pas
+réutilisables telles quelles — ajouter des méthodes de service admin dédiées,
+UUID-based via `KycRepository.findByUserId(UUID)` qui existe déjà.
+
+- Front : onglet « KYC » dans la fiche user (statut, détail de la session
+  courante, bouton Réinitialiser avec confirmation), gated `can('USER_KYC')`.
 
 ### RGPD (`USER_GDPR_DELETE`)
+
+`AccountFinalizationService.finalize(user, reason)` est **le point d'entrée
+unique et déjà fonctionnel** de l'anonymisation : il écrase prénom/nom/date de
+naissance/ville/token FCM, bannit et soft-delete le compte, soft-delete la ligne
+KYC, purge le préfixe de stockage, supprime le compte Firebase (ce qui emporte
+téléphone et email) et écrit un audit immuable. Le Lot C le réutilise plutôt
+que de réimplémenter une anonymisation parallèle.
+
+⚠️ **Ne pas passer par `AuthService.deleteImmediately`** : cette méthode exige un
+`auth_time` Firebase de moins de 5 minutes **de l'utilisateur lui-même**, donc un
+déclenchement admin échouerait systématiquement en 401. Appeler directement
+`AccountFinalizationService.finalize()` avec une nouvelle valeur de
+`FinalizationReason` (`ADMIN_INITIATED`) — l'enum n'a aujourd'hui que
+`SOFT_GRACE_EXPIRED` et `HARD_IMMEDIATE`.
+
+**Défauts d'anonymisation préexistants, corrigés dans ce lot** (trouvés en
+reconnaissance ; règle « signaler puis corriger ») :
+- `proSiret` — identifiant d'entreprise réel, chiffré mais **jamais anonymisé**.
+  C'est un défaut RGPD au sens strict : la donnée reste ré-identifiante.
+- `kycStatus` n'est pas remis à `NOT_STARTED`.
+- `deletionRequestedAt` n'est jamais effacé par `finalize()` (contrairement à
+  `reactivateAccount`).
+- La ligne `kyc_schema` est seulement soft-deletée : le
+  `stripe_verification_session_id`, pointeur vers les pièces d'identité détenues
+  par Stripe, **survit à la suppression du compte**. Il doit être effacé.
+
 - Back :
-  - `GET /admin/users/gdpr-requests` — file des users avec `deletionRequestedAt != null`
-    et non encore anonymisés.
-  - `POST /admin/users/{userId}/gdpr-execute` — anonymisation : PII écrasées
-    (nom, email, téléphone, adresses), soft delete du compte, purge `kyc_schema`,
-    conservation des données transactionnelles anonymisées (obligations comptables),
-    audit_log `USER_GDPR_EXECUTED`. **Irréversible** — répond 409 si paiement escrow
-    en cours.
-- Front : page `users/rgpd` (permission `USER_GDPR_DELETE` dans `definePageMeta`) :
-  file des demandes, âge de la demande, geste « Exécuter la suppression » avec **double
-  confirmation** (saisie du nom du user).
-- Tests : anonymisation vérifiée champ par champ, refus si escrow actif, matrice
-  permissions, E2E file RGPD.
+  - `GET /admin/users/gdpr-requests` — file des utilisateurs avec
+    `deletionRequestedAt != null` non encore anonymisés, avec l'âge de la demande.
+  - `POST /admin/users/{userId}/gdpr-execute` — exécute l'anonymisation via
+    `finalize(user, ADMIN_INITIATED)`, audit_log `USER_GDPR_EXECUTED`.
+    **Irréversible.**
+
+⚠️ **Code de refus : 422, pas 409.** Les gardes existantes
+(`hasActiveEscrowForUser` → `active-transactions`, solde wallet non vide →
+`wallet-balance-not-empty`) répondent déjà **422** dans `UserService.requestDeletion`
+et `AuthService.deleteImmediately`. Le geste admin réutilise ces mêmes gardes et
+donc les mêmes codes : introduire un 409 ici créerait deux conventions pour un
+refus identique, et l'application mobile mappe déjà ces slugs.
+
+- Front : page `users/rgpd` (`definePageMeta({ permission: 'USER_GDPR_DELETE' })`) :
+  file des demandes, âge de la demande, geste « Exécuter la suppression » avec
+  **double confirmation par saisie du nom de l'utilisateur**. ⚠️ Aucun composant
+  de ce type n'existe — `ConfirmActionDialog` ne fait qu'une confirmation simple
+  avec motif. Il faut donc l'étendre (prop optionnelle de saisie de contrôle)
+  plutôt que créer un composant concurrent.
+
+### Dette du Lot B reprise ici
+- `restoreByAdmin` force `ACTIVE` sans mémoriser le statut d'origine : restaurer
+  une annonce `COMPLETED`/`CANCELLED` la rend réservable avec une date passée.
+- `CashCommissionService.acceptCashBid` ne garde que `REMOVED_BY_ADMIN` au lieu
+  de tout `OUT_OF_MARKET`.
+
+- Tests : anonymisation vérifiée champ par champ (y compris les champs
+  nouvellement couverts), refus si escrow actif ou wallet non vide, cohérence des
+  deux statuts KYC après reset, matrice de permissions, E2E file RGPD.
 
 ---
 
