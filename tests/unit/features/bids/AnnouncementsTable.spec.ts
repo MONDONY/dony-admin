@@ -142,13 +142,14 @@ describe('AnnouncementsTable', () => {
       expect(wrapper.find('[data-test="col-actions"]').exists()).toBe(true)
     })
 
-    it('hides the actions column for SUPPORT (no CONTENT_REMOVE)', () => {
+    it('hides the actions column for SUPPORT (no CONTENT_REMOVE) — including Restaurer on a removed row', () => {
       seedAuth('SUPPORT')
       const wrapper = mount(AnnouncementsTable, {
-        props: { announcements: anns, loading: false },
+        props: { announcements: [...anns, removedAnn], loading: false },
       })
       expect(wrapper.find('[data-test="col-actions"]').exists()).toBe(false)
       expect(wrapper.find('[data-test="remove-a1"]').exists()).toBe(false)
+      expect(wrapper.find('[data-test="restore-a4"]').exists()).toBe(false)
     })
   })
 
@@ -234,6 +235,46 @@ describe('AnnouncementsTable', () => {
       await wrapper.find('[data-test="restore-a4"]').trigger('click')
       expect(wrapper.emitted('restore')![0]).toEqual(['a4'])
       expect(wrapper.find('[data-test="overlay"]').exists()).toBe(false)
+    })
+  })
+
+  describe('error and busy (backend failures, double-submission)', () => {
+    it('shows the backend error message near the table when the error prop is set', () => {
+      const wrapper = mount(AnnouncementsTable, {
+        props: { announcements: [anns[0]], loading: false, error: 'Des colis acceptés sont en cours sur cette annonce.' },
+      })
+      const banner = wrapper.find('[data-test="ann-error"]')
+      expect(banner.exists()).toBe(true)
+      expect(banner.text()).toBe('Des colis acceptés sont en cours sur cette annonce.')
+    })
+
+    it('shows no error banner when the error prop is absent', () => {
+      const wrapper = mount(AnnouncementsTable, {
+        props: { announcements: [anns[0]], loading: false },
+      })
+      expect(wrapper.find('[data-test="ann-error"]').exists()).toBe(false)
+    })
+
+    it('disables Retirer while busy, preventing a double submission', () => {
+      const wrapper = mount(AnnouncementsTable, {
+        props: { announcements: [anns[0]], loading: false, busy: true },
+      })
+      expect(wrapper.find('[data-test="remove-a1"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('disables Restaurer while busy', () => {
+      const wrapper = mount(AnnouncementsTable, {
+        props: { announcements: [removedAnn], loading: false, busy: true },
+      })
+      expect(wrapper.find('[data-test="restore-a4"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('leaves Retirer and Restaurer enabled when not busy', () => {
+      const wrapper = mount(AnnouncementsTable, {
+        props: { announcements: [anns[0], removedAnn], loading: false, busy: false },
+      })
+      expect(wrapper.find('[data-test="remove-a1"]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[data-test="restore-a4"]').attributes('disabled')).toBeUndefined()
     })
   })
 })

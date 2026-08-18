@@ -5,7 +5,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import type { AdminAnnouncementListItem, AnnouncementStatus } from '@/features/bids/types/index'
 import { useAuthStore } from '@/stores/auth'
 
-defineProps<{ announcements: AdminAnnouncementListItem[]; loading: boolean }>()
+defineProps<{ announcements: AdminAnnouncementListItem[]; loading: boolean; error?: string | null; busy?: boolean }>()
 const emit = defineEmits<{ remove: [id: string, reason: string]; restore: [id: string] }>()
 const auth = useAuthStore()
 
@@ -44,6 +44,7 @@ function confirmRemove(reason: string) {
 </script>
 
 <template>
+  <p v-if="error" data-test="ann-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
   <div class="rounded-card border border-border bg-surface overflow-hidden">
     <table class="w-full">
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
@@ -73,12 +74,14 @@ function confirmRemove(reason: string) {
           <td v-if="auth.can('CONTENT_REMOVE')" class="px-4 py-3 text-right">
             <button
               v-if="a.status !== 'REMOVED_BY_ADMIN'" type="button" :data-test="`remove-${a.id}`"
-              class="rounded-btn px-3 py-1.5 text-sm bg-danger/15 text-danger hover:bg-danger/25"
+              :disabled="busy"
+              class="rounded-btn px-3 py-1.5 text-sm bg-danger/15 text-danger hover:bg-danger/25 disabled:opacity-40"
               @click="pending = a.id"
             >Retirer</button>
             <button
               v-else type="button" :data-test="`restore-${a.id}`"
-              class="rounded-btn px-3 py-1.5 text-sm bg-success/15 text-success hover:bg-success/25"
+              :disabled="busy"
+              class="rounded-btn px-3 py-1.5 text-sm bg-success/15 text-success hover:bg-success/25 disabled:opacity-40"
               @click="emit('restore', a.id)"
             >Restaurer</button>
           </td>
