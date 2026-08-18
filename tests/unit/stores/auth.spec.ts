@@ -1,6 +1,6 @@
 import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, it, expect } from 'vitest'
-import { useAuthStore, type AdminUser } from '@/stores/auth'
+import { useAuthStore, effectivePermissions, ALL_PERMISSIONS, type AdminUser } from '@/stores/auth'
 
 const adminUser: AdminUser = {
   id: 'user-1',
@@ -59,5 +59,55 @@ describe('useAuthStore (admin)', () => {
   it('does not expose a rehydrate action', () => {
     const store = useAuthStore() as unknown as Record<string, unknown>
     expect(store.rehydrate).toBeUndefined()
+  })
+
+  // --- Permissions effectives (miroir AdminPermissions.effective() backend) ---
+
+  it('SUPER_ADMIN has all permissions and ignores overrides', () => {
+    const store = useAuthStore()
+    store.setSession('t', { ...adminUser, role: 'SUPER_ADMIN', permissionOverrides: { ADMIN_MANAGE: false } })
+    expect(store.can('ADMIN_MANAGE')).toBe(true)
+    expect(store.permissions.size).toBe(ALL_PERMISSIONS.length)
+  })
+
+  it('ADMIN has everything except ADMIN_MANAGE', () => {
+    const store = useAuthStore()
+    store.setSession('t', adminUser)
+    expect(store.can('PAYMENT_REFUND')).toBe(true)
+    expect(store.can('DISPUTE_RESOLVE')).toBe(true)
+    expect(store.can('ADMIN_MANAGE')).toBe(false)
+  })
+
+  it('SUPPORT lacks destructive payment/dispute/promo/audit/export permissions', () => {
+    const store = useAuthStore()
+    store.setSession('t', { ...adminUser, role: 'SUPPORT' })
+    expect(store.can('PAYMENT_VIEW')).toBe(true)
+    expect(store.can('ALERT_RESOLVE')).toBe(true)
+    expect(store.can('PAYMENT_RELEASE')).toBe(false)
+    expect(store.can('PAYMENT_REFUND')).toBe(false)
+    expect(store.can('DISPUTE_RESOLVE')).toBe(false)
+    expect(store.can('PROMO_MANAGE')).toBe(false)
+    expect(store.can('AUDIT_VIEW')).toBe(false)
+    expect(store.can('EXPORT_RUN')).toBe(false)
+    expect(store.can('ADMIN_MANAGE')).toBe(false)
+  })
+
+  it('overrides grant and revoke permissions for non-super roles', () => {
+    const store = useAuthStore()
+    store.setSession('t', { ...adminUser, role: 'SUPPORT', permissionOverrides: { PAYMENT_REFUND: true, USER_BAN: false } })
+    expect(store.can('PAYMENT_REFUND')).toBe(true)
+    expect(store.can('USER_BAN')).toBe(false)
+  })
+
+  it('can() is false for everything when logged out', () => {
+    const store = useAuthStore()
+    expect(store.can('METRICS_VIEW')).toBe(false)
+    expect(store.permissions.size).toBe(0)
+  })
+
+  it('effectivePermissions ignores unknown permission names', () => {
+    const set = effectivePermissions('SUPPORT', { NOT_A_PERMISSION: true, USER_VIEW: false })
+    expect(set.has('USER_VIEW')).toBe(false)
+    expect([...set].every((p) => (ALL_PERMISSIONS as readonly string[]).includes(p))).toBe(true)
   })
 })

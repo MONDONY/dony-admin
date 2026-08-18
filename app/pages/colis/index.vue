@@ -10,7 +10,7 @@ import { useBidTimeline } from '@/features/bids/composables/useBidTimeline'
 import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
 import type { AdminAnnouncementListItem } from '@/features/bids/types/index'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Colis', pageSubtitle: 'Bids & annonces' })
+definePageMeta({ middleware: 'admin-only', permission: 'BID_VIEW', pageTitle: 'Colis', pageSubtitle: 'Bids & annonces' })
 
 const tab = ref<'bids' | 'announcements'>('bids')
 const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange } = useAdminBids()

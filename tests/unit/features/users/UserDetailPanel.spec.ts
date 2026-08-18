@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import UserDetailPanel from '@/features/users/components/UserDetailPanel.vue'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const baseUser = {
   id: 'u1', firstName: 'Jean', lastName: 'Dupont', phoneNumber: '+33600', email: 'j@x.fr',
@@ -12,6 +13,7 @@ const baseUser = {
 }
 
 describe('UserDetailPanel', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('renders user profile and counters', () => {
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.text()).toContain('Jean Dupont')

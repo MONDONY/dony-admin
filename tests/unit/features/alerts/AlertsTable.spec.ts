@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AlertsTable from '@/features/alerts/components/AlertsTable.vue'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const alerts = [
   { id: 'a1', type: 'ESCROW_J48_TIMEOUT', severity: 'CRITICAL', payload: { bidId: 'b1' }, resolved: false, resolvedAt: null, createdAt: '2026-06-01T10:00:00Z' },
@@ -8,6 +9,7 @@ const alerts = [
 ]
 
 describe('AlertsTable', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('renders a row per alert with type + severity', () => {
     const w = mount(AlertsTable, { props: { alerts, loading: false } })
     expect(w.text()).toContain('ESCROW_J48_TIMEOUT')

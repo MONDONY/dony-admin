@@ -4,9 +4,11 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { userStatusMeta } from './userStatus'
 import type { AdminUserDetail } from '@/features/users/types/index'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ user: AdminUserDetail; open: boolean }>()
 const emit = defineEmits<{ close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [] }>()
+const auth = useAuthStore()
 
 type Pending = 'suspend' | 'ban' | null
 const pending = ref<Pending>(null)
@@ -42,17 +44,17 @@ function confirmReason(reason: string) {
 
       <div class="flex flex-wrap gap-2">
         <button
-          v-if="user.status === 'ACTIVE'" type="button" data-test="action-suspend"
+          v-if="user.status === 'ACTIVE' && auth.can('USER_SUSPEND')" type="button" data-test="action-suspend"
           class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30"
           @click="pending = 'suspend'"
         >Suspendre</button>
         <button
-          v-if="user.status === 'ACTIVE'" type="button" data-test="action-ban"
+          v-if="user.status === 'ACTIVE' && auth.can('USER_BAN')" type="button" data-test="action-ban"
           class="rounded-btn px-4 py-2 text-sm bg-danger/20 text-danger hover:bg-danger/30"
           @click="pending = 'ban'"
         >Bannir</button>
         <button
-          v-if="user.status === 'SUSPENDED'" type="button" data-test="action-unsuspend"
+          v-if="user.status === 'SUSPENDED' && auth.can('USER_SUSPEND')" type="button" data-test="action-unsuspend"
           class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30"
           @click="emit('unsuspend')"
         >Réactiver</button>

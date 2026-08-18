@@ -5,10 +5,12 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import GuaranteeFundForm from './GuaranteeFundForm.vue'
 import { disputeStatusMeta } from './disputeStatus'
 import type { AdminDisputeDetail, DisputeResolution } from '@/features/incidents/types/index'
+import { useAuthStore } from '@/stores/auth'
 
 defineProps<{ dispute: AdminDisputeDetail; open: boolean }>()
 const emit = defineEmits<{ close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, reason: string] }>()
 
+const auth = useAuthStore()
 const pending = ref<DisputeResolution | null>(null)
 
 function confirmResolve(note: string) {
@@ -34,7 +36,7 @@ function confirmResolve(note: string) {
         <div v-if="dispute.resolution"><dt class="text-text-muted">Résolution</dt><dd>{{ dispute.resolution }}</dd></div>
       </dl>
 
-      <template v-if="dispute.status === 'OPEN'">
+      <template v-if="dispute.status === 'OPEN' && auth.can('DISPUTE_RESOLVE')">
         <div class="flex flex-wrap gap-2 mb-4">
           <button type="button" data-test="resolve-sender" class="rounded-btn px-3 py-2 text-sm bg-primary/15 text-primary" @click="pending = 'RESOLVED_FOR_SENDER'">Trancher pour l'expéditeur</button>
           <button type="button" data-test="resolve-traveler" class="rounded-btn px-3 py-2 text-sm bg-primary/15 text-primary" @click="pending = 'RESOLVED_FOR_TRAVELER'">Trancher pour le voyageur</button>

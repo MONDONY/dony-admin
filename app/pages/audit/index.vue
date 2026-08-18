@@ -4,7 +4,7 @@ import AuditTable from '@/features/audit/components/AuditTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { useAudit } from '@/features/audit/composables/useAudit'
 
-definePageMeta({ middleware: 'admin-only', pageTitle: 'Audit', pageSubtitle: 'Journal des actions sensibles' })
+definePageMeta({ middleware: 'admin-only', permission: 'AUDIT_VIEW', pageTitle: 'Audit', pageSubtitle: 'Journal des actions sensibles' })
 
 const { entries, isLoading, totalPages, currentPage, filters, fetchAudit, goToPage, applyFilters, reset } = useAudit()
 

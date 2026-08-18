@@ -2,8 +2,10 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import type { AdminReport } from '@/features/signalements/types/index'
+import { useAuthStore } from '@/stores/auth'
 defineProps<{ reports: AdminReport[]; loading: boolean }>()
 const emit = defineEmits<{ resolve: [id: string]; viewPhotos: [urls: string[]] }>()
+const auth = useAuthStore()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 </script>
 
@@ -42,7 +44,7 @@ function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
           <td class="px-4 py-3"><StatusBadge v-bind="reportStatusMeta(r.status)" /></td>
           <td class="px-4 py-3 text-right">
             <button
-              v-if="r.status === 'OPEN'" type="button" :data-test="`resolve-${r.id}`"
+              v-if="r.status === 'OPEN' && auth.can('REPORT_RESOLVE')" type="button" :data-test="`resolve-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary hover:bg-primary/25"
               @click="emit('resolve', r.id)"
             >Traiter</button>

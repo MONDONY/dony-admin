@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MessageThread from '@/features/moderation/components/MessageThread.vue'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const messages = [
   { id: 'm1', conversationId: 'c1', senderName: 'Awa', content: 'Bonjour', flagged: false, deleted: false, createdAt: '2026-06-01T10:00:00Z' },
@@ -9,6 +10,7 @@ const messages = [
 ]
 
 describe('MessageThread', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('renders messages with sender + content', () => {
     const w = mount(MessageThread, { props: { messages, loading: false } })
     expect(w.find('[data-test="message-m1"]').text()).toContain('Bonjour')

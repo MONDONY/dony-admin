@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminMessage } from '@/features/moderation/types/index'
+import { useAuthStore } from '@/stores/auth'
 defineProps<{ messages: AdminMessage[]; loading: boolean }>()
 const emit = defineEmits<{ delete: [id: string] }>()
+const auth = useAuthStore()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 </script>
 
@@ -21,7 +23,7 @@ function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
       </div>
       <p v-if="m.deleted" class="text-sm italic text-text-muted line-through">Message supprimé</p>
       <p v-else class="text-sm text-text whitespace-pre-wrap">{{ m.content }}</p>
-      <div v-if="!m.deleted" class="mt-2 text-right">
+      <div v-if="!m.deleted && auth.can('MESSAGE_DELETE')" class="mt-2 text-right">
         <button
           type="button" :data-test="`delete-msg-${m.id}`"
           class="rounded-btn px-3 py-1 text-xs bg-danger/15 text-danger hover:bg-danger/25"

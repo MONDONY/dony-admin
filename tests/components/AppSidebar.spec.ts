@@ -26,6 +26,7 @@ describe('AppSidebar', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
   it('renders all 11 module links', () => {
+    useAuthStore().setSession('token', makeAdmin('ADMIN'))
     const wrapper = mountSidebar()
     const labels = [
       'Vue d’ensemble', 'Utilisateurs', 'Transactions', 'Colis',

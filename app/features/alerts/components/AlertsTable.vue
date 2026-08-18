@@ -2,8 +2,10 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { alertSeverityMeta } from './alertSeverity'
 import type { AdminAlert } from '@/features/alerts/types/index'
+import { useAuthStore } from '@/stores/auth'
 defineProps<{ alerts: AdminAlert[]; loading: boolean }>()
 const emit = defineEmits<{ resolve: [id: string] }>()
+const auth = useAuthStore()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 </script>
 
@@ -27,7 +29,7 @@ function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
           <td class="px-4 py-3 text-sm text-text-muted">{{ a.resolved ? 'Résolue' : 'Ouverte' }}</td>
           <td class="px-4 py-3 text-right">
             <button
-              v-if="!a.resolved" type="button" :data-test="`resolve-${a.id}`"
+              v-if="!a.resolved && auth.can('ALERT_RESOLVE')" type="button" :data-test="`resolve-${a.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-success/20 text-success hover:bg-success/30"
               @click="emit('resolve', a.id)"
             >Résoudre</button>
