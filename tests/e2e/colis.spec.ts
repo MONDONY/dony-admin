@@ -74,6 +74,9 @@ test('admin retire une annonce avec un motif puis la restaure', async ({ page })
   })
 
   await page.goto('/colis')
+  // Attendre que la première liste soit rendue avant de changer d'onglet : sans ce
+  // point d'ancrage, le clic part avant l'hydratation et l'onglet ne bascule pas.
+  await expect(page.locator('[data-test="bid-row-b1"]')).toBeVisible()
   await page.locator('[data-test="tab-announcements"]').click()
   await expect(page.locator('[data-test="ann-row-an1"]')).toBeVisible()
 
