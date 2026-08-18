@@ -438,14 +438,18 @@ git commit -m "feat(auth): colonne messaging_muted_until sur users"
 **Interfaces:**
 - Consumes : `UserEntity.isMessagingMuted(Instant)` et `setMessagingMutedUntil(Instant)` (Task 3), `AuditService.log(...)`, `NotificationDispatcher.notifyUser(...)`.
 - Produces :
-  - `FirestoreService.setMessagingMute(UUID userId, Instant until)` et `FirestoreService.clearMessagingMute(UUID userId)` — écrivent/suppriment le document `moderation/{userId}` avec le champ `messagingMutedUntil`.
+  - `FirestoreService.setMessagingMute(String firebaseUid, Instant until)` et `FirestoreService.clearMessagingMute(String firebaseUid)` — écrivent/suppriment le document `moderation/{firebaseUid}` avec le champ `messagingMutedUntil`, écrit comme un **Timestamp Firestore** (pas une chaîne ISO, contrairement au reste du fichier).
   - `UserService.muteMessaging(UUID userId, Integer durationHours, String reason)` → `UserEntity` (`durationHours == null` ⇒ mute indéfini)
   - `UserService.unmuteMessaging(UUID userId)` → `UserEntity`
   - `POST /admin/users/{id}/mute-messaging` body `{"durationHours": 24, "reason": "..."}` → `AdminUserDetailResponse`
   - `POST /admin/users/{id}/unmute-messaging` → `AdminUserDetailResponse`
   - `AdminUserDetailResponse` gagne le champ `messagingMutedUntil` (ISO-8601 ou `null`)
 
-**Point d'attention — la collection Firestore.** Écris dans `moderation/{userId}`, **jamais** dans `userMeta/{uid}` : cette dernière est écrivable par le client (`allow read, write: if request.auth.uid == uid`), y placer une sanction la rendrait contournable. La collection `moderation` n'aura aucune règle `allow write` : seul l'Admin SDK (qui ignore les règles) pourra l'écrire.
+**Point d'attention 1 — l'identifiant du document. C'est l'UID Firebase, PAS l'UUID PostgreSQL.** Une règle de sécurité Firestore ne voit que `request.auth.uid`, c'est-à-dire l'UID Firebase. `UserEntity` porte les deux : son `id` (UUID généré par la base) et sa colonne `firebaseUid`. Clé-er le document sur l'UUID rendrait le mute **totalement inopérant tout en paraissant fonctionner** : colonne remplie, audit écrit, notification envoyée, interface admin verte, et l'utilisateur continue d'écrire. Le reste du code traduit déjà systématiquement UUID → firebaseUid avant d'écrire dans Firestore — regarde `ConversationService` et fais pareil. Passe donc `user.getFirebaseUid()`, pas `userId.toString()`.
+
+**Point d'attention 2 — le type du champ.** Écris `messagingMutedUntil` comme un **Timestamp Firestore**, pas comme une chaîne ISO, bien que toutes les autres dates de `FirestoreService` (`sentAt`, `deletedAt`, `lastMessageAt`) soient écrites en chaîne. La règle compare ce champ à `request.time`, et une comparaison `timestamp > string` produit une erreur d'évaluation, donc un refus : l'utilisateur serait bloqué définitivement sans que l'administration ne voie rien d'anormal.
+
+**Point d'attention 3 — la collection.** Écris dans `moderation`, **jamais** dans `userMeta/{uid}` : cette dernière est écrivable par le client (`allow read, write: if request.auth.uid == uid`), y placer une sanction la rendrait contournable. La collection `moderation` n'aura aucune règle `allow write` : seul l'Admin SDK (qui ignore les règles) pourra l'écrire.
 
 - [ ] **Step 1 : Écrire les tests qui échouent.** Setup calqué sur les tests existants de `UserService` :
 

@@ -132,7 +132,13 @@ d'application réel est la **règle Firestore**.
   `messaging_muted_until TIMESTAMPTZ NULL` sur `users` (migration Flyway `V219`,
   la dernière étant `V218__bid_status_negotiation_closed.sql`).
 - Le back propage l'état dans Firestore via l'Admin SDK (`messaging/FirestoreService`,
-  qui écrit déjà dans Firestore), dans une collection **`moderation/{userId}`**.
+  qui écrit déjà dans Firestore), dans une collection **`moderation/{firebaseUid}`**.
+  ⚠️ **L'identifiant est l'UID Firebase, pas l'UUID PostgreSQL.** Une règle de sécurité
+  ne voit que `request.auth.uid`, c'est-à-dire l'UID Firebase ; `UserEntity` porte les
+  deux (`id` UUID généré et `firebaseUid`). Clé-er sur l'UUID rendrait le mute
+  totalement inopérant tout en paraissant fonctionner. Le reste du code traduit déjà
+  systématiquement UUID → firebaseUid avant d'écrire dans Firestore
+  (`ConversationService`).
   Cette collection ne doit avoir **aucune règle `allow write`** : seuls le serveur
   et les fonctions (Admin SDK, qui ignore les règles) peuvent l'écrire — un client
   ne peut donc pas se dé-muter.
