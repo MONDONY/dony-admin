@@ -32,6 +32,7 @@ onMounted(fetchUsers)
     <UserDetailPanel
       v-if="detail.user.value"
       :user="detail.user.value" :open="detail.user.value !== null"
+      :error="detail.error.value" :busy="detail.busy.value"
       @close="detail.close"
       @suspend="async (r) => { await detail.suspend(r); await afterAction() }"
       @ban="async (r) => { await detail.ban(r); await afterAction() }"
@@ -39,6 +40,8 @@ onMounted(fetchUsers)
       @suspend-publishing="async (r) => { await detail.suspendPublishing(r); await afterAction() }"
       @lift-publishing="async () => { await detail.liftPublishing(); await afterAction() }"
       @set-commission="async (rate) => { await detail.setCommissionRate(rate); await afterAction() }"
+      @mute-messaging="async (durationHours, reason) => { await detail.muteMessaging(durationHours, reason); await afterAction() }"
+      @unmute-messaging="async () => { await detail.unmuteMessaging(); await afterAction() }"
     />
   </div>
 </template>

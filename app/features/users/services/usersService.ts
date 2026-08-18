@@ -37,4 +37,13 @@ export const usersService = {
   liftPublishingSuspension(id: string): Promise<void> {
     return useApi()<void>(`/admin/users/${id}/lift-publishing-suspension`, { method: 'POST' })
   },
+  muteMessaging(id: string, durationHours: number | null, reason: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/mute-messaging`, {
+      method: 'POST',
+      body: { durationHours, reason },
+    })
+  },
+  unmuteMessaging(id: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/unmute-messaging`, { method: 'POST' })
+  },
 }

@@ -69,4 +69,31 @@ describe('usersService', () => {
       method: 'POST',
     })
   })
+
+  it('muteMessaging() POSTs durationHours and reason', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', messagingMutedUntil: '2026-08-19T00:00:00Z' })
+    const r = await usersService.muteMessaging('u1', 24, 'spam')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/mute-messaging', {
+      method: 'POST',
+      body: { durationHours: 24, reason: 'spam' },
+    })
+    expect(r.messagingMutedUntil).toBe('2026-08-19T00:00:00Z')
+  })
+
+  it('muteMessaging() with a null duration means an indefinite mute', async () => {
+    apiMock.mockResolvedValue({ id: 'u1' })
+    await usersService.muteMessaging('u1', null, 'abus répétés')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/mute-messaging', {
+      method: 'POST',
+      body: { durationHours: null, reason: 'abus répétés' },
+    })
+  })
+
+  it('unmuteMessaging() POSTs without body', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', messagingMutedUntil: null })
+    await usersService.unmuteMessaging('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/unmute-messaging', {
+      method: 'POST',
+    })
+  })
 })

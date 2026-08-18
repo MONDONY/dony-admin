@@ -31,6 +31,7 @@ export interface AdminUserDetail extends AdminUserListItem {
   senderHandoverIncidentCount: number
   ratingCount: number
   deletionRequestedAt: string | null
+  messagingMutedUntil: string | null
 }
 
 export interface AdminUserPage {

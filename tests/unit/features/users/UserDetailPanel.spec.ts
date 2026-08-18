@@ -9,7 +9,7 @@ const baseUser = {
   averageRating: 4.5, totalTrips: 2, totalShipments: 3, createdAt: '2026-01-01',
   roles: ['SENDER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null,
   publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 1, refusedCount: 0,
-  senderHandoverIncidentCount: 0, ratingCount: 10, deletionRequestedAt: null,
+  senderHandoverIncidentCount: 0, ratingCount: 10, deletionRequestedAt: null, messagingMutedUntil: null,
 }
 
 describe('UserDetailPanel', () => {
@@ -143,5 +143,104 @@ describe('UserDetailPanel', () => {
     seedAuth('SUPPORT')
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.find('[data-test="commission-input"]').exists()).toBe(false)
+  })
+
+  it('shows the mute duration selector and the mute button with USER_MESSAGE_MUTE', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="mute-duration"]').exists()).toBe(true)
+    expect(w.find('[data-test="action-mute"]').exists()).toBe(true)
+  })
+
+  it('hides the mute duration selector and the mute button without USER_MESSAGE_MUTE', () => {
+    seedAuth('SUPPORT')
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="mute-duration"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-mute"]').exists()).toBe(false)
+  })
+
+  it('mute: confirming with the default duration (24h) emits muteMessaging with the reason', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="action-mute"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('spam répété')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('muteMessaging')![0]).toEqual([24, 'spam répété'])
+  })
+
+  it('mute: selecting 7 jours emits muteMessaging with 168 hours', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="mute-duration"]').setValue('168')
+    await w.find('[data-test="action-mute"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('spam')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('muteMessaging')![0]).toEqual([168, 'spam'])
+  })
+
+  it('mute: selecting indéfini emits muteMessaging with a null duration', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="mute-duration"]').setValue('indefinite')
+    await w.find('[data-test="action-mute"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('abus répétés')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('muteMessaging')![0]).toEqual([null, 'abus répétés'])
+  })
+
+  it('mute: cancelling the dialog emits nothing', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="action-mute"]').trigger('click')
+    await w.find('[data-test="cancel"]').trigger('click')
+    expect(w.emitted('muteMessaging')).toBeUndefined()
+    expect(w.find('[data-test="overlay"]').exists()).toBe(false)
+  })
+
+  it('mute: the confirm dialog requires a reason', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="action-mute"]').trigger('click')
+    expect(w.find('[data-test="reason"]').exists()).toBe(true)
+    expect(w.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('hides the unmute action when the user is not muted', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="action-unmute"]').exists()).toBe(false)
+  })
+
+  it('shows the unmute action and emits unmuteMessaging directly when the user is muted', async () => {
+    const w = mount(UserDetailPanel, {
+      props: { user: { ...baseUser, messagingMutedUntil: '2026-08-19T00:00:00Z' }, open: true },
+    })
+    expect(w.find('[data-test="action-unmute"]').exists()).toBe(true)
+    await w.find('[data-test="action-unmute"]').trigger('click')
+    expect(w.emitted('unmuteMessaging')).toBeTruthy()
+    expect(w.find('[data-test="overlay"]').exists()).toBe(false)
+  })
+
+  it('hides the unmute action without USER_MESSAGE_MUTE even if the user is muted', () => {
+    seedAuth('SUPPORT')
+    const w = mount(UserDetailPanel, {
+      props: { user: { ...baseUser, messagingMutedUntil: '2026-08-19T00:00:00Z' }, open: true },
+    })
+    expect(w.find('[data-test="action-unmute"]').exists()).toBe(false)
+  })
+
+  it('messaging status shows Autorisée when the user is not muted', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="messaging-status"]').text()).toBe('Autorisée')
+  })
+
+  it('messaging status shows the mute deadline when the user is muted', () => {
+    const w = mount(UserDetailPanel, {
+      props: { user: { ...baseUser, messagingMutedUntil: '2026-08-19T00:00:00Z' }, open: true },
+    })
+    expect(w.find('[data-test="messaging-status"]').text()).toContain('Coupée jusqu\'au')
+  })
+
+  it('shows an error banner when the error prop is set', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, error: 'Action échouée' } })
+    expect(w.find('[data-test="user-error"]').text()).toBe('Action échouée')
+  })
+
+  it('disables the mute action while busy', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: true } })
+    expect(w.find('[data-test="action-mute"]').attributes('disabled')).toBeDefined()
   })
 })

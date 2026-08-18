@@ -9,6 +9,8 @@ vi.mock('@/features/users/services/usersService', () => {
     setCommissionRate: vi.fn(),
     suspendPublishing: vi.fn(),
     liftPublishingSuspension: vi.fn(),
+    muteMessaging: vi.fn(),
+    unmuteMessaging: vi.fn(),
   }
   return { usersService: svc }
 })
@@ -98,5 +100,56 @@ describe('useUserDetail', () => {
     await d.open('u1')
     await d.liftPublishing()
     expect(svc.liftPublishingSuspension).toHaveBeenCalledWith('u1')
+  })
+
+  it('muteMessaging(durationHours, reason) calls the service and refreshes the user', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE', messagingMutedUntil: null })
+    svc.muteMessaging.mockResolvedValue({ id: 'u1', status: 'ACTIVE', messagingMutedUntil: '2026-08-19T00:00:00Z' })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.muteMessaging(24, 'spam')
+    expect(svc.muteMessaging).toHaveBeenCalledWith('u1', 24, 'spam')
+    expect(d.user.value?.messagingMutedUntil).toBe('2026-08-19T00:00:00Z')
+  })
+
+  it('muteMessaging(null, reason) requests an indefinite mute', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE', messagingMutedUntil: null })
+    svc.muteMessaging.mockResolvedValue({ id: 'u1', status: 'ACTIVE', messagingMutedUntil: '9999-12-31T00:00:00Z' })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.muteMessaging(null, 'abus répétés')
+    expect(svc.muteMessaging).toHaveBeenCalledWith('u1', null, 'abus répétés')
+  })
+
+  it('unmuteMessaging() calls the service and refreshes the user', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE', messagingMutedUntil: '2026-08-19T00:00:00Z' })
+    svc.unmuteMessaging.mockResolvedValue({ id: 'u1', status: 'ACTIVE', messagingMutedUntil: null })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.unmuteMessaging()
+    expect(svc.unmuteMessaging).toHaveBeenCalledWith('u1')
+    expect(d.user.value?.messagingMutedUntil).toBeNull()
+  })
+
+  it('busy is true while an action is in flight and false once it settles', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE' })
+    let resolveMute!: (_value: unknown) => void
+    svc.muteMessaging.mockReturnValue(new Promise((resolve) => { resolveMute = resolve }))
+    const d = useUserDetail()
+    await d.open('u1')
+    const p = d.muteMessaging(24, 'spam')
+    expect(d.busy.value).toBe(true)
+    resolveMute({ id: 'u1', messagingMutedUntil: '2026-08-19T00:00:00Z' })
+    await p
+    expect(d.busy.value).toBe(false)
+  })
+
+  it('extracts the RFC 7807 detail message from a failed action', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE' })
+    svc.muteMessaging.mockRejectedValue({ data: { detail: 'Utilisateur déjà muté.' } })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.muteMessaging(24, 'spam')
+    expect(d.error.value).toBe('Utilisateur déjà muté.')
   })
 })
