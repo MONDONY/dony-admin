@@ -13,7 +13,7 @@ const makeAdmin = (
   id: 'u', email: 'admin@yadony.com', role, status: 'ACTIVE',
   mustChangePassword: false, permissionOverrides: overrides,
 })
-type Mw = (to: { path: string; meta: { permission?: AdminPermission } }) => unknown
+type Mw = (_to: { path: string; meta: { permission?: AdminPermission } }) => unknown
 const route = (permission?: AdminPermission) => ({ path: '/x', meta: { permission } })
 
 describe('admin-only middleware', () => {

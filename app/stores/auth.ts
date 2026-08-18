@@ -141,8 +141,8 @@ export const useAuthStore = defineStore('auth', {
       return effectivePermissions(state.user.role, state.user.permissionOverrides)
     },
     /** `auth.can('PAYMENT_REFUND')` — source unique de vérité côté front. */
-    can(): (permission: AdminPermission) => boolean {
-      return (permission) => this.permissions.has(permission)
+    can() {
+      return (permission: AdminPermission): boolean => this.permissions.has(permission)
     },
   },
   actions: {
