@@ -78,37 +78,115 @@ Miroir strict back/front : toute divergence entre `AdminPermission.java` et
 
 ---
 
-## 4. Lot B — Modération de contenu + mute messagerie
+## 4. Lot B — Retrait de contenu + mute messagerie
 
-### Back
-- **Annonces** : nouveau statut `REMOVED_BY_ADMIN` dans `AnnouncementStatus`.
-  - `POST /admin/announcements/{id}/remove` (`CONTENT_REMOVE`) — motif obligatoire,
-    audit_log `ANNOUNCEMENT_REMOVED_BY_ADMIN`, notification FCM+in-app au propriétaire.
-    Refus (409) si des bids acceptés en cours.
-  - `POST /admin/announcements/{id}/restore` (`CONTENT_REMOVE`) — retour à `ACTIVE`,
-    audit_log.
-- **Colis** : `POST /admin/package-requests/{id}/remove` (`CONTENT_REMOVE`) — même
-  mécanique (statut retiré, motif, audit, notification) + `POST /admin/package-requests/{id}/restore`.
-  Si le modèle de statut colis n'a pas d'équivalent, ajouter un statut `REMOVED_BY_ADMIN` (même approche que les annonces).
-- **Mute messagerie** : colonne `messaging_muted_until TIMESTAMPTZ NULL` sur `users`
-  (migration Flyway V(n+1)).
-  - `POST /admin/users/{id}/mute-messaging` (`USER_MESSAGE_MUTE`) — body
-    `{durationHours: 24|168|null}` (null = indéfini), motif obligatoire, audit_log.
-  - `POST /admin/users/{id}/unmute-messaging` (`USER_MESSAGE_MUTE`).
-  - `ConversationService` (messaging/) : refus d'envoi RFC 7807 403 `messaging-muted`
-    si `messagingMutedUntil` est dans le futur ou indéfini. Vérification côté service,
-    pas seulement contrôleur.
-- Tests : matrice permissions, refus d'envoi muté, expiration du mute.
+> **Révisé le 2026-08-18 après reconnaissance de code.** La première rédaction de
+> cette section reposait sur trois hypothèses fausses, corrigées ici :
+> les messages ne transitent pas par le backend Spring (écriture client directe
+> dans Firestore) ; aucune vue admin des demandes de colis n'existe ;
+> `AnnouncementsTable` est en lecture seule. Périmètre arbitré avec l'utilisateur :
+> **trajets uniquement** pour le retrait, **mute appliqué par règle Firestore**.
 
-### Front
-- `AnnouncementsTable` + vue colis : geste « Retirer » (motif + confirmation) /
-  « Restaurer », gated `can('CONTENT_REMOVE')`. Badge statut `REMOVED_BY_ADMIN`.
-- `UserDetailPanel` : geste « Couper la messagerie » (choix durée 24 h / 7 j /
-  indéfini + motif) / « Rétablir », gated `can('USER_MESSAGE_MUTE')`, état visible.
-- Store auth + `page-meta.d.ts` + sidebar mis à jour avec les nouvelles permissions.
-- Tests unit + E2E.
+### 4.1 Retrait / restauration d'une annonce de trajet
 
----
+**Back**
+- Nouvelle valeur `REMOVED_BY_ADMIN` dans `AnnouncementStatus`
+  (`matching/AnnouncementStatus.java` — actuellement `DRAFT, ACTIVE, FULL,
+  IN_PROGRESS, COMPLETED, CANCELLED`). Aucun `switch` exhaustif n'existe sur cet
+  enum ; les comparaisons `==`/`!=` existantes doivent néanmoins être auditées.
+  La recherche publique filtre sur `hasStatus(ACTIVE)`
+  (`matching/AnnouncementService.java:166`), donc une annonce retirée disparaît
+  des résultats sans autre changement.
+- `POST /admin/announcements/{id}/remove` (`CONTENT_REMOVE`) — motif obligatoire,
+  `audit_log` `ANNOUNCEMENT_REMOVED_BY_ADMIN`, notification au propriétaire via
+  `NotificationDispatcher.notifyUser(...)`. Refus **409** si des bids acceptés sont
+  en cours (le retrait ne doit pas casser une livraison engagée).
+- `POST /admin/announcements/{id}/restore` (`CONTENT_REMOVE`) — retour à `ACTIVE`,
+  `audit_log` `ANNOUNCEMENT_RESTORED_BY_ADMIN`. Refus 409 si le statut courant
+  n'est pas `REMOVED_BY_ADMIN`.
+
+**Front**
+- `AnnouncementsTable` (aujourd'hui purement lecture, sans colonne d'actions)
+  reçoit une colonne d'actions et un panneau de détail, sur le modèle de
+  `UserDetailPanel` : gestes « Retirer » (motif + confirmation) et « Restaurer »,
+  gatés `can('CONTENT_REMOVE')`.
+- `annTone` étendu avec `REMOVED_BY_ADMIN` (ton `danger`), badge via le
+  `StatusBadge` existant.
+
+**Hors périmètre de ce lot :** le retrait des **demandes de colis**. Aucun écran
+admin ne les liste (`/colis` n'affiche que bids et annonces) ; leur retrait exige
+d'abord de créer cette vue, ce qui fera l'objet d'un lot dédié.
+
+### 4.2 Mute messagerie
+
+**Contrainte d'architecture découverte.** Les clients écrivent leurs messages
+**directement dans Firestore** (`dony-functions/firestore.rules`, `allow create`
+sur `conversations/{convId}/messages`). Le backend Spring n'est appelé qu'*après*
+l'écriture, par la Cloud Function `onNewMessage` qui invoque
+`/internal/messaging/notify`. Une garde posée côté Spring ne supprimerait donc que
+la **notification** : le message serait quand même écrit et visible. Le seul point
+d'application réel est la **règle Firestore**.
+
+**Source de vérité et propagation**
+- PostgreSQL reste la source de vérité pour l'administration : colonne
+  `messaging_muted_until TIMESTAMPTZ NULL` sur `users` (migration Flyway `V219`,
+  la dernière étant `V218__bid_status_negotiation_closed.sql`).
+- Le back propage l'état dans Firestore via l'Admin SDK (`messaging/FirestoreService`,
+  qui écrit déjà dans Firestore), dans une collection **`moderation/{userId}`**.
+  Cette collection ne doit avoir **aucune règle `allow write`** : seuls le serveur
+  et les fonctions (Admin SDK, qui ignore les règles) peuvent l'écrire — un client
+  ne peut donc pas se dé-muter.
+  ⚠️ Ne pas réutiliser `userMeta/{uid}` : cette collection est **écrivable par le
+  client** (`allow read, write: if request.auth.uid == uid`), y placer une sanction
+  la rendrait contournable.
+
+**Endpoints**
+- `POST /admin/users/{id}/mute-messaging` (`USER_MESSAGE_MUTE`) — body
+  `{durationHours: 24 | 168 | null, reason: string}` (`null` = indéfini, stocké
+  comme une échéance très lointaine pour garder une règle Firestore simple).
+  Motif obligatoire, `audit_log` `USER_MESSAGING_MUTED`, écriture Firestore,
+  notification à l'utilisateur.
+- `POST /admin/users/{id}/unmute-messaging` (`USER_MESSAGE_MUTE`) — remet la
+  colonne à `NULL`, **supprime** le document Firestore, `audit_log`
+  `USER_MESSAGING_UNMUTED`.
+
+**Règle Firestore**
+```
+function isMuted(uid) {
+  return exists(/databases/$(database)/documents/moderation/$(uid))
+      && get(/databases/$(database)/documents/moderation/$(uid))
+           .data.messagingMutedUntil > request.time;
+}
+```
+appliquée dans `allow create` des messages, en plus des validations existantes.
+Le déploiement des règles Firebase est **séparé** de celui du backend : il doit
+partir *avant* ou *avec* l'activation de la fonctionnalité côté admin.
+
+**Défense en profondeur.** `MessagingNotifyController.notify()` (le seul point
+backend du flux) supprime aussi la notification si l'expéditeur est muté — sans
+quoi un contournement des règles resterait signalé au destinataire.
+
+**Front**
+- `UserDetailPanel` : sélecteur de durée (24 h / 7 j / indéfini) placé dans le
+  panneau — **pas** dans la modale — puis geste « Couper la messagerie »
+  (motif + confirmation) et « Rétablir la messagerie », gatés
+  `can('USER_MESSAGE_MUTE')`, avec l'état et l'échéance affichés.
+  Aucun composant de choix multiple n'existe dans une modale de confirmation ;
+  on suit le motif déjà en place pour l'éditeur de commission (contrôle dans le
+  panneau, confirmation ensuite) plutôt que de modifier le contrat d'emit partagé
+  de `ConfirmActionDialog`.
+
+### 4.3 Permissions
+
+Ajout de `CONTENT_REMOVE` et `USER_MESSAGE_MUTE` (les deux autres permissions
+prévues, `NOTIFICATION_SEND` et `CONFIG_MANAGE`, arrivent au Lot D).
+Le miroir back/front porte donc de **24 à 26** valeurs — le javadoc de
+`AdminPermission.java` annonce « 25 » alors que l'enum en compte 24 : corriger ce
+commentaire au passage, des deux côtés.
+
+**Tests :** matrice de permissions, refus de retrait si bids acceptés, expiration
+du mute, et test des règles Firestore (émulateur) pour prouver qu'un client muté
+ne peut pas écrire.
 
 ## 5. Lot C — Users avancé : KYC + RGPD
 
