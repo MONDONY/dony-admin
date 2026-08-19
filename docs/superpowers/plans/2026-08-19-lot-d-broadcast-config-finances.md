@@ -3212,12 +3212,26 @@ git commit -m "feat(config): les parametres plateforme deviennent la source, con
 **Interfaces:**
 - Consumes: `PlatformSettingsService.snapshot/update` (T7) ; `PlatformSettingsSnapshot` ; `AdminUserRepository.findById(UUID) -> Optional<AdminUserEntity>` + `AdminUserEntity.getEmail()` ; `AdminPrincipal.adminId()`.
 - Produces (contrat HTTP consommé par le front en T14) :
-  - `GET /admin/settings` → **200** `PlatformSettingsResponse`
-  - `PUT /admin/settings` → **200** `PlatformSettingsResponse`
-  - `record PlatformSettingsResponse(BigDecimal commissionRate, int urgencyThresholdDays, BigDecimal reimbursementCapEur, boolean smsEnabled, LocalDateTime updatedAt, UUID updatedBy, String updatedByEmail)`
-  - `record PlatformSettingsUpdateRequest(BigDecimal commissionRate, Integer urgencyThresholdDays, BigDecimal reimbursementCapEur, Boolean smsEnabled)` — **mise à jour partielle** : seuls les champs non nuls sont appliqués.
+  - `GET /admin/settings` → **200** `List<PlatformSettingResponse>`
+  - `PUT /admin/settings/{key}` body `{"value": "..."}` → **200** `PlatformSettingResponse`
+  - `record PlatformSettingResponse(String key, String value, String type, LocalDateTime updatedAt, String updatedByEmail)` — `type` ∈ `INT | DECIMAL | BOOLEAN`
+  - `record PlatformSettingUpdateRequest(String value)`
 
-> ⚠️ `spring.jackson.default-property-inclusion: NON_NULL` (application.yml) : `updatedAt`, `updatedBy` et `updatedByEmail` sont **absents du JSON** tant qu'aucun administrateur n'a rien modifié. Le front doit les traiter comme optionnels (T14).
+> ⚠️ **CONTRAT TRANCHÉ — ne pas revenir au format objet typé.** Une version antérieure de ce
+> plan décrivait ici un objet unique `PlatformSettingsResponse` à champs typés, avec un
+> seul couple `updatedAt`/`updatedBy` pour l'ensemble des réglages. C'était incompatible
+> avec la tâche 14 (déjà livrée, commit `e993da0`) et surtout **moins juste** : la table
+> `platform_settings` est nativement clé/valeur, l'audit `PLATFORM_SETTING_CHANGED` est
+> écrit **par clé**, et le spec exige d'afficher qui a modifié quoi et quand. Un objet plat
+> écrase cette information — on ne saurait plus quel réglage a été touché par qui.
+>
+> Le `PlatformSettingsSnapshot` typé de la tâche 7 **reste inchangé** : c'est la
+> représentation interne mise en cache, lue par le `ConfigController` public qui a besoin
+> d'un accès typé rapide. Seuls les endpoints d'administration exposent la liste par clé.
+
+> ⚠️ `spring.jackson.default-property-inclusion: NON_NULL` (application.yml) : `updatedAt`
+> et `updatedByEmail` sont **absents du JSON** tant qu'un réglage n'a jamais été modifié.
+> Le front les traite déjà comme optionnels (T14).
 
 - [ ] **Étape 1 : Écrire le test qui échoue**
 
