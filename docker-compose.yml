@@ -1,6 +1,6 @@
 services:
   admin:
-    image: ghcr.io/mondony/yadony-admin:latest
+    image: ghcr.io/mondony/yadony-admin:${IMAGE_TAG:-latest}
     container_name: yadony_admin
     restart: unless-stopped
     env_file:
