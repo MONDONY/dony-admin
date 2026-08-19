@@ -13,13 +13,40 @@ const emit = defineEmits<{ update: [key: string, value: string] }>()
  * crash, juste un libellé moins joli.
  */
 const SETTING_META: Record<string, { label: string; unit: string }> = {
-  commission_rate_percent: { label: 'Taux de commission', unit: '%' },
+  commission_rate: { label: 'Taux de commission', unit: '%' },
   urgency_threshold_days: { label: 'Seuil d’urgence', unit: 'jours' },
   reimbursement_cap_eur: { label: 'Plafond de remboursement', unit: '€' },
   sms_enabled: { label: 'SMS activés (authentification par code)', unit: '' },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
+}
+
+/**
+ * `commission_rate` est stocké et servi comme un **taux** (`0.05`), mais se lit et s'édite
+ * comme un **pourcentage** (`5 %`). La conversion se fait aux deux bords de ce composant,
+ * jamais au milieu : le contrat backend reste intact — c'est cette même valeur, en taux, que
+ * `ConfigController` sert à l'application mobile déjà installée, qui ne peut pas être mise à
+ * jour à la demande.
+ *
+ * Sans cette conversion, un administrateur saisissant « 12 » pour 12 % se verrait répondre
+ * « le taux doit être compris entre 0 et 30 % » — alors que 12 est bien entre 0 et 30. Le
+ * backend borne le TAUX à 0.30.
+ */
+const PERCENT_KEYS = new Set(['commission_rate'])
+
+/** Taux → pourcentage. L'arrondi absorbe le bruit flottant : `0.05 * 100 === 5.000000000000001`. */
+function toDisplay(setting: PlatformSetting): string {
+  if (!PERCENT_KEYS.has(setting.key)) return setting.value
+  const n = Number(setting.value)
+  return Number.isNaN(n) ? setting.value : String(Math.round(n * 10000) / 100)
+}
+
+/** Pourcentage → taux, arrondi à 6 décimales pour la même raison. */
+function toWire(key: string, raw: string): string {
+  if (!PERCENT_KEYS.has(key)) return raw
+  const n = Number(raw)
+  return Number.isNaN(n) ? raw : String(Number((n / 100).toFixed(6)))
 }
 
 // Phrase de double confirmation exigée pour désactiver sms_enabled — ce réglage conditionne
@@ -38,7 +65,7 @@ watch(
   () => props.settings,
   (list) => {
     for (const s of list) {
-      if (!(s.key in drafts)) drafts[s.key] = s.value
+      if (!(s.key in drafts)) drafts[s.key] = toDisplay(s)
     }
   },
   { immediate: true },
@@ -54,7 +81,7 @@ function errorFor(key: string, raw: string | number | undefined): string | null 
   if (raw === undefined) return null
   const str = String(raw)
   const n = Number(raw)
-  if (key === 'commission_rate_percent') {
+  if (key === 'commission_rate') {
     if (str.trim() === '' || Number.isNaN(n)) return 'Le taux de commission doit être un nombre.'
     if (n < 0 || n > 30) return 'Le taux de commission doit être compris entre 0 et 30 %.'
   }
@@ -78,6 +105,9 @@ const pending = ref<PendingChange | null>(null)
 function requestSave(key: string) {
   const raw = String(drafts[key])
   if (errorFor(key, raw)) return
+  // `raw` reste la valeur AFFICHÉE — c'est elle que valide `errorFor` (bornes en %) et elle
+  // qu'on relit pour décider de la double confirmation. Seul ce qui part sur le fil est converti.
+  const wire = toWire(key, raw)
 
   if (key === 'sms_enabled') {
     // Seule la désactivation empêche la connexion (OTP) — réactiver n'est pas un geste
@@ -85,7 +115,7 @@ function requestSave(key: string) {
     const turningOff = raw === 'false'
     pending.value = {
       key,
-      value: raw,
+      value: wire,
       doubleConfirm: turningOff,
       title: turningOff ? 'Désactiver les SMS' : 'Activer les SMS',
       message: turningOff
@@ -99,7 +129,7 @@ function requestSave(key: string) {
 
   pending.value = {
     key,
-    value: raw,
+    value: wire,
     doubleConfirm: false,
     title: 'Confirmer la modification',
     message: `Confirmez la modification de « ${metaFor(key).label} ».`,

@@ -16,8 +16,8 @@ describe('settingsService', () => {
 
   it('list() renvoie les réglages tels que renvoyés par le back', async () => {
     const settings = [
-      { key: 'commission_rate_percent', value: '10', type: 'DECIMAL', updatedAt: null, updatedByEmail: null },
-      { key: 'urgency_threshold_days', value: '3', type: 'INT', updatedAt: null, updatedByEmail: null },
+      { key: 'commission_rate', value: '10', type: 'DECIMAL', updatedAt: null, updatedByEmail: null },
+      { key: 'urgency_threshold_days', value: '3', type: 'INTEGER', updatedAt: null, updatedByEmail: null },
     ]
     apiMock.mockResolvedValue(settings)
     const res = await settingsService.list()
@@ -28,7 +28,7 @@ describe('settingsService', () => {
     apiMock.mockResolvedValue({
       key: 'urgency_threshold_days',
       value: '5',
-      type: 'INT',
+      type: 'INTEGER',
       updatedAt: '2026-08-19T10:00:00Z',
       updatedByEmail: 'admin@yadony.com',
     })

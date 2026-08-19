@@ -1,4 +1,4 @@
-export type PlatformSettingType = 'INT' | 'DECIMAL' | 'BOOLEAN'
+export type PlatformSettingType = 'INTEGER' | 'DECIMAL' | 'BOOLEAN'
 
 /**
  * Réglage plateforme, forme générique clé/valeur : le back sérialise chaque valeur en

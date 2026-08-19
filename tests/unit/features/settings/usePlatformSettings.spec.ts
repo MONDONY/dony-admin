@@ -6,8 +6,8 @@ import { settingsService } from '@/features/settings/services/settingsService'
 
 const svc = settingsService as unknown as Record<string, ReturnType<typeof vi.fn>>
 
-const s1 = { key: 'commission_rate_percent', value: '10', type: 'DECIMAL', updatedAt: null, updatedByEmail: null }
-const s2 = { key: 'urgency_threshold_days', value: '3', type: 'INT', updatedAt: null, updatedByEmail: null }
+const s1 = { key: 'commission_rate', value: '10', type: 'DECIMAL', updatedAt: null, updatedByEmail: null }
+const s2 = { key: 'urgency_threshold_days', value: '3', type: 'INTEGER', updatedAt: null, updatedByEmail: null }
 const s3 = { key: 'reimbursement_cap_eur', value: '50', type: 'DECIMAL', updatedAt: null, updatedByEmail: null }
 const s4 = { key: 'sms_enabled', value: 'true', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null }
 
@@ -65,7 +65,7 @@ describe('usePlatformSettings', () => {
     const p = usePlatformSettings()
     await p.load()
 
-    const promise = p.update('commission_rate_percent', '12')
+    const promise = p.update('commission_rate', '12')
     expect(p.busy.value).toBe(true)
     resolveUpdate({ ...s1, value: '12' })
     await promise
@@ -78,21 +78,21 @@ describe('usePlatformSettings', () => {
     const p = usePlatformSettings()
     await p.load()
 
-    await p.update('commission_rate_percent', '12')
+    await p.update('commission_rate', '12')
 
     expect(p.busy.value).toBe(false)
   })
 
   it('une erreur backend RFC 7807 sur update est extraite via son detail', async () => {
     svc.list.mockResolvedValue([s1])
-    const fetchError = Object.assign(new Error('[PUT] "/admin/settings/commission_rate_percent": 422 Unprocessable Entity'), {
+    const fetchError = Object.assign(new Error('[PUT] "/admin/settings/commission_rate": 422 Unprocessable Entity'), {
       data: { detail: 'Le taux de commission doit être compris entre 0 et 100.' },
     })
     svc.update.mockRejectedValue(fetchError)
     const p = usePlatformSettings()
     await p.load()
 
-    await p.update('commission_rate_percent', '200')
+    await p.update('commission_rate', '200')
 
     expect(p.error.value).toBe('Le taux de commission doit être compris entre 0 et 100.')
     // Le réglage n'est pas altéré par un échec.
@@ -104,7 +104,7 @@ describe('usePlatformSettings', () => {
     svc.update.mockRejectedValue(new Error('network down'))
     const p = usePlatformSettings()
     await p.load()
-    await p.update('commission_rate_percent', '12')
+    await p.update('commission_rate', '12')
     expect(p.error.value).toBe('network down')
   })
 
@@ -113,11 +113,11 @@ describe('usePlatformSettings', () => {
     svc.update.mockRejectedValueOnce(new Error('oops'))
     const p = usePlatformSettings()
     await p.load()
-    await p.update('commission_rate_percent', '12')
+    await p.update('commission_rate', '12')
     expect(p.error.value).toBe('oops')
 
     svc.update.mockResolvedValue({ ...s1, value: '15' })
-    await p.update('commission_rate_percent', '15')
+    await p.update('commission_rate', '15')
     expect(p.error.value).toBeNull()
   })
 

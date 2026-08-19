@@ -4,8 +4,8 @@ const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'A
 const SUPPORT = { id: 's1', email: 'support.1@yadony.com', role: 'SUPPORT', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
 const SETTINGS = [
-  { key: 'commission_rate_percent', value: '12', type: 'DECIMAL', updatedAt: null, updatedByEmail: null },
-  { key: 'urgency_threshold_days', value: '2', type: 'INT', updatedAt: null, updatedByEmail: null },
+  { key: 'commission_rate', value: '0.12', type: 'DECIMAL', updatedAt: null, updatedByEmail: null },
+  { key: 'urgency_threshold_days', value: '2', type: 'INTEGER', updatedAt: null, updatedByEmail: null },
   { key: 'reimbursement_cap_eur', value: '500', type: 'DECIMAL', updatedAt: null, updatedByEmail: null },
   { key: 'sms_enabled', value: 'true', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null },
 ]
@@ -35,18 +35,18 @@ test('admin modifie la commission avec une confirmation simple', async ({ page }
   })
 
   await page.goto('/parametres')
-  await expect(page.locator('[data-test="setting-row-commission_rate_percent"]')).toBeVisible()
+  await expect(page.locator('[data-test="setting-row-commission_rate"]')).toBeVisible()
 
-  await page.locator('[data-test="setting-value-commission_rate_percent"]').fill('15')
-  await page.locator('[data-test="setting-save-commission_rate_percent"]').click()
+  await page.locator('[data-test="setting-value-commission_rate"]').fill('15')
+  await page.locator('[data-test="setting-save-commission_rate"]').click()
 
   // Confirmation simple : pas de saisie de contrôle, le bouton est utilisable directement.
   await expect(page.locator('[data-test="confirm"]')).toBeEnabled()
   await page.locator('[data-test="confirm"]').click()
 
   await expect.poll(() => putCalls.length).toBe(1)
-  expect(putCalls[0]).toEqual({ key: 'commission_rate_percent', value: '15' })
-  await expect(page.locator('[data-test="setting-meta-commission_rate_percent"]')).toContainText('admin.1@yadony.com')
+  expect(putCalls[0]).toEqual({ key: 'commission_rate', value: '0.15' })
+  await expect(page.locator('[data-test="setting-meta-commission_rate"]')).toContainText('admin.1@yadony.com')
 })
 
 test('la désactivation des SMS reste bloquée tant que la phrase de contrôle est incorrecte', async ({ page }) => {
