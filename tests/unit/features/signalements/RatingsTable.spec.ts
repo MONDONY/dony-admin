@@ -33,6 +33,20 @@ describe('RatingsTable', () => {
     expect(w.emitted('remove')![0]).toEqual(['rt1'])
   })
 
+  // Lot C : la suppression definitive est detachee de la moderation courante.
+  it('SUPPORT peut exclure mais pas supprimer', () => {
+    seedAuth('SUPPORT')
+    const w = mount(RatingsTable, { props: { ratings, loading: false } })
+    expect(w.find('[data-test="exclude-rt1"]').exists()).toBe(true)
+    expect(w.find('[data-test="remove-rt1"]').exists()).toBe(false)
+  })
+
+  it('ADMIN peut supprimer', () => {
+    seedAuth('ADMIN')
+    const w = mount(RatingsTable, { props: { ratings, loading: false } })
+    expect(w.find('[data-test="remove-rt1"]').exists()).toBe(true)
+  })
+
   it('shows excluded state instead of exclude button', () => {
     const excluded = [{ ...ratings[0], excluded: true }]
     const w = mount(RatingsTable, { props: { ratings: excluded, loading: false } })

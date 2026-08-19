@@ -27,6 +27,7 @@ export type AdminPermission =
   | 'REPORT_VIEW'
   | 'REPORT_RESOLVE'
   | 'RATING_MODERATE'
+  | 'RATING_DELETE'
   | 'PROMO_MANAGE'
   | 'AUDIT_VIEW'
   | 'EXPORT_RUN'
@@ -55,6 +56,7 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'REPORT_VIEW',
   'REPORT_RESOLVE',
   'RATING_MODERATE',
+  'RATING_DELETE',
   'PROMO_MANAGE',
   'AUDIT_VIEW',
   'EXPORT_RUN',
@@ -82,6 +84,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
     'ALERT_RESOLVE',
     'MODERATION_VIEW',
     'MESSAGE_DELETE',
+    // Lot C : le support peut deja bannir, geste bien plus severe.
+    'USER_MESSAGE_MUTE',
     'REPORT_VIEW',
     'REPORT_RESOLVE',
     'RATING_MODERATE',

@@ -42,7 +42,7 @@ function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 
               @click="emit('exclude', r.id)"
             >Exclure</button>
             <button
-              v-if="auth.can('RATING_MODERATE')"
+              v-if="auth.can('RATING_DELETE')"
               type="button" :data-test="`remove-${r.id}`"
               class="ml-2 rounded-btn px-3 py-1.5 text-sm bg-danger/15 text-danger hover:bg-danger/25"
               @click="emit('remove', r.id)"
