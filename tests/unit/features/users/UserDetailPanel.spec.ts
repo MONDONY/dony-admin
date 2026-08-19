@@ -243,4 +243,40 @@ describe('UserDetailPanel', () => {
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: true } })
     expect(w.find('[data-test="action-mute"]').attributes('disabled')).toBeDefined()
   })
+
+  it('affiche l\'onglet Profil par défaut, avec toutes les actions de compte', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="tab-profil"]').exists()).toBe(true)
+    expect(w.find('[data-test="action-suspend"]').exists()).toBe(true)
+    expect(w.find('[data-test="kyc-status"]').exists()).toBe(false)
+  })
+
+  it('bascule sur l\'onglet KYC et émet openKyc une seule fois', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="tab-kyc"]').trigger('click')
+    expect(w.emitted('openKyc')).toHaveLength(1)
+    expect(w.find('[data-test="action-suspend"]').exists()).toBe(false)
+  })
+
+  it('cache l\'onglet KYC sans la permission USER_KYC', () => {
+    seedAuth('ADMIN', { USER_KYC: false })
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="tab-kyc"]').exists()).toBe(false)
+  })
+
+  it('relaie l\'événement reset de l\'onglet KYC en resetKyc', async () => {
+    const w = mount(UserDetailPanel, {
+      props: { user: baseUser, open: true, kyc: {
+        userId: 'u1', kycStatus: 'REJECTED', verificationStatus: 'REJECTED',
+        rejectionReason: null, rejectionCode: null, stripeSessionId: 'vs_001',
+        stripeStatus: 'requires_input', stripeLastErrorCode: null, stripeLastErrorReason: null,
+        stripeCreatedAt: null, stripeUnavailable: false,
+      } },
+    })
+    await w.find('[data-test="tab-kyc"]').trigger('click')
+    await w.find('[data-test="action-reset-kyc"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('document illisible')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('resetKyc')![0]).toEqual(['document illisible'])
+  })
 })

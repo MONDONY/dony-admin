@@ -3,19 +3,38 @@ import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { userStatusMeta } from './userStatus'
-import type { AdminUserDetail } from '@/features/users/types/index'
+import UserKycTab from './UserKycTab.vue'
+import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 
-const props = defineProps<{ user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean }>()
+const props = defineProps<{
+  user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
+  kyc?: AdminKycDetail | null; kycLoading?: boolean; kycError?: string | null
+}>()
 const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
+  openKyc: []; resetKyc: [reason: string];
 }>()
 const auth = useAuthStore()
 
 type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging' | null
 const pending = ref<Pending>(null)
+
+// « profil » par défaut : les gestes de compte restent immédiatement accessibles à
+// l'ouverture de la fiche. L'onglet KYC déclenche un chargement paresseux (openKyc), car
+// la lecture back interroge Stripe Identity en direct — inutile de la payer sans besoin.
+type Tab = 'profil' | 'kyc'
+const tab = ref<Tab>('profil')
+const kycLoaded = ref(false)
+function openTab(next: Tab) {
+  tab.value = next
+  if (next === 'kyc' && !kycLoaded.value) {
+    kycLoaded.value = true
+    emit('openKyc')
+  }
+}
 const fullName = () => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || '—'
 function confirmReason(reason: string) {
   if (pending.value === 'suspend') emit('suspend', reason)
@@ -108,9 +127,32 @@ const dialogConfig = computed<DialogConfig>(() => {
           <h2 class="font-display text-xl font-bold">{{ fullName() }}</h2>
           <p class="text-sm text-text-muted tabular-nums">{{ user.phoneNumber }}</p>
         </div>
-        <StatusBadge v-bind="userStatusMeta(user.status)" />
+        <div class="flex items-center gap-2">
+          <StatusBadge v-bind="userStatusMeta(user.status)" />
+          <button
+            type="button" data-test="action-close"
+            class="rounded-btn px-3 py-1.5 text-sm border border-border"
+            @click="emit('close')"
+          >Fermer</button>
+        </div>
       </div>
 
+      <div class="mb-4 flex gap-1 border-b border-border" role="tablist">
+        <button
+          type="button" data-test="tab-profil" role="tab" :aria-selected="tab === 'profil'"
+          class="rounded-t-btn px-4 py-2 text-sm"
+          :class="tab === 'profil' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
+          @click="openTab('profil')"
+        >Profil</button>
+        <button
+          v-if="auth.can('USER_KYC')" type="button" data-test="tab-kyc" role="tab" :aria-selected="tab === 'kyc'"
+          class="rounded-t-btn px-4 py-2 text-sm"
+          :class="tab === 'kyc' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
+          @click="openTab('kyc')"
+        >KYC</button>
+      </div>
+
+      <template v-if="tab === 'profil'">
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Email</dt><dd>{{ user.email ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Ville</dt><dd>{{ user.city ?? '—' }}</dd></div>
@@ -160,11 +202,6 @@ const dialogConfig = computed<DialogConfig>(() => {
           class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30 disabled:opacity-40"
           @click="emit('unmuteMessaging')"
         >Rétablir la messagerie</button>
-        <button
-          type="button" data-test="action-close"
-          class="rounded-btn px-4 py-2 text-sm border border-border ml-auto"
-          @click="emit('close')"
-        >Fermer</button>
       </div>
 
       <div v-if="auth.can('USER_MESSAGE_MUTE')" class="mt-4 flex items-center gap-2">
@@ -208,6 +245,13 @@ const dialogConfig = computed<DialogConfig>(() => {
           >Réinitialiser</button>
         </div>
       </div>
+      </template>
+
+      <UserKycTab
+        v-if="tab === 'kyc'"
+        :kyc="props.kyc ?? null" :loading="props.kycLoading" :error="props.kycError" :busy="props.busy"
+        @reset="(reason) => emit('resetKyc', reason)"
+      />
 
       <ConfirmActionDialog
         :open="pending !== null"
