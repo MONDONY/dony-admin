@@ -119,11 +119,16 @@ describe('useAuthStore (admin)', () => {
     expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
   })
 
-  it('SUPPORT can neither remove content nor mute messaging', () => {
+  // Lot C : USER_MESSAGE_MUTE a été accordée au support sur décision du propriétaire
+  // du produit — il peut déjà bannir, geste bien plus sévère. CONTENT_REMOVE et
+  // RATING_DELETE lui restent fermées.
+  it('SUPPORT can mute messaging but cannot remove content nor delete ratings', () => {
     seedAuth('SUPPORT')
     const auth = useAuthStore()
+    expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
     expect(auth.can('CONTENT_REMOVE')).toBe(false)
-    expect(auth.can('USER_MESSAGE_MUTE')).toBe(false)
+    expect(auth.can('RATING_DELETE')).toBe(false)
+    expect(auth.can('RATING_MODERATE')).toBe(true)
   })
 
   it('SUPPORT can receive CONTENT_REMOVE via an override', () => {
@@ -131,7 +136,8 @@ describe('useAuthStore (admin)', () => {
     expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
   })
 
-  it('exposes 26 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(26)
+  // 27 depuis le Lot C, qui détache RATING_DELETE de RATING_MODERATE.
+  it('exposes 27 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(27)
   })
 })

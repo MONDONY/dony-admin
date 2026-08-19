@@ -151,8 +151,10 @@ describe('UserDetailPanel', () => {
     expect(w.find('[data-test="action-mute"]').exists()).toBe(true)
   })
 
+  // Lot C : SUPPORT possède désormais USER_MESSAGE_MUTE — la privation se prouve donc
+  // par un override explicite, qui teste réellement le gating et non le rôle.
   it('hides the mute duration selector and the mute button without USER_MESSAGE_MUTE', () => {
-    seedAuth('SUPPORT')
+    seedAuth('SUPPORT', { USER_MESSAGE_MUTE: false })
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.find('[data-test="mute-duration"]').exists()).toBe(false)
     expect(w.find('[data-test="action-mute"]').exists()).toBe(false)
@@ -215,7 +217,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('hides the unmute action without USER_MESSAGE_MUTE even if the user is muted', () => {
-    seedAuth('SUPPORT')
+    seedAuth('SUPPORT', { USER_MESSAGE_MUTE: false })
     const w = mount(UserDetailPanel, {
       props: { user: { ...baseUser, messagingMutedUntil: '2026-08-19T00:00:00Z' }, open: true },
     })
