@@ -192,14 +192,30 @@ describe('AnnouncementsTable', () => {
       expect(wrapper.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
     })
 
-    it('emits remove with the id and reason on confirm', async () => {
+    it('émet le motif catalogué et la note interne séparément', async () => {
       const wrapper = mount(AnnouncementsTable, {
         props: { announcements: [anns[0]], loading: false },
       })
       await wrapper.find('[data-test="remove-a1"]').trigger('click')
-      await wrapper.find('[data-test="reason"]').setValue('contenu frauduleux')
+      await wrapper.find('[data-test="reason-choice"]').setValue('SUSPECTED_FRAUD')
+      await wrapper.find('[data-test="reason"]').setValue('signalé par Awa, ticket #4821')
       await wrapper.find('[data-test="confirm"]').trigger('click')
-      expect(wrapper.emitted('remove')![0]).toEqual(['a1', 'contenu frauduleux'])
+
+      // Deux valeurs distinctes : seule la première atteindra le voyageur.
+      expect(wrapper.emitted('remove')![0])
+        .toEqual(['a1', 'SUSPECTED_FRAUD', 'signalé par Awa, ticket #4821'])
+    })
+
+    it('sans motif catalogué choisi, la confirmation reste bloquée', async () => {
+      const wrapper = mount(AnnouncementsTable, {
+        props: { announcements: [anns[0]], loading: false },
+      })
+      await wrapper.find('[data-test="remove-a1"]').trigger('click')
+      await wrapper.find('[data-test="reason"]').setValue('note seule')
+
+      expect((wrapper.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+      await wrapper.find('[data-test="confirm"]').trigger('click')
+      expect(wrapper.emitted('remove')).toBeUndefined()
     })
 
     it('emits nothing and closes the dialog on cancel', async () => {

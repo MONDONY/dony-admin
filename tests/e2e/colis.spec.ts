@@ -81,12 +81,14 @@ test('admin retire une annonce avec un motif puis la restaure', async ({ page })
   await expect(page.locator('[data-test="ann-row-an1"]')).toBeVisible()
 
   await page.locator('[data-test="remove-an1"]').click()
-  await page.locator('[data-test="reason"]').fill('annonce frauduleuse')
+  // Motif catalogué obligatoire ; la note libre reste interne et ne part pas au voyageur.
+  await page.locator('[data-test="reason-choice"]').selectOption('SUSPECTED_FRAUD')
+  await page.locator('[data-test="reason"]').fill('signalé par un tiers, ticket #4821')
   await page.locator('[data-test="confirm"]').click()
 
   await expect(page.locator('[data-test="restore-an1"]')).toBeVisible()
   await expect.poll(() => removeCalls.length).toBe(1)
-  expect(removeCalls[0]).toEqual({ reason: 'annonce frauduleuse' })
+  expect(removeCalls[0]).toEqual({ publicReason: 'SUSPECTED_FRAUD', internalNote: 'signalé par un tiers, ticket #4821' })
 
   await page.locator('[data-test="restore-an1"]').click()
   await expect(page.locator('[data-test="remove-an1"]')).toBeVisible()

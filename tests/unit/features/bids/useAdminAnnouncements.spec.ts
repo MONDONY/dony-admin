@@ -34,7 +34,7 @@ describe('useAdminAnnouncements', () => {
     svc.removeAnnouncement.mockResolvedValue(updated)
     const s = seeded()
     await s.load()
-    await s.remove('a2', 'contenu frauduleux')
+    await s.remove('a2', 'SUSPECTED_FRAUD', '')
 
     expect(s.announcements.value).toHaveLength(3)
     expect(s.announcements.value[1]).toEqual(updated)
@@ -45,16 +45,16 @@ describe('useAdminAnnouncements', () => {
     expect(s.announcements.value[2]).toEqual(a3)
   })
 
-  it('remove calls the service with the id and reason, never a full reload', async () => {
+  it('remove transmet l’id, le motif catalogué et la note interne, sans rechargement complet', async () => {
     svc.listAnnouncements.mockResolvedValue({ content: [a1], totalElements: 1, totalPages: 1, number: 0, size: 20 })
     svc.removeAnnouncement.mockResolvedValue({ ...a1, status: 'REMOVED_BY_ADMIN' })
     const s = seeded()
     await s.load()
     expect(svc.listAnnouncements).toHaveBeenCalledTimes(1)
 
-    await s.remove('a1', 'fraude')
+    await s.remove('a1', 'SUSPECTED_FRAUD', 'ticket #4821')
 
-    expect(svc.removeAnnouncement).toHaveBeenCalledWith('a1', 'fraude')
+    expect(svc.removeAnnouncement).toHaveBeenCalledWith('a1', 'SUSPECTED_FRAUD', 'ticket #4821')
     // The core regression this test guards against: a naive fix could call
     // load()/listAnnouncements again instead of splicing the returned row.
     expect(svc.listAnnouncements).toHaveBeenCalledTimes(1)
@@ -81,7 +81,7 @@ describe('useAdminAnnouncements', () => {
     svc.removeAnnouncement.mockResolvedValue({ ...a2, status: 'REMOVED_BY_ADMIN' })
     const s = seeded()
     await s.load()
-    await s.remove('a2', 'x')
+    await s.remove('a2', 'OTHER', '')
     expect(s.announcements.value).toEqual([a1])
   })
 
@@ -92,7 +92,7 @@ describe('useAdminAnnouncements', () => {
     const s = seeded()
     await s.load()
 
-    const p = s.remove('a1', 'x')
+    const p = s.remove('a1', 'OTHER', '')
     expect(s.busy.value).toBe(true)
     resolveRemove({ ...a1, status: 'REMOVED_BY_ADMIN' })
     await p
@@ -108,7 +108,7 @@ describe('useAdminAnnouncements', () => {
     const s = seeded()
     await s.load()
 
-    await s.remove('a1', 'x')
+    await s.remove('a1', 'OTHER', '')
 
     expect(s.error.value).toBe('Des colis acceptés sont en cours sur cette annonce.')
     expect(s.busy.value).toBe(false)
@@ -121,7 +121,7 @@ describe('useAdminAnnouncements', () => {
     svc.removeAnnouncement.mockRejectedValue(new Error('network down'))
     const s = seeded()
     await s.load()
-    await s.remove('a1', 'x')
+    await s.remove('a1', 'OTHER', '')
     expect(s.error.value).toBe('network down')
   })
 
@@ -131,7 +131,7 @@ describe('useAdminAnnouncements', () => {
     svc.restoreAnnouncement.mockResolvedValue({ ...a1, status: 'ACTIVE' })
     const s = seeded()
     await s.load()
-    await s.remove('a1', 'x')
+    await s.remove('a1', 'OTHER', '')
     expect(s.error.value).toBe('oops')
 
     await s.restore('a1')

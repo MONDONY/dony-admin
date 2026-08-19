@@ -58,7 +58,8 @@ export function useAdminAnnouncements() {
     }
   }
 
-  const remove = (id: string, reason: string) => run(() => bidsAdminService.removeAnnouncement(id, reason))
+  const remove = (id: string, publicReason: string, internalNote: string) =>
+    run(() => bidsAdminService.removeAnnouncement(id, publicReason, internalNote))
   const restore = (id: string) => run(() => bidsAdminService.restoreAnnouncement(id))
 
   return { announcements, isLoading, error, busy, load, remove, restore }

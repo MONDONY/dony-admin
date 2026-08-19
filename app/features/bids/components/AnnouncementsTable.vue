@@ -4,9 +4,10 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import type { AdminAnnouncementListItem, AnnouncementStatus } from '@/features/bids/types/index'
 import { useAuthStore } from '@/stores/auth'
+import { REMOVAL_REASONS } from '@/features/bids/removalReasons'
 
 defineProps<{ announcements: AdminAnnouncementListItem[]; loading: boolean; error?: string | null; busy?: boolean }>()
-const emit = defineEmits<{ remove: [id: string, reason: string]; restore: [id: string] }>()
+const emit = defineEmits<{ remove: [id: string, publicReason: string, internalNote: string]; restore: [id: string] }>()
 const auth = useAuthStore()
 
 const annTone: Record<AnnouncementStatus, 'success' | 'info' | 'neutral' | 'danger'> = {
@@ -34,11 +35,13 @@ const dialogConfig = computed<DialogConfig>(() => ({
   title: 'Retirer cette annonce',
   message: 'L\'annonce sera masquée aux voyageurs et expéditeurs. Elle pourra être restaurée ensuite.',
   confirmLabel: 'Retirer',
-  requireReason: true,
+  requireReason: false,
 }))
 
-function confirmRemove(reason: string) {
-  if (pending.value) emit('remove', pending.value, reason)
+function confirmRemove(internalNote: string, publicReason?: string) {
+  // `publicReason` est toujours fourni ici : le dialogue reçoit un catalogue et bloque la
+  // confirmation tant qu'aucun motif n'est choisi.
+  if (pending.value && publicReason) emit('remove', pending.value, publicReason, internalNote)
   pending.value = null
 }
 </script>
@@ -97,6 +100,7 @@ function confirmRemove(reason: string) {
       :message="dialogConfig.message"
       :confirm-label="dialogConfig.confirmLabel"
       :require-reason="dialogConfig.requireReason"
+      :reason-options="REMOVAL_REASONS"
       @confirm="confirmRemove"
       @cancel="pending = null"
     />

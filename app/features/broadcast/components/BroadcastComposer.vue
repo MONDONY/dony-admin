@@ -29,21 +29,6 @@ const target = computed<BroadcastTarget>(() => {
   return { type: targetType.value }
 })
 
-const canSend = computed(() => title.value.trim().length > 0 && body.value.trim().length > 0 && !props.busy)
-
-function onPreview() {
-  emit('preview', target.value)
-}
-
-function onSendClick() {
-  if (canSend.value) confirmOpen.value = true
-}
-
-function confirmSend() {
-  confirmOpen.value = false
-  emit('send', title.value, body.value, target.value)
-}
-
 // Le ciblage pour lequel l'estimation courante a été demandée. Changer de ciblage ensuite
 // rend le compteur mensonger : on le considère alors comme non estimé plutôt que d'afficher
 // un chiffre qui ne correspond plus à ce qui partira.
@@ -60,6 +45,34 @@ const freshCount = computed<number | null>(() =>
     : null,
 )
 const estimateIsStale = computed(() => props.recipientCount !== null && freshCount.value === null)
+
+// Phrase de contrôle exigée pour la cible la plus large. Réservée à `ALL` : l'imposer sur
+// toutes les cibles la banaliserait, et une confirmation qu'on tape sans lire ne protège
+// plus de rien — même raisonnement que pour la désactivation des SMS.
+const BROADCAST_ALL_PHRASE = 'DIFFUSER A TOUS'
+const needsControlPhrase = computed(() => targetType.value === 'ALL')
+
+// L'estimation fraîche est OBLIGATOIRE avant tout envoi : c'est elle qui oblige à VOIR le
+// nombre de personnes touchées avant de s'engager. Une notification push ne se rappelle pas.
+const canSend = computed(() =>
+  title.value.trim().length > 0
+  && body.value.trim().length > 0
+  && !props.busy
+  && freshCount.value !== null,
+)
+
+function onPreview() {
+  emit('preview', target.value)
+}
+
+function onSendClick() {
+  if (canSend.value) confirmOpen.value = true
+}
+
+function confirmSend() {
+  confirmOpen.value = false
+  emit('send', title.value, body.value, target.value)
+}
 
 // Un broadcast est irrattrapable une fois parti : la confirmation nomme toujours le
 // nombre de destinataires (ou signale explicitement qu'il n'a pas été estimé), pour que
@@ -151,6 +164,8 @@ const confirmMessage = computed(() => {
       title="Envoyer la diffusion"
       :message="confirmMessage"
       confirm-label="Envoyer"
+      :confirmation-phrase="needsControlPhrase ? BROADCAST_ALL_PHRASE : undefined"
+      :confirmation-label="needsControlPhrase ? `Saisissez « ${BROADCAST_ALL_PHRASE} » pour confirmer` : undefined"
       @confirm="confirmSend"
       @cancel="confirmOpen = false"
     />

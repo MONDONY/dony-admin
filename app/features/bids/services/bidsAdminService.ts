@@ -24,8 +24,8 @@ export const bidsAdminService = {
   listAnnouncements(page: number, size: number): Promise<AdminAnnouncementPage> {
     return useApi()<AdminAnnouncementPage>('/admin/announcements', { query: { page, size } })
   },
-  removeAnnouncement(id: string, reason: string): Promise<AdminAnnouncementListItem> {
-    return useApi()<AdminAnnouncementListItem>(`/admin/announcements/${id}/remove`, { method: 'POST', body: { reason } })
+  removeAnnouncement(id: string, publicReason: string, internalNote: string): Promise<AdminAnnouncementListItem> {
+    return useApi()<AdminAnnouncementListItem>(`/admin/announcements/${id}/remove`, { method: 'POST', body: { publicReason, internalNote } })
   },
   restoreAnnouncement(id: string): Promise<AdminAnnouncementListItem> {
     return useApi()<AdminAnnouncementListItem>(`/admin/announcements/${id}/restore`, { method: 'POST' })

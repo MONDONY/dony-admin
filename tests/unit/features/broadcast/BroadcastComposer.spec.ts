@@ -10,7 +10,9 @@ function mountComposer(props: Partial<InstanceType<typeof BroadcastComposer>['$p
 
 describe('BroadcastComposer', () => {
   it('désactive l’envoi tant que le titre ou le corps est vide', async () => {
-    const w = mountComposer()
+    // recipientCount fourni : l'estimation fraîche est désormais elle aussi obligatoire, ce
+    // test ne porte que sur le titre et le corps (cf. BroadcastComposerGuards).
+    const w = mountComposer({ recipientCount: 12 })
     expect((w.find('[data-test="broadcast-send"]').element as HTMLButtonElement).disabled).toBe(true)
 
     await w.find('[data-test="broadcast-title"]').setValue('Maintenance prévue')
@@ -80,6 +82,8 @@ describe('BroadcastComposer', () => {
     expect(w.find('[data-test="confirm"]').exists()).toBe(true)
     expect(w.text()).toContain('87')
 
+    // Cible ALL : la phrase de contrôle est exigée depuis l'arbitrage sur la diffusion.
+    await w.find('[data-test="confirmation-input"]').setValue('DIFFUSER A TOUS')
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('send')![0]).toEqual(['Titre', 'Corps', { type: 'ALL' }])
   })
