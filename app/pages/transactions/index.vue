@@ -12,6 +12,7 @@ import { usePayments } from '@/features/payments/composables/usePayments'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminChargeback } from '@/features/payments/types/index'
 import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission } from '@/features/finance/types/index'
 
@@ -40,28 +41,48 @@ const cashLoading = ref(false)
 const cashPage = ref(0)
 const cashTotalPages = ref(0)
 
-async function loadCbs() { cbLoading.value = true; try { cbs.value = (await paymentsService.listChargebacks(0, 20)).content } finally { cbLoading.value = false } }
+// Sur un écran financier, un appel en échec ne doit JAMAIS ressembler à une absence de
+// données : sans ce message, un 403 ou un 500 rend un tableau vide, indiscernable d'un
+// compte réellement sans portefeuille ni commission.
+const tabError = ref<string | null>(null)
+
+async function loadCbs() {
+  cbLoading.value = true
+  tabError.value = null
+  try { cbs.value = (await paymentsService.listChargebacks(0, 20)).content }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les litiges bancaires') }
+  finally { cbLoading.value = false }
+}
 
 async function loadWallets(page = walletsPage.value) {
   walletsLoading.value = true
+  tabError.value = null
   try {
     const res = await financeService.listWallets(page, 20)
     wallets.value = res.content; walletsTotalPages.value = res.totalPages; walletsPage.value = res.number
-  } finally { walletsLoading.value = false }
+  }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les portefeuilles') }
+  finally { walletsLoading.value = false }
 }
 async function loadMobileMoney(page = mmPage.value) {
   mmLoading.value = true
+  tabError.value = null
   try {
     const res = await financeService.listMobileMoneyPayments(page, 20)
     mmPayments.value = res.content; mmTotalPages.value = res.totalPages; mmPage.value = res.number
-  } finally { mmLoading.value = false }
+  }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les paiements mobile money') }
+  finally { mmLoading.value = false }
 }
 async function loadCashCommissions(page = cashPage.value) {
   cashLoading.value = true
+  tabError.value = null
   try {
     const res = await financeService.listCashCommissions(page, 20)
     cashCommissions.value = res.content; cashTotalPages.value = res.totalPages; cashPage.value = res.number
-  } finally { cashLoading.value = false }
+  }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les commissions cash') }
+  finally { cashLoading.value = false }
 }
 
 async function switchTab(t: Tab) {
@@ -89,6 +110,11 @@ onMounted(fetchPayments)
       <button type="button" data-test="tab-mobile-money" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mobile-money' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mobile-money')">Mobile money</button>
       <button type="button" data-test="tab-cash-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'cash-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('cash-commissions')">Commissions cash</button>
     </div>
+    <p
+      v-if="tabError" data-test="transactions-error"
+      class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+    >{{ tabError }}</p>
+
     <template v-if="tab === 'payments'">
       <PaymentFilters
         :model-status="filters.status"

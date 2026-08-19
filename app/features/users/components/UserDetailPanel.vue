@@ -62,8 +62,14 @@ function muteDurationLabel(): string {
 }
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 
+// `!= null` et non `!== null` : le backend est en NON_NULL, un champ nul est ABSENT du JSON
+// et arrive donc à `undefined`. La comparaison stricte était vraie sur `undefined`, ce qui
+// préremplissait ce champ avec la chaîne « NaN ».
+// L'arrondi absorbe le bruit flottant : `0.07 * 100 === 7.000000000000001`.
 const commissionPercent = ref<string>(
-  props.user.commissionRateOverride !== null ? String(props.user.commissionRateOverride * 100) : ''
+  props.user.commissionRateOverride != null
+    ? String(Math.round(props.user.commissionRateOverride * 1000) / 10)
+    : ''
 )
 const pendingCommissionRate = ref<number | null>(null)
 
@@ -197,7 +203,7 @@ const dialogConfig = computed<DialogConfig>(() => {
           @click="emit('liftPublishing')"
         >Lever la suspension de publication</button>
         <button
-          v-if="user.messagingMutedUntil !== null && auth.can('USER_MESSAGE_MUTE')" type="button" data-test="action-unmute"
+          v-if="user.messagingMutedUntil != null && auth.can('USER_MESSAGE_MUTE')" type="button" data-test="action-unmute"
           :disabled="busy"
           class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30 disabled:opacity-40"
           @click="emit('unmuteMessaging')"
@@ -222,7 +228,7 @@ const dialogConfig = computed<DialogConfig>(() => {
 
       <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">
         <p class="text-text-muted">Commission
-          <span v-if="user.commissionRateOverride !== null">
+          <span v-if="user.commissionRateOverride != null">
             — dérogation actuelle : {{ (user.commissionRateOverride * 100).toFixed(1) }} %</span>
           <span v-else> — taux global appliqué</span>
         </p>
@@ -238,7 +244,7 @@ const dialogConfig = computed<DialogConfig>(() => {
             @click="applyCommission"
           >Appliquer</button>
           <button
-            v-if="user.commissionRateOverride !== null" type="button"
+            v-if="user.commissionRateOverride != null" type="button"
             data-test="commission-reset"
             class="rounded-btn px-4 py-2 text-sm border border-border"
             @click="pending = 'resetCommission'"

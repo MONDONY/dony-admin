@@ -131,3 +131,23 @@ describe('PaymentDetailPanel', () => {
     expect(wrapper.emitted('close')).toBeTruthy()
   })
 })
+
+/**
+ * Les deux seuls gestes de mouvement d'argent du back-office. SUPPORT ne détient ni
+ * `PAYMENT_RELEASE` ni `PAYMENT_REFUND` : sans ces cas négatifs, supprimer les `v-if`
+ * laisserait la suite verte et rouvrirait les deux boutons à un rôle qui prend un 403.
+ */
+describe('PaymentDetailPanel — gardes vues depuis un rôle sans les permissions', () => {
+  beforeEach(() => seedAuth('SUPPORT'))
+
+  it('SUPPORT ne voit ni « Débloquer » ni « Rembourser » sur un paiement en ESCROW', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: mockPayment, open: true } })
+    expect(w.find('[data-test="action-release"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-refund"]').exists()).toBe(false)
+  })
+
+  it('SUPPORT garde bien l’accès en consultation au panneau', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: mockPayment, open: true } })
+    expect(w.find('[data-test="payment-close"]').exists()).toBe(true)
+  })
+})

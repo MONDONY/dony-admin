@@ -46,7 +46,7 @@ onMounted(fetchUsers)
       @mute-messaging="async (durationHours, reason) => { await detail.muteMessaging(durationHours, reason); await afterAction() }"
       @unmute-messaging="async () => { await detail.unmuteMessaging(); await afterAction() }"
       @open-kyc="() => kyc.load(detail.user.value!.id)"
-      @reset-kyc="async (reason) => { await kyc.reset(detail.user.value!.id, reason); await afterAction() }"
+      @reset-kyc="async (reason) => { const id = detail.user.value!.id; await kyc.reset(id, reason); await detail.open(id); await afterAction() }"
     />
   </div>
 </template>

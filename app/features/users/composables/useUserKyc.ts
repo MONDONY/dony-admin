@@ -19,8 +19,16 @@ export function useUserKyc() {
   async function load(userId: string) {
     isLoading.value = true
     error.value = null
+    // Vidé AVANT l'appel, et de nouveau en cas d'échec : ce composable vit au niveau de la
+    // page, son état survit donc à la fermeture d'une fiche. Sans ce nettoyage, l'onglet KYC
+    // d'un utilisateur dont le chargement échoue afficherait le dossier — pièces, motif de
+    // rejet, session Stripe — de l'utilisateur consulté juste avant, sous son nom à lui.
+    kyc.value = null
     try { kyc.value = await usersService.getKyc(userId) }
-    catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger le KYC') }
+    catch (e) {
+      kyc.value = null
+      error.value = extractProblemMessage(e, 'Impossible de charger le KYC')
+    }
     finally { isLoading.value = false }
   }
 

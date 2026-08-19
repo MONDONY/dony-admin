@@ -4,6 +4,7 @@ import GdprRequestsTable from '@/features/users/components/GdprRequestsTable.vue
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useGdprRequests } from '@/features/users/composables/useGdprRequests'
+import { gdprConfirmationPhrase } from '@/features/users/gdprTarget'
 import type { AdminGdprRequest } from '@/features/users/types/index'
 
 definePageMeta({
@@ -19,8 +20,10 @@ const { requests, isLoading, error, busy, currentPage, totalPages, fetchRequests
 // Geste irréversible : double confirmation par saisie du nom exact de l'utilisateur,
 // en plus du motif obligatoire.
 const pending = ref<AdminGdprRequest | null>(null)
+// La phrase ne doit jamais être vide : ConfirmActionDialog désactive purement et simplement
+// la double confirmation sur une chaîne vide. Voir gdprConfirmationPhrase.
 const pendingName = computed(() =>
-  pending.value ? [pending.value.firstName, pending.value.lastName].filter(Boolean).join(' ') : '',
+  pending.value ? gdprConfirmationPhrase(pending.value) : '',
 )
 
 async function confirmExecute(reason: string) {
