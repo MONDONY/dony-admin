@@ -3,18 +3,38 @@ import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { userStatusMeta } from './userStatus'
-import type { AdminUserDetail } from '@/features/users/types/index'
+import UserKycTab from './UserKycTab.vue'
+import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 
-const props = defineProps<{ user: AdminUserDetail; open: boolean }>()
+const props = defineProps<{
+  user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
+  kyc?: AdminKycDetail | null; kycLoading?: boolean; kycError?: string | null
+}>()
 const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
+  muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
+  openKyc: []; resetKyc: [reason: string];
 }>()
 const auth = useAuthStore()
 
-type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | null
+type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging' | null
 const pending = ref<Pending>(null)
+
+// « profil » par défaut : les gestes de compte restent immédiatement accessibles à
+// l'ouverture de la fiche. L'onglet KYC déclenche un chargement paresseux (openKyc), car
+// la lecture back interroge Stripe Identity en direct — inutile de la payer sans besoin.
+type Tab = 'profil' | 'kyc'
+const tab = ref<Tab>('profil')
+const kycLoaded = ref(false)
+function openTab(next: Tab) {
+  tab.value = next
+  if (next === 'kyc' && !kycLoaded.value) {
+    kycLoaded.value = true
+    emit('openKyc')
+  }
+}
 const fullName = () => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || '—'
 function confirmReason(reason: string) {
   if (pending.value === 'suspend') emit('suspend', reason)
@@ -22,11 +42,34 @@ function confirmReason(reason: string) {
   else if (pending.value === 'suspendPublishing') emit('suspendPublishing', reason)
   else if (pending.value === 'setCommission') emit('setCommission', pendingCommissionRate.value)
   else if (pending.value === 'resetCommission') emit('setCommission', null)
+  else if (pending.value === 'muteMessaging') emit('muteMessaging', muteDurationHours(), reason)
   pending.value = null
 }
 
+// Choix de durée (24 h / 7 j / indéfini) : contrôle dans le panneau (motif de
+// l'éditeur de commission), la confirmation ne porte que le motif.
+type MuteDurationOption = '24' | '168' | 'indefinite'
+const muteDuration = ref<MuteDurationOption>('24')
+function muteDurationHours(): number | null {
+  if (muteDuration.value === '24') return 24
+  if (muteDuration.value === '168') return 168
+  return null
+}
+function muteDurationLabel(): string {
+  if (muteDuration.value === '24') return '24 heures'
+  if (muteDuration.value === '168') return '7 jours'
+  return 'une durée indéterminée'
+}
+function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
+
+// `!= null` et non `!== null` : le backend est en NON_NULL, un champ nul est ABSENT du JSON
+// et arrive donc à `undefined`. La comparaison stricte était vraie sur `undefined`, ce qui
+// préremplissait ce champ avec la chaîne « NaN ».
+// L'arrondi absorbe le bruit flottant : `0.07 * 100 === 7.000000000000001`.
 const commissionPercent = ref<string>(
-  props.user.commissionRateOverride !== null ? String(props.user.commissionRateOverride * 100) : ''
+  props.user.commissionRateOverride != null
+    ? String(Math.round(props.user.commissionRateOverride * 1000) / 10)
+    : ''
 )
 const pendingCommissionRate = ref<number | null>(null)
 
@@ -69,6 +112,13 @@ const dialogConfig = computed<DialogConfig>(() => {
         confirmLabel: 'Réinitialiser',
         requireReason: false,
       }
+    case 'muteMessaging':
+      return {
+        title: 'Couper la messagerie',
+        message: `La messagerie de cet utilisateur sera coupée pour ${muteDurationLabel()}.`,
+        confirmLabel: 'Couper la messagerie',
+        requireReason: true,
+      }
     default:
       return { title: '', message: '', confirmLabel: '', requireReason: false }
   }
@@ -83,9 +133,32 @@ const dialogConfig = computed<DialogConfig>(() => {
           <h2 class="font-display text-xl font-bold">{{ fullName() }}</h2>
           <p class="text-sm text-text-muted tabular-nums">{{ user.phoneNumber }}</p>
         </div>
-        <StatusBadge v-bind="userStatusMeta(user.status)" />
+        <div class="flex items-center gap-2">
+          <StatusBadge v-bind="userStatusMeta(user.status)" />
+          <button
+            type="button" data-test="action-close"
+            class="rounded-btn px-3 py-1.5 text-sm border border-border"
+            @click="emit('close')"
+          >Fermer</button>
+        </div>
       </div>
 
+      <div class="mb-4 flex gap-1 border-b border-border" role="tablist">
+        <button
+          type="button" data-test="tab-profil" role="tab" :aria-selected="tab === 'profil'"
+          class="rounded-t-btn px-4 py-2 text-sm"
+          :class="tab === 'profil' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
+          @click="openTab('profil')"
+        >Profil</button>
+        <button
+          v-if="auth.can('USER_KYC')" type="button" data-test="tab-kyc" role="tab" :aria-selected="tab === 'kyc'"
+          class="rounded-t-btn px-4 py-2 text-sm"
+          :class="tab === 'kyc' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
+          @click="openTab('kyc')"
+        >KYC</button>
+      </div>
+
+      <template v-if="tab === 'profil'">
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Email</dt><dd>{{ user.email ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Ville</dt><dd>{{ user.city ?? '—' }}</dd></div>
@@ -97,7 +170,11 @@ const dialogConfig = computed<DialogConfig>(() => {
         <div><dt class="text-text-muted">Annulations</dt><dd class="tabular-nums">{{ user.cancellationCount }}</dd></div>
         <div><dt class="text-text-muted">Publication</dt>
           <dd>{{ user.publishingSuspended ? 'Suspendue' : 'Autorisée' }}</dd></div>
+        <div><dt class="text-text-muted">Messagerie</dt>
+          <dd data-test="messaging-status">{{ user.messagingMutedUntil ? `Coupée jusqu'au ${fmt(user.messagingMutedUntil)}` : 'Autorisée' }}</dd></div>
       </dl>
+
+      <p v-if="error" data-test="user-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
 
       <div class="flex flex-wrap gap-2">
         <button
@@ -126,15 +203,32 @@ const dialogConfig = computed<DialogConfig>(() => {
           @click="emit('liftPublishing')"
         >Lever la suspension de publication</button>
         <button
-          type="button" data-test="action-close"
-          class="rounded-btn px-4 py-2 text-sm border border-border ml-auto"
-          @click="emit('close')"
-        >Fermer</button>
+          v-if="user.messagingMutedUntil != null && auth.can('USER_MESSAGE_MUTE')" type="button" data-test="action-unmute"
+          :disabled="busy"
+          class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30 disabled:opacity-40"
+          @click="emit('unmuteMessaging')"
+        >Rétablir la messagerie</button>
+      </div>
+
+      <div v-if="auth.can('USER_MESSAGE_MUTE')" class="mt-4 flex items-center gap-2">
+        <select
+          v-model="muteDuration" data-test="mute-duration"
+          class="rounded-btn border border-border bg-surface px-3 py-2 text-sm"
+        >
+          <option value="24">24 heures</option>
+          <option value="168">7 jours</option>
+          <option value="indefinite">Indéfini</option>
+        </select>
+        <button
+          type="button" data-test="action-mute" :disabled="busy"
+          class="rounded-btn px-4 py-2 text-sm bg-danger/20 text-danger hover:bg-danger/30 disabled:opacity-40"
+          @click="pending = 'muteMessaging'"
+        >Couper la messagerie</button>
       </div>
 
       <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">
         <p class="text-text-muted">Commission
-          <span v-if="user.commissionRateOverride !== null">
+          <span v-if="user.commissionRateOverride != null">
             — dérogation actuelle : {{ (user.commissionRateOverride * 100).toFixed(1) }} %</span>
           <span v-else> — taux global appliqué</span>
         </p>
@@ -150,13 +244,20 @@ const dialogConfig = computed<DialogConfig>(() => {
             @click="applyCommission"
           >Appliquer</button>
           <button
-            v-if="user.commissionRateOverride !== null" type="button"
+            v-if="user.commissionRateOverride != null" type="button"
             data-test="commission-reset"
             class="rounded-btn px-4 py-2 text-sm border border-border"
             @click="pending = 'resetCommission'"
           >Réinitialiser</button>
         </div>
       </div>
+      </template>
+
+      <UserKycTab
+        v-if="tab === 'kyc'"
+        :kyc="props.kyc ?? null" :loading="props.kycLoading" :error="props.kycError" :busy="props.busy"
+        @reset="(reason) => emit('resetKyc', reason)"
+      />
 
       <ConfirmActionDialog
         :open="pending !== null"

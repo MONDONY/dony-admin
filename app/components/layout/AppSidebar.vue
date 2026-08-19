@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  LayoutDashboard, Users, CreditCard, Package, AlertTriangle,
-  Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound,
+  LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
+  Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone, Settings,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -101,9 +101,23 @@ onBeforeUnmount(() => {
       </template>
     </ClientOnly>
 
+    <!--
+      Sous ClientOnly, comme le bloc profil juste au-dessus : `can()` dépend de `auth.user`,
+      que seul le plugin Firebase côté client peuple. Au rendu serveur, toutes les
+      permissions sont donc fausses et la nav sortait VIDE dans le HTML servi, avant que
+      l'hydratation n'ajoute les quinze entrées — décalage d'hydratation à chaque chargement
+      et navigation absente au premier paint.
+    -->
+    <ClientOnly>
+      <template #fallback>
+        <nav class="flex-1 px-3 py-4 space-y-1" aria-hidden="true">
+          <div v-for="i in 8" :key="i" class="h-9 rounded-btn bg-border/40 animate-pulse" />
+        </nav>
+      </template>
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
       <NavItem v-if="can('METRICS_VIEW')" to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_VIEW')" to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('USER_GDPR_DELETE')" to="/users/rgpd" label="Demandes RGPD"><template #icon><UserX class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('BID_VIEW')" to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('DISPUTE_VIEW')" to="/incidents" label="Incidents"><template #icon><AlertTriangle class="w-4 h-4" /></template></NavItem>
@@ -113,7 +127,10 @@ onBeforeUnmount(() => {
       <NavItem v-if="can('AUDIT_VIEW')" to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('EXPORT_RUN')" to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('REPORT_VIEW')" to="/signalements" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('NOTIFICATION_SEND')" to="/communications" label="Communications"><template #icon><Megaphone class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('CONFIG_MANAGE')" to="/parametres" label="Paramètres"><template #icon><Settings class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('ADMIN_MANAGE')" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
     </nav>
+    </ClientOnly>
   </aside>
 </template>

@@ -69,4 +69,63 @@ describe('usersService', () => {
       method: 'POST',
     })
   })
+
+  it('muteMessaging() POSTs durationHours and reason', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', messagingMutedUntil: '2026-08-19T00:00:00Z' })
+    const r = await usersService.muteMessaging('u1', 24, 'spam')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/mute-messaging', {
+      method: 'POST',
+      body: { durationHours: 24, reason: 'spam' },
+    })
+    expect(r.messagingMutedUntil).toBe('2026-08-19T00:00:00Z')
+  })
+
+  it('muteMessaging() with a null duration means an indefinite mute', async () => {
+    apiMock.mockResolvedValue({ id: 'u1' })
+    await usersService.muteMessaging('u1', null, 'abus répétés')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/mute-messaging', {
+      method: 'POST',
+      body: { durationHours: null, reason: 'abus répétés' },
+    })
+  })
+
+  it('unmuteMessaging() POSTs without body', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', messagingMutedUntil: null })
+    await usersService.unmuteMessaging('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/unmute-messaging', {
+      method: 'POST',
+    })
+  })
+
+  it('getKyc() interroge /admin/users/{id}/kyc', async () => {
+    apiMock.mockResolvedValue({ userId: 'u1', kycStatus: 'REJECTED', verificationStatus: 'REJECTED' })
+    const r = await usersService.getKyc('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/kyc')
+    expect(r.kycStatus).toBe('REJECTED')
+  })
+
+  it('resetKyc() POSTe le motif sur /kyc/reset', async () => {
+    apiMock.mockResolvedValue({ userId: 'u1', kycStatus: 'NOT_STARTED', verificationStatus: 'PENDING' })
+    const r = await usersService.resetKyc('u1', 'document illisible')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/kyc/reset', {
+      method: 'POST',
+      body: { reason: 'document illisible' },
+    })
+    expect(r.kycStatus).toBe('NOT_STARTED')
+  })
+
+  it('listGdprRequests() interroge la file paginée', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.listGdprRequests(1, 20)
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/gdpr-requests', { query: { page: 1, size: 20 } })
+  })
+
+  it('executeGdprDeletion() POSTe le motif sur /gdpr-execute', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await usersService.executeGdprDeletion('u1', 'demande confirmée')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/gdpr-execute', {
+      method: 'POST',
+      body: { reason: 'demande confirmée' },
+    })
+  })
 })

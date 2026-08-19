@@ -7,25 +7,17 @@ import AnnouncementsTable from '@/features/bids/components/AnnouncementsTable.vu
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { useAdminBids } from '@/features/bids/composables/useAdminBids'
 import { useBidTimeline } from '@/features/bids/composables/useBidTimeline'
-import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
-import type { AdminAnnouncementListItem } from '@/features/bids/types/index'
+import { useAdminAnnouncements } from '@/features/bids/composables/useAdminAnnouncements'
 
 definePageMeta({ middleware: 'admin-only', permission: 'BID_VIEW', pageTitle: 'Colis', pageSubtitle: 'Bids & annonces' })
 
 const tab = ref<'bids' | 'announcements'>('bids')
 const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange } = useAdminBids()
 const detail = useBidTimeline()
-const anns = ref<AdminAnnouncementListItem[]>([])
-const annLoading = ref(false)
-
-async function loadAnns() {
-  annLoading.value = true
-  try {
-    anns.value = (await bidsAdminService.listAnnouncements(0, 20)).content
-  } finally {
-    annLoading.value = false
-  }
-}
+const {
+  announcements: anns, isLoading: annLoading, error: annError, busy: annBusy,
+  load: loadAnns, remove: removeAnnouncement, restore: restoreAnnouncement,
+} = useAdminAnnouncements()
 
 async function switchTab(t: 'bids' | 'announcements') {
   tab.value = t
@@ -75,6 +67,9 @@ onMounted(fetchBids)
       />
     </template>
 
-    <AnnouncementsTable v-else :announcements="anns" :loading="annLoading" />
+    <AnnouncementsTable
+      v-else :announcements="anns" :loading="annLoading" :error="annError" :busy="annBusy"
+      @remove="removeAnnouncement" @restore="restoreAnnouncement"
+    />
   </div>
 </template>

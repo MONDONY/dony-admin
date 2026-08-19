@@ -33,4 +33,16 @@ describe('bidsAdminService', () => {
     await bidsAdminService.listAnnouncements(0, 20)
     expect(apiMock).toHaveBeenCalledWith('/admin/announcements', { query: { page: 0, size: 20 } })
   })
+  it('removeAnnouncement POSTs le motif catalogué ET la note interne, séparément', async () => {
+    apiMock.mockResolvedValue({ id: 'a1', status: 'REMOVED_BY_ADMIN' })
+    const r = await bidsAdminService.removeAnnouncement('a1', 'SUSPECTED_FRAUD', 'ticket #4821')
+    expect(apiMock).toHaveBeenCalledWith('/admin/announcements/a1/remove', { method: 'POST', body: { publicReason: 'SUSPECTED_FRAUD', internalNote: 'ticket #4821' } })
+    expect(r.status).toBe('REMOVED_BY_ADMIN')
+  })
+  it('restoreAnnouncement POSTs without body and returns the updated announcement', async () => {
+    apiMock.mockResolvedValue({ id: 'a1', status: 'ACTIVE' })
+    const r = await bidsAdminService.restoreAnnouncement('a1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/announcements/a1/restore', { method: 'POST' })
+    expect(r.status).toBe('ACTIVE')
+  })
 })

@@ -50,3 +50,46 @@ test('admin switches to announcements tab', async ({ page }) => {
   await page.locator('[data-test="tab-announcements"]').click()
   await expect(page.locator('[data-test="ann-row-an1"]')).toContainText('Lyon → Abidjan')
 })
+
+test('admin retire une annonce avec un motif puis la restaure', async ({ page }) => {
+  const removeCalls: { reason: string }[] = []
+  const ANN_REMOVED = { ...ANNS.content[0], status: 'REMOVED_BY_ADMIN' as const }
+
+  // Route dédiée à ce test : /an1/remove et /an1/restore ne partagent pas de
+  // préfixe ambigu entre eux, mais doivent être branchées avant le catch-all
+  // générique (GET liste) déjà enregistré dans le beforeEach.
+  await page.route('**/api/v1/admin/announcements**', (route) => {
+    const req = route.request()
+    const url = req.url()
+    const method = req.method()
+
+    if (method === 'POST' && url.includes('/an1/restore')) {
+      return route.fulfill({ json: ANNS.content[0] })
+    }
+    if (method === 'POST' && url.includes('/an1/remove')) {
+      removeCalls.push(req.postDataJSON() as { reason: string })
+      return route.fulfill({ json: ANN_REMOVED })
+    }
+    return route.fulfill({ json: ANNS })
+  })
+
+  await page.goto('/colis')
+  // Attendre que la première liste soit rendue avant de changer d'onglet : sans ce
+  // point d'ancrage, le clic part avant l'hydratation et l'onglet ne bascule pas.
+  await expect(page.locator('[data-test="bid-row-b1"]')).toBeVisible()
+  await page.locator('[data-test="tab-announcements"]').click()
+  await expect(page.locator('[data-test="ann-row-an1"]')).toBeVisible()
+
+  await page.locator('[data-test="remove-an1"]').click()
+  // Motif catalogué obligatoire ; la note libre reste interne et ne part pas au voyageur.
+  await page.locator('[data-test="reason-choice"]').selectOption('SUSPECTED_FRAUD')
+  await page.locator('[data-test="reason"]').fill('signalé par un tiers, ticket #4821')
+  await page.locator('[data-test="confirm"]').click()
+
+  await expect(page.locator('[data-test="restore-an1"]')).toBeVisible()
+  await expect.poll(() => removeCalls.length).toBe(1)
+  expect(removeCalls[0]).toEqual({ publicReason: 'SUSPECTED_FRAUD', internalNote: 'signalé par un tiers, ticket #4821' })
+
+  await page.locator('[data-test="restore-an1"]').click()
+  await expect(page.locator('[data-test="remove-an1"]')).toBeVisible()
+})

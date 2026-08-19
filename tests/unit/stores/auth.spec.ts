@@ -1,6 +1,7 @@
 import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, it, expect } from 'vitest'
 import { useAuthStore, effectivePermissions, ALL_PERMISSIONS, type AdminUser } from '@/stores/auth'
+import { seedAuth } from '~/tests/helpers/auth'
 
 const adminUser: AdminUser = {
   id: 'user-1',
@@ -109,5 +110,62 @@ describe('useAuthStore (admin)', () => {
     const set = effectivePermissions('SUPPORT', { NOT_A_PERMISSION: true, USER_VIEW: false })
     expect(set.has('USER_VIEW')).toBe(false)
     expect([...set].every((p) => (ALL_PERMISSIONS as readonly string[]).includes(p))).toBe(true)
+  })
+
+  it('ADMIN can remove content and mute messaging', () => {
+    seedAuth('ADMIN')
+    const auth = useAuthStore()
+    expect(auth.can('CONTENT_REMOVE')).toBe(true)
+    expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
+  })
+
+  // Lot C : USER_MESSAGE_MUTE a été accordée au support sur décision du propriétaire
+  // du produit — il peut déjà bannir, geste bien plus sévère. CONTENT_REMOVE et
+  // RATING_DELETE lui restent fermées.
+  it('SUPPORT can mute messaging but cannot remove content nor delete ratings', () => {
+    seedAuth('SUPPORT')
+    const auth = useAuthStore()
+    expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
+    expect(auth.can('CONTENT_REMOVE')).toBe(false)
+    expect(auth.can('RATING_DELETE')).toBe(false)
+    expect(auth.can('RATING_MODERATE')).toBe(true)
+  })
+
+  it('SUPPORT can receive CONTENT_REMOVE via an override', () => {
+    seedAuth('SUPPORT', { CONTENT_REMOVE: true })
+    expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
+  })
+
+  // 29 depuis le Lot D, qui ajoute NOTIFICATION_SEND et CONFIG_MANAGE.
+  it('exposes 29 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(29)
+  })
+
+  it('ADMIN peut diffuser une notification et modifier la configuration', () => {
+    seedAuth('ADMIN')
+    const auth = useAuthStore()
+    expect(auth.can('NOTIFICATION_SEND')).toBe(true)
+    expect(auth.can('CONFIG_MANAGE')).toBe(true)
+  })
+
+  it('SUPER_ADMIN les porte aussi', () => {
+    seedAuth('SUPER_ADMIN')
+    const auth = useAuthStore()
+    expect(auth.can('NOTIFICATION_SEND')).toBe(true)
+    expect(auth.can('CONFIG_MANAGE')).toBe(true)
+  })
+
+  it('SUPPORT ne peut ni diffuser ni configurer', () => {
+    seedAuth('SUPPORT')
+    const auth = useAuthStore()
+    expect(auth.can('NOTIFICATION_SEND')).toBe(false)
+    expect(auth.can('CONFIG_MANAGE')).toBe(false)
+  })
+
+  it('SUPPORT peut recevoir CONFIG_MANAGE via un override explicite', () => {
+    seedAuth('SUPPORT', { CONFIG_MANAGE: true })
+    const auth = useAuthStore()
+    expect(auth.can('CONFIG_MANAGE')).toBe(true)
+    expect(auth.can('NOTIFICATION_SEND')).toBe(false)
   })
 })

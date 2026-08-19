@@ -31,6 +31,7 @@ export interface AdminUserDetail extends AdminUserListItem {
   senderHandoverIncidentCount: number
   ratingCount: number
   deletionRequestedAt: string | null
+  messagingMutedUntil: string | null
 }
 
 export interface AdminUserPage {
@@ -48,4 +49,49 @@ export interface UsersFilterState {
   pro: boolean | null
   city: string | null
   query: string
+}
+
+/** Miroir de com.yadony.api.kyc.KycVerificationStatus (table kyc_schema.kyc_verifications). */
+export type KycVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED'
+
+/**
+ * Vue KYC admin. Les deux statuts sont maintenus en parallèle côté back :
+ * `kycStatus` sur public.users, `verificationStatus` sur kyc_schema.
+ * `'NOT_STARTED'` en `verificationStatus` signifie « aucune ligne KYC ».
+ *
+ * Il n'existe ni document ni historique de session : Stripe détient les pièces, et une
+ * seule ligne par utilisateur est conservée (contrainte uq_kyc_user_id).
+ */
+export interface AdminKycDetail {
+  userId: string
+  kycStatus: KycStatus
+  verificationStatus: KycVerificationStatus | 'NOT_STARTED'
+  rejectionReason: string | null
+  rejectionCode: string | null
+  stripeSessionId: string | null
+  stripeStatus: string | null
+  stripeLastErrorCode: string | null
+  stripeLastErrorReason: string | null
+  stripeCreatedAt: string | null
+  /** true uniquement si l'appel Stripe a échoué — pas quand il n'y a aucune session. */
+  stripeUnavailable: boolean
+}
+
+/** Une ligne de la file des demandes de suppression RGPD. */
+export interface AdminGdprRequest {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  email: string | null
+  status: UserStatus
+  deletionRequestedAt: string
+  ageDays: number
+}
+
+export interface AdminGdprRequestPage {
+  content: AdminGdprRequest[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
 }

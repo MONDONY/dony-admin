@@ -1,5 +1,7 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminUserDetail, AdminUserPage, UsersFilterState } from '@/features/users/types/index'
+import type {
+  AdminGdprRequestPage, AdminKycDetail, AdminUserDetail, AdminUserPage, UsersFilterState,
+} from '@/features/users/types/index'
 
 function buildQuery(f: UsersFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
@@ -36,5 +38,27 @@ export const usersService = {
   },
   liftPublishingSuspension(id: string): Promise<void> {
     return useApi()<void>(`/admin/users/${id}/lift-publishing-suspension`, { method: 'POST' })
+  },
+  muteMessaging(id: string, durationHours: number | null, reason: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/mute-messaging`, {
+      method: 'POST',
+      body: { durationHours, reason },
+    })
+  },
+  unmuteMessaging(id: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/unmute-messaging`, { method: 'POST' })
+  },
+  getKyc(id: string): Promise<AdminKycDetail> {
+    return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc`)
+  },
+  resetKyc(id: string, reason: string): Promise<AdminKycDetail> {
+    return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/reset`, { method: 'POST', body: { reason } })
+  },
+  listGdprRequests(page: number, size: number): Promise<AdminGdprRequestPage> {
+    return useApi()<AdminGdprRequestPage>('/admin/users/gdpr-requests', { query: { page, size } })
+  },
+  /** Irréversible : le back répond 204 sans corps. */
+  executeGdprDeletion(id: string, reason: string): Promise<void> {
+    return useApi()<void>(`/admin/users/${id}/gdpr-execute`, { method: 'POST', body: { reason } })
   },
 }

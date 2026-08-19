@@ -55,6 +55,7 @@ const DETAIL_U1 = {
   senderHandoverIncidentCount: 0,
   ratingCount: 10,
   deletionRequestedAt: null,
+  messagingMutedUntil: null,
 }
 
 const DETAIL_U1_SUSPENDED = { ...DETAIL_U1, status: 'SUSPENDED' }
@@ -135,4 +136,46 @@ test('admin suspend la publication depuis la fiche user', async ({ page }) => {
   await page.locator('[data-test="reason"]').fill('annonces frauduleuses')
   await page.locator('[data-test="confirm"]').click()
   await expect(page.locator('[data-test="action-lift-publishing"]')).toBeVisible()
+})
+
+test('admin coupe la messagerie avec une durée choisie puis la rétablit', async ({ page }) => {
+  const muteCalls: { durationHours: number | null; reason: string }[] = []
+
+  // Route dédiée à ce test : POST /u1/mute-messaging et /u1/unmute-messaging
+  // partagent le même préfixe (« unmute-messaging » contient la sous-chaîne
+  // « mute-messaging »), donc la branche unmute doit être testée avant la
+  // branche mute — même piège que suspend-publishing/suspend plus haut.
+  await page.route('**/api/v1/admin/users**', (route) => {
+    const req = route.request()
+    const url = req.url()
+    const method = req.method()
+
+    if (method === 'POST' && url.includes('/u1/unmute-messaging')) {
+      return route.fulfill({ json: { ...DETAIL_U1, messagingMutedUntil: null } })
+    }
+    if (method === 'POST' && url.includes('/u1/mute-messaging')) {
+      muteCalls.push(req.postDataJSON() as { durationHours: number | null; reason: string })
+      return route.fulfill({ json: { ...DETAIL_U1, messagingMutedUntil: '2026-06-09T10:00:00Z' } })
+    }
+    if (url.includes('/u1') && method === 'GET') {
+      return route.fulfill({ json: DETAIL_U1 })
+    }
+    return route.fulfill({ json: LIST_PAGE })
+  })
+
+  await page.goto('/users')
+  await page.locator('[data-test="row-u1"]').click()
+  await expect(page.locator('[data-test="messaging-status"]')).toContainText('Autorisée')
+
+  await page.locator('[data-test="mute-duration"]').selectOption('168')
+  await page.locator('[data-test="action-mute"]').click()
+  await page.locator('[data-test="reason"]').fill('propos déplacés répétés')
+  await page.locator('[data-test="confirm"]').click()
+
+  await expect(page.locator('[data-test="messaging-status"]')).toContainText('Coupée jusqu')
+  await expect.poll(() => muteCalls.length).toBe(1)
+  expect(muteCalls[0]).toEqual({ durationHours: 168, reason: 'propos déplacés répétés' })
+
+  await page.locator('[data-test="action-unmute"]').click()
+  await expect(page.locator('[data-test="messaging-status"]')).toContainText('Autorisée')
 })

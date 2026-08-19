@@ -6,10 +6,15 @@ import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
+import { useAuthStore } from '@/stores/auth'
 import type { ReportAction, ReportStatusFilter } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
+// L'onglet Avis interroge /admin/ratings, protégé par RATING_MODERATE — une permission
+// distincte de celle de la page (REPORT_VIEW). Un compte dont RATING_MODERATE a été révoqué
+// par override verrait sinon un onglet qui répond 403 en affichant « aucun avis ».
+const auth = useAuthStore()
 const activeTab = ref<'reports' | 'ratings'>('reports')
 
 // ---- Signalements ----
@@ -77,7 +82,7 @@ onMounted(r.fetchReports)
         @click="switchTab('reports')"
       >Signalements</button>
       <button
-        type="button" data-test="tab-ratings"
+        v-if="auth.can('RATING_MODERATE')" type="button" data-test="tab-ratings"
         :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
           activeTab === 'ratings' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text']"
         @click="switchTab('ratings')"
@@ -103,7 +108,7 @@ onMounted(r.fetchReports)
     </div>
 
     <!-- AVIS -->
-    <div v-show="activeTab === 'ratings'">
+    <div v-show="activeTab === 'ratings' && auth.can('RATING_MODERATE')">
       <label class="flex items-center gap-2 mb-4 text-sm text-text-muted cursor-pointer">
         <input
           type="checkbox" data-test="flagged-only"

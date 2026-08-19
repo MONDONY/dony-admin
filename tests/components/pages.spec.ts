@@ -35,6 +35,7 @@ describe('placeholder pages', () => {
     () => import('@/pages/signalements/index.vue'),
     () => import('@/pages/transactions/index.vue'),
     () => import('@/pages/users/index.vue'),
+    () => import('@/pages/users/rgpd.vue'),
   ]
 
   for (const importFn of stubPages) {
@@ -45,7 +46,7 @@ describe('placeholder pages', () => {
           stubs: {
             NuxtLink: NuxtLinkStub,
             // Stub all heavy child components to avoid deep import chains
-            UserFilters: true, UserTable: true, UserDetailPanel: true,
+            UserFilters: true, UserTable: true, UserDetailPanel: true, GdprRequestsTable: true,
             AlertsTable: true, TransactionsTable: true, BidsTable: true,
             AnnouncementsTable: true, DisputesTable: true, CancellationsTable: true,
             ModerationTable: true, PromoTable: true, AuditTable: true,
