@@ -311,39 +311,109 @@ refus identique, et l'application mobile mappe déjà ces slugs.
 
 ## 6. Lot D — Plateforme : broadcast + config + finances
 
+> **Section réécrite après reconnaissance du code réel** (rapport :
+> `recon-lot-d.md`). La version initiale supposait des mécanismes que le code
+> contredit. Les écarts sont signalés par ⚠️.
+>
+> Contrairement aux lots précédents, **aucune des trois permissions de ce lot
+> n'existe encore** : `NOTIFICATION_SEND` et `CONFIG_MANAGE` sont à créer ;
+> `PAYMENT_VIEW` existe déjà et est consommée.
+
 ### Broadcast (`NOTIFICATION_SEND`)
+
+⚠️ **Le ciblage par rôle est cassé par construction — ne pas l'implémenter.**
+Depuis la migration `V193`, tout utilisateur porte simultanément les deux rôles
+`SENDER` et `TRAVELER` (`AuthService:89,399`). Un ciblage `SENDERS` ou
+`TRAVELERS` filtré par rôle enverrait donc à **100 % des utilisateurs** dans les
+deux cas, silencieusement — un broadcast « aux voyageurs » atteindrait tous les
+expéditeurs sans que rien ne le signale.
+
+Le ciblage est donc **comportemental**, fondé sur ce que l'utilisateur a
+réellement fait :
+
+| Cible | Définition réelle |
+|---|---|
+| `ALL` | tous les comptes actifs |
+| `SENDERS` | a créé au moins un bid |
+| `TRAVELERS` | a publié au moins une annonce |
+| `CORRIDOR` | a publié une annonce ou un bid sur le corridor (origine → destination) |
+| `USER` | un utilisateur désigné |
+
 - Back : `POST /admin/notifications/broadcast`
-  - Body : `{title, body, target: {type: 'ALL'|'SENDERS'|'TRAVELERS'|'CORRIDOR'|'USER', origin?, destination?, userId?}}`
-  - Canaux : FCM push + notification in-app (`NotificationEntity`), via
-    `NotificationDispatcher` existant. Pas de SMS.
-  - Envoi asynchrone par batch (`@Async`, pages de 500 destinataires) ; réponse
-    immédiate avec `recipientCount` estimé ; audit_log `BROADCAST_SENT`
-    (titre, cible, compteur).
-  - Table `admin_broadcasts` (migration Flyway V(n+1)) : titre, corps, cible, compteur,
+  - Body : `{title, body, target: {type, origin?, destination?, userId?}}`
+  - Canaux : push FCM + notification in-app, via `NotificationDispatcher`
+    existant. **Pas de SMS.**
+  - Envoi asynchrone par pages de destinataires ; réponse immédiate avec le
+    nombre de destinataires ; audit_log `BROADCAST_SENT` (titre, cible, compteur).
+  - Table `admin_broadcasts` (migration V(n+1)) : titre, corps, cible, compteur,
     auteur, date. `GET /admin/notifications/broadcasts` — historique paginé.
-- Front : page « Communications » (`NOTIFICATION_SEND`) : composer (titre, corps,
-  ciblage avec préview du nombre de destinataires), confirmation, historique.
-  Envoi individuel aussi accessible depuis la fiche user.
+
+⚠️ **Deux fragilités d'infrastructure à ne pas aggraver** : l'envoi FCM se fait
+en boucle unitaire (jamais en multicast), et `@EnableAsync` est déclaré sans
+`ThreadPoolTaskExecutor` borné — chaque appel asynchrone crée donc un thread non
+borné. Un broadcast massif sur cette base saturerait le serveur. Le lot doit
+donc **borner explicitement** son exécution (pagination + exécuteur dédié borné),
+sans prétendre corriger l'infrastructure de notification dans son ensemble.
+
+- Front : page « Communications » (`NOTIFICATION_SEND`) : rédaction (titre, corps,
+  ciblage avec aperçu du nombre de destinataires), confirmation, historique.
 
 ### Config plateforme (`CONFIG_MANAGE`)
-- Back : table `platform_settings` (migration Flyway V(n+1)) — lignes clé/valeur
-  typées : `commission_rate_percent`, `urgency_threshold_hours`,
-  `reimbursement_cap_eur`, `sms_enabled`.
-  - `GET /admin/settings` + `PUT /admin/settings` (validation de bornes ;
-    commission 0–30 %, plafond ≤ 500 €).
-  - `ConfigController` public lit la table via cache Caffeine (TTL court),
-    invalidation à l'écriture. Valeurs par défaut = valeurs actuelles des properties
-    (seedées par la migration).
-  - Chaque modification → audit_log `PLATFORM_SETTING_CHANGED` (clé, ancienne valeur,
-    nouvelle valeur).
-- Front : page « Paramètres plateforme » (`CONFIG_MANAGE`) : formulaire + confirmation,
-  affichage de la dernière modification (qui/quand).
+
+⚠️ **Le `ConfigController` public existe déjà** et est consommé **en production**
+par l'application mobile : `/config/commission-rate`, `/config/urgency-threshold`,
+`/config/reimbursement-cap`, `/config/sms-enabled`, exposés en `permitAll`. Ce
+lot ne le crée pas — il **change sa source** (table au lieu de properties) en
+**préservant à l'octet près son contrat de réponse actuel**. Toute modification
+de forme casserait l'app mobile déployée.
+
+- Back : table `platform_settings` (migration V(n+1)), lignes clé/valeur typées,
+  seedées avec les valeurs actuelles des properties pour qu'aucun comportement ne
+  change au déploiement.
+  - `GET /admin/settings` + `PUT /admin/settings`, validation de bornes
+    (commission 0–30 %, plafond ≤ 500 €).
+  - Lecture par le contrôleur public via cache Caffeine à TTL court, invalidé à
+    l'écriture. Le motif de cache existant (`CacheConfig`, cache `adminAuthz`)
+    sert de modèle.
+  - Chaque modification → audit_log `PLATFORM_SETTING_CHANGED` (clé, ancienne
+    valeur, nouvelle valeur).
+
+⚠️ **`urgency_threshold` est exprimé en JOURS dans le code**, pas en heures
+comme l'indiquait la version initiale. La clé est donc `urgency_threshold_days`.
+Se tromper d'unité multiplierait le seuil par 24.
+
+⚠️ **`sms_enabled` ne pilote pas que les notifications : il conditionne aussi
+l'authentification par OTP.** Le passer à `false` empêcherait **tout le monde de
+se connecter**. Il reste éditable — c'est le sens de la demande — mais son geste
+exige la **double confirmation par saisie** (composant livré au Lot C) et un
+avertissement explicite nommant cette conséquence. Les trois autres clés se
+modifient par simple confirmation.
+
+- Front : page « Paramètres plateforme » (`CONFIG_MANAGE`) : formulaire,
+  confirmation, et affichage de la dernière modification (qui, quand).
 
 ### Finances étendues (`PAYMENT_VIEW`, lecture seule)
-- Back : `GET /admin/finance/wallets`, `GET /admin/finance/mobile-money`,
-  `GET /admin/finance/cash-commissions` — listes paginées + filtres, aucun geste
-  d'écriture.
-- Front : onglets supplémentaires dans la section transactions.
+
+- Back : `GET /admin/finance/wallets`, `/admin/finance/mobile-money`,
+  `/admin/finance/cash-commissions` — listes paginées et filtrables, **aucune
+  écriture**.
+
+⚠️ **La commission cash n'a pas d'entité dédiée** : ce sont des colonnes portées
+par `BidEntity`. La vue se construit donc par requête sur les bids, pas sur une
+table de commissions qui n'existe pas.
+
+⚠️ **`mobile_money_payments.phone_number` est stocké en clair** — c'est une
+donnée personnelle. La vue admin ne doit pas l'exposer intégralement sans
+nécessité ; masquage partiel par défaut. Le chiffrement de cette colonne est un
+chantier distinct, hors périmètre de ce lot, mais signalé.
+
+- Front : onglets supplémentaires dans la section transactions, sur le motif
+  d'onglets déjà en place dans `transactions/index.vue`.
+
+### Clôture de la feature
+Ce lot est le dernier. À son terme, le critère d'acceptation n°2 doit être
+vérifiable : **plus aucune permission déclarée n'est morte** — chacune est
+consommée par au moins un endpoint et un élément d'interface.
 
 ---
 
