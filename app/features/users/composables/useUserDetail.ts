@@ -1,19 +1,7 @@
 import { ref } from 'vue'
 import { usersService } from '@/features/users/services/usersService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminUserDetail } from '@/features/users/types/index'
-
-/**
- * Le backend renvoie du RFC 7807 (`ProblemDetail`) — le champ `detail` porte
- * le message écrit pour un humain. `useApi()` (ofetch) expose le corps de
- * réponse parsé via `error.data`. On ne retombe sur `error.message`
- * (générique) que si `data.detail` est absent. Même motif que
- * `useAdminAnnouncements` (Task 9).
- */
-function extractMessage(e: unknown, fallback: string): string {
-  const data = (e as { data?: { detail?: string } } | undefined)?.data
-  if (typeof data?.detail === 'string' && data.detail.trim().length > 0) return data.detail
-  return (e as Error)?.message || fallback
-}
 
 export function useUserDetail() {
   const user = ref<AdminUserDetail | null>(null)
@@ -25,7 +13,7 @@ export function useUserDetail() {
     isLoading.value = true
     error.value = null
     try { user.value = await usersService.get(id) }
-    catch (e) { error.value = extractMessage(e, 'Impossible de charger l\'utilisateur') }
+    catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger l\'utilisateur') }
     finally { isLoading.value = false }
   }
   function close() { user.value = null }
@@ -34,7 +22,7 @@ export function useUserDetail() {
     error.value = null
     busy.value = true
     try { user.value = await fn() }
-    catch (e) { error.value = extractMessage(e, 'Action échouée') }
+    catch (e) { error.value = extractProblemMessage(e, 'Action échouée') }
     finally { busy.value = false }
   }
   const suspend = (reason: string) => run(() => usersService.suspend(user.value!.id, reason))
