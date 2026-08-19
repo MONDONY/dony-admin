@@ -1,12 +1,27 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 const props = defineProps<{
-  open: boolean; title: string; message: string; confirmLabel: string; requireReason?: boolean
+  open: boolean; title: string; message: string; confirmLabel: string
+  requireReason?: boolean
+  /** Si défini, la confirmation exige la saisie exacte de cette phrase (double confirmation). */
+  confirmationPhrase?: string
+  confirmationLabel?: string
 }>()
 const emit = defineEmits<{ confirm: [reason: string]; cancel: [] }>()
 const reason = ref('')
-watch(() => props.open, (o) => { if (o) reason.value = '' })
-const canConfirm = () => !props.requireReason || reason.value.trim().length > 0
+const confirmation = ref('')
+watch(() => props.open, (o) => { if (o) { reason.value = ''; confirmation.value = '' } })
+
+const controlLabel = computed(
+  () => props.confirmationLabel ?? `Saisissez « ${props.confirmationPhrase} » pour confirmer`,
+)
+// Comparaison après trim des deux côtés : un espace collé par le presse-papiers ne doit pas
+// bloquer un administrateur qui a bien saisi le bon nom.
+const canConfirm = () => {
+  if (props.requireReason && reason.value.trim().length === 0) return false
+  if (props.confirmationPhrase && confirmation.value.trim() !== props.confirmationPhrase.trim()) return false
+  return true
+}
 </script>
 
 <template>
@@ -19,6 +34,13 @@ const canConfirm = () => !props.requireReason || reason.value.trim().length > 0
         placeholder="Motif (obligatoire)"
         class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-4"
       />
+      <div v-if="confirmationPhrase" class="mb-4">
+        <label class="mb-1 block text-xs text-text-muted">{{ controlLabel }}</label>
+        <input
+          data-test="confirmation-input" v-model="confirmation" type="text" autocomplete="off"
+          class="w-full rounded-btn border border-border bg-bg p-2 text-sm"
+        >
+      </div>
       <div class="flex justify-end gap-2">
         <button
           type="button" data-test="cancel"
