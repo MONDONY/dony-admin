@@ -20,8 +20,8 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
       <tbody>
         <tr v-for="c in commissions" :key="c.bidId" :data-test="`cash-commission-row-${c.bidId}`" class="border-b border-border">
           <td class="px-4 py-3 text-sm font-medium">{{ c.bidId }}</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ formatAmount(c.amountCents, c.currency) }}</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ formatAmount(c.commissionCents, c.currency) }}</td>
+          <td class="px-4 py-3 text-sm tabular-nums">{{ c.amountCents != null ? formatAmount(c.amountCents, c.currency) : "—" }}</td>
+          <td class="px-4 py-3 text-sm tabular-nums">{{ c.commissionCents != null ? formatAmount(c.commissionCents, c.currency) : "—" }}</td>
           <td class="px-4 py-3"><StatusBadge v-bind="cashCommissionStatusMeta(c.status)" /></td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ c.chargedVia ? chargedViaLabel[c.chargedVia] : '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ c.retryCount }}</td>

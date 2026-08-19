@@ -38,8 +38,9 @@ export type CashCommissionChargedVia = 'WALLET' | 'CARD'
  */
 export interface AdminCashCommission {
   bidId: string
-  amountCents: number
-  commissionCents: number
+  /** Absent quand la demande est hors négociation : le montant n’est pas reconstituable. */
+  amountCents: number | null
+  commissionCents: number | null
   currency: string
   status: CashCommissionStatus
   chargedVia: CashCommissionChargedVia | null
