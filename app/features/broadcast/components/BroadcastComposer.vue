@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { TARGET_LABELS, type BroadcastTarget, type BroadcastTargetType } from '@/features/broadcast/types/index'
 
@@ -44,15 +44,32 @@ function confirmSend() {
   emit('send', title.value, body.value, target.value)
 }
 
+// Le ciblage pour lequel l'estimation courante a été demandée. Changer de ciblage ensuite
+// rend le compteur mensonger : on le considère alors comme non estimé plutôt que d'afficher
+// un chiffre qui ne correspond plus à ce qui partira.
+const estimatedFor = ref<string | null>(null)
+// Le compteur est fourni par la page, qui le remplit après l'estimation : on note le
+// ciblage courant au moment précis où il arrive, ce qui est le seul instant où l'on sait
+// à quoi il correspond.
+watch(() => props.recipientCount, (count) => {
+  estimatedFor.value = count === null ? null : JSON.stringify(target.value)
+}, { immediate: true })
+const freshCount = computed<number | null>(() =>
+  props.recipientCount !== null && estimatedFor.value === JSON.stringify(target.value)
+    ? props.recipientCount
+    : null,
+)
+const estimateIsStale = computed(() => props.recipientCount !== null && freshCount.value === null)
+
 // Un broadcast est irrattrapable une fois parti : la confirmation nomme toujours le
 // nombre de destinataires (ou signale explicitement qu'il n'a pas été estimé), pour que
 // l'admin sache combien de personnes il s'apprête à toucher avant de valider.
 const confirmMessage = computed(() => {
-  if (props.recipientCount === null) {
+  if (freshCount.value === null) {
     return 'Le nombre de destinataires n’a pas été estimé pour ce ciblage. '
       + 'Ce message sera envoyé immédiatement et ne pourra pas être annulé.'
   }
-  const n = props.recipientCount
+  const n = freshCount.value
   return `Ce message sera envoyé à ${n} destinataire${n > 1 ? 's' : ''}. `
     + 'Cette action est irréversible et ne pourra pas être annulée.'
 })
@@ -113,8 +130,11 @@ const confirmMessage = computed(() => {
         class="rounded-btn px-4 py-2 text-sm border border-border hover:bg-surface-elevated disabled:opacity-40"
         @click="onPreview"
       >Estimer les destinataires</button>
-      <span v-if="recipientCount !== null" data-test="broadcast-recipient-count" class="text-sm text-text-muted tabular-nums">
-        {{ recipientCount }} destinataire{{ recipientCount > 1 ? 's' : '' }} estimé{{ recipientCount > 1 ? 's' : '' }}
+      <span v-if="freshCount !== null" data-test="broadcast-recipient-count" class="text-sm text-text-muted tabular-nums">
+        {{ freshCount }} destinataire{{ freshCount > 1 ? 's' : '' }} estimé{{ freshCount > 1 ? 's' : '' }}
+      </span>
+      <span v-else-if="estimateIsStale" data-test="broadcast-stale-estimate" class="text-sm text-warning">
+        Le ciblage a changé — relancez l’estimation.
       </span>
     </div>
 

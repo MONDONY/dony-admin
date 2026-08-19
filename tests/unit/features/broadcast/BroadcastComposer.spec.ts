@@ -103,4 +103,32 @@ describe('BroadcastComposer', () => {
     expect((w.find('[data-test="broadcast-preview"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((w.find('[data-test="broadcast-send"]').element as HTMLButtonElement).disabled).toBe(true)
   })
+
+  // L'estimation porte sur UN ciblage precis. Changer de ciblage apres avoir estime
+  // rendrait le compteur mensonger — et c'est justement ce compteur qui sert de garde
+  // avant un envoi irrattrapable.
+  it('perime l’estimation quand le ciblage change', async () => {
+    const w = mount(BroadcastComposer, {
+      props: { busy: false, previewing: false, recipientCount: 128 },
+    })
+    expect(w.find('[data-test="broadcast-recipient-count"]').exists()).toBe(true)
+
+    await w.find('[data-test="broadcast-target"]').setValue('SENDERS')
+
+    expect(w.find('[data-test="broadcast-recipient-count"]').exists()).toBe(false)
+    expect(w.find('[data-test="broadcast-stale-estimate"]').exists()).toBe(true)
+  })
+
+  it('la confirmation ne cite pas un compteur perime', async () => {
+    const w = mount(BroadcastComposer, {
+      props: { busy: false, previewing: false, recipientCount: 128 },
+    })
+    await w.find('[data-test="broadcast-title"]').setValue('Titre')
+    await w.find('[data-test="broadcast-body"]').setValue('Corps du message')
+    await w.find('[data-test="broadcast-target"]').setValue('TRAVELERS')
+    await w.find('[data-test="broadcast-send"]').trigger('click')
+
+    expect(w.html()).not.toContain('128')
+  })
+
 })
