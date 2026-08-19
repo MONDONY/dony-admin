@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
-  Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone,
+  Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone, Settings,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -115,6 +115,7 @@ onBeforeUnmount(() => {
       <NavItem v-if="can('EXPORT_RUN')" to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('REPORT_VIEW')" to="/signalements" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('NOTIFICATION_SEND')" to="/communications" label="Communications"><template #icon><Megaphone class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('CONFIG_MANAGE')" to="/parametres" label="Paramètres"><template #icon><Settings class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('ADMIN_MANAGE')" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
     </nav>
   </aside>

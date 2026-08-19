@@ -67,6 +67,16 @@ describe('AppSidebar', () => {
     expect(mountSidebar().text()).not.toContain('Demandes RGPD')
   })
 
+  it('montre « Paramètres » à un ADMIN (CONFIG_MANAGE)', () => {
+    useAuthStore().setSession('token', makeAdmin('ADMIN'))
+    expect(mountSidebar().text()).toContain('Paramètres')
+  })
+
+  it('cache « Paramètres » à SUPPORT (pas de CONFIG_MANAGE)', () => {
+    useAuthStore().setSession('token', makeAdmin('SUPPORT'))
+    expect(mountSidebar().text()).not.toContain('Paramètres')
+  })
+
   it('profile menu is closed by default', () => {
     useAuthStore().setSession('token', makeAdmin('ADMIN'))
     const wrapper = mountSidebar()
