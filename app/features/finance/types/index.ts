@@ -15,7 +15,11 @@ export interface AdminMobileMoneyPayment {
   bidId: string
   provider: MobileMoneyProvider
   countryCode: string
-  /** Numéro en clair tel que stocké côté back — ne JAMAIS l'afficher tel quel, voir `maskPhoneNumber`. */
+  /**
+   * Déjà masqué par le back : seuls les 4 derniers chiffres arrivent jusqu'ici, le numéro
+   * complet ne quitte jamais le serveur. `maskPhoneNumber` reste appliqué en second rideau —
+   * la fonction est idempotente, les deux protections se cumulent sans se contredire.
+   */
   phoneNumber: string
   amountCents: number
   currency: string
