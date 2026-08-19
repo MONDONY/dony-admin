@@ -31,6 +31,8 @@ export type AdminPermission =
   | 'PROMO_MANAGE'
   | 'AUDIT_VIEW'
   | 'EXPORT_RUN'
+  | 'NOTIFICATION_SEND'
+  | 'CONFIG_MANAGE'
 
 export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'ADMIN_MANAGE',
@@ -60,6 +62,9 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'PROMO_MANAGE',
   'AUDIT_VIEW',
   'EXPORT_RUN',
+  // Lot D — ni l'une ni l'autre n'appartient au rôle SUPPORT.
+  'NOTIFICATION_SEND',
+  'CONFIG_MANAGE',
 ]
 
 /**

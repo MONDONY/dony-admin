@@ -136,8 +136,36 @@ describe('useAuthStore (admin)', () => {
     expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
   })
 
-  // 27 depuis le Lot C, qui détache RATING_DELETE de RATING_MODERATE.
-  it('exposes 27 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(27)
+  // 29 depuis le Lot D, qui ajoute NOTIFICATION_SEND et CONFIG_MANAGE.
+  it('exposes 29 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(29)
+  })
+
+  it('ADMIN peut diffuser une notification et modifier la configuration', () => {
+    seedAuth('ADMIN')
+    const auth = useAuthStore()
+    expect(auth.can('NOTIFICATION_SEND')).toBe(true)
+    expect(auth.can('CONFIG_MANAGE')).toBe(true)
+  })
+
+  it('SUPER_ADMIN les porte aussi', () => {
+    seedAuth('SUPER_ADMIN')
+    const auth = useAuthStore()
+    expect(auth.can('NOTIFICATION_SEND')).toBe(true)
+    expect(auth.can('CONFIG_MANAGE')).toBe(true)
+  })
+
+  it('SUPPORT ne peut ni diffuser ni configurer', () => {
+    seedAuth('SUPPORT')
+    const auth = useAuthStore()
+    expect(auth.can('NOTIFICATION_SEND')).toBe(false)
+    expect(auth.can('CONFIG_MANAGE')).toBe(false)
+  })
+
+  it('SUPPORT peut recevoir CONFIG_MANAGE via un override explicite', () => {
+    seedAuth('SUPPORT', { CONFIG_MANAGE: true })
+    const auth = useAuthStore()
+    expect(auth.can('CONFIG_MANAGE')).toBe(true)
+    expect(auth.can('NOTIFICATION_SEND')).toBe(false)
   })
 })
