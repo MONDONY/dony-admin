@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (26 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (29 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -71,7 +71,7 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
  * Permissions de base par rôle — miroir de AdminRole.permissions() côté backend :
  * - SUPER_ADMIN : toutes
  * - ADMIN : toutes sauf ADMIN_MANAGE
- * - SUPPORT : 15 permissions lecture + actions limitées
+ * - SUPPORT : 16 permissions lecture + actions limitées
  */
 const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,
