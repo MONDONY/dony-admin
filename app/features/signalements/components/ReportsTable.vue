@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
+import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
 defineProps<{ reports: AdminReport[]; loading: boolean }>()
@@ -24,9 +25,12 @@ function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
       </thead>
       <tbody>
         <tr v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`" class="border-b border-border">
-          <td class="px-4 py-3 text-sm font-medium">{{ r.targetType }}</td>
           <td class="px-4 py-3 text-sm">
-            <div class="font-medium">{{ r.reason }}</div>
+            <div class="font-medium">{{ r.targetLabel ?? r.targetId }}</div>
+            <div class="text-xs text-text-muted">{{ r.targetType }}</div>
+          </td>
+          <td class="px-4 py-3 text-sm">
+            <div class="font-medium">{{ reportReasonLabel(r.reason) }}</div>
             <div v-if="r.description" class="text-xs text-text-muted">{{ r.description }}</div>
             <div v-if="r.photoUrls?.length" class="mt-1.5 flex gap-1.5">
               <button

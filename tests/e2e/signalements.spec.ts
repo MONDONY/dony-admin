@@ -5,7 +5,7 @@ const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'A
 const REPORTS_PAGE = {
   content: [
     {
-      id: 'r1', targetType: 'USER', targetId: 'u9', reason: 'FRAUD', description: 'faux profil',
+      id: 'r1', targetType: 'USER', targetId: 'u9', targetLabel: 'Moussa Ba', reason: 'SCAM_ATTEMPT', description: 'faux profil',
       reporterName: 'Awa', status: 'OPEN', actionTaken: null, resolutionNote: null,
       resolvedAt: null, createdAt: '2026-06-01T10:00:00Z',
     },
@@ -44,10 +44,11 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('admin sees open reports', async ({ page }) => {
+test('admin sees open reports, with the target resolved (not just its type)', async ({ page }) => {
   await page.goto('/signalements')
   await expect(page.locator('h1').first()).toContainText('Signalements')
-  await expect(page.locator('[data-test="report-row-r1"]')).toContainText('FRAUD')
+  await expect(page.locator('[data-test="report-row-r1"]')).toContainText('Moussa Ba')
+  await expect(page.locator('[data-test="report-row-r1"]')).toContainText('Tentative d’arnaque')
   await expect(page.locator('[data-test="resolve-r1"]')).toBeVisible()
 })
 
@@ -87,4 +88,32 @@ test('admin removes a rating', async ({ page }) => {
   await page.locator('[data-test="remove-rt1"]').click()
   await page.locator('[data-test="confirm"]').click()
   await expect(page.locator('[data-test="overlay"]')).toHaveCount(0)
+})
+
+test('a failed load shows an error banner, distinct from an empty list', async ({ page }) => {
+  await page.route('**/api/v1/admin/reports**', (route) => route.fulfill({ status: 500, json: { detail: 'Erreur serveur' } }))
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="reports-error"]')).toBeVisible()
+  await expect(page.locator('[data-test="reports-error"]')).not.toBeEmpty()
+})
+
+test('filtering by target type sends targetType to the API', async ({ page }) => {
+  let capturedUrl = ''
+  await page.route('**/api/v1/admin/reports**', (route) => {
+    capturedUrl = route.request().url()
+    return route.fulfill({ json: REPORTS_PAGE })
+  })
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
+
+  await page.locator('[data-test="report-target-type-filter"]').selectOption('ANNOUNCEMENT')
+  await expect.poll(() => capturedUrl).toContain('targetType=ANNOUNCEMENT')
+})
+
+test('resolving a USER report offers Suspendre la cible but not Retirer le contenu', async ({ page }) => {
+  await page.goto('/signalements')
+  await page.locator('[data-test="resolve-r1"]').click()
+  const options = await page.locator('[data-test="resolve-action"] option').allTextContents()
+  expect(options).toContain('Suspendre la cible')
+  expect(options).not.toContain('Retirer le contenu')
 })

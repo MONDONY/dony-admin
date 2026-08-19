@@ -8,6 +8,7 @@ export interface AdminReport {
   id: string
   targetType: ReportTargetType
   targetId: string
+  targetLabel: string | null
   reason: string
   description: string | null
   reporterName: string | null

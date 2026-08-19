@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
 import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -7,7 +7,9 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
-import type { ReportAction, ReportStatusFilter } from '@/features/signalements/types/index'
+import { actionsFor } from '@/features/signalements/reportActions'
+import { REPORT_ACTION_LABELS, REPORT_TARGET_TYPE_LABELS } from '@/features/signalements/reportActionLabels'
+import type { ReportAction, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
@@ -25,20 +27,36 @@ const reportStatusTabs: { value: ReportStatusFilter; label: string }[] = [
   { value: 'DISMISSED', label: 'Rejetés' },
   { value: 'ALL', label: 'Tous' },
 ]
-const reportActions: { value: ReportAction; label: string }[] = [
-  { value: 'DISMISS', label: 'Rejeter le signalement' },
-  { value: 'WARN', label: 'Avertir' },
-  { value: 'SUSPEND_TARGET', label: 'Suspendre la cible' },
-  { value: 'REMOVE_CONTENT', label: 'Retirer le contenu' },
+const targetTypeFilters: { value: ReportTargetType | null; label: string }[] = [
+  { value: null, label: 'Tous les types' },
+  ...(Object.entries(REPORT_TARGET_TYPE_LABELS) as [ReportTargetType, string][])
+    .map(([value, label]) => ({ value, label })),
 ]
 const pendingReportId = ref<string | null>(null)
-const chosenAction = ref<ReportAction>('WARN')
+const chosenAction = ref<ReportAction>('DISMISS')
 const resolveNote = ref('')
 const viewerUrls = ref<string[] | null>(null)
 
+// Le signalement en cours de traitement — sert à filtrer les actions proposées
+// (SUSPEND_TARGET n'a de sens que sur USER, REMOVE_CONTENT que sur ANNOUNCEMENT ;
+// le back les rejette de toute façon, mais autant ne pas les proposer).
+const pendingReport = computed(() => r.reports.value.find((x) => x.id === pendingReportId.value) ?? null)
+const availableActions = computed<{ value: ReportAction; label: string }[]>(() => {
+  const targetType = pendingReport.value?.targetType ?? 'APP'
+  return actionsFor(targetType, auth.permissions).map((value) => ({ value, label: REPORT_ACTION_LABELS[value] }))
+})
+
+function onTargetTypeFilterChange(e: Event) {
+  const value = (e.target as HTMLSelectElement).value
+  r.setTargetTypeFilter(value === '' ? null : (value as ReportTargetType))
+}
+
 function openResolve(id: string) {
   pendingReportId.value = id
-  chosenAction.value = 'WARN'
+  // DISMISS s'applique toujours, quel que soit le type de cible — les actions
+  // délèguées (WARN/SUSPEND_TARGET/REMOVE_CONTENT) ne sont pas toutes valides
+  // pour tous les types, donc jamais choisies par défaut.
+  chosenAction.value = 'DISMISS'
   resolveNote.value = ''
 }
 async function confirmResolve() {
@@ -91,14 +109,26 @@ onMounted(r.fetchReports)
 
     <!-- SIGNALEMENTS -->
     <div v-show="activeTab === 'reports'">
-      <div class="flex gap-1 mb-4">
-        <button
-          v-for="t in reportStatusTabs" :key="t.value" type="button" :data-test="`report-tab-${t.value}`"
-          :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
-            r.filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
-          @click="r.setStatusFilter(t.value)"
-        >{{ t.label }}</button>
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <div class="flex gap-1">
+          <button
+            v-for="t in reportStatusTabs" :key="t.value" type="button" :data-test="`report-tab-${t.value}`"
+            :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
+              r.filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+            @click="r.setStatusFilter(t.value)"
+          >{{ t.label }}</button>
+        </div>
+        <select
+          data-test="report-target-type-filter"
+          :value="r.filters.targetType ?? ''"
+          class="rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm text-text-muted"
+          @change="onTargetTypeFilterChange"
+        >
+          <option v-for="t in targetTypeFilters" :key="t.value ?? 'all'" :value="t.value ?? ''">{{ t.label }}</option>
+        </select>
       </div>
+
+      <p v-if="r.error.value" data-test="reports-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ r.error.value }}</p>
 
       <ReportsTable :reports="r.reports.value" :loading="r.isLoading.value" @resolve="openResolve" @view-photos="(urls) => viewerUrls = urls" />
 
@@ -164,7 +194,7 @@ onMounted(r.fetchReports)
           v-model="chosenAction" data-test="resolve-action"
           class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-3"
         >
-          <option v-for="a in reportActions" :key="a.value" :value="a.value">{{ a.label }}</option>
+          <option v-for="a in availableActions" :key="a.value" :value="a.value">{{ a.label }}</option>
         </select>
         <textarea
           v-model="resolveNote" data-test="resolve-note" rows="3"
