@@ -11,6 +11,13 @@ export default defineNuxtConfig({
   },
   ssr: true,
   css: ['~~/assets/css/main.css'],
+  experimental: {
+    defaults: {
+      nuxtLink: {
+        prefetchOn: { visibility: false, interaction: true },
+      },
+    },
+  },
   vite: {
     optimizeDeps: {
       include: ['firebase/app', 'firebase/auth', 'clsx', 'tailwind-merge', 'class-variance-authority', 'radix-vue', 'lucide-vue-next'],
