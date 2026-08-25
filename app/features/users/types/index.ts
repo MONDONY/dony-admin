@@ -7,6 +7,7 @@ export interface AdminUserListItem {
   firstName: string | null
   lastName: string | null
   phoneNumber: string
+  email: string | null
   city: string | null
   country: string | null
   status: UserStatus
@@ -19,7 +20,6 @@ export interface AdminUserListItem {
 }
 
 export interface AdminUserDetail extends AdminUserListItem {
-  email: string | null
   roles: string[]
   stripeAccountStatus: string | null
   commissionRateOverride: number | null

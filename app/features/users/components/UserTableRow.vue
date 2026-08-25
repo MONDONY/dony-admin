@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { userStatusMeta } from './userStatus'
+import { userIdentityLabel } from '@/features/users/userIdentity'
 import type { AdminUserListItem } from '@/features/users/types/index'
 const props = defineProps<{ user: AdminUserListItem }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -14,6 +15,14 @@ const fullName = (u: AdminUserListItem) => [u.firstName, u.lastName].filter(Bool
     @click="emit('select', props.user.id)"
   >
     <td class="px-4 py-3 text-sm font-medium">{{ fullName(props.user) }}</td>
+    <td class="px-4 py-3 text-sm" data-test="cell-identity">
+      <span
+        :class="userIdentityLabel(props.user).isFallback
+          ? 'font-mono text-xs text-text-muted'
+          : 'text-text-muted'"
+        :title="userIdentityLabel(props.user).isFallback ? props.user.id : undefined"
+      >{{ userIdentityLabel(props.user).text }}</span>
+    </td>
     <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ props.user.phoneNumber }}</td>
     <td class="px-4 py-3 text-sm text-text-muted">{{ props.user.city ?? '—' }}</td>
     <td class="px-4 py-3"><StatusBadge v-bind="userStatusMeta(props.user.status)" /></td>
