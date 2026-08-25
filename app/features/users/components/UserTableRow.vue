@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { userStatusMeta } from './userStatus'
 import { userIdentityLabel } from '@/features/users/userIdentity'
@@ -6,6 +7,7 @@ import type { AdminUserListItem } from '@/features/users/types/index'
 const props = defineProps<{ user: AdminUserListItem }>()
 const emit = defineEmits<{ select: [id: string] }>()
 const fullName = (u: AdminUserListItem) => [u.firstName, u.lastName].filter(Boolean).join(' ') || '—'
+const identity = computed(() => userIdentityLabel(props.user))
 </script>
 
 <template>
@@ -17,11 +19,11 @@ const fullName = (u: AdminUserListItem) => [u.firstName, u.lastName].filter(Bool
     <td class="px-4 py-3 text-sm font-medium">{{ fullName(props.user) }}</td>
     <td class="px-4 py-3 text-sm" data-test="cell-identity">
       <span
-        :class="userIdentityLabel(props.user).isFallback
+        :class="identity.isFallback
           ? 'font-mono text-xs text-text-muted'
           : 'text-text-muted'"
-        :title="userIdentityLabel(props.user).isFallback ? props.user.id : undefined"
-      >{{ userIdentityLabel(props.user).text }}</span>
+        :title="identity.isFallback ? props.user.id : undefined"
+      >{{ identity.text }}</span>
     </td>
     <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ props.user.phoneNumber }}</td>
     <td class="px-4 py-3 text-sm text-text-muted">{{ props.user.city ?? '—' }}</td>

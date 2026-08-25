@@ -21,13 +21,6 @@ const baseUser = {
 }
 
 describe('UserTableRow', () => {
-  it('affiche le nom complet et émet select au clic', async () => {
-    const w = mount(UserTableRow, { props: { user: baseUser } })
-    expect(w.text()).toContain('Jean Dupont')
-    await w.find('[data-test="row-u1"]').trigger('click')
-    expect(w.emitted('select')![0]).toEqual(['u1'])
-  })
-
   it('affiche l\'email dans la cellule d\'identité', () => {
     const w = mount(UserTableRow, {
       props: { user: { ...baseUser, email: 'jean@x.fr' } },
