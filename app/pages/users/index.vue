@@ -47,9 +47,11 @@ async function confirmDeletion(reasonCode: AdminDeletionReasonCode, reason: stri
 }
 
 onMounted(async () => {
-  // Constat 1 — initialise le filtre de recherche depuis le paramètre d'URL ?query=<uuid>
+  // Initialise le filtre de recherche depuis le paramètre d'URL ?query=<uuid>
   // afin que les liens de contreparties dans UserDeletionDialog ouvrent la liste filtrée.
-  const q = route.query.query
+  // L'accès optionnel (?.) protège contre un contexte de montage sans objet query
+  // (tests unitaires, SSR partiel, navigation directe sans paramètres).
+  const q = route.query?.query
   if (q && typeof q === 'string') {
     await setSearch(q)
   } else {
