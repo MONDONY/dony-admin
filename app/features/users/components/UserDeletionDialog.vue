@@ -215,7 +215,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
                 v-model="reason"
                 data-test="deletion-reason"
                 rows="3"
-                placeholder="Détail du motif (obligatoire, conservé dans le journal d'audit)"
+                placeholder="Détail du motif (obligatoire — non conservé dans le journal)"
                 class="w-full rounded-btn border border-border bg-bg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
               />
 
