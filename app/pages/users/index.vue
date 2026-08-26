@@ -83,8 +83,8 @@ onMounted(async () => {
       @set-commission="async (rate) => { await detail.setCommissionRate(rate); await afterAction() }"
       @mute-messaging="async (durationHours, reason) => { await detail.muteMessaging(durationHours, reason); await afterAction() }"
       @unmute-messaging="async () => { await detail.unmuteMessaging(); await afterAction() }"
-      @open-kyc="() => kyc.load(detail.user.value!.id)"
-      @reset-kyc="async (reason) => { const id = detail.user.value!.id; await kyc.reset(id, reason); await detail.open(id); await afterAction() }"
+      @open-kyc="() => { if (!detail.user.value) return; kyc.load(detail.user.value.id) }"
+      @reset-kyc="async (reason) => { if (!detail.user.value) return; const id = detail.user.value.id; await kyc.reset(id, reason); await detail.open(id); await afterAction() }"
       @request-delete="openDeletion"
     />
 
