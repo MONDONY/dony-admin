@@ -29,21 +29,6 @@ async function seedAdmin(page: import('@playwright/test').Page) {
   }, ADMIN)
 }
 
-async function stubUsers(page: import('@playwright/test').Page) {
-  await page.route('**/api/v1/admin/users**', (route) => {
-    const req = route.request()
-    const url = req.url()
-
-    if (req.method() === 'GET' && url.includes(`/${USER_ID}`)) {
-      return route.fulfill({ json: userDetail })
-    }
-    // Liste paginée par défaut
-    return route.fulfill({
-      json: { content: [userDetail], totalElements: 1, totalPages: 1, number: 0, size: 20 },
-    })
-  })
-}
-
 test.beforeEach(async ({ page }) => {
   await seedAdmin(page)
 })

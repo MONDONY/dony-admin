@@ -38,7 +38,7 @@ describe('useUserDeletion', () => {
     await d.loadImpact('u1')
     expect(d.impact.value).toEqual(cleanImpact)
 
-    let resolveSecond: (v: unknown) => void = () => {}
+    let resolveSecond: (_v: unknown) => void = () => {}
     svc.getDeletionImpact.mockReturnValue(new Promise((r) => { resolveSecond = r }))
 
     const pending = d.loadImpact('u2')
@@ -92,7 +92,7 @@ describe('useUserDeletion', () => {
   // Constat 2 — garde d'obsolescence : si la réponse du premier appel arrive après celle
   // du second, elle ne doit pas écraser le rapport du compte actuellement affiché.
   it('ignore la réponse du premier appel quand un second a déjà répondu', async () => {
-    let resolveFirst!: (v: unknown) => void
+    let resolveFirst!: (_v: unknown) => void
     const firstImpact = { blocked: false, findings: [{ severity: 'INFO', code: 'INFO_A', count: 1, parties: [] }] }
     const secondImpact = { blocked: false, findings: [] }
 
