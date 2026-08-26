@@ -44,10 +44,29 @@ describe('UserDeletionDialog', () => {
     expect(link.attributes('target')).toBe('_blank')
   })
 
+  // Constat 3 — chaque condition de canConfirm est nécessaire individuellement.
+
   it('garde la confirmation désactivée tant que la phrase de contrôle est incomplète', async () => {
     const w = mountDialog(clean)
     await w.find('[data-test="deletion-reason-code"]').setValue('FRAUD')
     await w.find('[data-test="deletion-reason"]').setValue('faux documents')
+    // phrase vide → bouton désactivé
+    expect(w.find('[data-test="deletion-confirm"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('garde la confirmation désactivée quand le motif catalogué est absent (phrase ok, détail ok)', async () => {
+    const w = mountDialog(clean)
+    // motif catalogué intentionnellement non rempli
+    await w.find('[data-test="deletion-reason"]').setValue('faux documents')
+    await w.find('[data-test="deletion-confirmation-input"]').setValue('Jean Dupont')
+    expect(w.find('[data-test="deletion-confirm"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('garde la confirmation désactivée quand le détail du motif est absent (phrase ok, code ok)', async () => {
+    const w = mountDialog(clean)
+    await w.find('[data-test="deletion-reason-code"]').setValue('FRAUD')
+    // détail intentionnellement non rempli
+    await w.find('[data-test="deletion-confirmation-input"]').setValue('Jean Dupont')
     expect(w.find('[data-test="deletion-confirm"]').attributes('disabled')).toBeDefined()
   })
 
@@ -70,5 +89,24 @@ describe('UserDeletionDialog', () => {
     const w = mountDialog(clean)
     await w.find('[data-test="deletion-cancel"]').trigger('click')
     expect(w.emitted('cancel')).toHaveLength(1)
+  })
+
+  // Constat 4 — fermeture par la touche Échap.
+  it('émet cancel quand la touche Échap est pressée', async () => {
+    const w = mountDialog(clean)
+    await w.trigger('keydown', { key: 'Escape' })
+    // L'écouteur est sur document — on simule via dispatchEvent
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.emitted('cancel')).toHaveLength(1)
+  })
+
+  // Constat 4 — attributs ARIA présents sur le conteneur de la carte.
+  it('porte les attributs role, aria-modal et aria-labelledby sur la carte', () => {
+    const w = mountDialog(clean)
+    const dialog = w.find('[role="dialog"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(dialog.attributes('aria-labelledby')).toBe('dialog-title')
+    expect(w.find('#dialog-title').exists()).toBe(true)
   })
 })
