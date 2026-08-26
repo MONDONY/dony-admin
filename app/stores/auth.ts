@@ -11,6 +11,7 @@ export type AdminPermission =
   | 'USER_BAN'
   | 'USER_KYC'
   | 'USER_GDPR_DELETE'
+  | 'USER_DELETE'
   | 'USER_COMMISSION'
   | 'PAYMENT_VIEW'
   | 'PAYMENT_RELEASE'
@@ -42,6 +43,7 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'USER_BAN',
   'USER_KYC',
   'USER_GDPR_DELETE',
+  'USER_DELETE',
   'USER_COMMISSION',
   'PAYMENT_VIEW',
   'PAYMENT_RELEASE',

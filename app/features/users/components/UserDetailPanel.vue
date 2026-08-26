@@ -15,7 +15,7 @@ const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
-  openKyc: []; resetKyc: [reason: string];
+  openKyc: []; resetKyc: [reason: string]; deletionImpact: [];
 }>()
 const auth = useAuthStore()
 
@@ -224,6 +224,15 @@ const dialogConfig = computed<DialogConfig>(() => {
           class="rounded-btn px-4 py-2 text-sm bg-danger/20 text-danger hover:bg-danger/30 disabled:opacity-40"
           @click="pending = 'muteMessaging'"
         >Couper la messagerie</button>
+      </div>
+
+      <!-- Suppression administrative — réservée au rôle ADMIN (USER_DELETE exclut SUPPORT). -->
+      <div v-if="auth.can('USER_DELETE')" class="mt-4">
+        <button
+          type="button" data-test="action-deletion-impact"
+          class="rounded-btn px-4 py-2 text-sm bg-danger/10 text-danger border border-danger/30 hover:bg-danger/20"
+          @click="emit('deletionImpact')"
+        >Supprimer le compte…</button>
       </div>
 
       <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">

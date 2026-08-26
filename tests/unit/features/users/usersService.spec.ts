@@ -128,4 +128,20 @@ describe('usersService', () => {
       body: { reason: 'demande confirmée' },
     })
   })
+
+  it('getDeletionImpact() interroge le rapport d\'impact', async () => {
+    apiMock.mockResolvedValue({ blocked: false, findings: [] })
+    const r = await usersService.getDeletionImpact('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/deletion-impact')
+    expect(r.blocked).toBe(false)
+  })
+
+  it('deleteUser() POSTe le motif catalogué et le motif libre', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await usersService.deleteUser('u1', 'FRAUD', 'faux documents')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/delete', {
+      method: 'POST',
+      body: { reasonCode: 'FRAUD', reason: 'faux documents' },
+    })
+  })
 })

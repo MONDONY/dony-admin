@@ -1,6 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
-  AdminGdprRequestPage, AdminKycDetail, AdminUserDetail, AdminUserPage, UsersFilterState,
+  AdminDeletionReasonCode, AdminGdprRequestPage, AdminKycDetail, AdminUserDetail, AdminUserPage,
+  DeletionImpact, UsersFilterState,
 } from '@/features/users/types/index'
 
 function buildQuery(f: UsersFilterState, page: number, size: number): Record<string, string | number | boolean> {
@@ -60,5 +61,15 @@ export const usersService = {
   /** Irréversible : le back répond 204 sans corps. */
   executeGdprDeletion(id: string, reason: string): Promise<void> {
     return useApi()<void>(`/admin/users/${id}/gdpr-execute`, { method: 'POST', body: { reason } })
+  },
+  getDeletionImpact(id: string): Promise<DeletionImpact> {
+    return useApi()<DeletionImpact>(`/admin/users/${id}/deletion-impact`)
+  },
+  /** Irréversible : le compte est anonymisé et banni. Le back répond 204 sans corps. */
+  deleteUser(id: string, reasonCode: AdminDeletionReasonCode, reason: string): Promise<void> {
+    return useApi()<void>(`/admin/users/${id}/delete`, {
+      method: 'POST',
+      body: { reasonCode, reason },
+    })
   },
 }

@@ -95,3 +95,33 @@ export interface AdminGdprRequestPage {
   number: number
   size: number
 }
+
+/** Miroir de com.yadony.api.common.deletion.ImpactSeverity. */
+export type ImpactSeverity = 'BLOCKING' | 'WARNING' | 'INFO'
+
+/** Un compte tiers touché par la suppression, avec l'objet qui les relie. */
+export interface ImpactParty {
+  userId: string
+  displayName: string
+  relatedEntityId: string
+}
+
+/**
+ * Un constat d'impact. `code` est stable et traduit côté front : le back n'envoie pas de
+ * libellé, pour qu'ajouter un contributeur ne demande pas de redéployer le back pour un texte.
+ */
+export interface ImpactFinding {
+  severity: ImpactSeverity
+  code: string
+  count: number
+  parties: ImpactParty[]
+}
+
+export interface DeletionImpact {
+  /** Vrai dès qu'un constat BLOCKING est présent : la confirmation ne doit alors pas s'afficher. */
+  blocked: boolean
+  findings: ImpactFinding[]
+}
+
+export type AdminDeletionReasonCode =
+  | 'FRAUD' | 'ABUSE' | 'TEST_ACCOUNT' | 'DUPLICATE' | 'USER_REQUEST_OFFLINE' | 'OTHER'
