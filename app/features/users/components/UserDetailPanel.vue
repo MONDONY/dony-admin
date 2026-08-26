@@ -15,7 +15,7 @@ const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
-  openKyc: []; resetKyc: [reason: string]; deletionImpact: [];
+  openKyc: []; resetKyc: [reason: string]; requestDelete: [];
 }>()
 const auth = useAuthStore()
 
@@ -226,15 +226,6 @@ const dialogConfig = computed<DialogConfig>(() => {
         >Couper la messagerie</button>
       </div>
 
-      <!-- Suppression administrative — réservée au rôle ADMIN (USER_DELETE exclut SUPPORT). -->
-      <div v-if="auth.can('USER_DELETE')" class="mt-4">
-        <button
-          type="button" data-test="action-deletion-impact"
-          class="rounded-btn px-4 py-2 text-sm bg-danger/10 text-danger border border-danger/30 hover:bg-danger/20"
-          @click="emit('deletionImpact')"
-        >Supprimer le compte…</button>
-      </div>
-
       <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">
         <p class="text-text-muted">Commission
           <span v-if="user.commissionRateOverride != null">
@@ -259,6 +250,22 @@ const dialogConfig = computed<DialogConfig>(() => {
             @click="pending = 'resetCommission'"
           >Réinitialiser</button>
         </div>
+      </div>
+      <!-- Séparé des actions réversibles au-dessus : bannir et supprimer ne doivent ni se
+           ressembler ni se toucher. Un geste irréversible mérite sa propre zone. -->
+      <div
+        v-if="auth.can('USER_DELETE')"
+        class="mt-8 rounded-card border border-danger/30 bg-danger/5 p-4"
+      >
+        <p class="text-sm font-semibold text-danger">Zone de danger</p>
+        <p class="mb-3 text-xs text-text-muted">
+          La suppression anonymise définitivement le compte et le bannit. Elle ne peut pas être annulée.
+        </p>
+        <button
+          type="button" data-test="action-delete" :disabled="busy"
+          class="rounded-btn bg-danger px-4 py-2 text-sm text-white hover:bg-danger/90 disabled:opacity-40"
+          @click="emit('requestDelete')"
+        >Supprimer le compte…</button>
       </div>
       </template>
 

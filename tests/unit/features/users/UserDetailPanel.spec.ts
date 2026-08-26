@@ -246,6 +246,21 @@ describe('UserDetailPanel', () => {
     expect(w.find('[data-test="action-mute"]').attributes('disabled')).toBeDefined()
   })
 
+  it('émet requestDelete depuis la zone de danger', async () => {
+    seedAuth('ADMIN')
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: false } })
+    await w.find('[data-test="action-delete"]').trigger('click')
+    expect(w.emitted('requestDelete')).toHaveLength(1)
+  })
+
+  // Le support peut bannir mais jamais supprimer : le bouton ne doit pas exister,
+  // pas seulement être inerte.
+  it('masque le bouton de suppression sans la permission USER_DELETE', () => {
+    seedAuth('SUPPORT')
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: false } })
+    expect(w.find('[data-test="action-delete"]').exists()).toBe(false)
+  })
+
   it('affiche l\'onglet Profil par défaut, avec toutes les actions de compte', () => {
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.find('[data-test="tab-profil"]').exists()).toBe(true)
