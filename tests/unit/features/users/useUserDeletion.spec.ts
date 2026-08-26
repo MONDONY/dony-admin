@@ -29,6 +29,28 @@ describe('useUserDeletion', () => {
     expect(d.isLoading.value).toBe(false)
   })
 
+  // Le rapport doit disparaître dès le début du chargement, pas seulement à son issue :
+  // afficher celui du compte précédent pendant qu'on charge le suivant l'attribuerait au
+  // mauvais compte, sur l'écran même où se décide une suppression irréversible.
+  it('vide le rapport dès le début du chargement, avant que l\'appel ne réponde', async () => {
+    svc.getDeletionImpact.mockResolvedValue(cleanImpact)
+    const d = useUserDeletion()
+    await d.loadImpact('u1')
+    expect(d.impact.value).toEqual(cleanImpact)
+
+    let resolveSecond: (v: unknown) => void = () => {}
+    svc.getDeletionImpact.mockReturnValue(new Promise((r) => { resolveSecond = r }))
+
+    const pending = d.loadImpact('u2')
+    // L'appel n'a pas encore répondu : le rapport précédent doit déjà avoir disparu.
+    expect(d.impact.value).toBeNull()
+    expect(d.isLoading.value).toBe(true)
+
+    resolveSecond(cleanImpact)
+    await pending
+    expect(d.impact.value).toEqual(cleanImpact)
+  })
+
   // Laisser le rapport précédent visible après un échec ferait décider l'administrateur
   // sur des informations qui ne sont plus celles du compte affiché.
   it('vide le rapport quand le chargement échoue', async () => {
