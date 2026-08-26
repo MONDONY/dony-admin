@@ -23,8 +23,9 @@ async function openUser(id: string) { await detail.open(id) }
 async function afterAction() { await fetchUsers() }
 
 async function openDeletion() {
+  if (!detail.user.value) return
   deletionOpen.value = true
-  await deletion.loadImpact(detail.user.value!.id)
+  await deletion.loadImpact(detail.user.value.id)
 }
 
 function closeDeletion() {
@@ -33,7 +34,8 @@ function closeDeletion() {
 }
 
 async function confirmDeletion(reasonCode: AdminDeletionReasonCode, reason: string) {
-  const id = detail.user.value!.id
+  if (!detail.user.value) return
+  const id = detail.user.value.id
   const ok = await deletion.remove(id, reasonCode, reason)
   // On ne ferme qu'en cas de succès : sur un refus, l'erreur doit rester lisible
   // à l'écran plutôt que de disparaître avec le dialogue.

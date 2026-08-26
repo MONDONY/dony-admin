@@ -82,6 +82,7 @@ test('un escrow actif empêche la confirmation et explique pourquoi', async ({ p
 
 test('un rapport propre permet de supprimer après double confirmation', async ({ page }) => {
   let deleteBody: unknown = null
+  let listFetchCount = 0
 
   await page.route('**/api/v1/admin/users**', (route) => {
     const req = route.request()
@@ -110,6 +111,8 @@ test('un rapport propre permet de supprimer après double confirmation', async (
     if (method === 'GET' && url.includes(`/${USER_ID}`)) {
       return route.fulfill({ json: userDetail })
     }
+    // Requête de liste paginée
+    listFetchCount++
     return route.fulfill({
       json: { content: [userDetail], totalElements: 1, totalPages: 1, number: 0, size: 20 },
     })
@@ -125,10 +128,22 @@ test('un rapport propre permet de supprimer après double confirmation', async (
   await page.selectOption('[data-test="deletion-reason-code"]', 'FRAUD')
   await page.fill('[data-test="deletion-reason"]', 'faux documents')
   await page.fill('[data-test="deletion-confirmation-input"]', 'Jean Dupont')
+
+  const fetchCountBeforeConfirm = listFetchCount
   await page.click('[data-test="deletion-confirm"]')
 
+  // 1. Payload envoyé au back
   await expect.poll(() => deleteBody)
     .toEqual({ reasonCode: 'FRAUD', reason: 'faux documents' })
+
+  // 2. Le dialogue de suppression a disparu (closeDeletion() a été appelé)
+  await expect(page.locator('[data-test="deletion-confirm-zone"]')).toHaveCount(0)
+
+  // 3. Le panneau de détail s'est refermé (detail.close() a été appelé)
+  await expect(page.locator('[data-test="action-delete"]')).toHaveCount(0)
+
+  // 4. La liste a été rechargée après la suppression (fetchUsers() a été appelé)
+  await expect.poll(() => listFetchCount).toBeGreaterThan(fetchCountBeforeConfirm)
 })
 
 test('un refus du back laisse le dialogue ouvert avec le message', async ({ page }) => {
