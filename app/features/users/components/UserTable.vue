@@ -11,6 +11,7 @@ const emit = defineEmits<{ select: [id: string] }>()
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
         <tr>
           <th class="px-4 py-2 font-medium">Nom</th>
+          <th class="px-4 py-2 font-medium">Email</th>
           <th class="px-4 py-2 font-medium">Téléphone</th>
           <th class="px-4 py-2 font-medium">Ville</th>
           <th class="px-4 py-2 font-medium">Statut</th>

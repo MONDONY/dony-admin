@@ -136,9 +136,9 @@ describe('useAuthStore (admin)', () => {
     expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
   })
 
-  // 29 depuis le Lot D, qui ajoute NOTIFICATION_SEND et CONFIG_MANAGE.
-  it('exposes 29 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(29)
+  // 30 depuis la feature suppression-compte-admin, qui ajoute USER_DELETE.
+  it('exposes 30 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(30)
   })
 
   it('ADMIN peut diffuser une notification et modifier la configuration', () => {

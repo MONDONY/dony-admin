@@ -15,9 +15,17 @@ const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
-  openKyc: []; resetKyc: [reason: string];
+  openKyc: []; resetKyc: [reason: string]; requestDelete: [];
 }>()
 const auth = useAuthStore()
+
+// Constat 4 — copie de l'UUID en un clic avec retour visuel
+const idCopied = ref(false)
+async function copyId() {
+  await navigator.clipboard.writeText(props.user.id)
+  idCopied.value = true
+  setTimeout(() => { idCopied.value = false }, 2000)
+}
 
 type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging' | null
 const pending = ref<Pending>(null)
@@ -159,6 +167,23 @@ const dialogConfig = computed<DialogConfig>(() => {
       </div>
 
       <template v-if="tab === 'profil'">
+      <!-- Constat 4 — identifiant copiable en un clic -->
+      <div class="mb-3 flex items-center gap-2">
+        <span
+          data-test="user-id"
+          class="font-mono text-xs text-text-muted truncate"
+          :title="user.id"
+        >{{ user.id }}</span>
+        <button
+          type="button"
+          data-test="copy-id"
+          class="shrink-0 rounded-btn border border-border px-2 py-0.5 text-xs transition-colors hover:bg-surface-elevated"
+          @click="copyId"
+        >
+          <span v-if="idCopied" data-test="copy-id-feedback" class="text-success">Copié ✓</span>
+          <span v-else>Copier</span>
+        </button>
+      </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Email</dt><dd>{{ user.email ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Ville</dt><dd>{{ user.city ?? '—' }}</dd></div>
@@ -250,6 +275,22 @@ const dialogConfig = computed<DialogConfig>(() => {
             @click="pending = 'resetCommission'"
           >Réinitialiser</button>
         </div>
+      </div>
+      <!-- Séparé des actions réversibles au-dessus : bannir et supprimer ne doivent ni se
+           ressembler ni se toucher. Un geste irréversible mérite sa propre zone. -->
+      <div
+        v-if="auth.can('USER_DELETE')"
+        class="mt-8 rounded-card border border-danger/30 bg-danger/5 p-4"
+      >
+        <p class="text-sm font-semibold text-danger">Zone de danger</p>
+        <p class="mb-3 text-xs text-text-muted">
+          La suppression anonymise définitivement le compte et le bannit. Elle ne peut pas être annulée.
+        </p>
+        <button
+          type="button" data-test="action-delete" :disabled="busy"
+          class="rounded-btn bg-danger px-4 py-2 text-sm text-white hover:bg-danger/90 disabled:opacity-40"
+          @click="emit('requestDelete')"
+        >Supprimer le compte…</button>
       </div>
       </template>
 

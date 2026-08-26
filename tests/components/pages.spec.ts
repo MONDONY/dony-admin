@@ -8,7 +8,10 @@ import { setActivePinia, createPinia } from 'pinia'
 
 // Nuxt auto-imports
 vi.stubGlobal('definePageMeta', vi.fn())
-vi.stubGlobal('useRoute', () => ({ meta: {} }))
+// Le stub inclut `query` (objet vide) pour simuler une navigation sans paramètres d'URL.
+// Sans cette propriété, les pages qui lisent `route.query?.xxx` reçoivent `undefined`
+// et peuvent lever une rejection non gérée au montage.
+vi.stubGlobal('useRoute', () => ({ meta: {}, query: {} }))
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApiKey: '' } }))
 vi.stubGlobal('navigateTo', vi.fn())
 vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))

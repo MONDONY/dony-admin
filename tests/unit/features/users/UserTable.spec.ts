@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import UserTable from '@/features/users/components/UserTable.vue'
 
 const users = [
-  { id: 'u1', firstName: 'Jean', lastName: 'Dupont', phoneNumber: '+33600', city: 'Paris', country: 'FR', status: 'ACTIVE', kycStatus: 'VERIFIED', isProAccount: false, averageRating: 4.5, totalTrips: 2, totalShipments: 3, createdAt: '2026-01-01' },
+  { id: 'u1', firstName: 'Jean', lastName: 'Dupont', phoneNumber: '+33600', email: 'jean@x.fr', city: 'Paris', country: 'FR', status: 'ACTIVE', kycStatus: 'VERIFIED', isProAccount: false, averageRating: 4.5, totalTrips: 2, totalShipments: 3, createdAt: '2026-01-01' },
 ]
 
 describe('UserTable', () => {

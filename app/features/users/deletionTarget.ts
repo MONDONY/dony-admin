@@ -1,7 +1,6 @@
-import type { AdminGdprRequest } from '@/features/users/types/index'
-
 /**
- * Phrase de contrôle exigée avant une exécution RGPD — geste irréversible.
+ * Phrase de contrôle exigée avant une suppression de compte — geste irréversible.
+ * Sert aussi bien à l'exécution RGPD qu'à la suppression décidée par l'administrateur.
  *
  * ⚠️ Ne doit **jamais** retourner une chaîne vide. `ConfirmActionDialog` traite une phrase
  * vide comme « pas de double confirmation » : plus d'input de contrôle, et `canConfirm` ne
@@ -11,7 +10,7 @@ import type { AdminGdprRequest } from '@/features/users/types/index'
  *
  * D'où la cascade jusqu'à `id`, toujours présent.
  */
-export function gdprConfirmationPhrase(request: Pick<AdminGdprRequest, 'firstName' | 'lastName' | 'email' | 'id'>): string {
+export function deletionConfirmationPhrase(request: { firstName: string | null; lastName: string | null; email: string | null; id: string }): string {
   const name = [request.firstName, request.lastName].filter(Boolean).join(' ').trim()
   if (name) return name
   if (request.email) return request.email
