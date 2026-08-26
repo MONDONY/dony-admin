@@ -14,20 +14,31 @@ export function useUserDeletion() {
   const busy = ref(false)
   const error = ref<string | null>(null)
 
+  // Jeton incrémental : chaque appel à loadImpact incrémente ce compteur et mémorise
+  // la valeur courante. Si une réponse arrive après qu'un appel plus récent a été lancé,
+  // son résultat est ignoré — il correspond à un compte différent.
+  let requestSeq = 0
+
   async function loadImpact(id: string) {
+    const seq = ++requestSeq
     isLoading.value = true
     error.value = null
     // Vidé avant l'appel : garder le rapport du compte précédent le ferait passer pour
     // celui du compte affiché le temps du chargement, ou définitivement si l'appel échoue.
     impact.value = null
     try {
-      impact.value = await usersService.getDeletionImpact(id)
+      const result = await usersService.getDeletionImpact(id)
+      // Réponse obsolète : un appel plus récent a déjà été lancé — on abandonne.
+      if (seq !== requestSeq) return
+      impact.value = result
     }
     catch (e) {
+      if (seq !== requestSeq) return
       error.value = extractProblemMessage(e, 'Impossible de charger l\'analyse d\'impact')
     }
     finally {
-      isLoading.value = false
+      // Réinitialise isLoading seulement pour la requête la plus récente.
+      if (seq === requestSeq) isLoading.value = false
     }
   }
 

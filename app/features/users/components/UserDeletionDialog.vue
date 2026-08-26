@@ -27,8 +27,19 @@ watch(() => props.open, (o) => {
 
 const phrase = computed(() => deletionConfirmationPhrase(props.user))
 
-const bySeverity = (s: string): ImpactFinding[] =>
-  props.impact?.findings.filter(f => f.severity === s) ?? []
+// Constat 5 — listes dérivées une seule fois par rendu (computed), pas recalculées à chaque appel.
+const findingsBlocking = computed<ImpactFinding[]>(() => props.impact?.findings.filter(f => f.severity === 'BLOCKING') ?? [])
+const findingsWarning = computed<ImpactFinding[]>(() => props.impact?.findings.filter(f => f.severity === 'WARNING') ?? [])
+const findingsInfo = computed<ImpactFinding[]>(() => props.impact?.findings.filter(f => f.severity === 'INFO') ?? [])
+
+// Constat 3 (défense en profondeur) : vrai seulement si le back dit non bloqué ET qu'aucun
+// constat BLOCKING n'est présent dans la liste. Le back reste l'autorité ; ceci protège
+// contre un rapport incohérent (blocked=false avec un constat BLOCKING).
+const canShowConfirmZone = computed<boolean>(() =>
+  props.impact !== null
+  && !props.impact.blocked
+  && findingsBlocking.value.length === 0,
+)
 
 const canConfirm = computed(() =>
   reasonCode.value !== ''
@@ -100,12 +111,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 
             <template v-else-if="impact">
               <!-- Constats BLOCKING — rayon interne rounded-xs (concentric: card 16px → xs 8px) -->
-              <section v-if="bySeverity('BLOCKING').length" class="mb-5">
+              <section v-if="findingsBlocking.length" class="mb-5">
                 <h3 class="mb-2 text-sm font-semibold text-danger">
                   Suppression impossible en l'état
                 </h3>
                 <div
-                  v-for="f in bySeverity('BLOCKING')"
+                  v-for="f in findingsBlocking"
                   :key="f.code"
                   :data-test="`finding-${f.code}`"
                   class="mb-2 rounded-xs border border-danger/40 bg-danger/10 px-3 py-2.5"
@@ -120,12 +131,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
               </section>
 
               <!-- Constats WARNING avec contreparties -->
-              <section v-if="bySeverity('WARNING').length" class="mb-5">
+              <section v-if="findingsWarning.length" class="mb-5">
                 <h3 class="mb-2 text-sm font-semibold text-warning">
                   Conséquences sur d'autres comptes
                 </h3>
                 <details
-                  v-for="f in bySeverity('WARNING')"
+                  v-for="f in findingsWarning"
                   :key="f.code"
                   :data-test="`finding-${f.code}`"
                   class="mb-2 rounded-xs border border-border px-3 py-2.5 open:pb-3"
@@ -140,27 +151,28 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
                   <ul v-if="f.parties.length" class="mt-2 space-y-1">
                     <li v-for="p in f.parties" :key="p.userId">
                       <!--
-                        Lien vers la fiche dans un nouvel onglet : l'administrateur prévient
-                        quelqu'un sans perdre l'écran de suppression en cours.
+                        NuxtLink interne — Nuxt préfixe automatiquement avec app.baseURL (/siragbe/).
+                        target="_blank" : l'administrateur prévient quelqu'un sans perdre l'écran
+                        de suppression en cours.
                         min-h-[40px] pour respecter la surface minimale WCAG (Minimum Hit Area).
                       -->
-                      <a
-                        :href="`/siragbe/users?query=${p.userId}`"
+                      <NuxtLink
+                        :to="{ path: '/users', query: { query: p.userId } }"
                         target="_blank"
                         rel="noopener"
                         :data-test="`party-${p.userId}`"
                         class="inline-flex min-h-[40px] items-center text-sm text-primary hover:underline"
-                      >{{ p.displayName }}</a>
+                      >{{ p.displayName }}</NuxtLink>
                     </li>
                   </ul>
                 </details>
               </section>
 
               <!-- Constats INFO — discrets -->
-              <details v-if="bySeverity('INFO').length" class="mb-2 text-sm text-text-muted">
+              <details v-if="findingsInfo.length" class="mb-2 text-sm text-text-muted">
                 <summary class="cursor-pointer select-none">Informations complémentaires</summary>
                 <p
-                  v-for="f in bySeverity('INFO')"
+                  v-for="f in findingsInfo"
                   :key="f.code"
                   :data-test="`finding-${f.code}`"
                   class="mt-1 text-xs [text-wrap:pretty]"
@@ -177,7 +189,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
               Un obstacle doit se lire comme un obstacle — pas une confirmation grisée.
             -->
             <div
-              v-if="impact && !impact.blocked"
+              v-if="canShowConfirmZone"
               data-test="deletion-confirm-zone"
               class="mt-4 space-y-3 border-t border-border pt-4"
             >
@@ -249,7 +261,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
             >Annuler</button>
 
             <button
-              v-if="impact && !impact.blocked"
+              v-if="canShowConfirmZone"
               type="button"
               data-test="deletion-confirm"
               :disabled="!canConfirm"

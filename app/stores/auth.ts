@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (29 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (30 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'

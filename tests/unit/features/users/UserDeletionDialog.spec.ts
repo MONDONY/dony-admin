@@ -91,6 +91,20 @@ describe('UserDeletionDialog', () => {
     expect(w.emitted('cancel')).toHaveLength(1)
   })
 
+  // Constat 3 — défense en profondeur : même si blocked=false (incohérence back),
+  // la présence d'un constat BLOCKING dans findings doit masquer la zone de confirmation.
+  it("masque la zone de confirmation quand blocked=false mais un constat BLOCKING est présent (rapport incohérent)", () => {
+    const incoherent = {
+      blocked: false, // le back dit non bloqué, mais…
+      findings: [{ severity: 'BLOCKING', code: 'ACTIVE_ESCROW', count: 1, parties: [] }], // …un constat BLOCKING est là
+    }
+    const w = mountDialog(incoherent)
+    // La zone de confirmation ne doit pas apparaître
+    expect(w.find('[data-test="deletion-confirm-zone"]').exists()).toBe(false)
+    // Le constat bloquant doit bien être affiché
+    expect(w.find('[data-test="finding-ACTIVE_ESCROW"]').exists()).toBe(true)
+  })
+
   // Constat 4 — fermeture par la touche Échap.
   it('émet cancel quand la touche Échap est pressée', async () => {
     const w = mountDialog(clean)

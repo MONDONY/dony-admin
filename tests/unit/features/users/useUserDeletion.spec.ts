@@ -89,6 +89,35 @@ describe('useUserDeletion', () => {
     expect(d.busy.value).toBe(false)
   })
 
+  // Constat 2 — garde d'obsolescence : si la réponse du premier appel arrive après celle
+  // du second, elle ne doit pas écraser le rapport du compte actuellement affiché.
+  it('ignore la réponse du premier appel quand un second a déjà répondu', async () => {
+    let resolveFirst!: (v: unknown) => void
+    const firstImpact = { blocked: false, findings: [{ severity: 'INFO', code: 'INFO_A', count: 1, parties: [] }] }
+    const secondImpact = { blocked: false, findings: [] }
+
+    // Premier appel : ne résout pas tout de suite
+    svc.getDeletionImpact.mockReturnValueOnce(new Promise((r) => { resolveFirst = r }))
+    // Deuxième appel : résout immédiatement
+    svc.getDeletionImpact.mockResolvedValueOnce(secondImpact)
+
+    const d = useUserDeletion()
+
+    // Lancer le premier appel sans l'attendre
+    const p1 = d.loadImpact('u-compte-A')
+    // Lancer le second avant que le premier n'ait répondu
+    const p2 = d.loadImpact('u-compte-B')
+    await p2
+
+    // Faire répondre le premier après le second — la réponse doit être ignorée
+    resolveFirst(firstImpact)
+    await p1
+
+    // Le rapport doit être celui du second appel, pas du premier
+    expect(d.impact.value).toEqual(secondImpact)
+    expect(d.isLoading.value).toBe(false)
+  })
+
   it('reset() efface le rapport et l\'erreur', async () => {
     svc.getDeletionImpact.mockResolvedValue(cleanImpact)
     const d = useUserDeletion()

@@ -13,6 +13,7 @@ import type { AdminDeletionReasonCode } from '@/features/users/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'USER_VIEW', pageTitle: 'Utilisateurs', pageSubtitle: 'Recherche & modération des comptes' })
 
+const route = useRoute()
 const { users, isLoading, totalPages, currentPage, filters, fetchUsers, goToPage, setStatusFilter, setSearch } = useUsers()
 const detail = useUserDetail()
 const kyc = useUserKyc()
@@ -45,7 +46,16 @@ async function confirmDeletion(reasonCode: AdminDeletionReasonCode, reason: stri
   await fetchUsers()
 }
 
-onMounted(fetchUsers)
+onMounted(async () => {
+  // Constat 1 — initialise le filtre de recherche depuis le paramètre d'URL ?query=<uuid>
+  // afin que les liens de contreparties dans UserDeletionDialog ouvrent la liste filtrée.
+  const q = route.query.query
+  if (q && typeof q === 'string') {
+    await setSearch(q)
+  } else {
+    await fetchUsers()
+  }
+})
 </script>
 
 <template>

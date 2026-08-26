@@ -19,6 +19,14 @@ const emit = defineEmits<{
 }>()
 const auth = useAuthStore()
 
+// Constat 4 — copie de l'UUID en un clic avec retour visuel
+const idCopied = ref(false)
+async function copyId() {
+  await navigator.clipboard.writeText(props.user.id)
+  idCopied.value = true
+  setTimeout(() => { idCopied.value = false }, 2000)
+}
+
 type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging' | null
 const pending = ref<Pending>(null)
 
@@ -159,6 +167,23 @@ const dialogConfig = computed<DialogConfig>(() => {
       </div>
 
       <template v-if="tab === 'profil'">
+      <!-- Constat 4 — identifiant copiable en un clic -->
+      <div class="mb-3 flex items-center gap-2">
+        <span
+          data-test="user-id"
+          class="font-mono text-xs text-text-muted truncate"
+          :title="user.id"
+        >{{ user.id }}</span>
+        <button
+          type="button"
+          data-test="copy-id"
+          class="shrink-0 rounded-btn border border-border px-2 py-0.5 text-xs transition-colors hover:bg-surface-elevated"
+          @click="copyId"
+        >
+          <span v-if="idCopied" data-test="copy-id-feedback" class="text-success">Copié ✓</span>
+          <span v-else>Copier</span>
+        </button>
+      </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Email</dt><dd>{{ user.email ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Ville</dt><dd>{{ user.city ?? '—' }}</dd></div>

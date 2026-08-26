@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
 import UserDetailPanel from '@/features/users/components/UserDetailPanel.vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
@@ -279,6 +279,30 @@ describe('UserDetailPanel', () => {
     seedAuth('ADMIN', { USER_KYC: false })
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.find('[data-test="tab-kyc"]').exists()).toBe(false)
+  })
+
+  // Constat 4 — copie de l'UUID
+  it('affiche le bouton de copie de l\'UUID et l\'UUID complet', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="user-id"]').text()).toBe(baseUser.id)
+    expect(w.find('[data-test="copy-id"]').exists()).toBe(true)
+  })
+
+  it('copie l\'UUID dans le presse-papier et affiche le retour visuel « Copié »', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    // happy-dom expose navigator.clipboard en getter-only ; on utilise defineProperty.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    await w.find('[data-test="copy-id"]').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith(baseUser.id)
+    expect(w.find('[data-test="copy-id-feedback"]').exists()).toBe(true)
+    expect(w.find('[data-test="copy-id-feedback"]').text()).toContain('Copié')
   })
 
   it('relaie l\'événement reset de l\'onglet KYC en resetKyc', async () => {
