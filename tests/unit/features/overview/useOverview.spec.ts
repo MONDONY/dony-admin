@@ -51,4 +51,15 @@ describe('useOverview', () => {
     await o.fetchOverview()
     expect(o.error.value).toBe('down')
   })
+
+  it('kpis retourne un tableau vide quand data est null (avant premier chargement)', () => {
+    const o = useOverview()
+    // data.value est null par défaut
+    expect(o.kpis.value).toEqual([])
+  })
+
+  it('queues retourne un tableau vide quand data est null', () => {
+    const o = useOverview()
+    expect(o.queues.value).toEqual([])
+  })
 })

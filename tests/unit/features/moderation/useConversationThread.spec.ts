@@ -43,4 +43,11 @@ describe('useConversationThread', () => {
     await t.open('c1')
     expect(t.error.value).toBe('thread boom')
   })
+
+  it('deleteMessage() est un no-op quand activeId est null', async () => {
+    const t = useConversationThread()
+    // activeId.value = null par défaut → la garde empêche l'appel au service
+    await t.deleteMessage('m99')
+    expect(svc.deleteMessage).not.toHaveBeenCalled()
+  })
 })

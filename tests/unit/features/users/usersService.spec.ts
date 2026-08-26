@@ -144,4 +144,35 @@ describe('usersService', () => {
       body: { reasonCode: 'FRAUD', reason: 'faux documents' },
     })
   })
+
+  // Branches buildQuery — role, kyc, pro, city (lignes 10-13)
+  it('list() inclut role quand il est fourni', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.list({ status: 'TOUS', role: 'TRAVELER', kyc: null, pro: null, city: null, query: '' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.role).toBe('TRAVELER')
+  })
+
+  it('list() inclut kyc quand il est fourni', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.list({ status: 'TOUS', role: null, kyc: 'APPROVED', pro: null, city: null, query: '' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.kyc).toBe('APPROVED')
+  })
+
+  it('list() inclut pro=true quand fourni', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.list({ status: 'TOUS', role: null, kyc: null, pro: true, city: null, query: '' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.pro).toBe(true)
+  })
+
+  it('list() inclut pro=false quand fourni', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.list({ status: 'TOUS', role: null, kyc: null, pro: false, city: null, query: '' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.pro).toBe(false)
+  })
+
+  it('list() inclut city quand fournie', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.list({ status: 'TOUS', role: null, kyc: null, pro: null, city: 'Paris', query: '' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.city).toBe('Paris')
+  })
 })
