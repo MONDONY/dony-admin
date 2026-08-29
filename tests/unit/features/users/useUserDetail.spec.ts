@@ -11,6 +11,8 @@ vi.mock('@/features/users/services/usersService', () => {
     liftPublishingSuspension: vi.fn(),
     muteMessaging: vi.fn(),
     unmuteMessaging: vi.fn(),
+    grantPro: vi.fn(),
+    revokePro: vi.fn(),
   }
   return { usersService: svc }
 })
@@ -27,6 +29,40 @@ describe('useUserDetail', () => {
     svc.get.mockResolvedValue({ id: 'u1', status: 'ACTIVE' })
     const d = useUserDetail()
     await d.open('u1')
+    expect(d.user.value?.id).toBe('u1')
+  })
+
+  // Cette couche est la seule à choisir QUEL utilisateur subit le geste : le panneau
+  // n'émet qu'un motif, le service ne reçoit qu'un id. Une confusion d'identifiant ne
+  // serait visible qu'ici.
+  it('grantPro(motif) passe l\'id de l\'utilisateur ouvert et rafraîchit la fiche', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', isProAccount: false })
+    svc.grantPro.mockResolvedValue({ id: 'u1', isProAccount: true })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.grantPro('partenaire pilote')
+    expect(svc.grantPro).toHaveBeenCalledWith('u1', 'partenaire pilote')
+    expect(d.user.value?.isProAccount).toBe(true)
+  })
+
+  it('revokePro() passe l\'id de l\'utilisateur ouvert', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', isProAccount: true })
+    svc.revokePro.mockResolvedValue({ id: 'u1', isProAccount: false })
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.revokePro()
+    expect(svc.revokePro).toHaveBeenCalledWith('u1')
+    expect(d.user.value?.isProAccount).toBe(false)
+  })
+
+  it('un échec d\'octroi remonte le message du ProblemDetail sans casser la fiche', async () => {
+    svc.get.mockResolvedValue({ id: 'u1', isProAccount: false })
+    svc.grantPro.mockRejectedValue(new Error('boom'))
+    const d = useUserDetail()
+    await d.open('u1')
+    await d.grantPro('motif')
+    expect(d.error.value).toBeTruthy()
+    expect(d.busy.value).toBe(false)
     expect(d.user.value?.id).toBe('u1')
   })
 

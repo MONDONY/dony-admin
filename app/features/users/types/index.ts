@@ -19,7 +19,30 @@ export interface AdminUserListItem {
   createdAt: string
 }
 
+/**
+ * État d'abonnement PRO tel que l'administration le voit.
+ *
+ * Miroir de `com.yadony.api.billing.dto.AdminProSubscriptionView`. `source`
+ * distingue les trois origines du droit : `STRIPE` (payant), `ADMIN_GRANT`
+ * (offert) et `LEGACY_FREE` (grâce historique). Seul un accès `ADMIN_GRANT`
+ * peut être révoqué depuis cette interface : révoquer un abonnement payant se
+ * fait dans Stripe, pas ici.
+ */
+export interface AdminProSubscription {
+  status: string
+  source: 'STRIPE' | 'ADMIN_GRANT' | 'LEGACY_FREE'
+  billingCycle: string | null
+  currentPeriodEnd: string | null
+  cancelAtPeriodEnd: boolean
+  graceExpiresAt: string | null
+  stripeSubscriptionId: string | null
+  grantedByAdminId: string | null
+  adminGrantReason: string | null
+  grantedAt: string | null
+}
+
 export interface AdminUserDetail extends AdminUserListItem {
+  proSubscription: AdminProSubscription | null
   roles: string[]
   stripeAccountStatus: string | null
   commissionRateOverride: number | null

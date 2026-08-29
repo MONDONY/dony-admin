@@ -26,6 +26,16 @@ const wireUser = {
 describe('UserDetailPanel — format réel du fil (champs absents, pas null)', () => {
   beforeEach(() => seedAuth('ADMIN'))
 
+  // `proSubscription` est absent de `wireUser`, exactement comme dans le JSON d'un compte
+  // sans abonnement. Une comparaison `!== null` y serait vraie et afficherait le panneau
+  // comme si une ligne existait.
+  it('sans abonnement : annonce « aucun » et propose d\'offrir l\'accès', () => {
+    const w = mount(UserDetailPanel, { props: { user: wireUser, open: true } })
+    expect(w.find('[data-test="pro-source"]').text()).toBe('aucun')
+    expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
+    expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(false)
+  })
+
   it('sans dérogation de commission : annonce le taux global, jamais « NaN % »', () => {
     const w = mount(UserDetailPanel, { props: { user: wireUser, open: true } })
     expect(w.text()).toContain('taux global appliqué')

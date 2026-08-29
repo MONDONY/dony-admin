@@ -320,4 +320,72 @@ describe('UserDetailPanel', () => {
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('resetKyc')![0]).toEqual(['document illisible'])
   })
+
+  // Le backend est en NON_NULL : un utilisateur sans ligne d'abonnement n'a PAS de champ
+  // `proSubscription` dans le JSON. `baseUser` reproduit ce cas, il ne le déclare pas.
+  describe('accès PRO', () => {
+    const granted = {
+      ...baseUser,
+      isProAccount: true,
+      proSubscription: {
+        status: 'ACTIVE', source: 'ADMIN_GRANT', billingCycle: null, currentPeriodEnd: null,
+        cancelAtPeriodEnd: false, graceExpiresAt: null, stripeSubscriptionId: null,
+        grantedByAdminId: 'a1', adminGrantReason: 'partenaire pilote', grantedAt: '2026-08-01',
+      },
+    }
+    const paying = {
+      ...baseUser,
+      isProAccount: true,
+      proSubscription: {
+        status: 'ACTIVE', source: 'STRIPE', billingCycle: 'MONTHLY', currentPeriodEnd: '2026-09-01',
+        cancelAtPeriodEnd: false, graceExpiresAt: null, stripeSubscriptionId: 'sub_1',
+        grantedByAdminId: null, adminGrantReason: null, grantedAt: null,
+      },
+    }
+
+    it('propose d\'offrir un accès PRO à un compte qui n\'en a aucun', () => {
+      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
+      expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(false)
+      expect(w.find('[data-test="pro-source"]').text()).toBe('aucun')
+    })
+
+    it('émet grantPro avec le motif saisi dans la confirmation', async () => {
+      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      await w.find('[data-test="action-grant-pro"]').trigger('click')
+      await w.find('[data-test="reason"]').setValue('partenaire pilote Dakar')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('grantPro')![0]).toEqual(['partenaire pilote Dakar'])
+    })
+
+    it('n\'offre la révocation que pour un accès offert, et montre son motif', () => {
+      const w = mount(UserDetailPanel, { props: { user: granted, open: true } })
+      expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(true)
+      expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(false)
+      expect(w.text()).toContain('partenaire pilote')
+    })
+
+    it('émet revokePro sans exiger de motif', async () => {
+      const w = mount(UserDetailPanel, { props: { user: granted, open: true } })
+      await w.find('[data-test="action-revoke-pro"]').trigger('click')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('revokePro')).toBeTruthy()
+      expect(w.find('[data-test="reason"]').exists()).toBe(false)
+    })
+
+    // Un abonnement payant se résilie dans Stripe : proposer les deux gestes ici laisserait
+    // croire qu'on peut annuler un paiement depuis l'administration.
+    it('n\'offre aucun geste sur un abonnement payant, et le dit', () => {
+      const w = mount(UserDetailPanel, { props: { user: paying, open: true } })
+      expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(false)
+      expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(false)
+      expect(w.find('[data-test="pro-stripe-hint"]').text()).toContain('Stripe')
+    })
+
+    it('cache toute la section pour un rôle SUPPORT, qui n\'a pas USER_PRO_GRANT', () => {
+      seedAuth('SUPPORT')
+      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      expect(w.find('[data-test="pro-grant-section"]').exists()).toBe(false)
+    })
+  })
 })

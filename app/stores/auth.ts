@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (30 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (31 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -13,6 +13,7 @@ export type AdminPermission =
   | 'USER_GDPR_DELETE'
   | 'USER_DELETE'
   | 'USER_COMMISSION'
+  | 'USER_PRO_GRANT'
   | 'PAYMENT_VIEW'
   | 'PAYMENT_RELEASE'
   | 'PAYMENT_REFUND'
@@ -45,6 +46,9 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'USER_GDPR_DELETE',
   'USER_DELETE',
   'USER_COMMISSION',
+  // Offrir ou révoquer un accès PRO gratuit : même portée commerciale que
+  // USER_COMMISSION côté backend, donc accordée aux mêmes rôles.
+  'USER_PRO_GRANT',
   'PAYMENT_VIEW',
   'PAYMENT_RELEASE',
   'PAYMENT_REFUND',

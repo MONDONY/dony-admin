@@ -36,6 +36,21 @@ describe('usersService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/ban', { method: 'POST', body: { reason: 'abus' } })
   })
 
+  // Même chemin pour les deux gestes, seul le verbe change : une inversion POST/DELETE
+  // offrirait un accès en croyant le retirer. Le verbe fait donc partie de l'assertion.
+  it('grantPro() POSTe le motif sur /pro-grant', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', isProAccount: true })
+    const r = await usersService.grantPro('u1', 'partenaire pilote')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/pro-grant', { method: 'POST', body: { reason: 'partenaire pilote' } })
+    expect(r.isProAccount).toBe(true)
+  })
+
+  it('revokePro() DELETE le meme chemin, sans corps', async () => {
+    apiMock.mockResolvedValue({ id: 'u1', isProAccount: false })
+    await usersService.revokePro('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/pro-grant', { method: 'DELETE' })
+  })
+
   it('setCommissionRate() PUTs rate', async () => {
     apiMock.mockResolvedValue({ id: 'u1' })
     await usersService.setCommissionRate('u1', 0.1)
