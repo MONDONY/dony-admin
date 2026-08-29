@@ -98,8 +98,29 @@ function applyCommission() {
 const proSource = computed(() => props.user.proSubscription?.source ?? null)
 const isAdminGranted = computed(() => proSource.value === 'ADMIN_GRANT')
 
-/** Un abonnement payant se résilie dans Stripe : n'offrir le geste que si rien n'est en cours. */
-const canGrantPro = computed(() => proSource.value === null)
+/**
+ * Miroir de `ProSubscriptionStatus.grantsProAccess()` : les seuls statuts qui valent un
+ * accès PRO effectif. Un `CANCELED` ou un `EXPIRED` ne donne plus rien.
+ */
+const PRO_ACCESS_STATUSES = ['ACTIVE', 'PAST_DUE', 'LEGACY_GRACE']
+
+/**
+ * Miroir de `ProSubscriptionEntity.isStripeManaged()` : un abonnement payant **en cours**.
+ * C'est la seule situation où le backend refuse l'octroi (409 `active-stripe-subscription`),
+ * parce qu'il faut d'abord résilier dans Stripe.
+ */
+const hasLiveStripeSubscription = computed(() =>
+  proSource.value === 'STRIPE'
+  && PRO_ACCESS_STATUSES.includes(props.user.proSubscription?.status ?? ''),
+)
+
+/**
+ * Aligné sur la règle backend, et pas plus strict qu'elle : la première version n'offrait
+ * le geste qu'en l'absence totale de ligne d'abonnement. Un compte dont l'abonnement payant
+ * a expiré — le cas le plus courant d'un geste commercial — restait donc hors de portée,
+ * alors que le backend l'accepte.
+ */
+const canGrantPro = computed(() => !hasLiveStripeSubscription.value && !isAdminGranted.value)
 
 function proSourceLabel(): string {
   switch (proSource.value) {
@@ -332,7 +353,7 @@ const dialogConfig = computed<DialogConfig>(() => {
             class="rounded-btn px-4 py-2 text-sm border border-border disabled:opacity-40"
             @click="pending = 'revokePro'"
           >Révoquer l'accès offert</button>
-          <p v-if="proSource === 'STRIPE'" class="text-xs text-text-muted" data-test="pro-stripe-hint">
+          <p v-if="hasLiveStripeSubscription" class="text-xs text-text-muted" data-test="pro-stripe-hint">
             Abonnement payant : la résiliation se fait dans Stripe, pas ici.
           </p>
         </div>

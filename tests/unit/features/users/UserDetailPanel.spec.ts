@@ -382,6 +382,51 @@ describe('UserDetailPanel', () => {
       expect(w.find('[data-test="pro-stripe-hint"]').text()).toContain('Stripe')
     })
 
+    // La première version n'offrait le geste qu'en l'absence totale de ligne. Or le backend
+    // ne refuse que sur un abonnement Stripe EN COURS (`isStripeManaged`) : un abonnement
+    // expiré ou annulé n'empêche rien, et c'est justement le compte qu'on veut rattraper.
+    const expiredStripe = {
+      ...baseUser,
+      isProAccount: false,
+      proSubscription: {
+        status: 'EXPIRED', source: 'STRIPE', billingCycle: 'MONTHLY', currentPeriodEnd: '2026-07-01',
+        cancelAtPeriodEnd: false, graceExpiresAt: null, stripeSubscriptionId: 'sub_old',
+        grantedByAdminId: null, adminGrantReason: null, grantedAt: null,
+      },
+    }
+    const legacyGrace = {
+      ...baseUser,
+      isProAccount: true,
+      proSubscription: {
+        status: 'LEGACY_GRACE', source: 'LEGACY_FREE', billingCycle: null, currentPeriodEnd: null,
+        cancelAtPeriodEnd: false, graceExpiresAt: '2026-10-01', stripeSubscriptionId: null,
+        grantedByAdminId: null, adminGrantReason: null, grantedAt: null,
+      },
+    }
+
+    it('permet d\'offrir un accès à un abonnement payant EXPIRÉ', () => {
+      const w = mount(UserDetailPanel, { props: { user: expiredStripe, open: true } })
+      expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
+      expect(w.find('[data-test="pro-stripe-hint"]').exists()).toBe(false)
+    })
+
+    it('permet d\'offrir un accès pendant une grâce historique', () => {
+      const w = mount(UserDetailPanel, { props: { user: legacyGrace, open: true } })
+      expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
+    })
+
+    // PAST_DUE vaut encore un accès PRO côté backend : l'abonnement vit, le paiement est
+    // seulement en retard. Le backend refuserait donc l'octroi (409).
+    it('refuse le geste sur un abonnement payant PAST_DUE, comme le backend', () => {
+      const pastDue = {
+        ...expiredStripe,
+        proSubscription: { ...expiredStripe.proSubscription, status: 'PAST_DUE' },
+      }
+      const w = mount(UserDetailPanel, { props: { user: pastDue, open: true } })
+      expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(false)
+      expect(w.find('[data-test="pro-stripe-hint"]').exists()).toBe(true)
+    })
+
     it('cache toute la section pour un rôle SUPPORT, qui n\'a pas USER_PRO_GRANT', () => {
       seedAuth('SUPPORT')
       const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
