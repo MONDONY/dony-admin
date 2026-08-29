@@ -36,9 +36,11 @@ export function useUserDetail() {
   const muteMessaging = (durationHours: number | null, reason: string) =>
     run(() => usersService.muteMessaging(user.value!.id, durationHours, reason))
   const unmuteMessaging = () => run(() => usersService.unmuteMessaging(user.value!.id))
+  const grantPro = (reason: string) => run(() => usersService.grantPro(user.value!.id, reason))
+  const revokePro = () => run(() => usersService.revokePro(user.value!.id))
 
   return {
     user, isLoading, error, busy, open, close, suspend, ban, unsuspend, setCommissionRate,
-    suspendPublishing, liftPublishing, muteMessaging, unmuteMessaging,
+    suspendPublishing, liftPublishing, muteMessaging, unmuteMessaging, grantPro, revokePro,
   }
 }

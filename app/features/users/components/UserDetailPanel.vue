@@ -16,6 +16,7 @@ const emit = defineEmits<{
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
   openKyc: []; resetKyc: [reason: string]; requestDelete: [];
+  grantPro: [reason: string]; revokePro: [];
 }>()
 const auth = useAuthStore()
 
@@ -27,7 +28,8 @@ async function copyId() {
   setTimeout(() => { idCopied.value = false }, 2000)
 }
 
-type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging' | null
+type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging'
+  | 'grantPro' | 'revokePro' | null
 const pending = ref<Pending>(null)
 
 // « profil » par défaut : les gestes de compte restent immédiatement accessibles à
@@ -51,6 +53,8 @@ function confirmReason(reason: string) {
   else if (pending.value === 'setCommission') emit('setCommission', pendingCommissionRate.value)
   else if (pending.value === 'resetCommission') emit('setCommission', null)
   else if (pending.value === 'muteMessaging') emit('muteMessaging', muteDurationHours(), reason)
+  else if (pending.value === 'grantPro') emit('grantPro', reason)
+  else if (pending.value === 'revokePro') emit('revokePro')
   pending.value = null
 }
 
@@ -86,6 +90,24 @@ function applyCommission() {
   if (Number.isNaN(pct) || pct < 0 || pct > 99.9) return
   pendingCommissionRate.value = Math.round(pct * 10) / 1000 // % → fraction, 1 décimale de %
   pending.value = 'setCommission'
+}
+
+// `proSubscription` est absent du JSON quand il n'y a aucune ligne d'abonnement (backend
+// NON_NULL) : il arrive donc à `undefined`, jamais à `null`. D'où `?.` partout plutôt
+// qu'une comparaison stricte, qui serait vraie à tort.
+const proSource = computed(() => props.user.proSubscription?.source ?? null)
+const isAdminGranted = computed(() => proSource.value === 'ADMIN_GRANT')
+
+/** Un abonnement payant se résilie dans Stripe : n'offrir le geste que si rien n'est en cours. */
+const canGrantPro = computed(() => proSource.value === null)
+
+function proSourceLabel(): string {
+  switch (proSource.value) {
+    case 'STRIPE': return 'abonnement payant'
+    case 'ADMIN_GRANT': return 'accès offert par un administrateur'
+    case 'LEGACY_FREE': return 'grâce historique'
+    default: return 'aucun'
+  }
 }
 
 type DialogConfig = { title: string; message: string; confirmLabel: string; requireReason: boolean }
@@ -126,6 +148,22 @@ const dialogConfig = computed<DialogConfig>(() => {
         message: `La messagerie de cet utilisateur sera coupée pour ${muteDurationLabel()}.`,
         confirmLabel: 'Couper la messagerie',
         requireReason: true,
+      }
+    case 'grantPro':
+      return {
+        title: 'Offrir un accès PRO',
+        message: 'L\'utilisateur obtiendra immédiatement les avantages PRO, sans payer. '
+          + 'Le motif est journalisé avec votre identifiant d\'administrateur.',
+        confirmLabel: 'Offrir l\'accès PRO',
+        requireReason: true,
+      }
+    case 'revokePro':
+      return {
+        title: 'Révoquer l\'accès PRO offert',
+        message: 'L\'accès offert sera retiré et l\'utilisateur repassera en compte standard. '
+          + 'Un abonnement payant, lui, se résilie dans Stripe.',
+        confirmLabel: 'Révoquer',
+        requireReason: false,
       }
     default:
       return { title: '', message: '', confirmLabel: '', requireReason: false }
@@ -274,6 +312,29 @@ const dialogConfig = computed<DialogConfig>(() => {
             class="rounded-btn px-4 py-2 text-sm border border-border"
             @click="pending = 'resetCommission'"
           >Réinitialiser</button>
+        </div>
+      </div>
+      <div v-if="auth.can('USER_PRO_GRANT')" class="mt-4 space-y-2" data-test="pro-grant-section">
+        <p class="text-text-muted">
+          Accès PRO —
+          <span data-test="pro-source">{{ proSourceLabel() }}</span>
+          <span v-if="user.proSubscription?.adminGrantReason">
+            · motif : {{ user.proSubscription.adminGrantReason }}</span>
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="canGrantPro" type="button" data-test="action-grant-pro" :disabled="busy"
+            class="rounded-btn px-4 py-2 text-sm border border-border disabled:opacity-40"
+            @click="pending = 'grantPro'"
+          >Offrir un accès PRO</button>
+          <button
+            v-if="isAdminGranted" type="button" data-test="action-revoke-pro" :disabled="busy"
+            class="rounded-btn px-4 py-2 text-sm border border-border disabled:opacity-40"
+            @click="pending = 'revokePro'"
+          >Révoquer l'accès offert</button>
+          <p v-if="proSource === 'STRIPE'" class="text-xs text-text-muted" data-test="pro-stripe-hint">
+            Abonnement payant : la résiliation se fait dans Stripe, pas ici.
+          </p>
         </div>
       </div>
       <!-- Séparé des actions réversibles au-dessus : bannir et supprimer ne doivent ni se

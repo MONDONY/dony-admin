@@ -136,9 +136,11 @@ describe('useAuthStore (admin)', () => {
     expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
   })
 
-  // 30 depuis la feature suppression-compte-admin, qui ajoute USER_DELETE.
-  it('exposes 30 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(30)
+  // 31 depuis l'octroi PRO admin, qui ajoute USER_PRO_GRANT. Ce compteur ne vaut que comme
+  // garde-fou grossier : c'est permissionCoverage.spec.ts qui compare les noms un à un à
+  // l'enum backend, et qui attrapera une divergence que ce nombre laisserait passer.
+  it('exposes 31 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(31)
   })
 
   it('ADMIN peut diffuser une notification et modifier la configuration', () => {

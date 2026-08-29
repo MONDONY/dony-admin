@@ -31,6 +31,17 @@ export const usersService = {
   unsuspend(id: string): Promise<AdminUserDetail> {
     return useApi()<AdminUserDetail>(`/admin/users/${id}/unsuspend`, { method: 'POST' })
   },
+  /**
+   * Offre un accès PRO gratuit. Le motif est obligatoire côté backend : un geste
+   * commercial doit rester explicable, et il est journalisé avec l'administrateur.
+   */
+  grantPro(id: string, reason: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/pro-grant`, { method: 'POST', body: { reason } })
+  },
+  /** Révoque un accès offert. Sans effet sur un abonnement payant, qui se gère dans Stripe. */
+  revokePro(id: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/pro-grant`, { method: 'DELETE' })
+  },
   setCommissionRate(id: string, rate: number | null): Promise<AdminUserDetail> {
     return useApi()<AdminUserDetail>(`/admin/users/${id}/commission-rate`, { method: 'PUT', body: { rate } })
   },

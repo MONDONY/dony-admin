@@ -87,6 +87,8 @@ onMounted(async () => {
       @unmute-messaging="async () => { await detail.unmuteMessaging(); await afterAction() }"
       @open-kyc="() => { if (!detail.user.value) return; kyc.load(detail.user.value.id) }"
       @reset-kyc="async (reason) => { if (!detail.user.value) return; const id = detail.user.value.id; await kyc.reset(id, reason); await detail.open(id); await afterAction() }"
+      @grant-pro="async (reason) => { await detail.grantPro(reason); await afterAction() }"
+      @revoke-pro="async () => { await detail.revokePro(); await afterAction() }"
       @request-delete="openDeletion"
     />
 
