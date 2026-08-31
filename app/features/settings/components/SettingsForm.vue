@@ -17,6 +17,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   urgency_threshold_days: { label: 'Seuil d’urgence', unit: 'jours' },
   reimbursement_cap_eur: { label: 'Plafond de remboursement', unit: '€' },
   sms_enabled: { label: 'SMS activés (authentification par code)', unit: '' },
+  pro_enabled: { label: 'Offre PRO ouverte (visible dans l’application)', unit: '' },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
@@ -123,6 +124,28 @@ function requestSave(key: string) {
           + 'les administrateurs, ne pourra se connecter tant que ce réglage restera désactivé.'
         : 'Les SMS seront réactivés — les codes de connexion (OTP) pourront de nouveau être envoyés.',
       confirmLabel: turningOff ? 'Désactiver' : 'Activer',
+    }
+    return
+  }
+
+  if (key === 'pro_enabled') {
+    // Pas de saisie de contrôle : fermer l'offre ne bloque personne (les quotas des comptes
+    // standard sont levés en même temps). Mais la conséquence n'est pas évidente depuis un
+    // simple « Activé / Désactivé » : elle est dite ici, dans les deux sens.
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: false,
+      title: opening ? 'Ouvrir l’offre PRO' : 'Fermer l’offre PRO',
+      message: opening
+        ? 'L’application affichera les entrées PRO (compte PRO, abonnement) et les quotas des comptes '
+          + 'standard (annonces mensuelles, brouillons) seront de nouveau appliqués. '
+          + 'Effet au prochain démarrage de l’application chez chaque utilisateur.'
+        : 'L’application masquera toute entrée PRO et les quotas des comptes standard ne seront plus '
+          + 'appliqués : tout le monde bénéficie des plafonds PRO tant que l’offre reste fermée. '
+          + 'Effet au prochain démarrage de l’application chez chaque utilisateur.',
+      confirmLabel: opening ? 'Ouvrir' : 'Fermer',
     }
     return
   }

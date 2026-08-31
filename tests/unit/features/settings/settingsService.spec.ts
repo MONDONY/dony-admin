@@ -50,6 +50,16 @@ describe('settingsService', () => {
     })
   })
 
+  it('update() PUTe la clé pro_enabled comme toute autre clé — le feature flag ne passe par aucun endpoint dédié', async () => {
+    apiMock.mockResolvedValue({ key: 'pro_enabled', value: 'true', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null })
+    const res = await settingsService.update('pro_enabled', 'true')
+    expect(apiMock).toHaveBeenCalledWith('/admin/settings/pro_enabled', {
+      method: 'PUT',
+      body: { value: 'true' },
+    })
+    expect(res.value).toBe('true')
+  })
+
   it('update() PUTe la clé reimbursement_cap_eur', async () => {
     apiMock.mockResolvedValue({ key: 'reimbursement_cap_eur', value: '80', type: 'DECIMAL', updatedAt: null, updatedByEmail: null })
     await settingsService.update('reimbursement_cap_eur', '80')
