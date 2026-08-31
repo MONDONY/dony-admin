@@ -21,10 +21,15 @@ const sms: PlatformSetting = {
   key: 'sms_enabled', value: 'true', type: 'BOOLEAN',
   updatedAt: null, updatedByEmail: null,
 }
+// Feature flag de l'offre PRO : fermé par défaut en production, ouvert depuis cet écran.
+const pro: PlatformSetting = {
+  key: 'pro_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
 
 function mountForm(props: Partial<InstanceType<typeof SettingsForm>['$props']> = {}) {
   return mount(SettingsForm, {
-    props: { settings: [commission, urgency, cap, sms], busy: false, ...props },
+    props: { settings: [commission, urgency, cap, sms, pro], busy: false, ...props },
   })
 }
 
@@ -180,6 +185,46 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('update')![0]).toEqual(['sms_enabled', 'true'])
+  })
+
+  it('pro_enabled porte un libellé lisible et un sélecteur Activé / Désactivé', () => {
+    const w = mountForm()
+    const row = w.find('[data-test="setting-row-pro_enabled"]')
+    expect(row.text()).toContain('Offre PRO')
+    // Une clé non mappée retomberait sur sa clé brute : ce test garantit qu'on ne livre
+    // pas un « pro_enabled » nu à l'administrateur.
+    expect(row.text()).not.toContain('pro_enabled')
+    expect((w.find('[data-test="setting-value-pro_enabled"]').element as HTMLSelectElement).value).toBe('false')
+  })
+
+  it('ouvrir l’offre PRO : confirmation simple qui annonce les entrées PRO ET le retour des quotas', async () => {
+    const w = mountForm()
+    await w.find('[data-test="setting-value-pro_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-pro_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.text()).toContain('Ouvrir l’offre PRO')
+    expect(w.text()).toMatch(/quotas/)
+
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['pro_enabled', 'true'])
+  })
+
+  it('fermer l’offre PRO : confirmation simple qui annonce le masquage ET la levée des quotas', async () => {
+    const openPro: PlatformSetting = { ...pro, value: 'true' }
+    const w = mountForm({ settings: [commission, urgency, cap, sms, openPro] })
+    await w.find('[data-test="setting-value-pro_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-pro_enabled"]').trigger('click')
+
+    // Fermer ne bloque personne : pas de saisie de contrôle, contrairement aux SMS.
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.text()).toContain('Fermer l’offre PRO')
+    expect(w.text()).toMatch(/masquera/)
+    expect(w.text()).toMatch(/quotas/)
+
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['pro_enabled', 'false'])
   })
 
   it('les commandes sont désactivées pendant l’appel (busy)', () => {
