@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (31 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (33 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -35,6 +35,8 @@ export type AdminPermission =
   | 'EXPORT_RUN'
   | 'NOTIFICATION_SEND'
   | 'CONFIG_MANAGE'
+  | 'SUPPORT_TICKET_VIEW'
+  | 'SUPPORT_TICKET_MANAGE'
 
 export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'ADMIN_MANAGE',
@@ -71,13 +73,16 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   // Lot D — ni l'une ni l'autre n'appartient au rôle SUPPORT.
   'NOTIFICATION_SEND',
   'CONFIG_MANAGE',
+  // Messagerie support : voir la file, puis répondre/assigner/résoudre.
+  'SUPPORT_TICKET_VIEW',
+  'SUPPORT_TICKET_MANAGE',
 ]
 
 /**
  * Permissions de base par rôle — miroir de AdminRole.permissions() côté backend :
  * - SUPER_ADMIN : toutes
  * - ADMIN : toutes sauf ADMIN_MANAGE
- * - SUPPORT : 16 permissions lecture + actions limitées
+ * - SUPPORT : 18 permissions lecture + actions limitées
  */
 const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,
@@ -100,6 +105,9 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
     'REPORT_VIEW',
     'REPORT_RESOLVE',
     'RATING_MODERATE',
+    // La messagerie support est le coeur du métier de ce rôle.
+    'SUPPORT_TICKET_VIEW',
+    'SUPPORT_TICKET_MANAGE',
   ],
 }
 
