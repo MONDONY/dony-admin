@@ -20,9 +20,6 @@ const SCOPES: { key: SupportTicketScope, label: string }[] = [
   { key: 'all', label: 'Tous' },
 ]
 
-const STATUS_FILTERS: SupportStatusFilter[] =
-  ['TOUS', 'NEW', 'ASSIGNED', 'WAITING_SUPPORT', 'WAITING_USER', 'RESOLVED']
-
 const s = useSupportTickets()
 
 onMounted(() => s.fetchTickets())
