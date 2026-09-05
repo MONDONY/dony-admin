@@ -66,9 +66,9 @@ onMounted(() => s.fetchTickets())
     />
     <div class="mt-4">
       <PaginationControls
-        :current-page="s.currentPage.value"
+        :page="s.currentPage.value"
         :total-pages="s.totalPages.value"
-        @go="s.goToPage"
+        @change="s.goToPage"
       />
     </div>
 
