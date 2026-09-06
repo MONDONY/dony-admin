@@ -10,11 +10,18 @@ export type SupportTicketScope = 'unassigned' | 'mine' | 'all'
 
 export type SupportStatusFilter = SupportTicketStatus | 'TOUS'
 
+export interface AdminSupportAttachment {
+  id: string
+  url: string
+  contentType: string
+}
+
 export interface SupportMessage {
   id: string
   authorType: 'USER' | 'ADMIN'
-  content: string
+  content: string | null
   createdAt: string
+  attachments?: AdminSupportAttachment[]
 }
 
 /**

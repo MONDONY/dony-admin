@@ -45,12 +45,32 @@ describe('supportService', () => {
     })
   })
 
-  it('reply POSTe le contenu', async () => {
+  it('reply POSTe le contenu et les cles', async () => {
     apiMock.mockResolvedValue({ id: 'm1' })
-    await supportService.reply('t1', 'Bonjour')
+    await supportService.reply('t1', 'Bonjour', ['support/admin/u1/1.jpg'])
     expect(apiMock).toHaveBeenCalledWith('/admin/support/tickets/t1/messages', {
-      method: 'POST', body: { content: 'Bonjour' },
+      method: 'POST', body: { content: 'Bonjour', attachmentKeys: ['support/admin/u1/1.jpg'] },
     })
+  })
+
+  it('reply accepte un contenu null (image seule)', async () => {
+    apiMock.mockResolvedValue({ id: 'm1' })
+    await supportService.reply('t1', null, ['support/admin/u1/1.jpg'])
+    expect(apiMock).toHaveBeenCalledWith('/admin/support/tickets/t1/messages', {
+      method: 'POST', body: { content: null, attachmentKeys: ['support/admin/u1/1.jpg'] },
+    })
+  })
+
+  it('uploadAttachment envoie un FormData multipart', async () => {
+    apiMock.mockResolvedValue({ key: 'support/admin/u1/1.jpg', url: 'https://signed/1' })
+    const file = new File(['x'], 'photo.jpg', { type: 'image/jpeg' })
+    const result = await supportService.uploadAttachment(file)
+    expect(result.key).toBe('support/admin/u1/1.jpg')
+    const call = apiMock.mock.calls[0]
+    expect(call[0]).toBe('/admin/support/tickets/attachments')
+    expect(call[1].method).toBe('POST')
+    expect(call[1].body).toBeInstanceOf(FormData)
+    expect((call[1].body as FormData).get('file')).toBe(file)
   })
 
   it('resolve POSTe', async () => {
