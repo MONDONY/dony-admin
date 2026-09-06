@@ -132,4 +132,66 @@ describe('SupportAttachmentUploader', () => {
     expect(removeBtn.exists()).toBe(true)
     w.unmount()
   })
+
+  it('ne fait rien quand on retire un identifiant inconnu', async () => {
+    uploadAttachmentMock.mockResolvedValue({ key: 'support/admin/u1/1_a.jpg', url: 'https://signed/1' })
+    const w = mountUploader()
+    const input = w.find('input[type="file"]')
+
+    // Ajouter un fichier
+    Object.defineProperty(input.element, 'files', {
+      value: [makeFile()],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 0))
+
+    // Enregistrer le nombre initial d'items
+    const initialCount = w.vm.items.length
+    expect(initialCount).toBeGreaterThan(0)
+
+    // Essayer de retirer un id qui n'existe pas
+    w.vm.removeItem('id-inconnu-xyz')
+
+    // Le nombre d'items doit rester inchange
+    expect(w.vm.items.length).toBe(initialCount)
+
+    // Aucun change event avec moins de cles ne doit etre emis
+    const changeEvents = w.emitted('change') as string[][][] | undefined
+    if (changeEvents) {
+      const lastChange = changeEvents[changeEvents.length - 1]
+      expect(lastChange[0]).toHaveLength(initialCount)
+    }
+    w.unmount()
+  })
+
+  it('affiche l\'indicateur d\'echec apres un upload rate', async () => {
+    uploadAttachmentMock.mockRejectedValue(new Error('500 Internal Server Error'))
+    const w = mountUploader()
+    const input = w.find('input[type="file"]')
+
+    Object.defineProperty(input.element, 'files', {
+      value: [makeFile('bad.jpg')],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 0))
+
+    // Verifier que la vignette a le statut error
+    const item = w.vm.items[0]
+    expect(item).toBeTruthy()
+    expect(item.status).toBe('error')
+
+    // Verifier que l'indicateur d'erreur est rendu
+    const errorIndicator = w.find('.bg-danger\\/20')
+    expect(errorIndicator.exists()).toBe(true)
+
+    // Verifier que le texte d'erreur est visible
+    const errorText = errorIndicator.find('.text-danger')
+    expect(errorText.exists()).toBe(true)
+    expect(errorText.text()).toBe('!')
+    w.unmount()
+  })
 })
