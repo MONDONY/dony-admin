@@ -25,17 +25,22 @@ function mountSidebar() {
 describe('AppSidebar', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('renders all 11 module links', () => {
+  it('renders all 12 module links', () => {
     useAuthStore().setSession('token', makeAdmin('ADMIN'))
     const wrapper = mountSidebar()
     const labels = [
       'Vue d’ensemble', 'Utilisateurs', 'Transactions', 'Colis',
-      'Incidents', 'Alertes', 'Modération', 'Codes promo',
+      'Incidents', 'Alertes', 'Modération', 'Support', 'Codes promo',
       'Audit', 'Exports', 'Signalements',
     ]
     for (const label of labels) {
       expect(wrapper.text()).toContain(label)
     }
+  })
+
+  it('montre « Support » à SUPPORT (SUPPORT_TICKET_VIEW)', () => {
+    useAuthStore().setSession('token', makeAdmin('SUPPORT'))
+    expect(mountSidebar().text()).toContain('Support')
   })
 
   it('shows Administrateurs only to SUPER_ADMIN', () => {

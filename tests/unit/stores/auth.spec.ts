@@ -136,11 +136,24 @@ describe('useAuthStore (admin)', () => {
     expect(useAuthStore().can('CONTENT_REMOVE')).toBe(true)
   })
 
-  // 31 depuis l'octroi PRO admin, qui ajoute USER_PRO_GRANT. Ce compteur ne vaut que comme
-  // garde-fou grossier : c'est permissionCoverage.spec.ts qui compare les noms un à un à
-  // l'enum backend, et qui attrapera une divergence que ce nombre laisserait passer.
-  it('exposes 31 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(31)
+  // 33 depuis la messagerie support, qui ajoute SUPPORT_TICKET_VIEW et
+  // SUPPORT_TICKET_MANAGE. Ce compteur ne vaut que comme garde-fou grossier : c'est
+  // permissionCoverage.spec.ts qui compare les noms un à un à l'enum backend, et qui
+  // attrapera une divergence que ce nombre laisserait passer.
+  it('exposes 33 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(33)
+  })
+
+  it('SUPPORT porte les deux permissions de la messagerie support', () => {
+    seedAuth('SUPPORT')
+    const auth = useAuthStore()
+    expect(auth.can('SUPPORT_TICKET_VIEW')).toBe(true)
+    expect(auth.can('SUPPORT_TICKET_MANAGE')).toBe(true)
+  })
+
+  it('ADMIN et SUPER_ADMIN portent aussi la messagerie support', () => {
+    seedAuth('ADMIN')
+    expect(useAuthStore().can('SUPPORT_TICKET_MANAGE')).toBe(true)
   })
 
   it('ADMIN peut diffuser une notification et modifier la configuration', () => {
