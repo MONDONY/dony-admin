@@ -19,7 +19,7 @@ export interface AdminSupportAttachment {
 export interface SupportMessage {
   id: string
   authorType: 'USER' | 'ADMIN'
-  content: string
+  content: string | null
   createdAt: string
   attachments?: AdminSupportAttachment[]
 }
