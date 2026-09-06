@@ -148,7 +148,7 @@ function onUploaderBusy(value: boolean) {
     </div>
 
     <div v-if="isResolved" class="border-t border-border p-4 text-center text-sm text-text-muted">
-      Ticket résolu le {{ formatDate(ticket.resolvedAt) }} — plus aucune action possible.
+      Ticket résolu le {{ formatDate(ticket.resolvedAt) }}. Plus aucune action possible.
     </div>
     <div v-else-if="canManage && isMine" class="border-t border-border p-4">
       <SupportAttachmentUploader

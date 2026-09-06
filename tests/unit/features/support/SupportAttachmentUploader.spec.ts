@@ -194,4 +194,54 @@ describe('SupportAttachmentUploader', () => {
     expect(errorText.text()).toBe('!')
     w.unmount()
   })
+
+  it('tronque les fichiers au plafond quand on en envoie 5 avec 2 slots libres', async () => {
+    uploadAttachmentMock.mockImplementation((file: File) =>
+      Promise.resolve({ key: `support/admin/u1/${file.name}`, url: `https://signed/${file.name}` }),
+    )
+    const w = mountUploader()
+
+    // Ajouter d'abord 2 fichiers
+    for (let i = 1; i <= 2; i++) {
+      const input = w.find('input[type="file"]')
+      Object.defineProperty(input.element, 'files', {
+        value: [makeFile(`pre${i}.jpg`)],
+        configurable: true,
+      })
+      await input.trigger('change')
+      await new Promise(r => setTimeout(r, 0))
+      await new Promise(r => setTimeout(r, 0))
+    }
+
+    // Verifier que 2 items sont presents
+    expect(w.vm.items).toHaveLength(2)
+
+    // Maintenant envoyer 5 fichiers d'un coup (2 slots restent)
+    const input = w.find('input[type="file"]')
+    const fiveFiles = [
+      makeFile('extra1.jpg'),
+      makeFile('extra2.jpg'),
+      makeFile('extra3.jpg'),
+      makeFile('extra4.jpg'),
+      makeFile('extra5.jpg'),
+    ]
+    Object.defineProperty(input.element, 'files', {
+      value: fiveFiles,
+      configurable: true,
+    })
+    await input.trigger('change')
+    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 0))
+
+    // Verifier que seuls 4 items au total sont presents (2 pre + 2 extra)
+    expect(w.vm.items).toHaveLength(4)
+
+    // Verifier que change a ete emis avec 4 cles
+    const changeEvents = w.emitted('change') as string[][][] | undefined
+    expect(changeEvents).toBeTruthy()
+    const lastChange = changeEvents![changeEvents!.length - 1]
+    expect(lastChange[0]).toHaveLength(4)
+
+    w.unmount()
+  })
 })
