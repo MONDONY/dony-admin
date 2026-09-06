@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import SupportAttachmentGrid from '@/features/support/components/SupportAttachmentGrid.vue'
+import SupportAttachmentUploader from '@/features/support/components/SupportAttachmentUploader.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { STATUS_LABELS, formatDate, statusTone } from '@/features/support/utils/format'
@@ -15,12 +16,14 @@ const emit = defineEmits<{
   close: []
   assign: [id: string]
   reassign: [id: string, adminId: string]
-  reply: [id: string, content: string]
+  reply: [id: string, content: string, attachmentKeys: string[]]
   resolve: [id: string]
 }>()
 
 const auth = useAuthStore()
 const draft = ref('')
+const attachmentKeys = ref<string[]>([])
+const uploading = ref(false)
 
 function openViewer(url: string) {
   window.open(url, '_blank', 'noopener')
@@ -31,11 +34,24 @@ const isMine = computed(() => props.ticket.assignedAdminId === auth.user?.id)
 const isUnassigned = computed(() => props.ticket.assignedAdminId === null)
 const canManage = computed(() => auth.can('SUPPORT_TICKET_MANAGE'))
 
+const canSubmit = computed(() =>
+  !props.acting && !uploading.value &&
+  (draft.value.trim().length > 0 || attachmentKeys.value.length > 0))
+
 function sendReply() {
+  if (!canSubmit.value) return
   const content = draft.value.trim()
-  if (!content || props.acting) return
-  emit('reply', props.ticket.id, content)
+  emit('reply', props.ticket.id, content, attachmentKeys.value)
   draft.value = ''
+  attachmentKeys.value = []
+}
+
+function onUploaderChange(keys: string[]) {
+  attachmentKeys.value = keys
+}
+
+function onUploaderBusy(value: boolean) {
+  uploading.value = value
 }
 </script>
 
@@ -135,6 +151,11 @@ function sendReply() {
       Ticket résolu le {{ formatDate(ticket.resolvedAt) }} — plus aucune action possible.
     </div>
     <div v-else-if="canManage && isMine" class="border-t border-border p-4">
+      <SupportAttachmentUploader
+        class="mb-2"
+        @change="onUploaderChange"
+        @busy="onUploaderBusy"
+      />
       <textarea
         v-model="draft"
         rows="3"
@@ -146,7 +167,7 @@ function sendReply() {
         <button
           type="button"
           class="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          :disabled="acting || draft.trim().length === 0"
+          :disabled="!canSubmit"
           @click="sendReply"
         >
           {{ acting ? 'Envoi…' : 'Répondre' }}

@@ -92,7 +92,7 @@ describe('useSupportTickets', () => {
     const s = useSupportTickets()
     const ok = await s.reply('t1', 'Bonjour')
     expect(ok).toBe(true)
-    expect(replyMock).toHaveBeenCalledWith('t1', 'Bonjour')
+    expect(replyMock).toHaveBeenCalledWith('t1', 'Bonjour', [])
     expect(s.selected.value?.status).toBe('WAITING_USER')
   })
 

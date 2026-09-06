@@ -1,0 +1,135 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { seedAuth } from '~/tests/helpers/auth'
+
+// Mock du service d'upload - vi.mock est hisse, on utilise un wrapper
+vi.mock('@/features/support/services/supportService', () => ({
+  supportService: {
+    uploadAttachment: (...args: unknown[]) => uploadAttachmentMock(...args),
+  },
+}))
+
+const uploadAttachmentMock = vi.fn()
+
+import SupportAttachmentUploader from '@/features/support/components/SupportAttachmentUploader.vue'
+
+function makeFile(name = 'photo.jpg', type = 'image/jpeg', size = 1024): File {
+  return new File(['x'.repeat(size)], name, { type })
+}
+
+function mountUploader() {
+  return mount(SupportAttachmentUploader, {
+    attachTo: document.body,
+  })
+}
+
+describe('SupportAttachmentUploader', () => {
+  beforeEach(() => {
+    seedAuth('ADMIN')
+    uploadAttachmentMock.mockReset()
+  })
+
+  it("rend un bouton d'ajout (input file cache)", () => {
+    const w = mountUploader()
+    const input = w.find('input[type="file"]')
+    expect(input.exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('apres selection d\'un fichier, emet busy:true puis busy:false', async () => {
+    uploadAttachmentMock.mockResolvedValue({ key: 'support/admin/u1/1_a.jpg', url: 'https://signed/1' })
+    const w = mountUploader()
+    const input = w.find('input[type="file"]')
+
+    const file = makeFile()
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+
+    // busy:true doit avoir ete emis
+    const busyEvents = w.emitted('busy') as boolean[][]
+    expect(busyEvents).toBeTruthy()
+    expect(busyEvents[0]).toEqual([true])
+
+    // Attendre la resolution de la promesse
+    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 0))
+
+    const busyEventsAfter = w.emitted('busy') as boolean[][]
+    expect(busyEventsAfter[busyEventsAfter.length - 1]).toEqual([false])
+    w.unmount()
+  })
+
+  it('emet change avec les cles rendues par le service', async () => {
+    uploadAttachmentMock.mockResolvedValue({ key: 'support/admin/u1/1_a.jpg', url: 'https://signed/1' })
+    const w = mountUploader()
+    const input = w.find('input[type="file"]')
+
+    Object.defineProperty(input.element, 'files', {
+      value: [makeFile()],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 0))
+
+    const changeEvents = w.emitted('change') as string[][][]
+    expect(changeEvents).toBeTruthy()
+    const lastChange = changeEvents[changeEvents.length - 1]
+    expect(lastChange[0]).toContain('support/admin/u1/1_a.jpg')
+    w.unmount()
+  })
+
+  it("desactive l'ajout au quatrieme fichier (plafond 4)", async () => {
+    uploadAttachmentMock.mockImplementation((file: File) =>
+      Promise.resolve({ key: `support/admin/u1/${file.name}`, url: `https://signed/${file.name}` }),
+    )
+    const w = mountUploader()
+
+    // Ajouter 4 fichiers un par un
+    for (let i = 1; i <= 4; i++) {
+      const input = w.find('input[type="file"]')
+      Object.defineProperty(input.element, 'files', {
+        value: [makeFile(`photo${i}.jpg`)],
+        configurable: true,
+      })
+      await input.trigger('change')
+      await new Promise(r => setTimeout(r, 0))
+      await new Promise(r => setTimeout(r, 0))
+    }
+
+    // Le bouton d'ajout doit etre desactive
+    const addBtn = w.find('[data-testid="add-image-btn"]')
+    expect(addBtn.exists()).toBe(true)
+    expect(addBtn.attributes('disabled')).toBeDefined()
+    w.unmount()
+  })
+
+  it("un upload en echec laisse la vignette retirable et n'ajoute pas de cle", async () => {
+    uploadAttachmentMock.mockRejectedValue(new Error('500 Internal Server Error'))
+    const w = mountUploader()
+    const input = w.find('input[type="file"]')
+
+    Object.defineProperty(input.element, 'files', {
+      value: [makeFile('bad.jpg')],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 0))
+
+    // Aucune cle ne doit etre dans le dernier change (echec = pas de cle)
+    const changeEvents = w.emitted('change') as string[][][] | undefined
+    const keysAfterFailure = changeEvents
+      ? (changeEvents[changeEvents.length - 1]?.[0] ?? [])
+      : []
+    expect(keysAfterFailure).toHaveLength(0)
+
+    // La vignette en echec est retirable
+    const removeBtn = w.find('[data-testid="remove-item"]')
+    expect(removeBtn.exists()).toBe(true)
+    w.unmount()
+  })
+})

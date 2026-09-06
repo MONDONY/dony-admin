@@ -90,7 +90,7 @@ onMounted(() => s.fetchTickets())
           @close="s.closeTicket()"
           @assign="s.assign"
           @reassign="s.reassign"
-          @reply="s.reply"
+          @reply="(id, content, keys) => s.reply(id, content, keys)"
           @resolve="s.resolve"
         />
       </aside>
