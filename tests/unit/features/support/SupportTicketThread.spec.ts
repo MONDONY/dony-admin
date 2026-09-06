@@ -159,4 +159,46 @@ describe('SupportTicketThread', () => {
     const w = mountThread(base, false, 'Ticket déjà assigné à un autre admin.')
     expect(w.text()).toContain('Ticket déjà assigné à un autre admin.')
   })
+
+  describe('pieces jointes', () => {
+    it('rend la grille de vignettes pour un message avec des images', () => {
+      const withAttachments = {
+        ...mine,
+        messages: [
+          {
+            id: 'm1',
+            authorType: 'USER',
+            content: '',
+            createdAt: '2026-09-01T10:00:00Z',
+            attachments: [
+              { id: 'a1', url: 'https://signed/1', contentType: 'image/jpeg' },
+            ],
+          },
+        ],
+      }
+      const w = mountThread(withAttachments)
+      expect(w.findAll('img')).toHaveLength(1)
+      expect(w.findAll('img')[0].attributes('src')).toBe('https://signed/1')
+    })
+
+    it('pas de paragraphe vide quand contenu textuel absent', () => {
+      const imageOnly = {
+        ...mine,
+        messages: [
+          {
+            id: 'm1',
+            authorType: 'USER',
+            content: '',
+            createdAt: '2026-09-01T10:00:00Z',
+            attachments: [
+              { id: 'a1', url: 'https://signed/1', contentType: 'image/jpeg' },
+            ],
+          },
+        ],
+      }
+      const w = mountThread(imageOnly)
+      const paras = w.findAll('p.whitespace-pre-wrap')
+      expect(paras).toHaveLength(0)
+    })
+  })
 })

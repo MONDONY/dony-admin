@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import SupportAttachmentGrid from '@/features/support/components/SupportAttachmentGrid.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { STATUS_LABELS, formatDate, statusTone } from '@/features/support/utils/format'
@@ -20,6 +21,10 @@ const emit = defineEmits<{
 
 const auth = useAuthStore()
 const draft = ref('')
+
+function openViewer(url: string) {
+  window.open(url, '_blank', 'noopener')
+}
 
 const isResolved = computed(() => props.ticket.status === 'RESOLVED')
 const isMine = computed(() => props.ticket.assignedAdminId === auth.user?.id)
@@ -110,7 +115,13 @@ function sendReply() {
           {{ m.authorType === 'ADMIN' ? 'Support' : ticket.userDisplayName }}
           · {{ formatDate(m.createdAt) }}
         </p>
-        <p class="whitespace-pre-wrap">{{ m.content }}</p>
+        <p v-if="m.content" class="whitespace-pre-wrap">{{ m.content }}</p>
+        <SupportAttachmentGrid
+          v-if="m.attachments?.length"
+          :attachments="m.attachments"
+          class="mt-2"
+          @open="openViewer"
+        />
       </div>
       <p
         v-if="(ticket.messages ?? []).length === 0"
