@@ -101,8 +101,8 @@ export function useSupportTickets() {
   const assign = (id: string) => act(id, () => supportService.assign(id))
   const reassign = (id: string, adminId: string) =>
     act(id, () => supportService.reassign(id, adminId))
-  const reply = (id: string, content: string) =>
-    act(id, () => supportService.reply(id, content))
+  const reply = (id: string, content: string, attachmentKeys: string[] = []) =>
+    act(id, () => supportService.reply(id, content || null, attachmentKeys))
   const resolve = (id: string) => act(id, () => supportService.resolve(id))
 
   return {

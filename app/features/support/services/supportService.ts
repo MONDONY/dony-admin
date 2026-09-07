@@ -39,11 +39,23 @@ export const supportService = {
       body: { adminId },
     })
   },
+  /**
+   * Envoyer une image en pièce jointe — multipart, champ `file`.
+   * Requiert SUPPORT_TICKET_MANAGE. Renvoie { key, url }.
+   */
+  uploadAttachment(file: File): Promise<{ key: string; url: string }> {
+    const form = new FormData()
+    form.append('file', file)
+    return useApi()<{ key: string; url: string }>('/admin/support/tickets/attachments', {
+      method: 'POST',
+      body: form,
+    })
+  },
   /** Répondre — réservé à l'admin assigné (409 sinon). Renvoie le message créé. */
-  reply(id: string, content: string): Promise<SupportMessage> {
+  reply(id: string, content: string | null, attachmentKeys: string[] = []): Promise<SupportMessage> {
     return useApi()<SupportMessage>(`/admin/support/tickets/${id}/messages`, {
       method: 'POST',
-      body: { content },
+      body: { content, attachmentKeys },
     })
   },
   /** Résoudre — définitif, pas de réouverture. */
