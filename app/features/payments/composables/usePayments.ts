@@ -1,6 +1,6 @@
 import { reactive, ref } from 'vue'
 import { paymentsService } from '@/features/payments/services/paymentsService'
-import type { AdminPaymentListItem, PaymentsFilterState, PaymentStatusFilter, PaymentMethodFilter } from '@/features/payments/types/index'
+import type { AdminPaymentListItem, PaymentsFilterState, PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter } from '@/features/payments/types/index'
 
 export function usePayments() {
   const payments = ref<AdminPaymentListItem[]>([])
@@ -9,7 +9,7 @@ export function usePayments() {
   const totalPages = ref(0)
   const currentPage = ref(0)
   const pageSize = ref(20)
-  const filters = reactive<PaymentsFilterState>({ status: 'TOUS', method: 'TOUS', dateFrom: null, dateTo: null })
+  const filters = reactive<PaymentsFilterState>({ status: 'TOUS', method: 'TOUS', currency: 'TOUTES', dateFrom: null, dateTo: null })
 
   async function fetchPayments() {
     isLoading.value = true; error.value = null
@@ -21,7 +21,8 @@ export function usePayments() {
   async function goToPage(p: number) { currentPage.value = p; await fetchPayments() }
   async function setStatusFilter(s: PaymentStatusFilter) { filters.status = s; currentPage.value = 0; await fetchPayments() }
   async function setMethodFilter(m: PaymentMethodFilter) { filters.method = m; currentPage.value = 0; await fetchPayments() }
+  async function setCurrencyFilter(c: PaymentCurrencyFilter) { filters.currency = c; currentPage.value = 0; await fetchPayments() }
   async function setDateRange(from: string | null, to: string | null) { filters.dateFrom = from; filters.dateTo = to; currentPage.value = 0; await fetchPayments() }
 
-  return { payments, isLoading, error, totalPages, currentPage, pageSize, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setDateRange }
+  return { payments, isLoading, error, totalPages, currentPage, pageSize, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange }
 }

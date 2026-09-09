@@ -7,6 +7,7 @@ function mountFilters(props = {}) {
     props: {
       modelStatus: 'TOUS',
       modelMethod: 'TOUS',
+      modelCurrency: 'TOUTES',
       modelDateFrom: null,
       modelDateTo: null,
       ...props,
@@ -23,6 +24,20 @@ describe('PaymentFilters', () => {
 
     expect(wrapper.emitted('update:status')?.[0]).toEqual(['RELEASED'])
     expect(wrapper.emitted('update:method')?.[0]).toEqual(['STRIPE'])
+  })
+
+  it('émet le filtre de devise, et ne propose que les deux rails réels comme méthode', async () => {
+    const wrapper = mountFilters()
+
+    await wrapper.find('[data-test="chip-currency-XOF"]').trigger('click')
+    expect(wrapper.emitted('update:currency')?.[0]).toEqual(['XOF'])
+
+    await wrapper.find('[data-test="chip-method-PAWAPAY"]').trigger('click')
+    expect(wrapper.emitted('update:method')?.[0]).toEqual(['PAWAPAY'])
+    // Cash, Wave et Orange Money envoyaient des valeurs sans rail : toujours une liste vide.
+    expect(wrapper.find('[data-test="chip-method-WAVE"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="chip-method-ORANGE_MONEY"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="chip-method-CASH"]').exists()).toBe(false)
   })
 
   it('emits date range updates and clears them', async () => {

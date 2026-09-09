@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { paymentStatusMeta } from './paymentStatus'
-import { formatEuros } from '@/features/payments/types/index'
+import { formatMoney, paymentMethodLabel } from '@/features/payments/types/index'
 import type { AdminPaymentListItem } from '@/features/payments/types/index'
 
 defineProps<{ payments: AdminPaymentListItem[]; loading: boolean }>()
@@ -20,9 +20,9 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
         <tr v-for="p in payments" :key="p.id" :data-test="`payment-row-${p.id}`" class="border-b border-border hover:bg-surface-elevated cursor-pointer" @click="emit('select', p.id)">
           <td class="px-4 py-3 text-sm font-medium">{{ p.bidId ?? '—' }}</td>
           <td class="px-4 py-3"><StatusBadge v-bind="paymentStatusMeta(p.status)" /></td>
-          <td class="px-4 py-3 text-sm text-text-muted">{{ p.method }}</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ formatEuros(p.amountCents) }}</td>
-          <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ formatEuros(p.commissionCents) }}</td>
+          <td class="px-4 py-3 text-sm text-text-muted">{{ paymentMethodLabel(p.method) }}</td>
+          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`payment-amount-${p.id}`">{{ formatMoney(p.amountCents, p.currency) }}</td>
+          <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ formatMoney(p.commissionCents, p.currency) }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(p.createdAt) }}</td>
         </tr>
       </tbody>

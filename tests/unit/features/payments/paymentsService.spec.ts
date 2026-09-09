@@ -5,16 +5,16 @@ import { paymentsService } from '@/features/payments/services/paymentsService'
 
 describe('paymentsService', () => {
   beforeEach(() => apiMock.mockReset())
-  it('list omits TOUS status/method', async () => {
+  it('list omits TOUS status/method and TOUTES currency', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    await paymentsService.list({ status: 'TOUS', method: 'TOUS' }, 0, 20)
+    await paymentsService.list({ status: 'TOUS', method: 'TOUS', currency: 'TOUTES', dateFrom: null, dateTo: null }, 0, 20)
     const q = apiMock.mock.calls[0][1].query
-    expect(q.status).toBeUndefined(); expect(q.method).toBeUndefined()
+    expect(q.status).toBeUndefined(); expect(q.method).toBeUndefined(); expect(q.currency).toBeUndefined()
   })
-  it('list passes status + method', async () => {
+  it('list passes status + method + currency', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    await paymentsService.list({ status: 'ESCROW', method: 'STRIPE' }, 1, 20)
-    expect(apiMock.mock.calls[0][1].query).toMatchObject({ status: 'ESCROW', method: 'STRIPE', page: 1, size: 20 })
+    await paymentsService.list({ status: 'ESCROW', method: 'PAWAPAY', currency: 'XOF', dateFrom: null, dateTo: null }, 1, 20)
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ status: 'ESCROW', method: 'PAWAPAY', currency: 'XOF', page: 1, size: 20 })
   })
   it('forceRelease POSTs', async () => {
     apiMock.mockResolvedValue({ id: 'p1', status: 'RELEASED' })

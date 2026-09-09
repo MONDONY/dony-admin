@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test'
 
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 const PAYMENTS = { content: [
-  { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, createdAt: '2026-06-01T10:00:00Z' },
-], totalElements: 1, totalPages: 1, number: 0, size: 20 }
+  { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z' },
+  { id: 'p2', bidId: 'b2', status: 'RELEASED', method: 'PAWAPAY', amountCents: 660000, commissionCents: 60000, currency: 'XOF', createdAt: '2026-09-09T15:09:00Z' },
+], totalElements: 2, totalPages: 1, number: 0, size: 20 }
 const DETAIL = { ...PAYMENTS.content[0], refundedCents: 0, stripePaymentIntentId: 'pi_123', escrowReleasedAt: null, disputed: false }
 const RELEASED = { ...DETAIL, status: 'RELEASED' }
 const CBS = { content: [{ id: 'cb1', bidId: 'b1', amountCents: 5000, reason: 'fraudulent', status: 'OPEN', openedAt: '2026-06-01T10:00:00Z' }], totalElements: 1, totalPages: 1, number: 0, size: 20 }
@@ -106,4 +107,21 @@ test('admin sees where the mobile money commission sits', async ({ page }) => {
   await expect(card).toContainText('800,00 XOF')
   await expect(page.locator('[data-test="mm-commission-escrowed-XOF"]')).toContainText('900,00 XOF')
   await expect(page.locator('[data-test="mm-commission-month-2026-09-XOF"]')).toContainText('septembre 2026')
+})
+
+test('amounts keep their own currency, and the currency chip filters the list', async ({ page }) => {
+  let lastQuery = ''
+  await page.route('**/api/v1/admin/payments?**', (route) => {
+    lastQuery = new URL(route.request().url()).search
+    return route.fulfill({ json: PAYMENTS })
+  })
+  await page.goto('/transactions')
+  await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
+  // Un paiement mobile money en XOF ne s'affiche plus en euros.
+  await expect(page.locator('[data-test="payment-amount-p2"]')).toContainText('XOF')
+  await expect(page.locator('[data-test="payment-amount-p2"]')).not.toContainText('€')
+  await expect(page.locator('[data-test="payment-amount-p1"]')).toContainText('EUR')
+
+  await page.locator('[data-test="chip-currency-XOF"]').click()
+  await expect.poll(() => lastQuery).toContain('currency=XOF')
 })
