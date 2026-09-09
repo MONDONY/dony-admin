@@ -11,9 +11,21 @@ const CBS = { content: [{ id: 'cb1', bidId: 'b1', amountCents: 5000, reason: 'fr
 const WALLETS = { content: [
   { id: 'w1', userId: 'u1', balanceCents: 25000, currency: 'EUR', updatedAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }
+// Contrat réel du backend depuis le rail pawaPay : une OPÉRATION (kind, paymentId), plus
+// un paiement à deux opérateurs figés.
 const MOBILE_MONEY = { content: [
-  { id: 'mm1', bidId: 'b1', provider: 'ORANGE_MONEY', countryCode: 'SN', phoneNumber: '221771234567', amountCents: 8000, currency: 'XOF', status: 'COMPLETED', createdAt: '2026-06-01T10:00:00Z' },
+  { id: 'mm1', paymentId: 'p1', kind: 'DEPOSIT', provider: 'ORANGE_SEN', countryCode: 'SN', phoneNumber: '221771234567', amountCents: 8000, currency: 'XOF', status: 'COMPLETED', createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }
+const MM_COMMISSIONS = {
+  from: '2025-09-09T00:00:00', to: '2026-09-09T00:00:00',
+  byCurrency: [{
+    currency: 'XOF',
+    earnedCount: 2, earnedGrossCents: 1980000, earnedCommissionCents: 180000, earnedNetCents: 1800000,
+    escrowedCount: 1, escrowedGrossCents: 990000, escrowedCommissionCents: 90000,
+    refundedCount: 0, refundedCommissionCents: 0,
+  }],
+  monthly: [{ month: '2026-09', currency: 'XOF', count: 2, grossCents: 1980000, commissionCents: 180000, netCents: 1800000 }],
+}
 const CASH_COMMISSIONS = { content: [
   { bidId: 'b2', amountCents: 15000, commissionCents: 1800, currency: 'EUR', status: 'CHARGED', chargedVia: 'CARD', retryCount: 0, createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }
@@ -30,6 +42,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/admin/chargebacks**', (route) => route.fulfill({ json: CBS }))
   await page.route('**/api/v1/admin/wallets**', (route) => route.fulfill({ json: WALLETS }))
   await page.route('**/api/v1/admin/mobile-money-payments**', (route) => route.fulfill({ json: MOBILE_MONEY }))
+  await page.route('**/api/v1/admin/mobile-money-commissions**', (route) => route.fulfill({ json: MM_COMMISSIONS }))
   await page.route('**/api/v1/admin/cash-commissions**', (route) => route.fulfill({ json: CASH_COMMISSIONS }))
 })
 
@@ -79,4 +92,15 @@ test('admin bascule sur les trois onglets financiers, avec masquage du numéro d
   await expect(page.locator('[data-test="cash-commission-row-b2"]')).toContainText('150,00')
   await expect(page.locator('[data-test="cash-commission-row-b2"]')).toContainText('18,00')
   await expect(page.locator('[data-test="cash-commission-row-b2"]')).toContainText('Prélevée')
+})
+
+test('admin sees where the mobile money commission sits', async ({ page }) => {
+  await page.goto('/transactions')
+  await page.locator('[data-test="tab-mm-commissions"]').click()
+  const card = page.locator('[data-test="mm-commission-card-XOF"]')
+  await expect(card).toBeVisible({ timeout: 15000 })
+  // Commission acquise, et la part encore en séquestre distinguée de celle-ci.
+  await expect(card).toContainText('800,00 XOF')
+  await expect(page.locator('[data-test="mm-commission-escrowed-XOF"]')).toContainText('900,00 XOF')
+  await expect(page.locator('[data-test="mm-commission-month-2026-09-XOF"]')).toContainText('septembre 2026')
 })

@@ -7,13 +7,29 @@ export interface AdminWallet {
 }
 export interface AdminWalletPage { content: AdminWallet[]; totalElements: number; totalPages: number; number: number; size: number }
 
-export type MobileMoneyProvider = 'WAVE' | 'ORANGE_MONEY'
-export type MobileMoneyPaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'EXPIRED'
+/**
+ * Statuts d'une OPÉRATION pawaPay (`pawapay_operations.status`). L'ancien jeu
+ * (`PENDING | COMPLETED | FAILED | EXPIRED`) datait des stubs Wave/Orange Money supprimés
+ * depuis : il ne correspondait plus à rien de ce que le backend envoie.
+ */
+export type MobileMoneyOperationStatus =
+  | 'CREATED' | 'ACCEPTED' | 'PROCESSING' | 'ENQUEUED'
+  | 'IN_RECONCILIATION' | 'COMPLETED' | 'FAILED' | 'SUBMIT_REJECTED'
 
+/** Sens du mouvement, côté yadony : encaissement, versement au voyageur, remboursement. */
+export type MobileMoneyOperationKind = 'DEPOSIT' | 'PAYOUT' | 'REFUND'
+
+/**
+ * Une opération pawaPay. Le backend rend `paymentId` et `kind` : il n'y a plus de `bidId`
+ * (une opération est rattachée au paiement, pas à la demande) ni d'opérateur en deux valeurs
+ * — `provider` porte l'opérateur ET le pays (`ORANGE_CIV`, `WAVE_SEN`…).
+ */
 export interface AdminMobileMoneyPayment {
   id: string
-  bidId: string
-  provider: MobileMoneyProvider
+  /** Absent tant que l'opération n'est rattachée à aucun paiement (cas rare, alerte admin). */
+  paymentId: string | null
+  kind: MobileMoneyOperationKind
+  provider: string
   countryCode: string
   /**
    * Déjà masqué par le back : seuls les 4 derniers chiffres arrivent jusqu'ici, le numéro
@@ -23,8 +39,48 @@ export interface AdminMobileMoneyPayment {
   phoneNumber: string
   amountCents: number
   currency: string
-  status: MobileMoneyPaymentStatus
+  status: MobileMoneyOperationStatus
+  /** Motif d'échec renvoyé par l'opérateur, absent quand l'opération n'a pas échoué. */
+  failureCode?: string | null
   createdAt: string
+}
+
+/**
+ * Commissions yadony du rail mobile money, par devise.
+ *
+ * La commission n'est versée nulle part : c'est la part de l'encaissement qui ne repart pas
+ * au voyageur et qui reste sur le solde pawaPay de yadony. « Acquise » = le voyageur a été
+ * versé (livraison confirmée) ; « en séquestre » = l'expéditeur a payé mais la livraison
+ * n'est pas confirmée, donc la commission reste conditionnelle.
+ */
+export interface AdminMobileMoneyCurrencyTotals {
+  currency: string
+  earnedCount: number
+  earnedGrossCents: number
+  earnedCommissionCents: number
+  earnedNetCents: number
+  escrowedCount: number
+  escrowedGrossCents: number
+  escrowedCommissionCents: number
+  refundedCount: number
+  refundedCommissionCents: number
+}
+
+/** @property month mois de création des paiements, au format `YYYY-MM`. */
+export interface AdminMobileMoneyMonthlyTotals {
+  month: string
+  currency: string
+  count: number
+  grossCents: number
+  commissionCents: number
+  netCents: number
+}
+
+export interface AdminMobileMoneyCommissions {
+  from: string
+  to: string
+  byCurrency: AdminMobileMoneyCurrencyTotals[]
+  monthly: AdminMobileMoneyMonthlyTotals[]
 }
 export interface AdminMobileMoneyPage { content: AdminMobileMoneyPayment[]; totalElements: number; totalPages: number; number: number; size: number }
 

@@ -41,4 +41,16 @@ describe('financeService', () => {
     await financeService.listCashCommissions(3, 20)
     expect(apiMock.mock.calls[0][1].query).toEqual({ page: 3, size: 20 })
   })
+
+  it('getMobileMoneyCommissions GETe les commissions sans borne : le backend décide de la période', async () => {
+    apiMock.mockResolvedValue({ from: '2025-09-09T00:00:00', to: '2026-09-09T00:00:00', byCurrency: [], monthly: [] })
+    await financeService.getMobileMoneyCommissions()
+    expect(apiMock).toHaveBeenCalledWith('/admin/mobile-money-commissions', { query: { from: undefined, to: undefined } })
+  })
+
+  it('getMobileMoneyCommissions transmet les bornes demandées', async () => {
+    apiMock.mockResolvedValue({ from: '2026-08-01T00:00:00', to: '2026-08-31T23:59:59', byCurrency: [], monthly: [] })
+    await financeService.getMobileMoneyCommissions('2026-08-01T00:00:00', '2026-08-31T23:59:59')
+    expect(apiMock.mock.calls[0][1].query).toEqual({ from: '2026-08-01T00:00:00', to: '2026-08-31T23:59:59' })
+  })
 })
