@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
+import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
+import { mobileMoneyStatusMeta, mobileMoneyKindLabel, mobileMoneyProviderLabel } from '@/features/finance/components/mobileMoneyStatus'
 import { formatAmount, maskPhoneNumber } from '@/features/finance/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission } from '@/features/finance/types/index'
+import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions } from '@/features/finance/types/index'
 
 const wallets: AdminWallet[] = [
   { id: 'w1', userId: 'u1', balanceCents: 45000, currency: 'EUR', updatedAt: '2026-06-01T10:00:00Z' },
@@ -12,10 +14,27 @@ const wallets: AdminWallet[] = [
 
 const mmPayments: AdminMobileMoneyPayment[] = [
   {
-    id: 'mm1', bidId: 'b1', provider: 'WAVE', countryCode: '221', phoneNumber: '771234567',
-    amountCents: 75000, currency: 'XOF', status: 'COMPLETED', createdAt: '2026-06-01T10:00:00Z',
+    id: 'mm1', paymentId: 'p1', kind: 'DEPOSIT', provider: 'WAVE_SEN', countryCode: 'SN',
+    phoneNumber: '771234567', amountCents: 75000, currency: 'XOF', status: 'COMPLETED',
+    createdAt: '2026-06-01T10:00:00Z',
   },
 ]
+
+const mmCommissions: AdminMobileMoneyCommissions = {
+  from: '2025-09-09T00:00:00',
+  to: '2026-09-09T00:00:00',
+  byCurrency: [
+    {
+      currency: 'XOF',
+      earnedCount: 2, earnedGrossCents: 1980000, earnedCommissionCents: 180000, earnedNetCents: 1800000,
+      escrowedCount: 1, escrowedGrossCents: 990000, escrowedCommissionCents: 90000,
+      refundedCount: 0, refundedCommissionCents: 0,
+    },
+  ],
+  monthly: [
+    { month: '2026-09', currency: 'XOF', count: 2, grossCents: 1980000, commissionCents: 180000, netCents: 1800000 },
+  ],
+}
 
 const cashCommissions: AdminCashCommission[] = [
   {
@@ -63,12 +82,21 @@ describe('WalletsTable', () => {
 })
 
 describe('MobileMoneyTable', () => {
-  it('affiche une ligne par paiement avec opérateur et montant formaté', () => {
+  it('affiche une ligne par opération avec sens, opérateur et montant formaté', () => {
     const w = mount(MobileMoneyTable, { props: { payments: mmPayments, loading: false } })
     const row = w.find('[data-test="mm-row-mm1"]')
     expect(row.exists()).toBe(true)
+    // Le backend rend le sens du mouvement et l'opérateur suffixé du pays (WAVE_SEN).
+    expect(row.text()).toContain('Encaissement')
     expect(row.text()).toContain('Wave')
     expect(row.text()).toContain('750,00 XOF')
+  })
+  it("affiche le motif d'échec quand l'opérateur en donne un", () => {
+    const w = mount(MobileMoneyTable, {
+      props: { payments: [{ ...mmPayments[0], status: 'FAILED' as const, failureCode: 'PAYER_LIMIT_REACHED' }], loading: false },
+    })
+    expect(w.text()).toContain('Échouée')
+    expect(w.text()).toContain('PAYER_LIMIT_REACHED')
   })
   it('masque le numéro de téléphone par défaut — donnée personnelle', () => {
     const w = mount(MobileMoneyTable, { props: { payments: mmPayments, loading: false } })
@@ -108,5 +136,136 @@ describe('CashCommissionsTable', () => {
   it("ne contient aucun bouton d'action — lecture seule", () => {
     const w = mount(CashCommissionsTable, { props: { commissions: cashCommissions, loading: false } })
     expect(w.findAll('button').length).toBe(0)
+  })
+})
+
+describe('MobileMoneyCommissionsPanel', () => {
+  it('affiche la commission acquise, ce qui a été encaissé et ce qui a été versé', () => {
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    const card = w.find('[data-test="mm-commission-card-XOF"]')
+    expect(card.exists()).toBe(true)
+    expect(card.text()).toContain(formatAmount(180000, 'XOF'))
+    expect(card.text()).toContain(formatAmount(1980000, 'XOF'))
+    expect(card.text()).toContain(formatAmount(1800000, 'XOF'))
+  })
+  it('distingue la commission en séquestre, qui n\'est pas encore acquise', () => {
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    expect(w.find('[data-test="mm-commission-escrowed-XOF"]').text()).toContain(formatAmount(90000, 'XOF'))
+  })
+  it('explique où se trouve la commission — la question que cet écran doit trancher', () => {
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    expect(w.text()).toContain('solde pawaPay')
+  })
+  it('ventile par mois avec un libellé lisible', () => {
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    const row = w.find('[data-test="mm-commission-month-2026-09-XOF"]')
+    expect(row.exists()).toBe(true)
+    expect(row.text()).toContain('septembre 2026')
+    expect(row.text()).toContain(formatAmount(180000, 'XOF'))
+  })
+  it('affiche un état vide explicite', () => {
+    const vide: AdminMobileMoneyCommissions = { ...mmCommissions, byCurrency: [], monthly: [] }
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: vide, loading: false } })
+    expect(w.find('[data-test="mm-commissions-empty"]').exists()).toBe(true)
+  })
+  it('affiche un état de chargement', () => {
+    expect(mount(MobileMoneyCommissionsPanel, { props: { data: null, loading: true } }).text()).toMatch(/Chargement/i)
+  })
+  it("n'expose que l'export CSV comme action — la vue reste en lecture seule", () => {
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    const buttons = w.findAll('button')
+    expect(buttons.length).toBe(1)
+    expect(buttons[0].attributes('data-test')).toBe('mm-commissions-export')
+  })
+})
+
+describe('libellés mobile money', () => {
+  it('traduit les statuts pawaPay connus', () => {
+    expect(mobileMoneyStatusMeta('COMPLETED').label).toBe('Terminée')
+    expect(mobileMoneyStatusMeta('SUBMIT_REJECTED').tone).toBe('danger')
+  })
+  it("affiche un statut inconnu tel quel plutôt qu'une cellule vide", () => {
+    // pawaPay peut ajouter un statut : mieux vaut une étiquette illisible qu'une info perdue.
+    const meta = mobileMoneyStatusMeta('SOMETHING_NEW' as never)
+    expect(meta.label).toBe('SOMETHING_NEW')
+    expect(meta.tone).toBe('neutral')
+  })
+  it('traduit le sens du mouvement, et rend brut un type inconnu', () => {
+    expect(mobileMoneyKindLabel('PAYOUT')).toBe('Versement')
+    expect(mobileMoneyKindLabel('REFUND')).toBe('Remboursement')
+    expect(mobileMoneyKindLabel('SWEEP')).toBe('SWEEP')
+  })
+  it("retire le suffixe pays de l'opérateur, et rend brut un opérateur inconnu", () => {
+    expect(mobileMoneyProviderLabel('ORANGE_CIV')).toBe('Orange Money')
+    expect(mobileMoneyProviderLabel('MTN_MOMO_CMR')).toBe('MTN MoMo')
+    expect(mobileMoneyProviderLabel('WAVE')).toBe('Wave')
+    expect(mobileMoneyProviderLabel('NOUVEL_OPERATEUR_XYZ')).toBe('NOUVEL_OPERATEUR_XYZ')
+  })
+})
+
+describe('MobileMoneyTable — opération sans paiement rattaché', () => {
+  it('affiche un tiret plutôt qu\'une cellule vide', () => {
+    const w = mount(MobileMoneyTable, {
+      props: { payments: [{ ...mmPayments[0], paymentId: null }], loading: false },
+    })
+    expect(w.find('[data-test="mm-row-mm1"]').text()).toContain('—')
+  })
+})
+
+describe('MobileMoneyCommissionsPanel — cas limites', () => {
+  it('affiche la commission remboursée seulement quand il y en a une', () => {
+    const sans = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    expect(sans.text()).not.toContain('Remboursée')
+
+    const avec = mount(MobileMoneyCommissionsPanel, {
+      props: {
+        data: {
+          ...mmCommissions,
+          byCurrency: [{ ...mmCommissions.byCurrency[0], refundedCount: 1, refundedCommissionCents: 60000 }],
+        },
+        loading: false,
+      },
+    })
+    expect(avec.text()).toContain('Remboursée')
+    expect(avec.text()).toContain(formatAmount(60000, 'XOF'))
+  })
+  it('distingue « aucune commission acquise » de « aucune donnée » quand tout est en séquestre', () => {
+    const w = mount(MobileMoneyCommissionsPanel, {
+      props: { data: { ...mmCommissions, monthly: [] }, loading: false },
+    })
+    expect(w.find('[data-test="mm-commissions-empty"]').exists()).toBe(false)
+    expect(w.text()).toMatch(/encore en séquestre/i)
+    // Sans ligne mensuelle, l'export n'a rien à produire : le bouton disparaît.
+    expect(w.findAll('button').length).toBe(0)
+  })
+  it('rend un mois hors plage tel quel plutôt qu\'un libellé vide', () => {
+    const w = mount(MobileMoneyCommissionsPanel, {
+      props: {
+        data: { ...mmCommissions, monthly: [{ ...mmCommissions.monthly[0], month: '2026-13' }] },
+        loading: false,
+      },
+    })
+    expect(w.find('[data-test="mm-commission-month-2026-13-XOF"]').text()).toContain('2026-13')
+  })
+  it('exporte le tableau mensuel en CSV, séparé par des points-virgules', () => {
+    const created: HTMLAnchorElement[] = []
+    const realCreate = document.createElement.bind(document)
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'a') {
+        el.click = vi.fn()
+        created.push(el as HTMLAnchorElement)
+      }
+      return el
+    })
+    const urlStub = { createObjectURL: vi.fn(() => 'blob:csv'), revokeObjectURL: vi.fn() }
+    Object.assign(URL, urlStub)
+
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    w.find('[data-test="mm-commissions-export"]').trigger('click')
+
+    expect(urlStub.createObjectURL).toHaveBeenCalledTimes(1)
+    expect(created[0].download).toMatch(/^commissions-mobile-money-\d{4}-\d{2}-\d{2}\.csv$/)
+    createSpy.mockRestore()
   })
 })

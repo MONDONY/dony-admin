@@ -7,6 +7,7 @@ import ChargebacksTable from '@/features/payments/components/ChargebacksTable.vu
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
+import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePayments } from '@/features/payments/composables/usePayments'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
@@ -14,11 +15,11 @@ import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminChargeback } from '@/features/payments/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission } from '@/features/finance/types/index'
+import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
 
-type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'cash-commissions'
+type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions'
 
 const tab = ref<Tab>('payments')
 const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setDateRange } = usePayments()
@@ -36,6 +37,8 @@ const mmLoading = ref(false)
 const mmPage = ref(0)
 const mmTotalPages = ref(0)
 
+const mmCommissions = ref<AdminMobileMoneyCommissions | null>(null)
+const mmCommissionsLoading = ref(false)
 const cashCommissions = ref<AdminCashCommission[]>([])
 const cashLoading = ref(false)
 const cashPage = ref(0)
@@ -74,6 +77,16 @@ async function loadMobileMoney(page = mmPage.value) {
   catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les paiements mobile money') }
   finally { mmLoading.value = false }
 }
+async function loadMobileMoneyCommissions() {
+  mmCommissionsLoading.value = true
+  tabError.value = null
+  try {
+    mmCommissions.value = await financeService.getMobileMoneyCommissions()
+  }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les commissions mobile money') }
+  finally { mmCommissionsLoading.value = false }
+}
+
 async function loadCashCommissions(page = cashPage.value) {
   cashLoading.value = true
   tabError.value = null
@@ -90,6 +103,7 @@ async function switchTab(t: Tab) {
   if (t === 'chargebacks' && cbs.value.length === 0) await loadCbs()
   if (t === 'wallets' && wallets.value.length === 0) await loadWallets()
   if (t === 'mobile-money' && mmPayments.value.length === 0) await loadMobileMoney()
+  if (t === 'mm-commissions' && mmCommissions.value === null) await loadMobileMoneyCommissions()
   if (t === 'cash-commissions' && cashCommissions.value.length === 0) await loadCashCommissions()
 }
 async function afterAction() { await fetchPayments() }
@@ -108,6 +122,7 @@ onMounted(fetchPayments)
       <button type="button" data-test="tab-chargebacks" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'chargebacks' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('chargebacks')">Litiges bancaires</button>
       <button type="button" data-test="tab-wallets" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallets' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallets')">Portefeuilles</button>
       <button type="button" data-test="tab-mobile-money" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mobile-money' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mobile-money')">Mobile money</button>
+      <button type="button" data-test="tab-mm-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mm-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mm-commissions')">Commissions mobile money</button>
       <button type="button" data-test="tab-cash-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'cash-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('cash-commissions')">Commissions cash</button>
     </div>
     <p
@@ -146,6 +161,9 @@ onMounted(fetchPayments)
     <template v-else-if="tab === 'mobile-money'">
       <MobileMoneyTable :payments="mmPayments" :loading="mmLoading" />
       <div class="mt-4"><PaginationControls :page="mmPage" :total-pages="mmTotalPages" @change="loadMobileMoney" /></div>
+    </template>
+    <template v-else-if="tab === 'mm-commissions'">
+      <MobileMoneyCommissionsPanel :data="mmCommissions" :loading="mmCommissionsLoading" />
     </template>
     <template v-else>
       <CashCommissionsTable :commissions="cashCommissions" :loading="cashLoading" />
