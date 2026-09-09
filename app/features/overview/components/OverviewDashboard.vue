@@ -2,9 +2,10 @@
 import { onMounted } from 'vue'
 import OverviewKpiCard from './OverviewKpiCard.vue'
 import OverviewQueueCard from './OverviewQueueCard.vue'
+import OverviewVolumesTable from './OverviewVolumesTable.vue'
 import { useOverview } from '@/features/overview/composables/useOverview'
 
-const { kpis, queues, isLoading, error, fetchOverview } = useOverview()
+const { kpis, volumes, queues, isLoading, error, fetchOverview } = useOverview()
 onMounted(fetchOverview)
 </script>
 
@@ -18,6 +19,10 @@ onMounted(fetchOverview)
         <div v-else class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <OverviewKpiCard v-for="k in kpis" :key="k.id" :data-test="`kpi-${k.id}`" v-bind="k" />
         </div>
+      </section>
+      <section>
+        <h2 class="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Volumes par devise</h2>
+        <OverviewVolumesTable v-if="!isLoading" :rows="volumes" />
       </section>
       <section>
         <h2 class="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Files d'action</h2>
