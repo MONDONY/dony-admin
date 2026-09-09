@@ -96,6 +96,9 @@ test('admin bascule sur les trois onglets financiers, avec masquage du numéro d
 
 test('admin sees where the mobile money commission sits', async ({ page }) => {
   await page.goto('/transactions')
+  // Attendre la première ligne rendue : un clic d'onglet envoyé avant l'hydratation Nuxt
+  // n'atteint aucun gestionnaire et la page reste sur l'onglet Paiements, sans erreur.
+  await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
   await page.locator('[data-test="tab-mm-commissions"]').click()
   const card = page.locator('[data-test="mm-commission-card-XOF"]')
   await expect(card).toBeVisible({ timeout: 15000 })

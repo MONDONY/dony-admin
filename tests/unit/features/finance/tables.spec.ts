@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
 import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
+import { mobileMoneyStatusMeta, mobileMoneyKindLabel, mobileMoneyProviderLabel } from '@/features/finance/components/mobileMoneyStatus'
 import { formatAmount, maskPhoneNumber } from '@/features/finance/types/index'
 import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions } from '@/features/finance/types/index'
 
@@ -175,5 +176,96 @@ describe('MobileMoneyCommissionsPanel', () => {
     const buttons = w.findAll('button')
     expect(buttons.length).toBe(1)
     expect(buttons[0].attributes('data-test')).toBe('mm-commissions-export')
+  })
+})
+
+describe('libellés mobile money', () => {
+  it('traduit les statuts pawaPay connus', () => {
+    expect(mobileMoneyStatusMeta('COMPLETED').label).toBe('Terminée')
+    expect(mobileMoneyStatusMeta('SUBMIT_REJECTED').tone).toBe('danger')
+  })
+  it("affiche un statut inconnu tel quel plutôt qu'une cellule vide", () => {
+    // pawaPay peut ajouter un statut : mieux vaut une étiquette illisible qu'une info perdue.
+    const meta = mobileMoneyStatusMeta('SOMETHING_NEW' as never)
+    expect(meta.label).toBe('SOMETHING_NEW')
+    expect(meta.tone).toBe('neutral')
+  })
+  it('traduit le sens du mouvement, et rend brut un type inconnu', () => {
+    expect(mobileMoneyKindLabel('PAYOUT')).toBe('Versement')
+    expect(mobileMoneyKindLabel('REFUND')).toBe('Remboursement')
+    expect(mobileMoneyKindLabel('SWEEP')).toBe('SWEEP')
+  })
+  it("retire le suffixe pays de l'opérateur, et rend brut un opérateur inconnu", () => {
+    expect(mobileMoneyProviderLabel('ORANGE_CIV')).toBe('Orange Money')
+    expect(mobileMoneyProviderLabel('MTN_MOMO_CMR')).toBe('MTN MoMo')
+    expect(mobileMoneyProviderLabel('WAVE')).toBe('Wave')
+    expect(mobileMoneyProviderLabel('NOUVEL_OPERATEUR_XYZ')).toBe('NOUVEL_OPERATEUR_XYZ')
+  })
+})
+
+describe('MobileMoneyTable — opération sans paiement rattaché', () => {
+  it('affiche un tiret plutôt qu\'une cellule vide', () => {
+    const w = mount(MobileMoneyTable, {
+      props: { payments: [{ ...mmPayments[0], paymentId: null }], loading: false },
+    })
+    expect(w.find('[data-test="mm-row-mm1"]').text()).toContain('—')
+  })
+})
+
+describe('MobileMoneyCommissionsPanel — cas limites', () => {
+  it('affiche la commission remboursée seulement quand il y en a une', () => {
+    const sans = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    expect(sans.text()).not.toContain('Remboursée')
+
+    const avec = mount(MobileMoneyCommissionsPanel, {
+      props: {
+        data: {
+          ...mmCommissions,
+          byCurrency: [{ ...mmCommissions.byCurrency[0], refundedCount: 1, refundedCommissionCents: 60000 }],
+        },
+        loading: false,
+      },
+    })
+    expect(avec.text()).toContain('Remboursée')
+    expect(avec.text()).toContain(formatAmount(60000, 'XOF'))
+  })
+  it('distingue « aucune commission acquise » de « aucune donnée » quand tout est en séquestre', () => {
+    const w = mount(MobileMoneyCommissionsPanel, {
+      props: { data: { ...mmCommissions, monthly: [] }, loading: false },
+    })
+    expect(w.find('[data-test="mm-commissions-empty"]').exists()).toBe(false)
+    expect(w.text()).toMatch(/encore en séquestre/i)
+    // Sans ligne mensuelle, l'export n'a rien à produire : le bouton disparaît.
+    expect(w.findAll('button').length).toBe(0)
+  })
+  it('rend un mois hors plage tel quel plutôt qu\'un libellé vide', () => {
+    const w = mount(MobileMoneyCommissionsPanel, {
+      props: {
+        data: { ...mmCommissions, monthly: [{ ...mmCommissions.monthly[0], month: '2026-13' }] },
+        loading: false,
+      },
+    })
+    expect(w.find('[data-test="mm-commission-month-2026-13-XOF"]').text()).toContain('2026-13')
+  })
+  it('exporte le tableau mensuel en CSV, séparé par des points-virgules', () => {
+    const created: HTMLAnchorElement[] = []
+    const realCreate = document.createElement.bind(document)
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'a') {
+        el.click = vi.fn()
+        created.push(el as HTMLAnchorElement)
+      }
+      return el
+    })
+    const urlStub = { createObjectURL: vi.fn(() => 'blob:csv'), revokeObjectURL: vi.fn() }
+    Object.assign(URL, urlStub)
+
+    const w = mount(MobileMoneyCommissionsPanel, { props: { data: mmCommissions, loading: false } })
+    w.find('[data-test="mm-commissions-export"]').trigger('click')
+
+    expect(urlStub.createObjectURL).toHaveBeenCalledTimes(1)
+    expect(created[0].download).toMatch(/^commissions-mobile-money-\d{4}-\d{2}-\d{2}\.csv$/)
+    createSpy.mockRestore()
   })
 })
