@@ -44,8 +44,14 @@ jobs:
       # corrompu (« Hash Sum mismatch » sur dl.google.com, 2026-09-09) : `--with-deps`
       # lance un apt-get update qui échoue alors en bloc, et le job meurt avant le
       # moindre test. On écarte cette source, sans rapport avec les dépendances dont
-      # Playwright a besoin, avant d'installer.
-      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+      # Playwright a besoin, avant d'installer. Recherche par CONTENU : le fichier
+      # change de nom et de format selon l'image du runner (.list, .sources), viser
+      # google-chrome.list seul ne suffisait pas.
+      - name: Écarter la source apt Google Chrome (index corrompu côté runner)
+        run: |
+          sudo grep -rl 'dl\.google\.com' /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -r rm -f
+          sudo sed -i '/dl\.google\.com/d' /etc/apt/sources.list 2>/dev/null || true
+          echo "Sources apt restantes :"; ls /etc/apt/sources.list.d/ || true
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
         env:
