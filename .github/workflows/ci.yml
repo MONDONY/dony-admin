@@ -40,6 +40,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Le runner porte une source apt Google Chrome dont l'index est régulièrement
+      # corrompu (« Hash Sum mismatch » sur dl.google.com, 2026-09-09) : `--with-deps`
+      # lance un apt-get update qui échoue alors en bloc, et le job meurt avant le
+      # moindre test. On écarte cette source, sans rapport avec les dépendances dont
+      # Playwright a besoin, avant d'installer.
+      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
         env:
