@@ -37,6 +37,17 @@ describe('usePayments', () => {
     expect(svc.list).toHaveBeenCalled()
   })
 
+  it('setCurrencyFilter réinitialise la page et sépare les devises', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    const p = usePayments()
+    expect(p.filters.currency).toBe('TOUTES')
+    await p.goToPage(2)
+    await p.setCurrencyFilter('XOF')
+    expect(p.currentPage.value).toBe(0)
+    expect(p.filters.currency).toBe('XOF')
+    expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ currency: 'XOF' }), 0, 20)
+  })
+
   it('setDateRange réinitialise la page et applique les dates', async () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     const p = usePayments()

@@ -22,7 +22,7 @@ definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle
 type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions'
 
 const tab = ref<Tab>('payments')
-const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setDateRange } = usePayments()
+const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange } = usePayments()
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
@@ -134,10 +134,12 @@ onMounted(fetchPayments)
       <PaymentFilters
         :model-status="filters.status"
         :model-method="filters.method"
+        :model-currency="filters.currency"
         :model-date-from="filters.dateFrom"
         :model-date-to="filters.dateTo"
         @update:status="setStatusFilter"
         @update:method="setMethodFilter"
+        @update:currency="setCurrencyFilter"
         @update:date-range="(from, to) => setDateRange(from, to)"
       />
       <PaymentsTable :payments="payments" :loading="isLoading" @select="detail.open" />

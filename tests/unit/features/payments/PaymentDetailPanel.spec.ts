@@ -7,9 +7,10 @@ const mockPayment = {
   id: 'pay_123',
   status: 'ESCROW',
   bidId: 'bid_456',
-  method: 'card',
+  method: 'STRIPE',
   amountCents: 10000,
   commissionCents: 1200,
+  currency: 'EUR',
   refundedCents: 0,
   stripePaymentIntentId: 'pi_xxx',
 }
@@ -24,6 +25,16 @@ describe('PaymentDetailPanel', () => {
       },
     })
     expect(wrapper.find('.fixed').exists()).toBe(true)
+  })
+
+  it('affiche le montant dans la devise du paiement (XOF), jamais en euros par défaut', () => {
+    const wrapper = mount(PaymentDetailPanel, {
+      props: { payment: { ...mockPayment, method: 'PAWAPAY', currency: 'XOF', amountCents: 660000 }, open: true },
+    })
+    const montant = wrapper.find('[data-test="payment-detail-amount"]').text()
+    expect(montant).toContain('XOF')
+    expect(montant).not.toContain('€')
+    expect(wrapper.text()).toContain('Mobile money')
   })
 
   it('emits close event on close button', async () => {
@@ -94,7 +105,7 @@ describe('PaymentDetailPanel', () => {
       },
     })
     expect(wrapper.text()).toContain('bid_456')
-    expect(wrapper.text()).toContain('card')
+    expect(wrapper.text()).toContain('Carte')
   })
 
   it('cancels dialog on cancel', async () => {

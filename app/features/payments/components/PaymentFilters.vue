@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { PaymentStatusFilter, PaymentMethodFilter } from '@/features/payments/types/index'
+import type { PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter } from '@/features/payments/types/index'
 
-defineProps<{ modelStatus: PaymentStatusFilter; modelMethod: PaymentMethodFilter; modelDateFrom: string | null; modelDateTo: string | null }>()
+defineProps<{ modelStatus: PaymentStatusFilter; modelMethod: PaymentMethodFilter; modelCurrency: PaymentCurrencyFilter; modelDateFrom: string | null; modelDateTo: string | null }>()
 const emit = defineEmits<{
   'update:status': [PaymentStatusFilter]
   'update:method': [PaymentMethodFilter]
+  'update:currency': [PaymentCurrencyFilter]
   'update:dateRange': [string | null, string | null]
 }>()
 
@@ -18,12 +19,20 @@ const statusChips: { value: PaymentStatusFilter; label: string }[] = [
   { value: 'FAILED', label: 'Échoué' },
   { value: 'CANCELLED', label: 'Annulé' },
 ]
+// Les deux rails que le backend connaît. Les anciens boutons Cash, Wave et Orange Money
+// envoyaient des valeurs sans rail correspondant : toujours une liste vide.
 const methodChips: { value: PaymentMethodFilter; label: string }[] = [
   { value: 'TOUS', label: 'Tous' },
-  { value: 'STRIPE', label: 'Stripe' },
-  { value: 'CASH', label: 'Cash' },
-  { value: 'WAVE', label: 'Wave' },
-  { value: 'ORANGE_MONEY', label: 'Orange Money' },
+  { value: 'STRIPE', label: 'Carte' },
+  { value: 'PAWAPAY', label: 'Mobile money' },
+]
+// Une devise à la fois : des montants en EUR et en XOF dans la même colonne ne se lisent
+// pas, et ne s'additionnent jamais.
+const currencyChips: { value: PaymentCurrencyFilter; label: string }[] = [
+  { value: 'TOUTES', label: 'Toutes' },
+  { value: 'EUR', label: 'EUR' },
+  { value: 'XOF', label: 'XOF (F CFA ouest)' },
+  { value: 'XAF', label: 'XAF (F CFA central)' },
 ]
 
 const dateFrom = ref('')
@@ -61,6 +70,18 @@ function clearDates() {
           :class="['rounded-full px-3 py-1 text-xs transition-colors',
             modelMethod === c.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
           @click="emit('update:method', c.value)"
+        >{{ c.label }}</button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs text-text-muted font-medium w-16 shrink-0">Devise</span>
+      <div class="flex flex-wrap gap-1">
+        <button
+          v-for="c in currencyChips" :key="c.value" type="button" :data-test="`chip-currency-${c.value}`"
+          :class="['rounded-full px-3 py-1 text-xs transition-colors',
+            modelCurrency === c.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+          @click="emit('update:currency', c.value)"
         >{{ c.label }}</button>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { paymentStatusMeta } from './paymentStatus'
-import { formatEuros } from '@/features/payments/types/index'
+import { formatMoney, paymentMethodLabel } from '@/features/payments/types/index'
 import type { AdminPaymentDetail } from '@/features/payments/types/index'
 import { useAuthStore } from '@/stores/auth'
 
@@ -29,10 +29,10 @@ function confirm() {
       </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Bid</dt><dd>{{ payment.bidId ?? '—' }}</dd></div>
-        <div><dt class="text-text-muted">Méthode</dt><dd>{{ payment.method }}</dd></div>
-        <div><dt class="text-text-muted">Montant</dt><dd class="tabular-nums">{{ formatEuros(payment.amountCents) }}</dd></div>
-        <div><dt class="text-text-muted">Commission</dt><dd class="tabular-nums">{{ formatEuros(payment.commissionCents) }}</dd></div>
-        <div><dt class="text-text-muted">Remboursé</dt><dd class="tabular-nums">{{ formatEuros(payment.refundedCents) }}</dd></div>
+        <div><dt class="text-text-muted">Méthode</dt><dd>{{ paymentMethodLabel(payment.method) }}</dd></div>
+        <div><dt class="text-text-muted">Montant</dt><dd class="tabular-nums" data-test="payment-detail-amount">{{ formatMoney(payment.amountCents, payment.currency) }}</dd></div>
+        <div><dt class="text-text-muted">Commission</dt><dd class="tabular-nums">{{ formatMoney(payment.commissionCents, payment.currency) }}</dd></div>
+        <div><dt class="text-text-muted">Remboursé</dt><dd class="tabular-nums">{{ formatMoney(payment.refundedCents, payment.currency) }}</dd></div>
         <div><dt class="text-text-muted">Stripe PI</dt><dd class="truncate">{{ payment.stripePaymentIntentId ?? '—' }}</dd></div>
       </dl>
       <p v-if="error" data-test="payment-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
