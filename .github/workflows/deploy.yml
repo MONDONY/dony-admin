@@ -179,7 +179,11 @@ jobs:
             docker compose up -d --force-recreate --remove-orphans
 
             echo "🧹 Nettoyage des images inutiles..."
-            docker image prune -f
+            # Le nettoyage est un confort : quand l'admin et le portail se déploient
+            # en même temps sur le même VPS, Docker refuse un second prune
+            # (« a prune operation is already running ») et faisait échouer un
+            # déploiement pourtant réussi.
+            docker image prune -f || echo "prune ignoré (déjà en cours)"
 
             echo "✅ Déploiement effectué"
 
