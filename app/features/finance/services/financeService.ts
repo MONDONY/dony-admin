@@ -1,9 +1,9 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions } from '@/features/finance/types/index'
+import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage } from '@/features/finance/types/index'
 
 /**
- * Trois onglets financiers en lecture seule — aucune méthode d'écriture ici,
- * volontairement. Le backend (T10) n'est pas encore livré : ce contrat fait foi.
+ * Onglets financiers. Seule écriture : la résolution d'une demande de
+ * remboursement wallet, une fois le virement fait hors plateforme.
  */
 export const financeService = {
   listWallets(page: number, size: number): Promise<AdminWalletPage> {
@@ -21,5 +21,13 @@ export const financeService = {
    */
   getMobileMoneyCommissions(from?: string, to?: string): Promise<AdminMobileMoneyCommissions> {
     return useApi()<AdminMobileMoneyCommissions>('/admin/mobile-money-commissions', { query: { from, to } })
+  },
+  /** Demandes de remboursement wallet en attente (suppression de compte). */
+  listWalletRefundRequests(page: number, size: number): Promise<AdminWalletRefundRequestPage> {
+    return useApi()<AdminWalletRefundRequestPage>('/admin/wallet-refund-requests', { query: { page, size } })
+  },
+  /** Marque une demande résolue après le virement manuel ; le backend vide alors le portefeuille. */
+  resolveWalletRefundRequest(id: string): Promise<AdminWalletRefundRequest> {
+    return useApi()<AdminWalletRefundRequest>(`/admin/wallet-refund-requests/${id}/resolve`, { method: 'POST' })
   },
 }

@@ -45,6 +45,14 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/admin/mobile-money-payments**', (route) => route.fulfill({ json: MOBILE_MONEY }))
   await page.route('**/api/v1/admin/mobile-money-commissions**', (route) => route.fulfill({ json: MM_COMMISSIONS }))
   await page.route('**/api/v1/admin/cash-commissions**', (route) => route.fulfill({ json: CASH_COMMISSIONS }))
+  await page.route('**/api/v1/admin/wallet-refund-requests/r1/resolve', (route) => route.fulfill({
+    json: { id: 'r1', userId: 'u1', currency: 'XOF', amount: 15000, status: 'RESOLVED', requestedAt: '2026-09-01T10:00:00' },
+  }))
+  await page.route('**/api/v1/admin/wallet-refund-requests**', (route) => route.fulfill({
+    json: { content: [
+      { id: 'r1', userId: 'u1', currency: 'XOF', amount: 15000, status: 'PENDING', requestedAt: '2026-09-01T10:00:00' },
+    ], totalElements: 1, totalPages: 1, number: 0, size: 20 },
+  }))
 })
 
 test('admin sees payments with formatted amount', async ({ page }) => {
@@ -126,4 +134,19 @@ test('amounts keep their own currency, and the currency chip filters the list', 
 
   await page.locator('[data-test="chip-currency-XOF"]').click()
   await expect.poll(() => lastQuery).toContain('currency=XOF')
+})
+
+test('admin traite une demande de remboursement wallet depuis son onglet', async ({ page }) => {
+  await page.goto('/transactions')
+  await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-test="tab-wallet-refunds"]').click()
+  const row = page.locator('[data-test="wrr-row-r1"]')
+  await expect(row).toBeVisible({ timeout: 15000 })
+  // Montant dans la devise de la demande, jamais en euros forcés.
+  await expect(page.locator('[data-test="wrr-amount-r1"]')).toContainText('XOF')
+  await expect(page.locator('[data-test="wrr-amount-r1"]')).not.toContainText('€')
+  await expect(row).toContainText('En attente')
+  await page.locator('[data-test="wrr-resolve-r1"]').click()
+  // Après la résolution, la file est rechargée : la ligne reste (mock inchangé) mais l'appel est parti.
+  await expect(page.locator('[data-test="transactions-error"]')).toHaveCount(0)
 })

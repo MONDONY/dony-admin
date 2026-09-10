@@ -8,6 +8,7 @@ import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
 import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
+import WalletRefundRequestsTable from '@/features/finance/components/WalletRefundRequestsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePayments } from '@/features/payments/composables/usePayments'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
@@ -15,11 +16,11 @@ import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminChargeback } from '@/features/payments/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions } from '@/features/finance/types/index'
+import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
 
-type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions'
+type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions' | 'wallet-refunds'
 
 const tab = ref<Tab>('payments')
 const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange } = usePayments()
@@ -43,6 +44,13 @@ const cashCommissions = ref<AdminCashCommission[]>([])
 const cashLoading = ref(false)
 const cashPage = ref(0)
 const cashTotalPages = ref(0)
+
+const walletRefunds = ref<AdminWalletRefundRequest[]>([])
+const walletRefundsLoading = ref(false)
+const walletRefundsPage = ref(0)
+const walletRefundsTotalPages = ref(0)
+const walletRefundsLoaded = ref(false)
+const walletRefundBusyId = ref<string | null>(null)
 
 // Sur un écran financier, un appel en échec ne doit JAMAIS ressembler à une absence de
 // données : sans ce message, un 403 ou un 500 rend un tableau vide, indiscernable d'un
@@ -98,6 +106,28 @@ async function loadCashCommissions(page = cashPage.value) {
   finally { cashLoading.value = false }
 }
 
+async function loadWalletRefunds(page = walletRefundsPage.value) {
+  walletRefundsLoading.value = true
+  tabError.value = null
+  try {
+    const res = await financeService.listWalletRefundRequests(page, 20)
+    walletRefunds.value = res.content; walletRefundsTotalPages.value = res.totalPages; walletRefundsPage.value = res.number
+    walletRefundsLoaded.value = true
+  }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les demandes de remboursement wallet') }
+  finally { walletRefundsLoading.value = false }
+}
+async function resolveWalletRefund(id: string) {
+  walletRefundBusyId.value = id
+  tabError.value = null
+  try {
+    await financeService.resolveWalletRefundRequest(id)
+    await loadWalletRefunds()
+  }
+  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de résoudre cette demande de remboursement') }
+  finally { walletRefundBusyId.value = null }
+}
+
 async function switchTab(t: Tab) {
   tab.value = t
   if (t === 'chargebacks' && cbs.value.length === 0) await loadCbs()
@@ -105,6 +135,7 @@ async function switchTab(t: Tab) {
   if (t === 'mobile-money' && mmPayments.value.length === 0) await loadMobileMoney()
   if (t === 'mm-commissions' && mmCommissions.value === null) await loadMobileMoneyCommissions()
   if (t === 'cash-commissions' && cashCommissions.value.length === 0) await loadCashCommissions()
+  if (t === 'wallet-refunds' && !walletRefundsLoaded.value) await loadWalletRefunds()
 }
 async function afterAction() { await fetchPayments() }
 async function onAction(fn: () => Promise<boolean>) {
@@ -124,6 +155,7 @@ onMounted(fetchPayments)
       <button type="button" data-test="tab-mobile-money" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mobile-money' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mobile-money')">Mobile money</button>
       <button type="button" data-test="tab-mm-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mm-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mm-commissions')">Commissions mobile money</button>
       <button type="button" data-test="tab-cash-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'cash-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('cash-commissions')">Commissions cash</button>
+      <button type="button" data-test="tab-wallet-refunds" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallet-refunds' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallet-refunds')">Remboursements wallet</button>
     </div>
     <p
       v-if="tabError" data-test="transactions-error"
@@ -167,9 +199,13 @@ onMounted(fetchPayments)
     <template v-else-if="tab === 'mm-commissions'">
       <MobileMoneyCommissionsPanel :data="mmCommissions" :loading="mmCommissionsLoading" />
     </template>
-    <template v-else>
+    <template v-else-if="tab === 'cash-commissions'">
       <CashCommissionsTable :commissions="cashCommissions" :loading="cashLoading" />
       <div class="mt-4"><PaginationControls :page="cashPage" :total-pages="cashTotalPages" @change="loadCashCommissions" /></div>
+    </template>
+    <template v-else>
+      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" @resolve="resolveWalletRefund" />
+      <div class="mt-4"><PaginationControls :page="walletRefundsPage" :total-pages="walletRefundsTotalPages" @change="loadWalletRefunds" /></div>
     </template>
   </div>
 </template>

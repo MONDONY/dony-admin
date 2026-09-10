@@ -105,6 +105,33 @@ export interface AdminCashCommission {
 }
 export interface AdminCashCommissionPage { content: AdminCashCommission[]; totalElements: number; totalPages: number; number: number; size: number }
 
+/** Statuts d'une demande de remboursement wallet (suppression de compte), miroir du backend. */
+export type WalletRefundRequestStatus = 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REFUNDED' | 'FAILED'
+
+/**
+ * Demande de remboursement du solde wallet à la suppression d'un compte : le
+ * virement se fait hors plateforme, l'admin marque ensuite la demande résolue
+ * (le backend vide alors le portefeuille).
+ */
+export interface AdminWalletRefundRequest {
+  id: string
+  userId: string
+  currency: string
+  /** Montant en unités principales, dans `currency`. */
+  amount: number
+  status: WalletRefundRequestStatus
+  requestedAt: string
+}
+export interface AdminWalletRefundRequestPage { content: AdminWalletRefundRequest[]; totalElements: number; totalPages: number; number: number; size: number }
+
+export const WALLET_REFUND_STATUS_LABELS: Record<WalletRefundRequestStatus, string> = {
+  PENDING: 'En attente',
+  PROCESSING: 'En cours',
+  RESOLVED: 'Résolue',
+  REFUNDED: 'Remboursée',
+  FAILED: 'Échec',
+}
+
 export function formatAmount(cents: number, currency: string): string {
   return (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currency
 }
