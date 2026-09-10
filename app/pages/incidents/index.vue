@@ -39,7 +39,7 @@ onMounted(fetchDisputes)
         :dispute="detail.dispute.value" :open="detail.dispute.value !== null"
         @close="detail.close"
         @resolve="async (r, n) => { await detail.resolve(r, n); await afterAction() }"
-        @guarantee="async (c, r) => { await detail.payGuarantee(c, '', r); await afterAction() }"
+        @guarantee="async (c, b, r) => { await detail.payGuarantee(c, b, r, detail.dispute.value?.bidCurrency); await afterAction() }"
       />
     </template>
 

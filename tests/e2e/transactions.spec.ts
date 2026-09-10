@@ -7,7 +7,7 @@ const PAYMENTS = { content: [
 ], totalElements: 2, totalPages: 1, number: 0, size: 20 }
 const DETAIL = { ...PAYMENTS.content[0], refundedCents: 0, stripePaymentIntentId: 'pi_123', escrowReleasedAt: null, disputed: false }
 const RELEASED = { ...DETAIL, status: 'RELEASED' }
-const CBS = { content: [{ id: 'cb1', bidId: 'b1', amountCents: 5000, reason: 'fraudulent', status: 'OPEN', openedAt: '2026-06-01T10:00:00Z' }], totalElements: 1, totalPages: 1, number: 0, size: 20 }
+const CBS = { content: [{ id: 'cb1', bidId: 'b1', amountCents: 5000, currency: 'CAD', reason: 'fraudulent', status: 'OPEN', openedAt: '2026-06-01T10:00:00Z' }], totalElements: 1, totalPages: 1, number: 0, size: 20 }
 
 const WALLETS = { content: [
   { id: 'w1', userId: 'u1', balanceCents: 25000, currency: 'EUR', updatedAt: '2026-06-01T10:00:00Z' },
@@ -68,6 +68,8 @@ test('admin switches to chargebacks tab', async ({ page }) => {
   await page.locator('[data-test="payment-row-p1"]').waitFor({ state: 'visible' })
   await page.locator('[data-test="tab-chargebacks"]').click()
   await expect(page.locator('[data-test="cb-row-cb1"]')).toBeVisible({ timeout: 15000 })
+  // Un chargeback existe aussi en dollars : il s'affiche dans sa devise, plus en euros forcés.
+  await expect(page.locator('[data-test="cb-amount-cb1"]')).toHaveText(/50,00 CAD/)
 })
 
 test('admin bascule sur les trois onglets financiers, avec masquage du numéro de téléphone', async ({ page }) => {

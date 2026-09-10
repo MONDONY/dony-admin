@@ -4,11 +4,12 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import GuaranteeFundForm from './GuaranteeFundForm.vue'
 import { disputeStatusMeta } from './disputeStatus'
+import { formatAmount } from '@/features/finance/types/index'
 import type { AdminDisputeDetail, DisputeResolution } from '@/features/incidents/types/index'
 import { useAuthStore } from '@/stores/auth'
 
 defineProps<{ dispute: AdminDisputeDetail; open: boolean }>()
-const emit = defineEmits<{ close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, reason: string] }>()
+const emit = defineEmits<{ close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, beneficiaryUserId: string, reason: string] }>()
 
 const auth = useAuthStore()
 const pending = ref<DisputeResolution | null>(null)
@@ -31,9 +32,13 @@ function confirmResolve(note: string) {
       </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Bid</dt><dd>{{ dispute.bidId }}</dd></div>
-        <div><dt class="text-text-muted">Valeur déclarée</dt><dd class="tabular-nums">{{ dispute.declaredValueEur }} €</dd></div>
+        <div><dt class="text-text-muted">Devise du colis</dt><dd data-test="dispute-currency">{{ dispute.bidCurrency ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Remboursement gelé</dt><dd>{{ dispute.refundFrozen ? 'Oui' : 'Non' }}</dd></div>
         <div v-if="dispute.resolution"><dt class="text-text-muted">Résolution</dt><dd>{{ dispute.resolution }}</dd></div>
+        <div v-if="dispute.guaranteeAmountCents != null">
+          <dt class="text-text-muted">Fonds de garantie versé</dt>
+          <dd class="tabular-nums" data-test="dispute-guarantee-paid">{{ formatAmount(dispute.guaranteeAmountCents, dispute.guaranteeCurrency ?? dispute.bidCurrency ?? '') }}</dd>
+        </div>
       </dl>
 
       <template v-if="dispute.status === 'OPEN' && auth.can('DISPUTE_RESOLVE')">
@@ -42,7 +47,14 @@ function confirmResolve(note: string) {
           <button type="button" data-test="resolve-traveler" class="rounded-btn px-3 py-2 text-sm bg-primary/15 text-primary" @click="pending = 'RESOLVED_FOR_TRAVELER'">Trancher pour le voyageur</button>
           <button type="button" data-test="resolve-dismiss" class="rounded-btn px-3 py-2 text-sm border border-border" @click="pending = 'DISMISSED'">Classer sans suite</button>
         </div>
-        <GuaranteeFundForm @submit="(c, r) => emit('guarantee', c, r)" />
+        <GuaranteeFundForm
+          :currency="dispute.bidCurrency"
+          :sender-id="dispute.senderId"
+          :traveler-id="dispute.travelerId"
+          :sender-name="dispute.senderName"
+          :traveler-name="dispute.travelerName"
+          @submit="(c, b, r) => emit('guarantee', c, b, r)"
+        />
       </template>
 
       <button type="button" data-test="dispute-close" class="mt-6 rounded-btn px-4 py-2 text-sm border border-border" @click="emit('close')">Fermer</button>

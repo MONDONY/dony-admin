@@ -5,7 +5,7 @@ export type PaymentStatus = 'PENDING' | 'ESCROW' | 'RELEASED' | 'FAILED' | 'REFU
  * côté serveur : les filtrer donnait toujours une liste vide.
  */
 export type PaymentMethod = 'STRIPE' | 'PAWAPAY'
-export type PaymentCurrency = 'EUR' | 'XOF' | 'XAF'
+export type PaymentCurrency = 'EUR' | 'USD' | 'CAD' | 'GBP' | 'CHF' | 'XOF' | 'XAF'
 export type PaymentStatusFilter = 'TOUS' | PaymentStatus
 export type PaymentMethodFilter = 'TOUS' | PaymentMethod
 export type PaymentCurrencyFilter = 'TOUTES' | PaymentCurrency
@@ -13,12 +13,12 @@ export type ChargebackStatus = 'OPEN' | 'WON' | 'LOST'
 
 export interface AdminPaymentListItem { id: string; bidId: string | null; status: PaymentStatus; method: PaymentMethod; amountCents: number; commissionCents: number; currency: string; createdAt: string }
 export interface AdminPaymentDetail extends AdminPaymentListItem { refundedCents: number; stripePaymentIntentId: string | null; escrowReleasedAt: string | null; disputed: boolean }
-export interface AdminChargeback { id: string; bidId: string | null; amountCents: number; reason: string | null; status: ChargebackStatus; openedAt: string }
+export interface AdminChargeback { id: string; bidId: string | null; amountCents: number; currency?: string | null; reason: string | null; status: ChargebackStatus; openedAt: string }
 export interface AdminPaymentPage { content: AdminPaymentListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminChargebackPage { content: AdminChargeback[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface PaymentsFilterState { status: PaymentStatusFilter; method: PaymentMethodFilter; currency: PaymentCurrencyFilter; dateFrom: string | null; dateTo: string | null }
 
-/** Réservé aux litiges bancaires, toujours en euros (Stripe). Un paiement porte sa devise : voir `formatMoney`. */
+/** Montant sans devise connue. Un paiement ou un litige bancaire porte sa devise : voir `formatMoney`. */
 export function formatEuros(cents: number): string {
   return (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }

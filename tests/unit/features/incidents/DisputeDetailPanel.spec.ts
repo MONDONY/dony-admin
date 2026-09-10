@@ -3,10 +3,11 @@ import { mount } from '@vue/test-utils'
 import DisputeDetailPanel from '@/features/incidents/components/DisputeDetailPanel.vue'
 import type { AdminDisputeDetail } from '@/features/incidents/types/index'
 import { seedAuth } from '~/tests/helpers/auth'
+import { formatAmount } from '@/features/finance/types/index'
 
 vi.mock('@/components/ui/StatusBadge.vue', () => ({ default: { name: 'StatusBadge', template: '<div></div>' } }))
 vi.mock('@/components/ui/ConfirmActionDialog.vue', () => ({ default: { name: 'ConfirmActionDialog', template: '<div></div>', props: ['open', 'title', 'message', 'confirmLabel', 'requireReason'], emits: ['confirm', 'cancel'] } }))
-vi.mock('@/features/incidents/components/GuaranteeFundForm.vue', () => ({ default: { name: 'GuaranteeFundForm', template: '<div></div>', emits: ['submit'] } }))
+vi.mock('@/features/incidents/components/GuaranteeFundForm.vue', () => ({ default: { name: 'GuaranteeFundForm', template: '<div></div>', props: ['currency', 'senderId', 'travelerId', 'senderName', 'travelerName'], emits: ['submit'] } }))
 vi.mock('@/features/incidents/components/disputeStatus.ts', () => ({ disputeStatusMeta: () => ({ status: 'open', label: 'Ouvert' }) }))
 
 describe('DisputeDetailPanel', () => {
@@ -18,10 +19,12 @@ describe('DisputeDetailPanel', () => {
     senderName: 'Alice',
     travelerName: 'Bob',
     bidId: 'bid-1',
-    declaredValueEur: 150,
     refundFrozen: false,
     resolution: null,
-  }
+    senderId: 's1',
+    travelerId: 't1',
+    bidCurrency: 'XOF',
+  } as AdminDisputeDetail
 
   it('renders when open is true', () => {
     const wrapper = mount(DisputeDetailPanel, {
@@ -97,10 +100,14 @@ describe('DisputeDetailPanel', () => {
       global: { stubs: { StatusBadge: true, ConfirmActionDialog: true, GuaranteeFundForm: true } },
     })
     const form = wrapper.findComponent({ name: 'GuaranteeFundForm' })
-    await form.vm.$emit('submit', 10000, 'débours')
+    await form.vm.$emit('submit', 10000, 's1', 'débours')
     const emitted = wrapper.emitted('guarantee')
     expect(emitted).toHaveLength(1)
-    expect(emitted![0]).toEqual([10000, 'débours'])
+    expect(emitted![0]).toEqual([10000, 's1', 'débours'])
+    // La devise et les parties du litige descendent au formulaire.
+    expect(form.props('currency')).toBe('XOF')
+    expect(form.props('senderId')).toBe('s1')
+    expect(form.props('travelerId')).toBe('t1')
   })
 
   it('displays dispute details correctly', () => {
@@ -109,8 +116,16 @@ describe('DisputeDetailPanel', () => {
       global: { stubs: { StatusBadge: true, ConfirmActionDialog: true, GuaranteeFundForm: true } },
     })
     expect(wrapper.text()).toContain('bid-1')
-    expect(wrapper.text()).toContain('150 €')
+    expect(wrapper.find('[data-test="dispute-currency"]').text()).toBe('XOF')
     expect(wrapper.text()).toContain('Non')
+  })
+
+  it('affiche le fonds de garantie déjà versé dans sa devise', () => {
+    const wrapper = mount(DisputeDetailPanel, {
+      props: { dispute: { ...mockDispute, status: 'RESOLVED', resolution: 'GUARANTEE_PAID', guaranteeAmountCents: 500000, guaranteeCurrency: 'XOF' }, open: true },
+      global: { stubs: { StatusBadge: true, ConfirmActionDialog: true, GuaranteeFundForm: true } },
+    })
+    expect(wrapper.find('[data-test="dispute-guarantee-paid"]').text()).toBe(formatAmount(500000, 'XOF'))
   })
 
   it('displays resolution when present', () => {

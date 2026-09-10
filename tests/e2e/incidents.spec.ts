@@ -4,8 +4,8 @@ const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'A
 const DISPUTES = { content: [
   { id: 'd1', bidId: 'b1', type: 'SENDER_NO_SHOW_CONTESTED', status: 'OPEN', senderName: 'Jean', travelerName: 'Awa', refundFrozen: true, createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }
-const DISPUTE_DETAIL = { ...DISPUTES.content[0], resolution: null, resolvedAt: null, resolutionNote: null, declaredValueEur: 120, beneficiaryUserId: 's1' }
-const DISPUTE_RESOLVED = { ...DISPUTE_DETAIL, status: 'RESOLVED', resolution: 'GUARANTEE_PAID' }
+const DISPUTE_DETAIL = { ...DISPUTES.content[0], resolution: null, resolvedAt: null, resolutionNote: null, beneficiaryUserId: null, senderId: 's1', travelerId: 't1', bidCurrency: 'EUR' }
+const DISPUTE_RESOLVED = { ...DISPUTE_DETAIL, status: 'RESOLVED', resolution: 'GUARANTEE_PAID', beneficiaryUserId: 's1', guaranteeAmountCents: 15000, guaranteeCurrency: 'EUR' }
 const NOSHOWS = { content: [
   { id: 'c1', bidId: 'b9', cancelledBy: 'TRAVELER', reason: 'SENDER_NO_SHOW', noShowStatus: 'PENDING_CONFIRMATION', contestationDeadline: '2026-06-05T10:00:00Z', createdAt: '2026-06-01T10:00:00Z' },
 ], totalElements: 1, totalPages: 1, number: 0, size: 20 }
@@ -28,19 +28,28 @@ test('admin sees open disputes', async ({ page }) => {
   await expect(page.locator('[data-test="dispute-row-d1"]')).toContainText('SENDER_NO_SHOW_CONTESTED')
 })
 
-test('admin activates the guarantee fund (≤200€) on a dispute', async ({ page }) => {
+test('admin activates the guarantee fund (≤200€) on a dispute, in the parcel currency, to a named party', async ({ page }) => {
+  let sentBody: Record<string, unknown> | null = null
+  await page.route('**/api/v1/admin/disputes/d1/guarantee-fund', (route) => {
+    sentBody = route.request().postDataJSON()
+    return route.fulfill({ json: DISPUTE_RESOLVED })
+  })
   await page.goto('/incidents')
   await page.locator('[data-test="dispute-row-d1"]').click()
   await expect(page.locator('aside').getByText('Fonds de garantie').first()).toBeVisible()
+  await expect(page.locator('[data-test="gf-currency"]')).toHaveText('EUR')
   // over 200 → submit disabled
   await page.locator('[data-test="gf-amount"]').fill('250')
   await page.locator('[data-test="gf-reason"]').fill('colis perdu')
+  await page.locator('[data-test="gf-beneficiary-sender"]').check()
   await expect(page.locator('[data-test="gf-submit"]')).toBeDisabled()
   // valid amount → enabled, submit
   await page.locator('[data-test="gf-amount"]').fill('150')
   await expect(page.locator('[data-test="gf-submit"]')).toBeEnabled()
   await page.locator('[data-test="gf-submit"]').click()
   await expect(page.locator('aside').getByText('Résolu', { exact: true })).toBeVisible()
+  await expect.poll(() => sentBody).toMatchObject({ amountCents: 15000, beneficiaryUserId: 's1', currency: 'EUR' })
+  await expect(page.locator('[data-test="dispute-guarantee-paid"]')).toHaveText(/150,00 EUR/)
 })
 
 test('admin switches to no-shows tab', async ({ page }) => {

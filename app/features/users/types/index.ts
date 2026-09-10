@@ -55,6 +55,12 @@ export interface AdminUserDetail extends AdminUserListItem {
   ratingCount: number
   deletionRequestedAt: string | null
   messagingMutedUntil: string | null
+  /** Compte de versement mobile money (pawaPay) : absent d'un backend pas encore déployé. */
+  mobileMoneyStatus?: string | null
+  mobileMoneyProvider?: string | null
+  mobileMoneyCurrency?: string | null
+  mobileMoneyCountry?: string | null
+  mobileMoneyMsisdnMasked?: string | null
 }
 
 export interface AdminUserPage {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AnnouncementsTable from '@/features/bids/components/AnnouncementsTable.vue'
 import { seedAuth } from '~/tests/helpers/auth'
+import { formatMajorAmount } from '@/features/finance/types/index'
 
 const anns = [
   {
@@ -12,6 +13,7 @@ const anns = [
     departureDate: '2026-07-01',
     availableKg: 10,
     pricePerKg: 8,
+    currency: 'EUR',
   },
   {
     id: 'a2',
@@ -21,6 +23,7 @@ const anns = [
     departureDate: '2026-07-15',
     availableKg: 0,
     pricePerKg: 12,
+    currency: 'EUR',
   },
   {
     id: 'a3',
@@ -30,6 +33,7 @@ const anns = [
     departureDate: '2026-06-20',
     availableKg: 5,
     pricePerKg: 10,
+    currency: 'EUR',
   },
 ]
 
@@ -41,6 +45,7 @@ const removedAnn = {
   departureDate: '2026-07-20',
   availableKg: 8,
   pricePerKg: 9,
+    currency: 'EUR',
 }
 
 const completedAnn = {
@@ -51,6 +56,7 @@ const completedAnn = {
   departureDate: '2026-05-01',
   availableKg: 0,
   pricePerKg: 11,
+    currency: 'EUR',
 }
 
 describe('AnnouncementsTable', () => {
@@ -292,5 +298,12 @@ describe('AnnouncementsTable', () => {
       expect(wrapper.find('[data-test="remove-a1"]').attributes('disabled')).toBeUndefined()
       expect(wrapper.find('[data-test="restore-a4"]').attributes('disabled')).toBeUndefined()
     })
+  })
+
+  it('affiche le prix au kilo dans la devise de l\'annonce', async () => {
+    const w = mount(AnnouncementsTable, {
+      props: { announcements: [{ id: 'x1', status: 'ACTIVE', travelerName: 'Awa', corridor: 'Bamako → Abidjan', departureDate: '2026-09-15', availableKg: 10, pricePerKg: 2000, currency: 'XOF' }], loading: false },
+    })
+    expect(w.find('[data-test="ann-price-x1"]').text()).toBe(formatMajorAmount(2000, 'XOF') + '/kg')
   })
 })

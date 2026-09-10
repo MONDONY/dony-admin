@@ -31,6 +31,10 @@ const methodChips: { value: PaymentMethodFilter; label: string }[] = [
 const currencyChips: { value: PaymentCurrencyFilter; label: string }[] = [
   { value: 'TOUTES', label: 'Toutes' },
   { value: 'EUR', label: 'EUR' },
+  { value: 'USD', label: 'USD' },
+  { value: 'CAD', label: 'CAD' },
+  { value: 'GBP', label: 'GBP' },
+  { value: 'CHF', label: 'CHF' },
   { value: 'XOF', label: 'XOF (F CFA ouest)' },
   { value: 'XAF', label: 'XAF (F CFA central)' },
 ]

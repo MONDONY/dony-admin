@@ -18,7 +18,8 @@ export function useDisputeDetail() {
     try { dispute.value = await fn() } catch (e) { error.value = (e as Error).message }
   }
   const resolve = (resolution: DisputeResolution, note: string) => run(() => incidentsService.resolveDispute(dispute.value!.id, resolution, note))
-  const payGuarantee = (amountCents: number, beneficiaryUserId: string, reason: string) => run(() => incidentsService.payGuaranteeFund(dispute.value!.id, amountCents, beneficiaryUserId, reason))
+  const payGuarantee = (amountCents: number, beneficiaryUserId: string, reason: string, currency?: string | null) =>
+    run(() => incidentsService.payGuaranteeFund(dispute.value!.id, amountCents, beneficiaryUserId, reason, currency))
 
   return { dispute, isLoading, error, open, close, resolve, payGuarantee }
 }

@@ -2,6 +2,8 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import BidTimeline from './BidTimeline.vue'
 import { bidStatusMeta } from './bidStatus'
+import { formatMajorAmount } from '@/features/finance/types/index'
+import { paymentMethodLabel } from '@/features/payments/types/index'
 import type { AdminBidDetail, AdminBidTimeline } from '@/features/bids/types/index'
 
 defineProps<{ bid: AdminBidDetail; timeline: AdminBidTimeline | null; open: boolean }>()
@@ -20,9 +22,9 @@ const emit = defineEmits<{ close: [] }>()
       </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div><dt class="text-text-muted">Poids</dt><dd class="tabular-nums">{{ bid.weightKg }} kg</dd></div>
-        <div><dt class="text-text-muted">Net</dt><dd class="tabular-nums">{{ bid.netEur }} €</dd></div>
-        <div><dt class="text-text-muted">Valeur déclarée</dt><dd class="tabular-nums">{{ bid.declaredValueEur }} €</dd></div>
-        <div><dt class="text-text-muted">Paiement</dt><dd>{{ bid.paymentMethod }}</dd></div>
+        <div><dt class="text-text-muted">Net</dt><dd class="tabular-nums" data-test="bid-detail-net">{{ formatMajorAmount(bid.netEur, bid.currency) }}</dd></div>
+        <div><dt class="text-text-muted">Devise</dt><dd data-test="bid-detail-currency">{{ bid.currency ?? '—' }}</dd></div>
+        <div><dt class="text-text-muted">Paiement</dt><dd>{{ paymentMethodLabel(bid.paymentMethod) }}</dd></div>
         <div><dt class="text-text-muted">Tracking</dt><dd>{{ bid.trackingNumber ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Contenu</dt><dd>{{ bid.contentCategory ?? '—' }}</dd></div>
       </dl>

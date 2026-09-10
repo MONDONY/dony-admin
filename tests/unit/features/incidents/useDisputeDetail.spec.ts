@@ -32,8 +32,8 @@ describe('useDisputeDetail', () => {
   it('payGuarantee calls service + refreshes', async () => {
     vi.mocked(incidentsService.getDispute).mockResolvedValueOnce({ id: 'd1', status: 'OPEN' })
     vi.mocked(incidentsService.payGuaranteeFund).mockResolvedValueOnce({ id: 'd1', status: 'RESOLVED', resolution: 'GUARANTEE_PAID' })
-    const d = useDisputeDetail(); await d.open('d1'); await d.payGuarantee(15000, 'u1', 'perdu')
-    expect(vi.mocked(incidentsService.payGuaranteeFund)).toHaveBeenCalledWith('d1', 15000, 'u1', 'perdu')
+    const d = useDisputeDetail(); await d.open('d1'); await d.payGuarantee(15000, 'u1', 'perdu', 'XOF')
+    expect(vi.mocked(incidentsService.payGuaranteeFund)).toHaveBeenCalledWith('d1', 15000, 'u1', 'perdu', 'XOF')
     expect(d.dispute.value?.resolution).toBe('GUARANTEE_PAID')
   })
 

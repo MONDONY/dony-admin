@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
+import { formatMajorAmount } from '@/features/finance/types/index'
 
 const bid = {
   id: 'bid-1',
@@ -10,8 +11,8 @@ const bid = {
   travelerName: 'Bob',
   weightKg: 5,
   netEur: 40,
-  declaredValueEur: 200,
-  paymentMethod: 'stripe',
+  currency: 'EUR',
+  paymentMethod: 'STRIPE',
   trackingNumber: 'TRACK123',
   contentCategory: 'DOCUMENTS',
 }
@@ -75,9 +76,18 @@ describe('BidDetailPanel', () => {
       props: { bid, timeline, open: true },
     })
     expect(wrapper.text()).toContain('5 kg')
-    expect(wrapper.text()).toContain('40 €')
-    expect(wrapper.text()).toContain('200 €')
-    expect(wrapper.text()).toContain('stripe')
+    expect(wrapper.find('[data-test="bid-detail-net"]').text()).toBe('40,00 EUR')
+    expect(wrapper.find('[data-test="bid-detail-currency"]').text()).toBe('EUR')
+    expect(wrapper.text()).toContain('Carte')
+  })
+
+  it('affiche le net dans la devise de la demande (XOF), jamais en euros', () => {
+    const wrapper = mount(BidDetailPanel, {
+      props: { bid: { ...bid, netEur: 6000, currency: 'XOF', paymentMethod: 'PAWAPAY' }, timeline, open: true },
+    })
+    expect(wrapper.find('[data-test="bid-detail-net"]').text()).toBe(formatMajorAmount(6000, 'XOF'))
+    expect(wrapper.text()).not.toContain('€')
+    expect(wrapper.text()).toContain('Mobile money')
   })
 
   it('renders null timeline gracefully', () => {

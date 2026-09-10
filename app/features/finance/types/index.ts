@@ -110,6 +110,16 @@ export function formatAmount(cents: number, currency: string): string {
 }
 
 /**
+ * Montant déjà en unités principales (net d'une demande, prix au kilo) dans sa devise.
+ * Sans devise (backend pas encore déployé), le montant sort nu plutôt qu'en euros.
+ */
+export function formatMajorAmount(amount: number | null | undefined, currency?: string | null): string {
+  if (amount === null || amount === undefined) return '—'
+  const text = amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return currency ? text + ' ' + currency : text
+}
+
+/**
  * Masque un numéro de téléphone : seuls les 4 derniers chiffres restent visibles.
  * `mobile_money_payments.phone_number` est une donnée personnelle stockée en clair en
  * base — rien ne justifie de l'étaler dans une vue de consultation.

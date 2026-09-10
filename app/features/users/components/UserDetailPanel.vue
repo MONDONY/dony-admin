@@ -19,6 +19,14 @@ const emit = defineEmits<{
   grantPro: [reason: string]; revokePro: [];
 }>()
 const auth = useAuthStore()
+// Le rail de versement mobile money manquait à la fiche : seul Stripe y figurait, alors qu'un
+// voyageur en zone CFA n'est payé que par ce compte, dans sa devise.
+const mobileMoneyLabel = computed(() => {
+  const u = props.user
+  if (!u.mobileMoneyStatus) return '—'
+  const parts = [u.mobileMoneyStatus, u.mobileMoneyProvider, u.mobileMoneyCurrency, u.mobileMoneyMsisdnMasked]
+  return parts.filter(Boolean).join(' · ')
+})
 
 // Constat 4 — copie de l'UUID en un clic avec retour visuel
 const idCopied = ref(false)
@@ -248,6 +256,10 @@ const dialogConfig = computed<DialogConfig>(() => {
         <div><dt class="text-text-muted">Ville</dt><dd>{{ user.city ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">KYC</dt><dd>{{ user.kycStatus }}</dd></div>
         <div><dt class="text-text-muted">Stripe</dt><dd>{{ user.stripeAccountStatus ?? '—' }}</dd></div>
+        <div>
+          <dt class="text-text-muted">Mobile money</dt>
+          <dd data-test="user-mobile-money">{{ mobileMoneyLabel }}</dd>
+        </div>
         <div><dt class="text-text-muted">Trajets</dt><dd class="tabular-nums">{{ user.totalTrips }}</dd></div>
         <div><dt class="text-text-muted">Envois</dt><dd class="tabular-nums">{{ user.totalShipments }}</dd></div>
         <div><dt class="text-text-muted">No-shows</dt><dd class="tabular-nums">{{ user.noShowCount }}</dd></div>

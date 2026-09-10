@@ -13,8 +13,12 @@ export const incidentsService = {
   resolveDispute(id: string, resolution: DisputeResolution, note: string): Promise<AdminDisputeDetail> {
     return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/resolve`, { method: 'POST', body: { resolution, note } })
   },
-  payGuaranteeFund(id: string, amountCents: number, beneficiaryUserId: string, reason: string): Promise<AdminDisputeDetail> {
-    return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/guarantee-fund`, { method: 'POST', body: { amountCents, beneficiaryUserId, reason } })
+  payGuaranteeFund(id: string, amountCents: number, beneficiaryUserId: string, reason: string, currency?: string | null): Promise<AdminDisputeDetail> {
+    // La devise n'est envoyée que lorsqu'elle est connue : le backend la vérifie contre celle
+    // du colis et l'exige quand le litige n'a pas de bid.
+    const body: Record<string, unknown> = { amountCents, beneficiaryUserId, reason }
+    if (currency) body.currency = currency
+    return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/guarantee-fund`, { method: 'POST', body })
   },
   listCancellations(noShow: NoShowFilter, page: number, size: number): Promise<AdminCancellationPage> {
     const query: Record<string, string | number> = { page, size }

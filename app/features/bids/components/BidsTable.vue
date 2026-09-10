@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { bidStatusMeta } from './bidStatus'
+import { formatMajorAmount } from '@/features/finance/types/index'
 import type { AdminBidListItem } from '@/features/bids/types/index'
 
 defineProps<{ bids: AdminBidListItem[]; loading: boolean }>()
@@ -35,7 +36,7 @@ function fmt(d: string) {
           <td class="px-4 py-3 text-sm font-medium">{{ b.corridor }}</td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ b.senderName ?? '—' }} → {{ b.travelerName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm tabular-nums">{{ b.weightKg }} kg</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ b.netEur }} €</td>
+          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`bid-net-${b.id}`">{{ formatMajorAmount(b.netEur, b.currency) }}</td>
           <td class="px-4 py-3"><StatusBadge v-bind="bidStatusMeta(b.status)" /></td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(b.createdAt) }}</td>
         </tr>
