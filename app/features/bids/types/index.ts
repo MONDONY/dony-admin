@@ -6,10 +6,11 @@ export type TimelineKind = 'SCAN' | 'PHOTO' | 'PAYMENT' | 'EVENT'
 export interface AdminBidListItem {
   id: string; status: BidStatus; announcementId: string
   senderName: string | null; travelerName: string | null; corridor: string
-  weightKg: number; netEur: number; paymentMethod: string; createdAt: string
+  /** netEur est dans `currency` (devise de l'annonce), null pour une demande sans prix négocié. */
+  weightKg: number; netEur: number | null; currency: string | null; paymentMethod: string; createdAt: string
 }
 export interface AdminBidDetail extends AdminBidListItem {
-  declaredValueEur: number; contentCategory: string | null; recipientName: string | null
+  contentCategory: string | null; recipientName: string | null
   trackingNumber: string | null; commissionRate: number | null; refusalReason: string | null
 }
 export interface BidTimelineEntry {
@@ -20,6 +21,8 @@ export interface AdminBidTimeline { bidId: string; entries: BidTimelineEntry[] }
 export interface AdminAnnouncementListItem {
   id: string; status: AnnouncementStatus; travelerName: string | null
   corridor: string; departureDate: string; availableKg: number; pricePerKg: number
+  /** Devise du prix au kilo (code ISO). */
+  currency: string | null
 }
 export interface AdminBidPage { content: AdminBidListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminAnnouncementPage { content: AdminAnnouncementListItem[]; totalElements: number; totalPages: number; number: number; size: number }

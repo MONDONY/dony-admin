@@ -2,10 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ChargebacksTable from '@/features/payments/components/ChargebacksTable.vue'
 
-const cbs = [{ id: 'cb1', bidId: 'b1', amountCents: 5000, reason: 'fraudulent', status: 'OPEN', openedAt: '2026-06-01T10:00:00Z' }]
+const cbs = [{ id: 'cb1', bidId: 'b1', amountCents: 5000, currency: 'EUR', reason: 'fraudulent', status: 'OPEN', openedAt: '2026-06-01T10:00:00Z' }]
 
 describe('ChargebacksTable', () => {
   it('renders rows', () => { expect(mount(ChargebacksTable, { props: { chargebacks: cbs, loading: false } }).find('[data-test="cb-row-cb1"]').exists()).toBe(true) })
+  it('affiche le montant dans la devise du litige, un chargeback existe aussi en dollars', () => {
+    const w = mount(ChargebacksTable, { props: { chargebacks: [{ ...cbs[0], id: 'cb2', currency: 'CAD', amountCents: 12345 }], loading: false } })
+    expect(w.find('[data-test="cb-amount-cb2"]').text()).toBe('123,45 CAD')
+    expect(w.find('[data-test="cb-amount-cb1"]').exists()).toBe(false)
+  })
   it('empty state', () => { expect(mount(ChargebacksTable, { props: { chargebacks: [], loading: false } }).text()).toMatch(/Aucun litige bancaire/i) })
   it('loading state', () => { expect(mount(ChargebacksTable, { props: { chargebacks: [], loading: true } }).text()).toMatch(/Chargement/i) })
   it('renders placeholders for missing optional values', () => {

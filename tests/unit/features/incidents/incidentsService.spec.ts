@@ -23,6 +23,11 @@ describe('incidentsService', () => {
     await incidentsService.payGuaranteeFund('d1', 15000, 'u1', 'colis perdu')
     expect(apiMock).toHaveBeenCalledWith('/admin/disputes/d1/guarantee-fund', { method: 'POST', body: { amountCents: 15000, beneficiaryUserId: 'u1', reason: 'colis perdu' } })
   })
+  it('payGuaranteeFund envoie la devise du colis quand elle est connue', async () => {
+    apiMock.mockResolvedValue({ id: 'd1', status: 'RESOLVED' })
+    await incidentsService.payGuaranteeFund('d1', 500000, 'u1', 'colis perdu', 'XOF')
+    expect(apiMock).toHaveBeenCalledWith('/admin/disputes/d1/guarantee-fund', { method: 'POST', body: { amountCents: 500000, beneficiaryUserId: 'u1', reason: 'colis perdu', currency: 'XOF' } })
+  })
   it('listCancellations maps ALL→no filter, else noShowStatus', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     await incidentsService.listCancellations('ALL', 0, 20)

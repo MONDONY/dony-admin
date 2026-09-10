@@ -433,4 +433,13 @@ describe('UserDetailPanel', () => {
       expect(w.find('[data-test="pro-grant-section"]').exists()).toBe(false)
     })
   })
+
+  it('affiche le compte de versement mobile money, absent de la fiche jusqu\'ici', () => {
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, mobileMoneyStatus: 'ACTIVE', mobileMoneyProvider: 'ORANGE_CIV', mobileMoneyCurrency: 'XOF', mobileMoneyMsisdnMasked: '+225 ** ** ** 12 34' }, open: true } })
+    expect(w.find('[data-test="user-mobile-money"]').text()).toBe('ACTIVE · ORANGE_CIV · XOF · +225 ** ** ** 12 34')
+  })
+  it('sans compte mobile money, un tiret', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="user-mobile-money"]').text()).toBe('—')
+  })
 })

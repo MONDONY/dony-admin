@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import type { AdminAnnouncementListItem, AnnouncementStatus } from '@/features/bids/types/index'
+import { formatMajorAmount } from '@/features/finance/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { REMOVAL_REASONS } from '@/features/bids/removalReasons'
 
@@ -72,7 +73,7 @@ function confirmRemove(internalNote: string, publicReason?: string) {
           <td class="px-4 py-3 text-sm text-text-muted">{{ a.travelerName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(a.departureDate) }}</td>
           <td class="px-4 py-3 text-sm tabular-nums">{{ a.availableKg }} kg</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ a.pricePerKg }} €</td>
+          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`ann-price-${a.id}`">{{ formatMajorAmount(a.pricePerKg, a.currency) }}/kg</td>
           <td class="px-4 py-3"><StatusBadge :label="a.status" :tone="annTone[a.status]" /></td>
           <td v-if="auth.can('CONTENT_REMOVE')" class="px-4 py-3 text-right">
             <button

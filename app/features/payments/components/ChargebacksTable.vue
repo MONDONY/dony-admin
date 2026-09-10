@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { formatEuros } from '@/features/payments/types/index'
+import { formatMoney } from '@/features/payments/types/index'
 import type { AdminChargeback, ChargebackStatus } from '@/features/payments/types/index'
 
 defineProps<{ chargebacks: AdminChargeback[]; loading: boolean }>()
@@ -23,7 +23,7 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
       <tbody>
         <tr v-for="c in chargebacks" :key="c.id" :data-test="`cb-row-${c.id}`" class="border-b border-border">
           <td class="px-4 py-3 text-sm font-medium">{{ c.bidId ?? '—' }}</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ formatEuros(c.amountCents) }}</td>
+          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`cb-amount-${c.id}`">{{ formatMoney(c.amountCents, c.currency ?? undefined) }}</td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ c.reason ?? '—' }}</td>
           <td class="px-4 py-3"><StatusBadge :label="c.status" :tone="tone[c.status]" /></td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(c.openedAt) }}</td>
