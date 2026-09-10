@@ -4,7 +4,9 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    # main vise la production, staging/** le VPS de recette.
+    # Tout déploiement automatique vise le VPS de recette : main comme les
+    # branches staging/**. La production ne se déploie qu'à la main (ci-dessous),
+    # après recette ; une fusion sur main ne doit jamais toucher la prod.
     branches: [main, 'staging/**']
   # Déclenchement manuel : choisir explicitement la cible et l'image, pour
   # redéployer sans push, revenir en arrière, ou remettre en service après
@@ -89,7 +91,7 @@ jobs:
     # Sans cette garde, le job serait ignoré dès que les deux précédents
     # le sont, c'est-à-dire à chaque lancement manuel.
     if: always() && !failure() && !cancelled()
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'main' && 'production' || 'staging') }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
     steps:
       # head_sha est vide lors d'un lancement manuel : on prend alors la ref
       # choisie dans le formulaire plutôt que de compter sur le fait qu'une
