@@ -18,7 +18,7 @@ function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 
           <th class="px-4 py-2 font-medium">Commentaire</th>
           <th class="px-4 py-2 font-medium">Auteur → Évalué</th>
           <th class="px-4 py-2 font-medium">Créé</th>
-          <th class="px-4 py-2 font-medium"></th>
+          <th class="px-4 py-2 font-medium"/>
         </tr>
       </thead>
       <tbody>
