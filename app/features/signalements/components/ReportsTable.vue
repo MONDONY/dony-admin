@@ -8,6 +8,10 @@ defineProps<{ reports: AdminReport[]; loading: boolean }>()
 const emit = defineEmits<{ resolve: [id: string]; viewPhotos: [urls: string[]] }>()
 const auth = useAuthStore()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
+/** Cible APP : ni libellé ni identifiant côté back, on nomme l’application. */
+function targetLabel(r: AdminReport) {
+  return r.targetLabel ?? r.targetId ?? (r.targetType === 'APP' ? 'Application' : '—')
+}
 </script>
 
 <template>
@@ -26,8 +30,13 @@ function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
       <tbody>
         <tr v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`" class="border-b border-border">
           <td class="px-4 py-3 text-sm">
-            <div class="font-medium">{{ r.targetLabel ?? r.targetId }}</div>
+            <div class="font-medium">{{ targetLabel(r) }}</div>
             <div class="text-xs text-text-muted">{{ r.targetType }}</div>
+            <!-- Rapport du scarabée : la route de l’écran dit où regarder -->
+            <div
+              v-if="r.screenRoute" :data-test="`report-screen-${r.id}`"
+              class="mt-1 inline-block rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-xs text-text-muted"
+            >Écran {{ r.screenRoute }}</div>
           </td>
           <td class="px-4 py-3 text-sm">
             <div class="font-medium">{{ reportReasonLabel(r.reason) }}</div>

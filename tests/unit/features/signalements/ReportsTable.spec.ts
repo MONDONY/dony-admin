@@ -63,6 +63,25 @@ describe('ReportsTable', () => {
     })
   })
 
+  describe('rapport du scarabée (SCREEN_BUG, cible APP)', () => {
+    const screenReport = [{
+      ...reports[0], id: 'r2', targetType: 'APP', targetId: null, reason: 'SCREEN_BUG',
+      description: 'Le badge passe sous le bouton', screenRoute: '/profile',
+    }]
+
+    it('affiche la route de l’écran d’origine et le libellé du motif', () => {
+      const w = mount(ReportsTable, { props: { reports: screenReport, loading: false } })
+      expect(w.find('[data-test="report-screen-r2"]').text()).toBe('Écran /profile')
+      expect(w.text()).toContain('Bug signalé depuis un écran')
+      expect(w.text()).toContain('Application')
+    })
+
+    it('sans route (ancien rapport), pas de ligne Écran', () => {
+      const w = mount(ReportsTable, { props: { reports: [{ ...screenReport[0], screenRoute: null }], loading: false } })
+      expect(w.find('[data-test="report-screen-r2"]').exists()).toBe(false)
+    })
+  })
+
   it('affiche le libellé français du motif catalogué, pas la valeur brute', () => {
     const w = mount(ReportsTable, { props: { reports, loading: false } })
     expect(w.text()).not.toContain('SCAM_ATTEMPT')

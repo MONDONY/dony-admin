@@ -18,6 +18,8 @@ export interface AdminReport {
   resolvedAt: string | null
   createdAt: string
   photoUrls: string[]
+  /** Route de l’écran d’origine pour un rapport du scarabée (SCREEN_BUG), sinon absent. */
+  screenRoute?: string | null
 }
 
 export interface AdminReportPage {
