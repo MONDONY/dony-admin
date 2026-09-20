@@ -29,4 +29,35 @@ describe('reportsService', () => {
       body: { action: 'SUSPEND_TARGET', note: 'compte frauduleux' },
     })
   })
+
+  it('list passe q nettoyé et l’omet quand vide', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await reportsService.list({ status: 'OPEN', targetType: null, q: '  badge ' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ q: 'badge' })
+    apiMock.mockClear()
+    await reportsService.list({ status: 'OPEN', targetType: null, q: '   ' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.q).toBeUndefined()
+  })
+
+  it('remove DELETE /admin/reports/{id}', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await reportsService.remove('r1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/reports/r1', { method: 'DELETE' })
+  })
+
+  it('bulkDelete par identifiants', async () => {
+    apiMock.mockResolvedValue({ deleted: 2 })
+    const res = await reportsService.bulkDelete({ ids: ['a', 'b'] })
+    expect(res).toEqual({ deleted: 2 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/reports/bulk-delete', { method: 'POST', body: { ids: ['a', 'b'] } })
+  })
+
+  it('bulkDelete « tous les résultats » envoie le filtre courant (ALL → pas de statut)', async () => {
+    apiMock.mockResolvedValue({ deleted: 45 })
+    await reportsService.bulkDelete({ all: true, filters: { status: 'ALL', targetType: 'APP', q: ' bug ' } })
+    expect(apiMock).toHaveBeenCalledWith('/admin/reports/bulk-delete', {
+      method: 'POST',
+      body: { all: true, status: undefined, targetType: 'APP', q: 'bug' },
+    })
+  })
 })

@@ -28,6 +28,7 @@ export type AdminPermission =
   | 'USER_MESSAGE_MUTE'
   | 'REPORT_VIEW'
   | 'REPORT_RESOLVE'
+  | 'REPORT_DELETE'
   | 'RATING_MODERATE'
   | 'RATING_DELETE'
   | 'PROMO_MANAGE'
@@ -65,6 +66,7 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'USER_MESSAGE_MUTE',
   'REPORT_VIEW',
   'REPORT_RESOLVE',
+  'REPORT_DELETE',
   'RATING_MODERATE',
   'RATING_DELETE',
   'PROMO_MANAGE',

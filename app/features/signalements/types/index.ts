@@ -33,6 +33,8 @@ export interface AdminReportPage {
 export interface ReportsFilterState {
   status: ReportStatusFilter
   targetType: ReportTargetType | null
+  /** Recherche libre (description, route d’écran, signalant, motif) ; vide = pas de filtre. */
+  q?: string
 }
 
 // ----- Avis (ratings) -----
