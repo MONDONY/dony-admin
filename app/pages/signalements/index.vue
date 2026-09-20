@@ -37,6 +37,40 @@ const chosenAction = ref<ReportAction>('DISMISS')
 const resolveNote = ref('')
 const viewerUrls = ref<string[] | null>(null)
 
+// ---- Recherche (débounce court : une requête par pause de frappe) ----
+const searchInput = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function onSearchInput(e: Event) {
+  searchInput.value = (e.target as HTMLInputElement).value
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => r.setQuery(searchInput.value), 300)
+}
+function submitSearch() {
+  if (searchTimer) clearTimeout(searchTimer)
+  r.setQuery(searchInput.value)
+}
+
+// ---- Suppression (unitaire ou groupée), toujours confirmée ----
+const pendingDeleteId = ref<string | null>(null)
+const bulkDeleteOpen = ref(false)
+const lastDeleted = ref<number | null>(null)
+const deleteMessage = computed(() => {
+  if (pendingDeleteId.value) return 'Le signalement sera masqué de l’admin (suppression douce). Ses captures et son audit restent en base.'
+  const n = r.selectedCount.value
+  const scope = r.allResultsSelected.value ? 'tous les résultats de la recherche courante' : 'la sélection'
+  return `${n} signalement${n > 1 ? 's' : ''} (${scope}) seront masqués de l’admin (suppression douce).`
+})
+async function confirmDelete() {
+  if (pendingDeleteId.value) {
+    await r.deleteOne(pendingDeleteId.value)
+    lastDeleted.value = 1
+    pendingDeleteId.value = null
+    return
+  }
+  lastDeleted.value = await r.deleteSelected()
+  bulkDeleteOpen.value = false
+}
+
 // Le signalement en cours de traitement — sert à filtrer les actions proposées
 // (SUSPEND_TARGET n'a de sens que sur USER, REMOVE_CONTENT que sur ANNOUNCEMENT ;
 // le back les rejette de toute façon, mais autant ne pas les proposer).
@@ -118,6 +152,12 @@ onMounted(r.fetchReports)
             @click="r.setStatusFilter(t.value)"
           >{{ t.label }}</button>
         </div>
+        <input
+          type="search" data-test="report-search" :value="searchInput"
+          placeholder="Rechercher (texte, écran, signalant, motif)"
+          class="min-w-64 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm"
+          @input="onSearchInput" @keydown.enter.prevent="submitSearch"
+        >
         <select
           data-test="report-target-type-filter"
           :value="r.filters.targetType ?? ''"
@@ -129,8 +169,41 @@ onMounted(r.fetchReports)
       </div>
 
       <p v-if="r.error.value" data-test="reports-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ r.error.value }}</p>
+      <p v-if="lastDeleted !== null" data-test="reports-deleted" class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted">
+        {{ lastDeleted }} signalement{{ lastDeleted > 1 ? 's' : '' }} supprimé{{ lastDeleted > 1 ? 's' : '' }}.
+      </p>
 
-      <ReportsTable :reports="r.reports.value" :loading="r.isLoading.value" @resolve="openResolve" @view-photos="(urls) => viewerUrls = urls" />
+      <!-- Barre de sélection (modèle Gmail) -->
+      <div
+        v-if="r.selectedCount.value > 0" data-test="selection-bar"
+        class="mb-3 flex flex-wrap items-center gap-3 rounded-btn border border-primary/30 bg-primary/5 px-3 py-2 text-sm"
+      >
+        <span data-test="selection-count">
+          {{ r.selectedCount.value }} sélectionné{{ r.selectedCount.value > 1 ? 's' : '' }}{{ r.allResultsSelected.value ? ' (tous les résultats)' : ' sur cette page' }}
+        </span>
+        <button
+          v-if="r.canSelectAllResults.value" type="button" data-test="select-all-results"
+          class="text-primary underline-offset-2 hover:underline"
+          @click="r.selectAllResults()"
+        >Sélectionner les {{ r.totalElements.value }} résultats</button>
+        <span class="grow"/>
+        <button
+          type="button" data-test="clear-selection"
+          class="rounded-btn px-3 py-1.5 border border-border hover:bg-surface-elevated"
+          @click="r.clearSelection()"
+        >Annuler</button>
+        <button
+          type="button" data-test="bulk-delete"
+          class="rounded-btn px-3 py-1.5 bg-danger text-white hover:bg-danger/90"
+          @click="bulkDeleteOpen = true"
+        >Supprimer ({{ r.selectedCount.value }})</button>
+      </div>
+
+      <ReportsTable
+        :reports="r.reports.value" :loading="r.isLoading.value" :selected="r.selectedIds.value"
+        @resolve="openResolve" @view-photos="(urls) => viewerUrls = urls"
+        @toggle="r.toggleSelect" @toggle-page="r.togglePage" @delete="(id) => pendingDeleteId = id"
+      />
 
       <div class="mt-4">
         <PaginationControls :page="r.currentPage.value" :total-pages="r.totalPages.value" @change="r.goToPage" />
@@ -215,6 +288,16 @@ onMounted(r.fetchReports)
         </div>
       </div>
     </div>
+
+    <!-- Supprimer un ou plusieurs signalements -->
+    <ConfirmActionDialog
+      :open="pendingDeleteId !== null || bulkDeleteOpen"
+      :title="pendingDeleteId ? 'Supprimer le signalement' : 'Supprimer la sélection'"
+      :message="deleteMessage"
+      confirm-label="Supprimer"
+      @confirm="confirmDelete"
+      @cancel="pendingDeleteId = null; bulkDeleteOpen = false"
+    />
 
     <!-- Exclure un avis -->
     <ConfirmActionDialog

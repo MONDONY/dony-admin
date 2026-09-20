@@ -100,4 +100,42 @@ describe('ReportsTable', () => {
       expect(w.find('[data-test="resolve-r1"]').exists()).toBe(false)
     })
   })
+
+  describe('sélection et suppression (REPORT_DELETE)', () => {
+    const two = [reports[0], { ...reports[0], id: 'r2' }]
+
+    it('avec REPORT_DELETE : cases par ligne, case d’en-tête, bouton Supprimer', () => {
+      seedAuth('ADMIN')
+      const w = mount(ReportsTable, { props: { reports: two, loading: false, selected: ['r1'] } })
+      expect(w.find('[data-test="select-page"]').exists()).toBe(true)
+      expect((w.find('[data-test="select-r1"]').element as HTMLInputElement).checked).toBe(true)
+      expect((w.find('[data-test="select-r2"]').element as HTMLInputElement).checked).toBe(false)
+      expect(w.find('[data-test="delete-r1"]').exists()).toBe(true)
+    })
+
+    it('émet toggle, togglePage et delete', async () => {
+      seedAuth('ADMIN')
+      const w = mount(ReportsTable, { props: { reports: two, loading: false, selected: [] } })
+      await w.find('[data-test="select-r2"]').trigger('change')
+      expect(w.emitted('toggle')![0]).toEqual(['r2'])
+      await w.find('[data-test="select-page"]').trigger('change')
+      expect(w.emitted('togglePage')).toHaveLength(1)
+      await w.find('[data-test="delete-r1"]').trigger('click')
+      expect(w.emitted('delete')![0]).toEqual(['r1'])
+    })
+
+    it('case d’en-tête cochée quand toute la page l’est', () => {
+      seedAuth('ADMIN')
+      const w = mount(ReportsTable, { props: { reports: two, loading: false, selected: ['r1', 'r2'] } })
+      expect((w.find('[data-test="select-page"]').element as HTMLInputElement).checked).toBe(true)
+    })
+
+    it('sans REPORT_DELETE : ni cases ni bouton Supprimer', () => {
+      seedAuth('SUPPORT', { REPORT_DELETE: false })
+      const w = mount(ReportsTable, { props: { reports: two, loading: false } })
+      expect(w.find('[data-test="select-page"]').exists()).toBe(false)
+      expect(w.find('[data-test="select-r1"]').exists()).toBe(false)
+      expect(w.find('[data-test="delete-r1"]').exists()).toBe(false)
+    })
+  })
 })

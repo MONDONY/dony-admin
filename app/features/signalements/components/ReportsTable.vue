@@ -1,12 +1,27 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
-defineProps<{ reports: AdminReport[]; loading: boolean }>()
-const emit = defineEmits<{ resolve: [id: string]; viewPhotos: [urls: string[]] }>()
+const props = withDefaults(defineProps<{
+  reports: AdminReport[]
+  loading: boolean
+  /** Identifiants cochés ; la colonne de cases n'apparaît qu'avec REPORT_DELETE. */
+  selected?: string[]
+}>(), { selected: () => [] })
+const emit = defineEmits<{
+  resolve: [id: string]
+  viewPhotos: [urls: string[]]
+  toggle: [id: string]
+  togglePage: []
+  delete: [id: string]
+}>()
 const auth = useAuthStore()
+const canDelete = computed(() => auth.can('REPORT_DELETE'))
+const allChecked = computed(() => props.reports.length > 0 && props.reports.every((r) => props.selected.includes(r.id)))
+const someChecked = computed(() => !allChecked.value && props.reports.some((r) => props.selected.includes(r.id)))
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
 /** Cible APP : ni libellé ni identifiant côté back, on nomme l’application. */
 function targetLabel(r: AdminReport) {
@@ -19,6 +34,14 @@ function targetLabel(r: AdminReport) {
     <table class="w-full">
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
         <tr>
+          <th v-if="canDelete" class="w-10 px-3 py-2">
+            <input
+              type="checkbox" data-test="select-page" aria-label="Sélectionner la page"
+              :checked="allChecked" :indeterminate.prop="someChecked"
+              :disabled="reports.length === 0"
+              @change="emit('togglePage')"
+            >
+          </th>
           <th class="px-4 py-2 font-medium">Cible</th>
           <th class="px-4 py-2 font-medium">Motif</th>
           <th class="px-4 py-2 font-medium">Signalé par</th>
@@ -28,7 +51,17 @@ function targetLabel(r: AdminReport) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`" class="border-b border-border">
+        <tr
+          v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`"
+          :class="['border-b border-border', selected.includes(r.id) ? 'bg-primary/5' : '']"
+        >
+          <td v-if="canDelete" class="px-3 py-3">
+            <input
+              type="checkbox" :data-test="`select-${r.id}`" :aria-label="`Sélectionner le signalement`"
+              :checked="selected.includes(r.id)"
+              @change="emit('toggle', r.id)"
+            >
+          </td>
           <td class="px-4 py-3 text-sm">
             <div class="font-medium">{{ targetLabel(r) }}</div>
             <div class="text-xs text-text-muted">{{ r.targetType }}</div>
@@ -55,12 +88,17 @@ function targetLabel(r: AdminReport) {
           <td class="px-4 py-3 text-sm text-text-muted">{{ r.reporterName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
           <td class="px-4 py-3"><StatusBadge v-bind="reportStatusMeta(r.status)" /></td>
-          <td class="px-4 py-3 text-right">
+          <td class="px-4 py-3 text-right whitespace-nowrap">
             <button
               v-if="r.status === 'OPEN' && auth.can('REPORT_RESOLVE')" type="button" :data-test="`resolve-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary hover:bg-primary/25"
               @click="emit('resolve', r.id)"
             >Traiter</button>
+            <button
+              v-if="canDelete" type="button" :data-test="`delete-${r.id}`" title="Supprimer"
+              class="ml-1 rounded-btn px-3 py-1.5 text-sm text-danger hover:bg-danger/10"
+              @click="emit('delete', r.id)"
+            >Supprimer</button>
           </td>
         </tr>
       </tbody>

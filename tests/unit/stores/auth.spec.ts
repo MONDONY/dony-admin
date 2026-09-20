@@ -140,8 +140,15 @@ describe('useAuthStore (admin)', () => {
   // SUPPORT_TICKET_MANAGE. Ce compteur ne vaut que comme garde-fou grossier : c'est
   // permissionCoverage.spec.ts qui compare les noms un à un à l'enum backend, et qui
   // attrapera une divergence que ce nombre laisserait passer.
-  it('exposes 33 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(33)
+  // 34 avec REPORT_DELETE (suppression des signalements, yadony-back #318).
+  it('exposes 34 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(34)
+  })
+
+  it('REPORT_DELETE : ADMIN et SUPER_ADMIN, pas SUPPORT', () => {
+    expect(effectivePermissions('ADMIN', {}).has('REPORT_DELETE')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('REPORT_DELETE')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('REPORT_DELETE')).toBe(false)
   })
 
   it('SUPPORT porte les deux permissions de la messagerie support', () => {
