@@ -13,6 +13,7 @@ export const REPORT_REASON_LABELS: Record<string, string> = {
   SPAM: 'Spam',
   PAYMENT_ISSUE: 'Problème de paiement',
   APP_BUG: 'Bug de l’application',
+  SCREEN_BUG: 'Bug signalé depuis un écran',
   OTHER: 'Autre',
 }
 

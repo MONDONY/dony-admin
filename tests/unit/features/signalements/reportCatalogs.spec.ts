@@ -8,6 +8,10 @@ describe('reportReasonLabel', () => {
     expect(reportReasonLabel('SCAM_ATTEMPT')).toBe('Tentative d’arnaque')
   })
 
+  it('SCREEN_BUG (rapport du scarabée, yadony-back #317) a son libellé', () => {
+    expect(reportReasonLabel('SCREEN_BUG')).toBe('Bug signalé depuis un écran')
+  })
+
   it('falls back to the raw value for an unknown reason', () => {
     expect(reportReasonLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW')
   })
