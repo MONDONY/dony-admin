@@ -61,6 +61,11 @@ export function useOverview() {
     if (typeof kycCount === 'number') {
       cards.push({ id: 'kyc', label: 'Identités à vérifier', count: kycCount, tone: 'info', href: '/kyc' })
     }
+    // Argent bloqué chez Yadony en attente d'une décision admin : la carte disparaît face à
+    // un back qui ne l'envoie pas encore, elle reste à zéro sinon.
+    if (typeof q.heldPayouts === 'number') {
+      cards.push({ id: 'heldPayouts', label: 'Versements retenus', count: q.heldPayouts, tone: 'danger', href: '/transactions?held=true' })
+    }
     cards.push({ id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: '/transactions' })
     return cards
   })

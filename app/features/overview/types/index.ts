@@ -24,5 +24,7 @@ export interface AdminOverview {
     pendingKyc?: number
     /** Vérifications en attente de décision admin (file /kyc), nouveau back seulement. */
     kycInReview?: number
+    /** Versements retenus d'un voyageur banni ou dont l'identité est révoquée, nouveau back seulement. */
+    heldPayouts?: number
   }
 }
