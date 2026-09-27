@@ -37,7 +37,7 @@ async function copyId() {
 }
 
 type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging'
-  | 'grantPro' | 'revokePro' | null
+  | 'grantPro' | 'revokePro' | 'unban' | null
 const pending = ref<Pending>(null)
 
 // « profil » par défaut : les gestes de compte restent immédiatement accessibles à
@@ -63,6 +63,8 @@ function confirmReason(reason: string) {
   else if (pending.value === 'muteMessaging') emit('muteMessaging', muteDurationHours(), reason)
   else if (pending.value === 'grantPro') emit('grantPro', reason)
   else if (pending.value === 'revokePro') emit('revokePro')
+  // Même endpoint que la levée de suspension : le back l'accepte pour SUSPENDED et BANNED.
+  else if (pending.value === 'unban') emit('unsuspend')
   pending.value = null
 }
 
@@ -147,6 +149,13 @@ const dialogConfig = computed<DialogConfig>(() => {
     case 'ban':
       return {
         title: 'Bannir ce compte', message: 'Le compte sera banni définitivement.', confirmLabel: 'Bannir', requireReason: true,
+      }
+    case 'unban':
+      return {
+        title: 'Lever le bannissement de ce compte',
+        message: 'Le compte redeviendra actif : l\'utilisateur pourra de nouveau se connecter, publier et échanger.',
+        confirmLabel: 'Lever le bannissement',
+        requireReason: false,
       }
     case 'suspendPublishing':
       return {
@@ -288,6 +297,11 @@ const dialogConfig = computed<DialogConfig>(() => {
           class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30"
           @click="emit('unsuspend')"
         >Réactiver</button>
+        <button
+          v-if="user.status === 'BANNED' && auth.can('USER_SUSPEND') && auth.can('USER_BAN')" type="button" data-test="action-unban"
+          class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30"
+          @click="pending = 'unban'"
+        >Lever le bannissement</button>
         <button
           v-if="!user.publishingSuspended && auth.can('USER_SUSPEND')" type="button" data-test="action-suspend-publishing"
           class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30"
