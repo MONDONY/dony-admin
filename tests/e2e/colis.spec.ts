@@ -93,3 +93,18 @@ test('admin retire une annonce avec un motif puis la restaure', async ({ page })
   await page.locator('[data-test="restore-an1"]').click()
   await expect(page.locator('[data-test="remove-an1"]')).toBeVisible()
 })
+
+test('les annonces se paginent au-delà de 20', async ({ page }) => {
+  const pages: string[] = []
+  await page.route('**/api/v1/admin/announcements**', (route) => {
+    const p = new URL(route.request().url()).searchParams.get('page') ?? ''
+    pages.push(p)
+    return route.fulfill({ json: { ...ANNS, totalElements: 30, totalPages: 2, number: Number(p) } })
+  })
+  await page.goto('/colis')
+  await expect(page.locator('[data-test="bid-row-b1"]')).toBeVisible()
+  await page.locator('[data-test="tab-announcements"]').click()
+  await expect.poll(() => pages).toEqual(['0'])
+  await page.locator('[data-test="next"]').click()
+  await expect.poll(() => pages).toEqual(['0', '1'])
+})

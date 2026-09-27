@@ -1,20 +1,7 @@
 import { ref } from 'vue'
 import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminAnnouncementListItem } from '@/features/bids/types/index'
-
-/**
- * Le backend renvoie du RFC 7807 (`ProblemDetail`, ex. GlobalExceptionHandler
- * côté back) — le champ `detail` porte le message écrit pour un humain
- * (ex. « Des colis acceptés sont en cours sur cette annonce. » sur le 409
- * de removeByAdmin). `useApi()` (ofetch) expose le corps de réponse parsé
- * via `error.data`. On ne retombe sur `error.message` (générique, au format
- * `[POST] "url": 409 Conflict`) que si `data.detail` est absent.
- */
-function extractMessage(e: unknown, fallback: string): string {
-  const data = (e as { data?: { detail?: string } } | undefined)?.data
-  if (typeof data?.detail === 'string' && data.detail.trim().length > 0) return data.detail
-  return (e as Error)?.message || fallback
-}
 
 /**
  * État + actions de la table des annonces (onglet « Annonces » de /colis) :
@@ -28,18 +15,26 @@ export function useAdminAnnouncements() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const busy = ref(false)
+  const currentPage = ref(0)
+  const totalPages = ref(0)
+  const pageSize = 20
 
-  async function load() {
+  /** La page courante ne change qu'une fois la nouvelle page reçue : un échec laisse l'ancienne affichée. */
+  async function load(page = currentPage.value) {
     isLoading.value = true
     error.value = null
     try {
-      announcements.value = (await bidsAdminService.listAnnouncements(0, 20)).content
+      const res = await bidsAdminService.listAnnouncements(page, pageSize)
+      announcements.value = res.content
+      totalPages.value = res.totalPages
+      currentPage.value = page
     } catch (e) {
-      error.value = extractMessage(e, 'Impossible de charger les annonces')
+      error.value = extractProblemMessage(e, 'Impossible de charger les annonces')
     } finally {
       isLoading.value = false
     }
   }
+  const goToPage = (page: number) => load(page)
 
   function replace(updated: AdminAnnouncementListItem) {
     const idx = announcements.value.findIndex((a) => a.id === updated.id)
@@ -52,7 +47,7 @@ export function useAdminAnnouncements() {
     try {
       replace(await fn())
     } catch (e) {
-      error.value = extractMessage(e, 'Action échouée')
+      error.value = extractProblemMessage(e, 'Action échouée')
     } finally {
       busy.value = false
     }
@@ -62,5 +57,5 @@ export function useAdminAnnouncements() {
     run(() => bidsAdminService.removeAnnouncement(id, publicReason, internalNote))
   const restore = (id: string) => run(() => bidsAdminService.restoreAnnouncement(id))
 
-  return { announcements, isLoading, error, busy, load, remove, restore }
+  return { announcements, isLoading, error, busy, currentPage, totalPages, load, goToPage, remove, restore }
 }

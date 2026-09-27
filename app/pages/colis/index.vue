@@ -16,7 +16,8 @@ const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, 
 const detail = useBidTimeline()
 const {
   announcements: anns, isLoading: annLoading, error: annError, busy: annBusy,
-  load: loadAnns, remove: removeAnnouncement, restore: restoreAnnouncement,
+  currentPage: annPage, totalPages: annTotalPages,
+  load: loadAnns, goToPage: goToAnnPage, remove: removeAnnouncement, restore: restoreAnnouncement,
 } = useAdminAnnouncements()
 
 async function switchTab(t: 'bids' | 'announcements') {
@@ -67,9 +68,14 @@ onMounted(fetchBids)
       />
     </template>
 
-    <AnnouncementsTable
-      v-else :announcements="anns" :loading="annLoading" :error="annError" :busy="annBusy"
-      @remove="removeAnnouncement" @restore="restoreAnnouncement"
-    />
+    <template v-else>
+      <AnnouncementsTable
+        :announcements="anns" :loading="annLoading" :error="annError" :busy="annBusy"
+        @remove="removeAnnouncement" @restore="restoreAnnouncement"
+      />
+      <div class="mt-4">
+        <PaginationControls :page="annPage" :total-pages="annTotalPages" @change="goToAnnPage" />
+      </div>
+    </template>
   </div>
 </template>
