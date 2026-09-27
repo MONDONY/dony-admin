@@ -2,8 +2,12 @@
 import { ref } from 'vue'
 import type { PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter } from '@/features/payments/types/index'
 
-defineProps<{ modelStatus: PaymentStatusFilter; modelMethod: PaymentMethodFilter; modelCurrency: PaymentCurrencyFilter; modelDateFrom: string | null; modelDateTo: string | null }>()
+defineProps<{
+  modelStatus: PaymentStatusFilter; modelMethod: PaymentMethodFilter; modelCurrency: PaymentCurrencyFilter; modelDateFrom: string | null; modelDateTo: string | null
+  modelHeld?: boolean
+}>()
 const emit = defineEmits<{
+  'update:held': [boolean]
   'update:status': [PaymentStatusFilter]
   'update:method': [PaymentMethodFilter]
   'update:currency': [PaymentCurrencyFilter]
@@ -88,6 +92,16 @@ function clearDates() {
           @click="emit('update:currency', c.value)"
         >{{ c.label }}</button>
       </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs text-text-muted font-medium w-16 shrink-0">Blocage</span>
+      <button
+        type="button" data-test="chip-held" :aria-pressed="modelHeld ? 'true' : 'false'"
+        :class="['rounded-full px-3 py-1 text-xs transition-colors',
+          modelHeld ? 'bg-danger text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+        @click="emit('update:held', !modelHeld)"
+      >Versements retenus</button>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
