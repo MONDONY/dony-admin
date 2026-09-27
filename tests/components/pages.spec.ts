@@ -12,6 +12,7 @@ vi.stubGlobal('definePageMeta', vi.fn())
 // Sans cette propriété, les pages qui lisent `route.query?.xxx` reçoivent `undefined`
 // et peuvent lever une rejection non gérée au montage.
 vi.stubGlobal('useRoute', () => ({ meta: {}, query: {} }))
+vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApiKey: '' } }))
 vi.stubGlobal('navigateTo', vi.fn())
 vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
