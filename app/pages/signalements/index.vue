@@ -220,6 +220,11 @@ onMounted(r.fetchReports)
         Signalés uniquement
       </label>
 
+      <p
+        v-if="rt.error.value" data-test="ratings-error" role="alert"
+        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >{{ rt.error.value }}</p>
+
       <RatingsTable
         :ratings="rt.ratings.value" :loading="rt.isLoading.value"
         @exclude="(id) => pendingExcludeId = id" @remove="(id) => pendingRemoveId = id"

@@ -123,3 +123,19 @@ test('resolving a USER report offers Suspendre la cible but not Retirer le conte
   expect(options).toContain('Suspendre la cible')
   expect(options).not.toContain('Retirer le contenu')
 })
+
+test('un refus de suppression d’avis s’affiche au lieu d’être avalé', async ({ page }) => {
+  await page.route('**/api/v1/admin/ratings**', (route) => {
+    if (route.request().method() === 'DELETE') {
+      return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ status: 409, detail: 'Avis déjà supprimé' }) })
+    }
+    return route.fulfill({ json: RATINGS_PAGE })
+  })
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
+  await page.locator('[data-test="tab-ratings"]').click()
+  await page.locator('[data-test="remove-rt1"]').click()
+  await page.locator('[data-test="reason"]').fill('spam')
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="ratings-error"]')).toHaveText('Avis déjà supprimé')
+})

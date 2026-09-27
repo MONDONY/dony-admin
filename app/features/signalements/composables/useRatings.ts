@@ -32,9 +32,17 @@ export function useRatings() {
     await ratingsService.exclude(id, excluded, reason)
     await fetchRatings()
   }
-  async function remove(id: string, reason?: string) {
-    await ratingsService.remove(id, reason)
+  /** Retourne true si l'avis est supprimé ; sinon `error` porte le motif du refus. */
+  async function remove(id: string, reason?: string): Promise<boolean> {
+    error.value = null
+    try {
+      await ratingsService.remove(id, reason)
+    } catch (e) {
+      error.value = extractProblemMessage(e, 'Impossible de supprimer cet avis')
+      return false
+    }
     await fetchRatings()
+    return true
   }
 
   return { ratings, isLoading, error, totalPages, currentPage, pageSize, filters, fetchRatings, goToPage, setFlaggedOnly, exclude, remove }
