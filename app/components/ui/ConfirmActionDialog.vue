@@ -12,6 +12,8 @@ const props = defineProps<{
    * Un champ unique servant aux deux usages faisait fuiter l'identité du signalant.
    */
   reasonOptions?: readonly { value: string; label: string }[]
+  /** Ton du bouton de confirmation : danger par défaut, primaire pour un geste réparateur (restauration). */
+  confirmTone?: 'danger' | 'primary'
 }>()
 const emit = defineEmits<{ confirm: [reason: string, reasonChoice?: string]; cancel: [] }>()
 const reason = ref('')
@@ -38,7 +40,7 @@ const canConfirm = () => {
 // sans quoi un modérateur y écrira des informations qu'il croit privées.
 const reasonPlaceholder = computed(() =>
   props.reasonOptions?.length
-    ? 'Note interne (facultative — non transmise à l’utilisateur)'
+    ? 'Note interne (facultative, non transmise à l’utilisateur)'
     : 'Motif (obligatoire)',
 )
 
@@ -85,7 +87,8 @@ function onConfirm() {
         >Annuler</button>
         <button
           type="button" data-test="confirm" :disabled="!canConfirm()"
-          class="rounded-btn px-4 py-2 text-sm bg-danger text-white disabled:opacity-40 hover:bg-danger/90"
+          :class="['rounded-btn px-4 py-2 text-sm text-white disabled:opacity-40',
+            confirmTone === 'primary' ? 'bg-primary hover:bg-primary/90' : 'bg-danger hover:bg-danger/90']"
           @click="onConfirm"
         >{{ confirmLabel }}</button>
       </div>
