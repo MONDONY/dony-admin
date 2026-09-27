@@ -32,11 +32,14 @@ vi.mock('@/features/users/services/usersService', () => ({
 
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a><slot /></a>', props: ['to', 'target', 'rel'] }
 
-async function mountUsersPage(queryParam?: string) {
+async function mountUsersPage(queryParam?: string, openParam?: string) {
   // On contrôle useRoute() pour simuler le paramètre d'URL
+  const query: Record<string, string> = {}
+  if (queryParam) query.query = queryParam
+  if (openParam) query.open = openParam
   vi.stubGlobal('useRoute', () => ({
     meta: { middleware: 'admin-only', permission: 'USER_VIEW' },
-    query: queryParam ? { query: queryParam } : {},
+    query,
   }))
 
   const mod = await import('@/pages/users/index.vue')
@@ -74,13 +77,14 @@ vi.mock('@/features/users/composables/useUserKyc', () => ({
 // (null ou avec un utilisateur). On doit le mocker ici pour que vi.mock hisse
 // la déclaration avant les imports — la valeur de userRef sera mutée dans beforeEach.
 const userRef = ref<null | { id: string }>(null)
+const detailOpenMock = vi.fn()
 vi.mock('@/features/users/composables/useUserDetail', () => ({
   useUserDetail: () => ({
     user: userRef,
     isLoading: ref(false),
     error: ref(null),
     busy: ref(false),
-    open: vi.fn(),
+    open: (...a: unknown[]) => detailOpenMock(...a),
     close: vi.fn(),
     suspend: vi.fn(),
     ban: vi.fn(),
@@ -123,6 +127,17 @@ describe("users/index.vue — lecture du paramètre d'URL", () => {
     expect(listMock).toHaveBeenCalled()
     const [filtersArg] = listMock.mock.calls[0]
     expect(filtersArg.query).toBe(uuid)
+    expect(detailOpenMock).not.toHaveBeenCalled()
+  })
+
+  // Lien depuis l'onglet Portefeuilles des transactions : la liste est filtrée ET la fiche
+  // s'ouvre directement, sans second clic sur l'unique ligne.
+  it('ouvre directement la fiche quand ?open=<id> est fourni', async () => {
+    detailOpenMock.mockReset()
+    const uuid = 'a1b2c3d4-0000-0000-0000-000000000000'
+    await mountUsersPage(uuid, uuid)
+    expect(listMock.mock.calls[0][0].query).toBe(uuid)
+    expect(detailOpenMock).toHaveBeenCalledWith(uuid)
   })
 })
 

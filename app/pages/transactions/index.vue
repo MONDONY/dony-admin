@@ -153,6 +153,11 @@ async function switchTab(t: Tab) {
   if (t === 'cash-commissions' && cashCommissions.value.length === 0) await loadCashCommissions()
   if (t === 'wallet-refunds' && !walletRefundsLoaded.value) await loadWalletRefunds()
 }
+// Même lien que les contreparties de UserDeletionDialog (?query=<uuid>), plus ?open=<uuid>
+// pour ouvrir la fiche sans second clic.
+function openWalletOwner(userId: string) {
+  return navigateTo({ path: '/users', query: { query: userId, open: userId } })
+}
 async function afterAction() { await fetchPayments() }
 async function onAction(fn: () => Promise<boolean>) {
   await fn()
@@ -208,7 +213,7 @@ onMounted(fetchPayments)
       <div class="mt-4"><PaginationControls :page="cbPage" :total-pages="cbTotalPages" @change="loadCbs" /></div>
     </template>
     <template v-else-if="tab === 'wallets'">
-      <WalletsTable :wallets="wallets" :loading="walletsLoading" />
+      <WalletsTable :wallets="wallets" :loading="walletsLoading" @select="openWalletOwner" />
       <div class="mt-4"><PaginationControls :page="walletsPage" :total-pages="walletsTotalPages" @change="loadWallets" /></div>
     </template>
     <template v-else-if="tab === 'mobile-money'">

@@ -57,6 +57,9 @@ onMounted(async () => {
   } else {
     await fetchUsers()
   }
+  // ?open=<uuid> (lien depuis l'onglet Portefeuilles des transactions) : ouvre la fiche.
+  const openId = route.query?.open
+  if (openId && typeof openId === 'string') await openUser(openId)
 })
 </script>
 

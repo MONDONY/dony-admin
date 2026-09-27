@@ -79,6 +79,14 @@ describe('WalletsTable', () => {
     const w = mount(WalletsTable, { props: { wallets, loading: false } })
     expect(w.findAll('button').length).toBe(0)
   })
+  it('une ligne cliquable émet select avec l’utilisateur, au clic comme au clavier', async () => {
+    const w = mount(WalletsTable, { props: { wallets, loading: false } })
+    const row = w.find('[data-test="wallet-row-w1"]')
+    expect(row.attributes('tabindex')).toBe('0')
+    await row.trigger('click')
+    await row.trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('select')).toEqual([['u1'], ['u1']])
+  })
 })
 
 describe('MobileMoneyTable', () => {

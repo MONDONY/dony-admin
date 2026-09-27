@@ -6,6 +6,8 @@ export type PaymentStatus = 'PENDING' | 'ESCROW' | 'RELEASED' | 'FAILED' | 'REFU
  */
 export type PaymentMethod = 'STRIPE' | 'PAWAPAY'
 export type PaymentCurrency = 'EUR' | 'USD' | 'CAD' | 'GBP' | 'CHF' | 'XOF' | 'XAF'
+/** Les devises que la plateforme sait encaisser, dans l'ordre d'affichage des filtres. */
+export const PAYMENT_CURRENCIES: readonly PaymentCurrency[] = ['EUR', 'USD', 'CAD', 'GBP', 'CHF', 'XOF', 'XAF']
 export type PaymentStatusFilter = 'TOUS' | PaymentStatus
 export type PaymentMethodFilter = 'TOUS' | PaymentMethod
 export type PaymentCurrencyFilter = 'TOUTES' | PaymentCurrency
