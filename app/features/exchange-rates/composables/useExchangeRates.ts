@@ -13,6 +13,8 @@ export function useExchangeRates() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const busy = ref(false)
+  const syncing = ref(false)
+  const syncMessage = ref<string | null>(null)
 
   async function load() {
     isLoading.value = true
@@ -43,5 +45,30 @@ export function useExchangeRates() {
     }
   }
 
-  return { rates, isLoading, error, busy, load, update }
+  /**
+   * Synchronisation BCE à la demande, avec les garde-fous du cron (parité fixe, variation
+   * maximale). La liste est rechargée sans repasser par l'état « Chargement… » : le tableau
+   * reste affiché et se met à jour en place.
+   */
+  async function sync() {
+    error.value = null
+    syncMessage.value = null
+    syncing.value = true
+    try {
+      const { updated } = await exchangeRatesService.sync()
+      syncMessage.value = syncSummary(updated)
+      rates.value = await exchangeRatesService.list()
+    } catch (e) {
+      error.value = extractProblemMessage(e, 'Synchronisation BCE impossible')
+    } finally {
+      syncing.value = false
+    }
+  }
+
+  return { rates, isLoading, error, busy, syncing, syncMessage, load, update, sync }
+}
+
+function syncSummary(updated: number): string {
+  if (updated === 0) return 'Aucune devise modifiée : les taux étaient déjà à jour'
+  return updated === 1 ? '1 devise mise à jour par la BCE' : `${updated} devises mises à jour par la BCE`
 }
