@@ -41,8 +41,8 @@ describe('useRatings', () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     svc.remove.mockResolvedValue(undefined)
     const r = useRatings()
-    await r.remove('rt1')
-    expect(svc.remove).toHaveBeenCalledWith('rt1')
+    await r.remove('rt1', 'spam')
+    expect(svc.remove).toHaveBeenCalledWith('rt1', 'spam')
     expect(svc.list).toHaveBeenCalled()
   })
 
@@ -51,5 +51,12 @@ describe('useRatings', () => {
     const r = useRatings()
     await r.fetchRatings()
     expect(r.error.value).toBe('nope')
+  })
+
+  it('préfère le detail du ProblemDetail au message technique', async () => {
+    svc.list.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { data: { detail: 'Accès refusé' } }))
+    const r = useRatings()
+    await r.fetchRatings()
+    expect(r.error.value).toBe('Accès refusé')
   })
 })

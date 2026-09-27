@@ -110,8 +110,7 @@ async function confirmExclude(reason: string) {
   pendingExcludeId.value = null
 }
 async function confirmRemove(reason: string) {
-  if (pendingRemoveId.value) await rt.remove(pendingRemoveId.value)
-  void reason
+  if (pendingRemoveId.value) await rt.remove(pendingRemoveId.value, reason)
   pendingRemoveId.value = null
 }
 
@@ -316,6 +315,7 @@ onMounted(r.fetchReports)
       title="Supprimer l'avis"
       message="Suppression définitive (soft delete). Cette action est irréversible côté public."
       confirm-label="Supprimer"
+      :require-reason="true"
       @confirm="confirmRemove"
       @cancel="pendingRemoveId = null"
     />
