@@ -54,6 +54,18 @@ describe('financeService', () => {
     expect(apiMock.mock.calls[0][1].query).toEqual({ from: '2026-08-01T00:00:00', to: '2026-08-31T23:59:59' })
   })
 
+  it('getMobileMoneyCommissionsForDays borne la période du début du premier jour à la fin du dernier', async () => {
+    apiMock.mockResolvedValue({ from: '', to: '', byCurrency: [], monthly: [] })
+    await financeService.getMobileMoneyCommissionsForDays('2026-08-01', '2026-08-31')
+    expect(apiMock.mock.calls[0][1].query).toEqual({ from: '2026-08-01T00:00:00', to: '2026-08-31T23:59:59' })
+  })
+
+  it('getMobileMoneyCommissionsForDays laisse au back une borne absente', async () => {
+    apiMock.mockResolvedValue({ from: '', to: '', byCurrency: [], monthly: [] })
+    await financeService.getMobileMoneyCommissionsForDays(null, '2026-08-31')
+    expect(apiMock.mock.calls[0][1].query).toEqual({ from: undefined, to: '2026-08-31T23:59:59' })
+  })
+
   it('listWalletRefundRequests GETe la file des demandes de remboursement wallet', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     await financeService.listWalletRefundRequests(0, 20)
