@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { KycDecisionCode } from '@/features/kyc/types/index'
+import { heldPaymentsReminder } from '@/features/payments/types/index'
 import {
   KYC_APPROVE_REASON_MIN, KYC_DECISION_CODES, KYC_REASON_MAX, KYC_REJECT_REASON_MIN, KYC_REVOKE_REASON_MIN,
   kycDecisionCodeUserMessage, reasonLengthValid,
@@ -19,6 +20,8 @@ const props = defineProps<{
   codes?: readonly KycDecisionCode[]
   busy?: boolean
   error?: string | null
+  /** Paiements retenus du voyageur : valider l'identité ne les fait pas repartir. */
+  heldPaymentsCount?: number | null
 }>()
 const emit = defineEmits<{ submit: [payload: KycDecisionPayload]; cancel: [] }>()
 
@@ -71,6 +74,12 @@ const userMessage = computed(() => {
 // Comparaison après trim, sensible à la casse : même règle que la double confirmation RGPD.
 const nameMatches = computed(() => confirmName.value.trim() === props.userName.trim())
 
+const heldReminder = computed(() => {
+  const n = props.heldPaymentsCount ?? 0
+  if (props.mode !== 'approve' || n <= 0) return null
+  return heldPaymentsReminder(n)
+})
+
 const canSubmit = computed(() => {
   if (props.busy || !reasonValid.value) return false
   if (needsCode.value && !code.value) return false
@@ -107,6 +116,11 @@ function onSubmit() {
           data-test="kyc-dialog-provider-link" class="mt-1 block font-medium text-primary underline-offset-2 hover:underline"
         >Ouvrir la session chez le fournisseur</a>
       </div>
+
+      <p
+        v-if="heldReminder" data-test="kyc-approve-held-reminder"
+        class="mb-4 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text text-pretty"
+      >{{ heldReminder }}</p>
 
       <div
         v-if="mode === 'revoke'" data-test="kyc-revoke-warning" role="alert"

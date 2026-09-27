@@ -8,6 +8,8 @@ const props = defineProps<{
   kyc: AdminKycDetail | null; loading?: boolean; error?: string | null; busy?: boolean
   /** Nom à ressaisir avant une révocation. */
   userName?: string | null
+  /** Paiements retenus du voyageur : rappelés au moment de valider l'identité. */
+  heldPaymentsCount?: number | null
 }>()
 const emit = defineEmits<{ reset: [reason: string]; decided: [kyc: AdminKycDetail]; stale: [] }>()
 
@@ -82,6 +84,7 @@ function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleStri
 
       <KycDecisionActions
         :kyc="props.kyc" :user-name="props.userName ?? null" :reset-busy="props.busy"
+        :held-payments-count="props.heldPaymentsCount ?? null"
         @decided="(k) => emit('decided', k)" @stale="emit('stale')" @reset="(r) => emit('reset', r)"
       />
     </template>

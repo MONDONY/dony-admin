@@ -20,6 +20,8 @@ const props = defineProps<{
   userName: string | null
   /** Réinitialisation en cours (portée par le parent, qui détient l'appel). */
   resetBusy?: boolean
+  /** Paiements retenus du voyageur (fiche utilisateur) ; inconnu depuis la file /kyc. */
+  heldPaymentsCount?: number | null
 }>()
 const emit = defineEmits<{ decided: [kyc: AdminKycDetail]; stale: []; reset: [reason: string] }>()
 const auth = useAuthStore()
@@ -117,6 +119,7 @@ const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-co
       :user-name="confirmationName"
       :provider-session-url="props.kyc.providerSessionUrl ?? null"
       :codes="codeOptions"
+      :held-payments-count="props.heldPaymentsCount ?? null"
       :busy="decision.busy.value"
       :error="decision.error.value"
       @submit="onSubmit"

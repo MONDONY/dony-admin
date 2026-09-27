@@ -7,6 +7,7 @@ import UserKycTab from './UserKycTab.vue'
 import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
 import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
+import { heldPaymentsReminder, holdReasonLabel } from '@/features/payments/types/index'
 
 const props = defineProps<{
   user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
@@ -28,6 +29,22 @@ const mobileMoneyLabel = computed(() => {
   const parts = [u.mobileMoneyStatus, u.mobileMoneyProvider, u.mobileMoneyCurrency, u.mobileMoneyMsisdnMasked]
   return parts.filter(Boolean).join(' · ')
 })
+
+// Versements retenus (compte banni ou identité révoquée) : l'argent reste chez Yadony et ne
+// repart pas tout seul quand le compte est rétabli, d'où le bandeau ET les rappels ci-dessous.
+const heldCount = computed(() => props.user.heldPaymentsCount ?? 0)
+const payoutsHeld = computed(() => props.user.payoutsHeldSince != null || heldCount.value > 0)
+const plural = (n: number) => (n > 1 ? 's' : '')
+const payoutsHeldText = computed(() => {
+  const since = props.user.payoutsHeldSince
+    ? ` depuis le ${new Date(props.user.payoutsHeldSince).toLocaleDateString('fr-FR')}`
+    : ''
+  const reason = holdReasonLabel(props.user.payoutsHeldReason)
+  const n = heldCount.value
+  const pendingPart = n > 0 ? `${n} paiement${plural(n)} en attente` : 'aucun paiement en attente'
+  return `Versements bloqués${since}${reason ? ` (${reason})` : ''} : ${pendingPart}.`
+})
+const heldReminder = computed(() => heldCount.value > 0 ? ` ${heldPaymentsReminder(heldCount.value)}` : '')
 
 // Constat 4 — copie de l'UUID en un clic avec retour visuel
 const idCopied = ref(false)
@@ -158,7 +175,7 @@ const dialogConfig = computed<DialogConfig>(() => {
     case 'unban':
       return {
         title: 'Lever le bannissement de ce compte',
-        message: 'Le compte redeviendra actif : l\'utilisateur pourra de nouveau se connecter, publier et échanger.',
+        message: 'Le compte redeviendra actif : l\'utilisateur pourra de nouveau se connecter, publier et échanger.' + heldReminder.value,
         confirmLabel: 'Lever le bannissement',
         requireReason: false,
       }
@@ -230,6 +247,21 @@ const dialogConfig = computed<DialogConfig>(() => {
             @click="emit('close')"
           >Fermer</button>
         </div>
+      </div>
+
+      <div
+        v-if="payoutsHeld" data-test="user-payouts-held" role="status"
+        class="mb-4 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm"
+      >
+        <p class="font-medium text-danger text-pretty">{{ payoutsHeldText }}</p>
+        <p class="mt-1 text-xs text-text-muted text-pretty">
+          Ses gains restent chez Yadony. Chaque paiement se décide à part : rembourser l’expéditeur ou payer le voyageur par dérogation.
+        </p>
+        <NuxtLink
+          v-if="heldCount > 0 && auth.can('PAYMENT_VIEW')" data-test="user-payouts-held-link"
+          to="/transactions?held=true"
+          class="mt-2 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+        >Voir les versements retenus</NuxtLink>
       </div>
 
       <div class="mb-4 flex gap-1 border-b border-border" role="tablist">
@@ -416,7 +448,7 @@ const dialogConfig = computed<DialogConfig>(() => {
       <UserKycTab
         v-if="tab === 'kyc'"
         :kyc="props.kyc ?? null" :loading="props.kycLoading" :error="props.kycError" :busy="props.busy"
-        :user-name="kycUserName"
+        :user-name="kycUserName" :held-payments-count="heldCount"
         @reset="(reason) => emit('resetKyc', reason)"
         @decided="(k) => emit('kycDecided', k)" @stale="emit('kycStale')"
       />

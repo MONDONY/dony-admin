@@ -63,6 +63,13 @@ export interface AdminUserDetail extends AdminUserListItem {
   mobileMoneyCurrency?: string | null
   mobileMoneyCountry?: string | null
   mobileMoneyMsisdnMasked?: string | null
+  /**
+   * Versements retenus d'un voyageur banni ou dont l'identité est révoquée (nouveau back,
+   * NON_NULL) : absents d'un ancien back, et alors aucun bandeau ne s'affiche.
+   */
+  payoutsHeldSince?: string | null
+  payoutsHeldReason?: 'BANNED' | 'KYC_REVOKED' | null
+  heldPaymentsCount?: number | null
 }
 
 export interface AdminUserPage {
