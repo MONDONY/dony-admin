@@ -1,4 +1,6 @@
 import { paymentMethodLabel } from '@/features/payments/types/index'
+import { reportStatusMeta } from '@/features/signalements/components/reportStatus'
+import type { ReportStatus } from '@/features/signalements/types/index'
 
 type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral'
 type Meta = { label: string; tone: Tone }
@@ -42,8 +44,8 @@ export function isActiveNegotiation(status: string): boolean {
 }
 
 /**
- * Le code de `removeBlockedReason` n'est pas encore figé côté back : on accepte la forme
- * slug (`package-request-has-active-shipment`) comme la forme enum (`HAS_ACTIVE_SHIPMENT`).
+ * Codes de `removeBlockedReason` et des 409 (yadony-back #333) : slugs `package-request-*`.
+ * La forme enum (`HAS_ACTIVE_SHIPMENT`) reste acceptée par tolérance.
  */
 function normalizeBlockCode(code: string): string {
   return code.toLowerCase().replace(/_/g, '-').replace(/^package-request-/, '')
@@ -60,7 +62,10 @@ export function removeBlockedExplanation(code: string | null): string {
   if (isActiveShipmentBlock(code)) {
     return 'Un envoi est en cours sur cette demande (colis accepté, payé ou en route) : elle ne peut plus être retirée. Traitez le problème depuis les litiges.'
   }
-  if (normalizeBlockCode(code) === 'already-removed') return 'Cette demande est déjà retirée.'
+  const c = normalizeBlockCode(code)
+  if (c === 'already-removed') return 'Cette demande est déjà retirée.'
+  if (c === 'draft') return 'Cette demande est un brouillon jamais publié : il n’y a rien à retirer.'
+  if (c === 'completed') return 'Cette demande est terminée (colis livré) : elle ne peut plus être retirée.'
   return `Retrait impossible pour le moment (${code}).`
 }
 
@@ -86,4 +91,14 @@ const EXTRA_PAYMENT: Record<string, string> = { CASH: 'Espèces', WALLET: 'Porte
 export function paymentMethodsLabel(methods: string[] | null | undefined): string {
   if (!methods?.length) return 'Non renseignés'
   return methods.map((m) => EXTRA_PAYMENT[m] ?? paymentMethodLabel(m)).join(', ')
+}
+
+/** Statut d'un signalement, avec les libellés de la page Signalements ; inconnu affiché brut. */
+export function reportStatusLabelMeta(status: string): { label: string; tone: 'neutral' | 'success' | 'warning' } {
+  return reportStatusMeta(status as ReportStatus) ?? { label: status, tone: 'neutral' }
+}
+
+export function dateToleranceLabel(days: number | null | undefined): string {
+  if (!days) return 'Date exacte'
+  return `± ${days} jour${days > 1 ? 's' : ''}`
 }

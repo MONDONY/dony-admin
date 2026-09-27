@@ -9,15 +9,15 @@ const ROW = {
   currency: 'EUR', targetPrice: 40, createdAt: '2026-09-20T10:00:00Z', reportCount: 2, openNegotiationCount: 2,
 }
 const DETAIL = {
-  ...ROW, description: 'Deux paires de chaussures', contentCategory: 'Vêtements',
+  ...ROW, dateToleranceDays: 2, recipientCity: 'Rufisque', description: 'Deux paires de chaussures', contentCategory: 'Vêtements',
   pickupNeighborhood: 'Belleville', deliveryNeighborhood: 'Plateau', pickupAddressLabel: null, deliveryAddressLabel: null,
   acceptedPaymentMethods: ['STRIPE'], negotiable: true, statusBeforeRemoval: null,
   photos: [{ url: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' }],
   negotiations: [{ id: 'n1', travelerId: 't1', travelerName: 'Karim', status: 'OPEN', lastPrice: 35, currency: 'EUR', updatedAt: '2026-09-21T10:00:00Z' }],
-  reports: [{ id: 'r1', reporterId: 'u2', reporterName: 'Moussa', reason: 'SCAM_ATTEMPT', details: 'prix louche', createdAt: '2026-09-22T09:00:00Z' }],
+  reports: [{ id: 'r1', reporterId: 'u2', reporterName: 'Moussa', reason: 'SCAM_ATTEMPT', details: 'prix louche', status: 'OPEN', createdAt: '2026-09-22T09:00:00Z' }],
   canRemove: true, removeBlockedReason: null, canRestore: false,
 }
-const REMOVED = { ...DETAIL, status: 'REMOVED_BY_ADMIN', statusBeforeRemoval: 'NEGOTIATING', openNegotiationCount: 0, canRemove: false, removeBlockedReason: 'ALREADY_REMOVED', canRestore: true }
+const REMOVED = { ...DETAIL, status: 'REMOVED_BY_ADMIN', statusBeforeRemoval: 'NEGOTIATING', openNegotiationCount: 0, canRemove: false, removeBlockedReason: 'package-request-already-removed', canRestore: true }
 const RESTORED = { ...DETAIL, status: 'OPEN', openNegotiationCount: 0 }
 
 async function mockBase(page: Page) {
@@ -73,6 +73,9 @@ test('liste des demandes, fiche puis retrait avec motif public et note interne',
   await expect(panel).toContainText('Deux paires de chaussures')
   await expect(page.locator('[data-test="pr-negotiation-n1"]')).toContainText('Karim')
   await expect(page.locator('[data-test="pr-report-r1"]')).toContainText('Tentative d’arnaque')
+  await expect(page.locator('[data-test="pr-report-status-r1"]')).toHaveText('Ouvert')
+  await expect(page.locator('[data-test="pr-budget"]')).toContainText('40,00')
+  await expect(page.locator('[data-test="pr-date-tolerance"]')).toHaveText('± 2 jours')
 
   await page.locator('[data-test="pr-photo-0"]').click()
   await expect(page.locator('[data-test="photo-viewer"]')).toBeVisible()
@@ -112,13 +115,28 @@ test('409 envoi en cours : le message du back et le lien vers les litiges', asyn
 test('retrait bloqué par le back : bouton désactivé avec son explication', async ({ page }) => {
   await page.route('**/api/v1/admin/package-requests**', (route) => {
     if (new URL(route.request().url()).pathname.endsWith('/pr1')) {
-      return route.fulfill({ json: { ...DETAIL, canRemove: false, removeBlockedReason: 'HAS_ACTIVE_SHIPMENT' } })
+      return route.fulfill({ json: { ...DETAIL, canRemove: false, removeBlockedReason: 'package-request-has-active-shipment' } })
     }
     return route.fulfill({ json: { content: [ROW], totalElements: 1, totalPages: 1, number: 0, size: 20 } })
   })
   await page.goto('/colis?tab=demandes&open=pr1')
   await expect(page.locator('[data-test="pr-remove"]')).toBeDisabled()
   await expect(page.locator('[data-test="pr-remove-blocked"]')).toContainText('Un envoi est en cours')
+  await expect(page.locator('[data-test="pr-disputes-link"]')).toBeVisible()
+})
+
+test('fiche introuvable (404 package-request-not-found) : message du back', async ({ page }) => {
+  await page.route('**/api/v1/admin/package-requests**', (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('/zz')) {
+      return route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({
+        type: 'about:blank', title: 'Not Found', status: 404, code: 'package-request-not-found', detail: 'Demande d’envoi introuvable.',
+      }) })
+    }
+    return route.fulfill({ json: { content: [ROW], totalElements: 1, totalPages: 1, number: 0, size: 20 } })
+  })
+  await page.goto('/colis?tab=demandes&open=zz')
+  await expect(page.locator('[data-test="pr-detail-error"]')).toHaveText('Demande d’envoi introuvable.')
+  await expect(page.locator('[data-test="pr-unavailable"]')).toHaveCount(0)
 })
 
 test('restauration d’une demande retirée, avec l’avertissement sur les négociations', async ({ page }) => {

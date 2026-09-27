@@ -50,6 +50,12 @@ describe('PackageRequestsTable', () => {
     expect(w.find('[data-test="pr-row-p2"]').text()).toContain('ARCHIVED')
   })
 
+  it('la colonne du prix s’appelle « Budget »', () => {
+    const w = mount(PackageRequestsTable, { props: { requests: [], loading: false } })
+    expect(w.find('thead').text()).toContain('Budget')
+    expect(w.find('thead').text()).not.toContain('Prix visé')
+  })
+
   it('clic sur une ligne : émet select', async () => {
     const w = mount(PackageRequestsTable, { props: { requests: [item('p1')], loading: false } })
     await w.find('[data-test="pr-row-p1"]').trigger('click')

@@ -7,7 +7,7 @@ const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to" dat
 
 const detail = (over: Record<string, unknown> = {}) => ({
   id: 'pr1', senderId: 's1', senderName: 'Awa Ndiaye', departureCity: 'Paris', arrivalCity: 'Dakar',
-  desiredDate: '2026-10-01', weightKg: 4, parcelSize: 'SMALL', transportMode: 'PLANE', status: 'NEGOTIATING',
+  desiredDate: '2026-10-01', dateToleranceDays: 3, recipientCity: 'Rufisque', weightKg: 4, parcelSize: 'SMALL', transportMode: 'PLANE', status: 'NEGOTIATING',
   currency: 'EUR', targetPrice: 40, createdAt: '2026-09-20T10:00:00Z', reportCount: 1, openNegotiationCount: 2,
   description: 'Deux paires de chaussures', contentCategory: 'Vêtements',
   pickupNeighborhood: 'Belleville', deliveryNeighborhood: 'Plateau',
@@ -18,7 +18,7 @@ const detail = (over: Record<string, unknown> = {}) => ({
     { id: 'n1', travelerId: 't1', travelerName: 'Karim', status: 'OPEN', lastPrice: 35, currency: 'EUR', updatedAt: '2026-09-21T10:00:00Z' },
     { id: 'n2', travelerId: 't2', travelerName: null, status: 'REJECTED', lastPrice: null, currency: null, updatedAt: '2026-09-21T11:00:00Z' },
   ],
-  reports: [{ id: 'r1', reporterId: 'u2', reporterName: 'Moussa', reason: 'SCAM_ATTEMPT', details: 'prix louche', createdAt: '2026-09-22T09:00:00Z' }],
+  reports: [{ id: 'r1', reporterId: 'u2', reporterName: 'Moussa', reason: 'SCAM_ATTEMPT', details: 'prix louche', status: 'OPEN', createdAt: '2026-09-22T09:00:00Z' }],
   canRemove: true, removeBlockedReason: null, canRestore: false,
   ...over,
 })
@@ -62,6 +62,32 @@ describe('PackageRequestDetailPanel', () => {
     expect(w.find('[data-test="pr-negotiation-n1"]').text()).toContain('35,00 EUR')
     expect(w.find('[data-test="pr-negotiation-n2"]').text()).toContain('Voyageur inconnu')
     expect(w.find('[data-test="pr-negotiation-n2"]').text()).toContain('Aucun prix')
+  })
+
+  it('tolérance de date, ville du destinataire et libellé « Budget »', () => {
+    const w = mountPanel()
+    expect(w.find('[data-test="pr-date-tolerance"]').text()).toBe('± 3 jours')
+    expect(w.find('[data-test="pr-recipient-city"]').text()).toBe('Rufisque')
+    expect(w.find('[data-test="pr-budget"]').text()).toContain('40,00 EUR')
+    expect(w.text()).toContain('Budget')
+    expect(w.text()).not.toContain('Prix visé')
+  })
+
+  it('ville du destinataire absente : pas de ligne', () => {
+    expect(mountPanel({ request: detail({ recipientCity: null }) }).find('[data-test="pr-recipient-city"]').exists()).toBe(false)
+  })
+
+  it('statut de chaque signalement en badge (libellés de la page Signalements)', () => {
+    expect(mountPanel().find('[data-test="pr-report-status-r1"]').text()).toBe('Ouvert')
+    const w = mountPanel({ request: detail({ reports: [{ id: 'r2', reporterId: 'u', reporterName: null, reason: 'FALSE_INFORMATION', details: null, status: 'DISMISSED', createdAt: '2026-09-22T09:00:00Z' }] }) })
+    expect(w.find('[data-test="pr-report-status-r2"]').text()).toBe('Rejeté')
+    expect(w.find('[data-test="pr-report-r2"]').text()).toContain('Informations fausses ou trompeuses')
+  })
+
+  it('canRemove faux pour un brouillon : explication dédiée', () => {
+    const w = mountPanel({ request: detail({ status: 'DRAFT', canRemove: false, removeBlockedReason: 'package-request-draft' }) })
+    expect(w.find('[data-test="pr-remove-blocked"]').text()).toContain('brouillon')
+    expect(w.find('[data-test="pr-disputes-link"]').exists()).toBe(false)
   })
 
   it('signalements avec motif en français', () => {
@@ -205,7 +231,7 @@ describe('PackageRequestDetailPanel', () => {
 
   it('prix cible absent et non négociable', () => {
     const w = mountPanel({ request: detail({ targetPrice: null, negotiable: false, description: null, contentCategory: null, photos: [] }) })
-    expect(w.text()).toContain('À négocier')
+    expect(w.find('[data-test="pr-budget"]').text()).toBe('À négocier')
     expect(w.text()).toContain('Prix ferme')
     expect(w.text()).toContain('Aucune description')
   })

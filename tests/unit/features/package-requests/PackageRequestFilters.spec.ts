@@ -13,6 +13,14 @@ describe('PackageRequestFilters', () => {
     expect(w.emitted('update:status')![0]).toEqual(['REMOVED_BY_ADMIN'])
   })
 
+  it('l’aide de recherche annonce identifiants et téléphone international', () => {
+    const w = mount(PackageRequestFilters, { props: { filters } })
+    const input = w.find('[data-test="pr-search"]')
+    expect(input.attributes('placeholder')).toContain('+221')
+    expect(w.find('[data-test="pr-search-help"]').text()).toContain('identifiant de la demande ou de l’expéditeur')
+    expect(w.find('[data-test="pr-search-help"]').text()).toContain('format international')
+  })
+
   it('recherche émise à la validation', async () => {
     const w = mount(PackageRequestFilters, { props: { filters } })
     const input = w.find('[data-test="pr-search"]')

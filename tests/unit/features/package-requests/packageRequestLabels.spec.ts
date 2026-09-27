@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   packageRequestStatusMeta, negotiationStatusMeta, isActiveNegotiation, removeBlockedExplanation,
   isActiveShipmentBlock, parcelSizeLabel, transportModeLabel, paymentMethodsLabel,
+  reportStatusLabelMeta, dateToleranceLabel,
 } from '@/features/package-requests/labels'
 import { PACKAGE_REQUEST_STATUSES } from '@/features/package-requests/types/index'
 import { PACKAGE_REQUEST_REMOVAL_REASONS, REMOVAL_REASONS } from '@/features/bids/removalReasons'
@@ -42,6 +43,23 @@ describe('removeBlockedExplanation', () => {
     expect(removeBlockedExplanation('ALREADY_REMOVED')).toBe('Cette demande est déjà retirée.')
     expect(isActiveShipmentBlock('ALREADY_REMOVED')).toBe(false)
   })
+  it('brouillon et terminée : explications dédiées', () => {
+    expect(removeBlockedExplanation('package-request-draft')).toBe('Cette demande est un brouillon jamais publié : il n’y a rien à retirer.')
+    expect(removeBlockedExplanation('package-request-completed')).toBe('Cette demande est terminée (colis livré) : elle ne peut plus être retirée.')
+    expect(removeBlockedExplanation('package-request-already-removed')).toBe('Cette demande est déjà retirée.')
+    expect(isActiveShipmentBlock('package-request-draft')).toBe(false)
+  })
+  it('statut d’un signalement : libellé de la page Signalements, inconnu brut', () => {
+    expect(reportStatusLabelMeta('OPEN')).toEqual({ label: 'Ouvert', tone: 'warning' })
+    expect(reportStatusLabelMeta('RESOLVED').label).toBe('Résolu')
+    expect(reportStatusLabelMeta('ESCALATED')).toEqual({ label: 'ESCALATED', tone: 'neutral' })
+  })
+  it('tolérance de date', () => {
+    expect(dateToleranceLabel(0)).toBe('Date exacte')
+    expect(dateToleranceLabel(1)).toBe('± 1 jour')
+    expect(dateToleranceLabel(3)).toBe('± 3 jours')
+    expect(dateToleranceLabel(undefined)).toBe('Date exacte')
+  })
   it('code inconnu : explication générique qui garde le code', () => {
     expect(removeBlockedExplanation('SOMETHING_NEW')).toBe('Retrait impossible pour le moment (SOMETHING_NEW).')
   })
@@ -66,6 +84,11 @@ describe('libellés de fiche', () => {
 })
 
 describe('catalogue des motifs publics', () => {
+  it('valeurs exactes de AnnouncementRemovalReason (yadony-back #333)', () => {
+    expect(PACKAGE_REQUEST_REMOVAL_REASONS.map((r) => r.value)).toEqual([
+      'PROHIBITED_ITEM', 'SUSPECTED_FRAUD', 'INAPPROPRIATE_CONTENT', 'MISLEADING_INFO', 'DUPLICATE', 'OTHER',
+    ])
+  })
   it('mêmes valeurs que le retrait d’annonce (même enum côté back)', () => {
     expect(PACKAGE_REQUEST_REMOVAL_REASONS.map((r) => r.value)).toEqual(REMOVAL_REASONS.map((r) => r.value))
   })

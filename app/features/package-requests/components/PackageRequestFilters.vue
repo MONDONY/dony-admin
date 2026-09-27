@@ -57,7 +57,7 @@ function clearDates() {
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-xs text-text-muted font-medium w-16 shrink-0">Recherche</span>
       <input
-        v-model="q" type="search" placeholder="Ville, expéditeur, description…" data-test="pr-search"
+        v-model="q" type="search" placeholder="Ville, identifiant, +221 77…" data-test="pr-search"
         class="rounded-btn border border-border bg-surface px-3 py-1.5 text-sm min-w-[240px]"
         @keyup.enter="emit('update:query', q)"
         @search="emit('update:query', q)"
@@ -70,6 +70,9 @@ function clearDates() {
         Signalées seulement
       </label>
     </div>
+    <p data-test="pr-search-help" class="ml-[4.5rem] -mt-1 text-xs text-text-muted text-pretty">
+      Ville, description, identifiant de la demande ou de l’expéditeur, ou téléphone de l’expéditeur au format international (+221…).
+    </p>
 
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-xs text-text-muted font-medium w-16 shrink-0">Période</span>

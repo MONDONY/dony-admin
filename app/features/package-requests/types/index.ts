@@ -22,7 +22,7 @@ export interface AdminPackageRequestListItem {
   transportMode: string | null
   status: string
   currency: string | null
-  /** Prix visé par l'expéditeur, en unités principales de `currency` ; null = à négocier. */
+  /** Budget net de l'expéditeur, en unités principales de `currency` ; null = à négocier. */
   targetPrice: number | null
   createdAt: string
   reportCount: number
@@ -47,10 +47,15 @@ export interface AdminPackageRequestReport {
   reporterName: string | null
   reason: string
   details: string | null
+  /** Statut du signalement dans /admin/reports (OPEN, RESOLVED, DISMISSED). */
+  status: string
   createdAt: string
 }
 
 export interface AdminPackageRequestDetail extends AdminPackageRequestListItem {
+  /** Souplesse autour de `desiredDate`, en jours (0 = date exacte). */
+  dateToleranceDays: number
+  recipientCity: string | null
   description: string | null
   contentCategory: string | null
   pickupNeighborhood: string | null
@@ -65,7 +70,10 @@ export interface AdminPackageRequestDetail extends AdminPackageRequestListItem {
   negotiations: AdminPackageRequestNegotiation[]
   reports: AdminPackageRequestReport[]
   canRemove: boolean
-  /** Code expliquant pourquoi `canRemove` est faux ; null quand le retrait est possible. */
+  /**
+   * Code expliquant pourquoi `canRemove` est faux (`package-request-already-removed`, `-draft`,
+   * `-completed`, `-has-active-shipment`) ; null quand le retrait est possible.
+   */
   removeBlockedReason: string | null
   canRestore: boolean
 }

@@ -7,7 +7,7 @@ import { formatMajorAmount } from '@/features/finance/types/index'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import { PACKAGE_REQUEST_REMOVAL_REASONS } from '@/features/bids/removalReasons'
 import {
-  isActiveShipmentBlock, negotiationStatusMeta, packageRequestStatusMeta, parcelSizeLabel,
+  dateToleranceLabel, isActiveShipmentBlock, negotiationStatusMeta, reportStatusLabelMeta, packageRequestStatusMeta, parcelSizeLabel,
   paymentMethodsLabel, removeBlockedExplanation, transportModeLabel,
 } from '@/features/package-requests/labels'
 import type { AdminPackageRequestDetail } from '@/features/package-requests/types/index'
@@ -97,15 +97,19 @@ function money(amount: number | null, currency: string | null) {
       </p>
 
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
-        <div><dt class="text-text-muted">Date souhaitée</dt><dd class="tabular-nums">{{ request.desiredDate ? fmtDate(request.desiredDate) : 'Date flexible' }}</dd></div>
+        <div>
+          <dt class="text-text-muted">Date souhaitée</dt>
+          <dd class="tabular-nums">{{ request.desiredDate ? fmtDate(request.desiredDate) : 'Date flexible' }}</dd>
+          <dd v-if="request.desiredDate" data-test="pr-date-tolerance" class="text-xs text-text-muted">{{ dateToleranceLabel(request.dateToleranceDays) }}</dd>
+        </div>
         <div><dt class="text-text-muted">Créée le</dt><dd class="tabular-nums">{{ fmtDate(request.createdAt) }}</dd></div>
         <div><dt class="text-text-muted">Poids</dt><dd class="tabular-nums">{{ request.weightKg !== null && request.weightKg !== undefined ? `${request.weightKg} kg` : 'Non renseigné' }}</dd></div>
         <div><dt class="text-text-muted">Taille</dt><dd>{{ parcelSizeLabel(request.parcelSize) }}</dd></div>
         <div><dt class="text-text-muted">Transport</dt><dd>{{ transportModeLabel(request.transportMode) }}</dd></div>
         <div><dt class="text-text-muted">Contenu</dt><dd>{{ request.contentCategory ?? 'Non renseigné' }}</dd></div>
         <div>
-          <dt class="text-text-muted">Prix visé</dt>
-          <dd class="tabular-nums">{{ money(request.targetPrice, request.currency) ?? 'À négocier' }}</dd>
+          <dt class="text-text-muted">Budget</dt>
+          <dd class="tabular-nums" data-test="pr-budget">{{ money(request.targetPrice, request.currency) ?? 'À négocier' }}</dd>
           <dd class="text-xs text-text-muted">{{ request.negotiable ? 'Prix négociable' : 'Prix ferme' }}</dd>
         </div>
         <div><dt class="text-text-muted">Paiements acceptés</dt><dd>{{ paymentMethodsLabel(request.acceptedPaymentMethods) }}</dd></div>
@@ -118,6 +122,10 @@ function money(amount: number | null, currency: string | null) {
           <dt class="text-text-muted">Livraison</dt>
           <dd>{{ request.deliveryNeighborhood ?? 'Quartier non renseigné' }}</dd>
           <dd v-if="request.deliveryAddressLabel" class="text-xs text-text-muted">{{ request.deliveryAddressLabel }}</dd>
+        </div>
+        <div v-if="request.recipientCity">
+          <dt class="text-text-muted">Ville du destinataire</dt>
+          <dd data-test="pr-recipient-city">{{ request.recipientCity }}</dd>
         </div>
       </dl>
 
@@ -169,7 +177,10 @@ function money(amount: number | null, currency: string | null) {
           >
             <div class="flex items-center justify-between gap-3">
               <span class="font-medium">{{ reportReasonLabel(r.reason) }}</span>
-              <span class="text-xs text-text-muted tabular-nums">{{ fmtDateTime(r.createdAt) }}</span>
+              <span class="flex shrink-0 items-center gap-2">
+                <span class="text-xs text-text-muted tabular-nums">{{ fmtDateTime(r.createdAt) }}</span>
+                <span :data-test="`pr-report-status-${r.id}`"><StatusBadge v-bind="reportStatusLabelMeta(r.status)" /></span>
+              </span>
             </div>
             <p v-if="r.details" class="mt-1 text-text-muted text-pretty">{{ r.details }}</p>
             <p class="mt-1 text-xs text-text-muted">Signalé par {{ r.reporterName ?? 'un utilisateur inconnu' }}</p>
