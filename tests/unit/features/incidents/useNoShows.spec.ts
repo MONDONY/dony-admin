@@ -50,4 +50,56 @@ describe('useNoShows', () => {
     await n.fetchCancellations()
     expect(n.error.value).toBe('Impossible de charger les annulations')
   })
+
+  describe('pagination serveur', () => {
+    const page = (number: number, totalPages = 3) => ({ content: [{ bidId: `b${number}` }], totalElements: 55, totalPages, number, size: 20 })
+
+    it('retient le nombre de pages et la page courante', async () => {
+      svc.listCancellations.mockResolvedValue(page(0))
+      const n = useNoShows()
+      await n.fetchCancellations()
+      expect(n.totalPages.value).toBe(3)
+      expect(n.currentPage.value).toBe(0)
+    })
+
+    it('goToPage charge la page demandée', async () => {
+      svc.listCancellations.mockResolvedValueOnce(page(0)).mockResolvedValueOnce(page(2))
+      const n = useNoShows()
+      await n.fetchCancellations()
+      await n.goToPage(2)
+      expect(svc.listCancellations).toHaveBeenLastCalledWith('PENDING_CONFIRMATION', 2, 20)
+      expect(n.currentPage.value).toBe(2)
+      expect(n.cancellations.value).toEqual([{ bidId: 'b2' }])
+    })
+
+    it('goToPage garde la page affichée si le chargement échoue', async () => {
+      svc.listCancellations.mockResolvedValueOnce(page(0)).mockRejectedValueOnce(new Error('down'))
+      const n = useNoShows()
+      await n.fetchCancellations()
+      await n.goToPage(1)
+      expect(n.currentPage.value).toBe(0)
+      expect(n.error.value).toBe('down')
+    })
+
+    it('changer de filtre revient à la première page', async () => {
+      svc.listCancellations.mockResolvedValueOnce(page(0)).mockResolvedValueOnce(page(2)).mockResolvedValueOnce(page(0, 1))
+      const n = useNoShows()
+      await n.fetchCancellations()
+      await n.goToPage(2)
+      await n.setFilter('CONFIRMED' as never)
+      expect(svc.listCancellations).toHaveBeenLastCalledWith('CONFIRMED', 0, 20)
+      expect(n.currentPage.value).toBe(0)
+    })
+
+    it('confirm recharge la page courante', async () => {
+      svc.listCancellations.mockResolvedValueOnce(page(0)).mockResolvedValueOnce(page(1)).mockResolvedValueOnce(page(1))
+      svc.confirmNoShow.mockResolvedValue(undefined)
+      const n = useNoShows()
+      await n.fetchCancellations()
+      await n.goToPage(1)
+      await n.confirm('b1')
+      expect(svc.listCancellations).toHaveBeenLastCalledWith('PENDING_CONFIRMATION', 1, 20)
+    })
+  })
 })
+

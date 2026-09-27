@@ -43,7 +43,16 @@ onMounted(fetchDisputes)
       />
     </template>
 
-    <NoShowsTable v-else :cancellations="noshows.cancellations.value" :loading="noshows.isLoading.value"
-      @confirm="async (bidId) => { await noshows.confirm(bidId) }" />
+    <template v-else>
+      <p
+        v-if="noshows.error.value" data-test="noshows-error" role="alert"
+        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >{{ noshows.error.value }}</p>
+      <NoShowsTable :cancellations="noshows.cancellations.value" :loading="noshows.isLoading.value"
+        @confirm="async (bidId) => { await noshows.confirm(bidId) }" />
+      <div class="mt-4">
+        <PaginationControls :page="noshows.currentPage.value" :total-pages="noshows.totalPages.value" @change="noshows.goToPage" />
+      </div>
+    </template>
   </div>
 </template>

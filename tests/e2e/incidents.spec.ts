@@ -59,3 +59,18 @@ test('admin switches to no-shows tab', async ({ page }) => {
   await expect(page.locator('[data-test="noshow-row-c1"]')).toBeVisible({ timeout: 15000 })
   await expect(page.locator('[data-test="confirm-noshow-b9"]')).toBeVisible()
 })
+
+test('les no-shows se paginent au-delà de 20', async ({ page }) => {
+  const pages: string[] = []
+  await page.route('**/api/v1/admin/cancellations**', (route) => {
+    const p = new URL(route.request().url()).searchParams.get('page') ?? ''
+    pages.push(p)
+    return route.fulfill({ json: { ...NOSHOWS, totalElements: 30, totalPages: 2, number: Number(p) } })
+  })
+  await page.goto('/incidents')
+  await page.locator('[data-test="dispute-row-d1"]').waitFor({ state: 'visible' })
+  await page.locator('[data-test="tab-noshows"]').click()
+  await expect(page.locator('[data-test="noshow-row-c1"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-test="next"]').last().click()
+  await expect.poll(() => pages).toEqual(['0', '1'])
+})
