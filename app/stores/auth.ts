@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (33 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (35 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -38,6 +38,7 @@ export type AdminPermission =
   | 'CONFIG_MANAGE'
   | 'SUPPORT_TICKET_VIEW'
   | 'SUPPORT_TICKET_MANAGE'
+  | 'WALLET_ADJUST'
 
 export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'ADMIN_MANAGE',
@@ -78,6 +79,9 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   // Messagerie support : voir la file, puis répondre/assigner/résoudre.
   'SUPPORT_TICKET_VIEW',
   'SUPPORT_TICKET_MANAGE',
+  // Correction manuelle d'un solde de portefeuille (crédit ou débit motivé) : un geste
+  // d'argent, donc ni au rôle SUPPORT ni lié à PAYMENT_VIEW qui ne fait que lire.
+  'WALLET_ADJUST',
 ]
 
 /**
