@@ -1,3 +1,5 @@
+import type { KycDecisionFields } from '@/features/kyc/types/index'
+
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'PENDING_DELETION'
 export type KycStatus = 'NOT_STARTED' | 'PENDING' | 'VERIFIED' | 'REJECTED'
 export type UserStatusFilter = 'TOUS' | UserStatus
@@ -88,22 +90,24 @@ export type KycVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED'
  * `kycStatus` sur public.users, `verificationStatus` sur kyc_schema.
  * `'NOT_STARTED'` en `verificationStatus` signifie « aucune ligne KYC ».
  *
- * Il n'existe ni document ni historique de session : Stripe détient les pièces, et une
- * seule ligne par utilisateur est conservée (contrainte uq_kyc_user_id).
+ * Les champs `stripe*` décrivent en réalité la session du fournisseur courant (`provider`,
+ * Didit ou Stripe Identity) : le back garde ces noms jusqu'au retrait de Stripe Identity.
+ * Backend en NON_NULL : un champ nul est absent du JSON, d'où les champs optionnels.
+ * La décision admin et l'historique (`KycDecisionFields`) n'existent qu'avec le nouveau back.
  */
-export interface AdminKycDetail {
+export interface AdminKycDetail extends KycDecisionFields {
   userId: string
-  kycStatus: KycStatus
-  verificationStatus: KycVerificationStatus | 'NOT_STARTED'
-  rejectionReason: string | null
-  rejectionCode: string | null
-  stripeSessionId: string | null
-  stripeStatus: string | null
-  stripeLastErrorCode: string | null
-  stripeLastErrorReason: string | null
-  stripeCreatedAt: string | null
-  /** true uniquement si l'appel Stripe a échoué — pas quand il n'y a aucune session. */
-  stripeUnavailable: boolean
+  kycStatus: KycStatus | string
+  verificationStatus: KycVerificationStatus | 'NOT_STARTED' | string
+  rejectionReason?: string | null
+  rejectionCode?: string | null
+  stripeSessionId?: string | null
+  stripeStatus?: string | null
+  stripeLastErrorCode?: string | null
+  stripeLastErrorReason?: string | null
+  stripeCreatedAt?: string | null
+  /** true uniquement si l'appel au fournisseur a échoué, pas quand il n'y a aucune session. */
+  stripeUnavailable?: boolean
 }
 
 /** Une ligne de la file des demandes de suppression RGPD. */

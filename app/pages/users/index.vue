@@ -9,7 +9,7 @@ import { useUsers } from '@/features/users/composables/useUsers'
 import { useUserDetail } from '@/features/users/composables/useUserDetail'
 import { useUserKyc } from '@/features/users/composables/useUserKyc'
 import { useUserDeletion } from '@/features/users/composables/useUserDeletion'
-import type { AdminDeletionReasonCode } from '@/features/users/types/index'
+import type { AdminDeletionReasonCode, AdminKycDetail } from '@/features/users/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'USER_VIEW', pageTitle: 'Utilisateurs', pageSubtitle: 'Recherche & modération des comptes' })
 
@@ -22,6 +22,13 @@ const deletionOpen = ref(false)
 
 async function openUser(id: string) { await detail.open(id) }
 async function afterAction() { await fetchUsers() }
+
+/** Décision KYC : la fiche KYC est remplacée, puis la fiche et la liste relues (statut KYC). */
+async function onKycDecided(updated: AdminKycDetail) {
+  kyc.set(updated)
+  if (detail.user.value) await detail.open(detail.user.value.id)
+  await afterAction()
+}
 
 async function openDeletion() {
   if (!detail.user.value) return
@@ -90,6 +97,8 @@ onMounted(async () => {
       @unmute-messaging="async () => { await detail.unmuteMessaging(); await afterAction() }"
       @open-kyc="() => { if (!detail.user.value) return; kyc.load(detail.user.value.id) }"
       @reset-kyc="async (reason) => { if (!detail.user.value) return; const id = detail.user.value.id; await kyc.reset(id, reason); await detail.open(id); await afterAction() }"
+      @kyc-decided="onKycDecided"
+      @kyc-stale="() => { if (detail.user.value) kyc.refresh(detail.user.value.id) }"
       @grant-pro="async (reason) => { await detail.grantPro(reason); await afterAction() }"
       @revoke-pro="async () => { await detail.revokePro(); await afterAction() }"
       @request-delete="openDeletion"

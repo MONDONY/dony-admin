@@ -348,6 +348,20 @@ describe('UserDetailPanel', () => {
     expect(w.emitted('resetKyc')![0]).toEqual(['document illisible'])
   })
 
+  it('relaie la décision KYC et la demande de relecture, avec le nom pour la ressaisie', async () => {
+    const kyc = {
+      userId: 'u1', kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED', stripeSessionId: 'vs_001', stripeUnavailable: false,
+    }
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, kyc } as never })
+    await w.find('[data-test="tab-kyc"]').trigger('click')
+    const tab = w.findComponent({ name: 'UserKycTab' })
+    expect(tab.props('userName')).toBe([baseUser.firstName, baseUser.lastName].filter(Boolean).join(' '))
+    tab.vm.$emit('decided', kyc)
+    tab.vm.$emit('stale')
+    expect(w.emitted('kycDecided')![0]).toEqual([kyc])
+    expect(w.emitted('kycStale')).toHaveLength(1)
+  })
+
   // Le backend est en NON_NULL : un utilisateur sans ligne d'abonnement n'a PAS de champ
   // `proSubscription` dans le JSON. `baseUser` reproduit ce cas, il ne le déclare pas.
   describe('accès PRO', () => {

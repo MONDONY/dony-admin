@@ -1,24 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
-import { useAuthStore } from '@/stores/auth'
+import KycReviewDetails from '@/features/kyc/components/KycReviewDetails.vue'
+import KycDecisionActions from '@/features/kyc/components/KycDecisionActions.vue'
+import { kycProviderLabel } from '@/features/kyc/types/index'
 import type { AdminKycDetail } from '@/features/users/types/index'
 
 const props = defineProps<{
   kyc: AdminKycDetail | null; loading?: boolean; error?: string | null; busy?: boolean
+  /** Nom à ressaisir avant une révocation. */
+  userName?: string | null
 }>()
-const emit = defineEmits<{ reset: [reason: string] }>()
-const auth = useAuthStore()
+const emit = defineEmits<{ reset: [reason: string]; decided: [kyc: AdminKycDetail]; stale: [] }>()
 
-// Réinitialiser un KYC ne détruit aucune donnée (l'utilisateur refait sa vérification) :
-// confirmation simple avec motif, pas de double confirmation par saisie de nom — celle-ci
-// est réservée à l'exécution RGPD, irréversible.
-const confirming = ref(false)
-function confirmReset(reason: string) {
-  confirming.value = false
-  emit('reset', reason)
-}
-function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') : '—' }
+function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleString('fr-FR') : 'Non renseigné' }
 </script>
 
 <template>
@@ -29,7 +22,7 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') 
       <p
         v-if="props.kyc.stripeUnavailable" data-test="kyc-stripe-unavailable"
         class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
-      >Statut Stripe indisponible — seules les données locales sont affichées.</p>
+      >Le fournisseur ne répond pas : seules les données locales sont affichées.</p>
 
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div>
@@ -42,30 +35,34 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') 
         </div>
         <div>
           <dt class="text-text-muted">Motif de rejet</dt>
-          <dd>{{ props.kyc.rejectionReason ?? '—' }}</dd>
+          <dd>{{ props.kyc.rejectionReason ?? 'Aucun' }}</dd>
         </div>
         <div>
           <dt class="text-text-muted">Code de rejet</dt>
-          <dd>{{ props.kyc.rejectionCode ?? '—' }}</dd>
+          <dd>{{ props.kyc.rejectionCode ?? 'Aucun' }}</dd>
         </div>
-        <div class="col-span-2">
-          <dt class="text-text-muted">Session Stripe courante</dt>
+        <div>
+          <dt class="text-text-muted">Fournisseur</dt>
+          <dd data-test="kyc-provider">{{ kycProviderLabel(props.kyc.provider) }}</dd>
+        </div>
+        <div>
+          <dt class="text-text-muted">Session courante</dt>
           <dd data-test="kyc-stripe-session" class="break-all">
-            {{ props.kyc.stripeSessionId ?? 'Aucune session — vérification jamais démarrée' }}
+            {{ props.kyc.stripeSessionId ?? 'Aucune session : vérification jamais démarrée' }}
           </dd>
         </div>
         <div>
-          <dt class="text-text-muted">Statut Stripe</dt>
-          <dd>{{ props.kyc.stripeStatus ?? '—' }}</dd>
+          <dt class="text-text-muted">Statut chez le fournisseur</dt>
+          <dd>{{ props.kyc.stripeStatus ?? 'Non renseigné' }}</dd>
         </div>
         <div>
           <dt class="text-text-muted">Créée le</dt>
           <dd>{{ fmt(props.kyc.stripeCreatedAt) }}</dd>
         </div>
         <div class="col-span-2">
-          <dt class="text-text-muted">Dernière erreur Stripe</dt>
+          <dt class="text-text-muted">Dernière erreur du fournisseur</dt>
           <dd>
-            {{ props.kyc.stripeLastErrorReason ?? '—' }}
+            {{ props.kyc.stripeLastErrorReason ?? 'Aucune' }}
             <span v-if="props.kyc.stripeLastErrorCode" class="text-text-muted">
               ({{ props.kyc.stripeLastErrorCode }})</span>
           </dd>
@@ -73,32 +70,22 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') 
       </dl>
 
       <p class="mb-4 text-xs text-text-muted">
-        Les pièces d'identité sont détenues par Stripe et ne sont pas stockées par Yadony :
-        seule la session courante est consultable, sans historique.
+        Les pièces d'identité sont détenues par le fournisseur et ne sont pas stockées par Yadony.
       </p>
+
+      <KycReviewDetails :kyc="props.kyc" class="mb-6" />
 
       <p
         v-if="props.error" data-test="kyc-error"
         class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
       >{{ props.error }}</p>
 
-      <button
-        v-if="auth.can('USER_KYC')" type="button" data-test="action-reset-kyc" :disabled="props.busy"
-        class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30 disabled:opacity-40"
-        @click="confirming = true"
-      >Réinitialiser le KYC</button>
+      <KycDecisionActions
+        :kyc="props.kyc" :user-name="props.userName ?? null" :reset-busy="props.busy"
+        @decided="(k) => emit('decided', k)" @stale="emit('stale')" @reset="(r) => emit('reset', r)"
+      />
     </template>
 
     <p v-else data-test="kyc-empty" class="text-sm text-text-muted">Aucune donnée KYC.</p>
-
-    <ConfirmActionDialog
-      :open="confirming"
-      title="Réinitialiser le KYC"
-      message="La session de vérification en cours sera annulée côté Stripe et l'utilisateur devra refaire sa vérification d'identité."
-      confirm-label="Réinitialiser"
-      :require-reason="true"
-      @confirm="confirmReset"
-      @cancel="confirming = false"
-    />
   </div>
 </template>

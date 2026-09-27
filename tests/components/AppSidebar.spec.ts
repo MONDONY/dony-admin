@@ -82,6 +82,20 @@ describe('AppSidebar', () => {
     expect(mountSidebar().text()).not.toContain('Paramètres')
   })
 
+  it('« Vérifications d’identité » (USER_KYC) juste après Utilisateurs, vers /kyc, SUPPORT compris', () => {
+    useAuthStore().setSession('token', makeAdmin('SUPPORT'))
+    const links = mountSidebar().findAll('nav a')
+    const labels = links.map((a) => a.text())
+    const idx = labels.indexOf('Vérifications d’identité')
+    expect(idx).toBe(labels.indexOf('Utilisateurs') + 1)
+    expect(links[idx]!.attributes('href')).toBe('/kyc')
+  })
+
+  it('cache « Vérifications d’identité » sans USER_KYC', () => {
+    useAuthStore().setSession('token', { ...makeAdmin('ADMIN'), permissionOverrides: { USER_KYC: false } })
+    expect(mountSidebar().text()).not.toContain('Vérifications d’identité')
+  })
+
   it('profile menu is closed by default', () => {
     useAuthStore().setSession('token', makeAdmin('ADMIN'))
     const wrapper = mountSidebar()
