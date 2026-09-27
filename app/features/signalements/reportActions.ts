@@ -8,6 +8,9 @@ import type { ReportAction, ReportTargetType } from '@/features/signalements/typ
  * REPORT_RESOLVE sans avoir CONTENT_REMOVE, il ne doit donc pas voir cette option.
  * Le back revalide de toute façon ; ce filtre évite seulement de proposer une action
  * que la confirmation rejettera en 403/422.
+ *
+ * PACKAGE_REQUEST : seul le rejet se fait ici ; le retrait d'une demande d'envoi passe par
+ * sa fiche (/colis?tab=demandes), qui explique ses conséquences (négociations annulées).
  */
 export function actionsFor(targetType: ReportTargetType, permissions: Set<AdminPermission>): ReportAction[] {
   const applicable: ReportAction[] = targetType === 'USER'

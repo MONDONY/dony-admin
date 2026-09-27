@@ -3,6 +3,8 @@ import { mount } from '@vue/test-utils'
 import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
+const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
+
 const reports = [
   {
     id: 'r1', targetType: 'USER', targetId: 'u9', targetLabel: null, reason: 'SCAM_ATTEMPT', description: 'faux profil',
@@ -136,6 +138,39 @@ describe('ReportsTable', () => {
       expect(w.find('[data-test="select-page"]').exists()).toBe(false)
       expect(w.find('[data-test="select-r1"]').exists()).toBe(false)
       expect(w.find('[data-test="delete-r1"]').exists()).toBe(false)
+    })
+  })
+  describe('demande d’envoi signalée (PACKAGE_REQUEST)', () => {
+    const pr = [{ ...reports[0], id: 'r5', targetType: 'PACKAGE_REQUEST', targetId: 'pr1', targetLabel: 'Paris → Dakar' }]
+
+    it('affiche le type en français, pas le code brut', () => {
+      const w = mount(ReportsTable, { props: { reports: pr, loading: false }, global: { stubs: { NuxtLink } } })
+      const row = w.find('[data-test="report-row-r5"]')
+      expect(row.text()).toContain('Demande d\'envoi')
+      expect(row.text()).not.toContain('PACKAGE_REQUEST')
+    })
+
+    it('lien « Voir la demande » vers l’onglet Demandes de /colis', () => {
+      const w = mount(ReportsTable, { props: { reports: pr, loading: false }, global: { stubs: { NuxtLink } } })
+      const link = w.find('[data-test="report-open-request-r5"]')
+      expect(link.text()).toBe('Voir la demande')
+      expect(link.attributes('href')).toBe('/colis?tab=demandes&open=pr1')
+    })
+
+    it('pas de lien sans BID_VIEW', () => {
+      seedAuth('SUPPORT', { BID_VIEW: false })
+      const w = mount(ReportsTable, { props: { reports: pr, loading: false }, global: { stubs: { NuxtLink } } })
+      expect(w.find('[data-test="report-open-request-r5"]').exists()).toBe(false)
+    })
+
+    it('pas de lien sur une autre cible ; type inconnu affiché brut', () => {
+      const w = mount(ReportsTable, {
+        props: { reports: [reports[0], { ...reports[0], id: 'r6', targetType: 'SOMETHING' }], loading: false },
+        global: { stubs: { NuxtLink } },
+      })
+      expect(w.find('[data-test="report-open-request-r1"]').exists()).toBe(false)
+      expect(w.find('[data-test="report-row-r1"]').text()).toContain('Utilisateur')
+      expect(w.find('[data-test="report-row-r6"]').text()).toContain('SOMETHING')
     })
   })
 })

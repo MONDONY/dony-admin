@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
+import { reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
 const props = withDefaults(defineProps<{
@@ -23,6 +24,11 @@ const canDelete = computed(() => auth.can('REPORT_DELETE'))
 const allChecked = computed(() => props.reports.length > 0 && props.reports.every((r) => props.selected.includes(r.id)))
 const someChecked = computed(() => !allChecked.value && props.reports.some((r) => props.selected.includes(r.id)))
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
+/** Demande d'envoi signalée : lien profond vers sa fiche de modération dans /colis. */
+function requestLink(r: AdminReport): string | null {
+  if (r.targetType !== 'PACKAGE_REQUEST' || !r.targetId || !auth.can('BID_VIEW')) return null
+  return `/colis?tab=demandes&open=${encodeURIComponent(r.targetId)}`
+}
 /** Cible APP : ni libellé ni identifiant côté back, on nomme l’application. */
 function targetLabel(r: AdminReport) {
   return r.targetLabel ?? r.targetId ?? (r.targetType === 'APP' ? 'Application' : '—')
@@ -64,7 +70,11 @@ function targetLabel(r: AdminReport) {
           </td>
           <td class="px-4 py-3 text-sm">
             <div class="font-medium">{{ targetLabel(r) }}</div>
-            <div class="text-xs text-text-muted">{{ r.targetType }}</div>
+            <div class="text-xs text-text-muted">{{ reportTargetTypeLabel(r.targetType) }}</div>
+            <NuxtLink
+              v-if="requestLink(r)" :to="requestLink(r)!" :data-test="`report-open-request-${r.id}`"
+              class="mt-1 inline-block text-xs text-primary underline-offset-2 hover:underline"
+            >Voir la demande</NuxtLink>
             <!-- Rapport du scarabée : la route de l’écran dit où regarder -->
             <div
               v-if="r.screenRoute" :data-test="`report-screen-${r.id}`"

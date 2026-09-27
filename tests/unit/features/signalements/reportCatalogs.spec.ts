@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import { actionsFor } from '@/features/signalements/reportActions'
 import type { AdminPermission } from '@/stores/auth'
+import { REPORT_TARGET_TYPE_LABELS, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
 
 describe('reportReasonLabel', () => {
   it('maps a known catalogue value to its French label', () => {
@@ -42,5 +43,18 @@ describe('actionsFor', () => {
     expect(actionsFor('MESSAGE', allPermissions)).toEqual(['DISMISS'])
     expect(actionsFor('RATING', allPermissions)).toEqual(['DISMISS'])
     expect(actionsFor('APP', allPermissions)).toEqual(['DISMISS'])
+  })
+})
+
+describe('types de cible', () => {
+  it('PACKAGE_REQUEST est libellé « Demande d\'envoi »', () => {
+    expect(REPORT_TARGET_TYPE_LABELS.PACKAGE_REQUEST).toBe('Demande d\'envoi')
+    expect(reportTargetTypeLabel('PACKAGE_REQUEST')).toBe('Demande d\'envoi')
+  })
+  it('type inconnu affiché brut', () => {
+    expect(reportTargetTypeLabel('SOMETHING')).toBe('SOMETHING')
+  })
+  it('PACKAGE_REQUEST : seul le rejet se fait depuis le signalement, le retrait passe par la fiche', () => {
+    expect(actionsFor('PACKAGE_REQUEST', new Set<AdminPermission>(['CONTENT_REMOVE']))).toEqual(['DISMISS'])
   })
 })

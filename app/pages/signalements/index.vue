@@ -4,6 +4,7 @@ import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
 import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
+import PhotoViewer from '@/components/ui/PhotoViewer.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
@@ -236,28 +237,7 @@ onMounted(r.fetchReports)
     </div>
 
     <!-- Visionneuse des captures d'écran jointes -->
-    <div
-      v-if="viewerUrls !== null"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" data-test="photo-viewer"
-      @click.self="viewerUrls = null"
-    >
-      <div class="max-h-full max-w-4xl overflow-auto rounded-card bg-surface p-4 shadow-xl">
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="font-display text-lg font-semibold">Captures jointes</h2>
-          <button
-            type="button" data-test="photo-viewer-close"
-            class="rounded-btn px-3 py-1.5 text-sm border border-border hover:bg-surface-elevated"
-            @click="viewerUrls = null"
-          >Fermer</button>
-        </div>
-        <div class="flex flex-wrap gap-4">
-          <img
-            v-for="(url, i) in viewerUrls" :key="i" :src="url" alt="Capture d'écran jointe"
-            class="max-h-[70vh] max-w-full rounded border border-border object-contain"
-          >
-        </div>
-      </div>
-    </div>
+    <PhotoViewer :urls="viewerUrls" @close="viewerUrls = null" />
 
     <!-- Dialogue de résolution d'un signalement (action + note) -->
     <div

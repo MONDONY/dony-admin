@@ -14,4 +14,10 @@ export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
   MESSAGE: 'Message',
   RATING: 'Avis',
   APP: 'Application',
+  PACKAGE_REQUEST: 'Demande d\'envoi',
+}
+
+/** Type de cible lisible ; un type ajouté côté back avant le front s'affiche tel quel. */
+export function reportTargetTypeLabel(type: string): string {
+  return REPORT_TARGET_TYPE_LABELS[type as ReportTargetType] ?? type
 }
