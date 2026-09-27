@@ -1,4 +1,5 @@
 import { formatMajorAmount } from '@/features/finance/types/index'
+import { isEndpointMissing } from '@/lib/endpointMissing'
 
 /**
  * Un compte du portefeuille d'un utilisateur : un par devise. Montants en unités
@@ -95,13 +96,7 @@ export function formatSignedAmount(amount: number, currency: string): string {
 }
 
 /**
- * Endpoint absent (back pas encore déployé, règle des PR jumelles) : Spring répond 404
- * « No endpoint matches this path » ou 405, SANS `code` métier. Un 404 porteur d'un code
- * reste une vraie erreur à montrer.
+ * Endpoint du portefeuille absent (ancien back) : alias de l'helper générique de `app/lib/`,
+ * conservé pour ne pas toucher aux appels du lot 2.
  */
-export function isWalletEndpointMissing(e: unknown): boolean {
-  const err = e as { statusCode?: number; status?: number; response?: { status?: number }; data?: { code?: unknown } } | undefined
-  const status = err?.statusCode ?? err?.status ?? err?.response?.status
-  if (status !== 404 && status !== 405) return false
-  return !err?.data?.code
-}
+export const isWalletEndpointMissing = isEndpointMissing

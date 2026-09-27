@@ -16,3 +16,11 @@ export const REMOVAL_REASONS = [
 ] as const
 
 export type AnnouncementRemovalReason = (typeof REMOVAL_REASONS)[number]['value']
+
+/**
+ * Même catalogue pour le retrait d'une demande d'envoi : le back réutilise les mêmes valeurs
+ * (une valeur inconnue y est rejetée en 422). Seul le libellé du doublon change, pour parler
+ * de demande et non d'annonce dans l'interface.
+ */
+export const PACKAGE_REQUEST_REMOVAL_REASONS: readonly { value: AnnouncementRemovalReason; label: string }[] =
+  REMOVAL_REASONS.map((r) => (r.value === 'DUPLICATE' ? { ...r, label: 'Demande en double' } : r))
