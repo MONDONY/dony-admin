@@ -33,4 +33,12 @@ describe('useUsers', () => {
     expect(u.error.value).toBe('boom')
     expect(u.isLoading.value).toBe(false)
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    listMock.mockRejectedValueOnce(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const u = useUsers()
+    await u.fetchUsers()
+    expect(u.error.value).toBe('Détail lisible du back')
+    expect(u.isLoading.value).toBe(false)
+  })
 })

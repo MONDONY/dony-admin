@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { incidentsService } from '@/features/incidents/services/incidentsService'
 import type { AdminDisputeListItem, DisputeStatusFilter } from '@/features/incidents/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useDisputes() {
   const disputes = ref<AdminDisputeListItem[]>([])
@@ -16,7 +17,7 @@ export function useDisputes() {
     try {
       const page = await incidentsService.listDisputes(statusFilter.value, currentPage.value, pageSize.value)
       disputes.value = page.content; totalPages.value = page.totalPages
-    } catch (e) { error.value = (e as Error).message } finally { isLoading.value = false }
+    } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger les litiges') } finally { isLoading.value = false }
   }
   async function goToPage(p: number) { currentPage.value = p; await fetchDisputes() }
   async function setStatusFilter(s: DisputeStatusFilter) { statusFilter.value = s; currentPage.value = 0; await fetchDisputes() }

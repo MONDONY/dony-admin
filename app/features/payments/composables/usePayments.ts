@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import type { AdminPaymentListItem, PaymentsFilterState, PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter } from '@/features/payments/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function usePayments() {
   const payments = ref<AdminPaymentListItem[]>([])
@@ -16,7 +17,7 @@ export function usePayments() {
     try {
       const page = await paymentsService.list(filters, currentPage.value, pageSize.value)
       payments.value = page.content; totalPages.value = page.totalPages
-    } catch (e) { error.value = (e as Error).message } finally { isLoading.value = false }
+    } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger les paiements') } finally { isLoading.value = false }
   }
   async function goToPage(p: number) { currentPage.value = p; await fetchPayments() }
   async function setStatusFilter(s: PaymentStatusFilter) { filters.status = s; currentPage.value = 0; await fetchPayments() }

@@ -24,4 +24,10 @@ describe('useAdminBids', () => {
     const b = useAdminBids(); await b.fetchBids()
     expect(b.error.value).toBe('x')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.listBids.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const b = useAdminBids(); await b.fetchBids()
+    expect(b.error.value).toBe('Détail lisible du back')
+  })
 })

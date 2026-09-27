@@ -54,6 +54,13 @@ describe('useReports', () => {
     expect(r.error.value).toBe('boom')
   })
 
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.list.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const r = useReports()
+    await r.fetchReports()
+    expect(r.error.value).toBe('Détail lisible du back')
+  })
+
   describe('recherche et sélection (yadony-back #318)', () => {
     const page = (ids: string[], totalElements = ids.length) => ({
       content: ids.map((id) => ({ id })), totalElements, totalPages: Math.ceil(totalElements / 20), number: 0, size: 20,

@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { exportService } from '@/features/exports/services/exportService'
 import { downloadBlob } from '@/lib/downloadBlob'
+import { extractProblemMessageAsync } from '@/lib/problemDetail'
 import type { ExportFilterState } from '@/features/exports/types/index'
 
 export function useExports() {
@@ -20,7 +21,7 @@ export function useExports() {
       const blob = await exportService.fetchBlob({ type: filters.type, from: filters.from, to: filters.to })
       downloadBlob(blob, filename())
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = await extractProblemMessageAsync(e, 'L’export a échoué')
     } finally {
       isLoading.value = false
     }

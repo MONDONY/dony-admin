@@ -43,4 +43,11 @@ describe('useDisputeDetail', () => {
     const d = useDisputeDetail(); await d.open('d1'); await d.payGuarantee(99999, 'u1', 'x')
     expect(d.error.value).toBe('montant trop élevé')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    vi.mocked(incidentsService.getDispute).mockResolvedValueOnce({ id: 'd1', status: 'OPEN' })
+    vi.mocked(incidentsService.payGuaranteeFund).mockRejectedValueOnce(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const d = useDisputeDetail(); await d.open('d1'); await d.payGuarantee(99999, 'u1', 'x')
+    expect(d.error.value).toBe('Détail lisible du back')
+  })
 })

@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { moderationService } from '@/features/moderation/services/moderationService'
 import type { AdminMessage } from '@/features/moderation/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useConversationThread() {
   const activeId = ref<string | null>(null)
@@ -15,7 +16,7 @@ export function useConversationThread() {
     try {
       messages.value = await moderationService.getMessages(activeId.value)
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger la conversation')
     } finally {
       isLoading.value = false
     }

@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { moderationService } from '@/features/moderation/services/moderationService'
 import type { AdminConversation, ModerationFilterState } from '@/features/moderation/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useConversations() {
   const conversations = ref<AdminConversation[]>([])
@@ -19,7 +20,7 @@ export function useConversations() {
       conversations.value = page.content
       totalPages.value = page.totalPages
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les conversations')
     } finally {
       isLoading.value = false
     }

@@ -31,4 +31,11 @@ describe('useDisputes', () => {
     await d.fetchDisputes()
     expect(d.error.value).toBe('x')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    vi.mocked(incidentsService.listDisputes).mockRejectedValueOnce(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const d = useDisputes()
+    await d.fetchDisputes()
+    expect(d.error.value).toBe('Détail lisible du back')
+  })
 })

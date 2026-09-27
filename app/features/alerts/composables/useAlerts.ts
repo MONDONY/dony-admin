@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { alertsService } from '@/features/alerts/services/alertsService'
 import type { AdminAlert, AlertsFilterState, AlertSeverity, ResolvedFilter } from '@/features/alerts/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useAlerts() {
   const alerts = ref<AdminAlert[]>([])
@@ -19,7 +20,7 @@ export function useAlerts() {
       alerts.value = page.content
       totalPages.value = page.totalPages
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les alertes')
     } finally {
       isLoading.value = false
     }

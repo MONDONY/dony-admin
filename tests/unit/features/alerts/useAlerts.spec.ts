@@ -45,4 +45,11 @@ describe('useAlerts', () => {
     await a.fetchAlerts()
     expect(a.error.value).toBe('boom')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.list.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const a = useAlerts()
+    await a.fetchAlerts()
+    expect(a.error.value).toBe('Détail lisible du back')
+  })
 })

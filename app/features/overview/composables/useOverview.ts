@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { overviewService } from '@/features/overview/services/overviewService'
 import { formatAmount } from '@/features/finance/types/index'
 import type { AdminOverview } from '@/features/overview/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export interface KpiData { id: string; label: string; value: string; subLabel?: string }
 export interface QueueCard { id: string; label: string; count: number; tone: 'danger' | 'warning' | 'info' | 'neutral'; href: string }
@@ -17,7 +18,7 @@ export function useOverview() {
     isLoading.value = true
     error.value = null
     try { data.value = await overviewService.fetch() }
-    catch (e) { error.value = (e as Error).message }
+    catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger la vue d’ensemble') }
     finally { isLoading.value = false }
   }
 

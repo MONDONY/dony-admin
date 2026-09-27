@@ -82,6 +82,13 @@ describe('useOverview', () => {
     expect(o.error.value).toBe('down')
   })
 
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    fetchMock.mockRejectedValueOnce(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const o = useOverview()
+    await o.fetchOverview()
+    expect(o.error.value).toBe('Détail lisible du back')
+  })
+
   it('kpis, volumes et queues sont vides quand data est null (avant premier chargement)', () => {
     const o = useOverview()
     expect(o.kpis.value).toEqual([])
