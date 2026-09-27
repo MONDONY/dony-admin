@@ -75,6 +75,32 @@ describe('useOverview', () => {
     expect(disputes.tone).toBe('danger')
   })
 
+  it('carte KYC : compteur en revue, cliquable vers /kyc', async () => {
+    fetchMock.mockResolvedValue({ ...sample, queues: { ...sample.queues, kycInReview: 4 } })
+    const o = useOverview()
+    await o.fetchOverview()
+    const kyc = o.queues.value.find(q => q.id === 'kyc')!
+    expect(kyc.count).toBe(4)
+    expect(kyc.href).toBe('/kyc')
+    expect(kyc.label).toBe('Identités à vérifier')
+  })
+
+  it('carte KYC : repli sur pendingKyc (ancien back)', async () => {
+    fetchMock.mockResolvedValue(sample)
+    const o = useOverview()
+    await o.fetchOverview()
+    expect(o.queues.value.find(q => q.id === 'kyc')!.count).toBe(10)
+  })
+
+  it('carte KYC absente quand le back n’envoie aucun compteur KYC', async () => {
+    const { pendingKyc: _omitted, ...queues } = sample.queues
+    fetchMock.mockResolvedValue({ ...sample, queues })
+    const o = useOverview()
+    await o.fetchOverview()
+    expect(o.queues.value.find(q => q.id === 'kyc')).toBeUndefined()
+    expect(o.queues.value.find(q => q.id === 'disputes')).toBeDefined()
+  })
+
   it('captures errors', async () => {
     fetchMock.mockRejectedValueOnce(new Error('down'))
     const o = useOverview()

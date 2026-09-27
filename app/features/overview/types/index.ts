@@ -18,5 +18,11 @@ export interface AdminOverview {
   gmv: { escrowHeld: number; released: number; refunded: number; commission: number }
   /** Absent d'un backend pas encore mis à jour : la section reste vide plutôt que fausse. */
   gmvByCurrency?: AdminOverviewVolume[]
-  queues: { openDisputes: number; pendingNoShows: number; unresolvedAlerts: number; pendingKyc: number; escrowJ48: number }
+  queues: {
+    openDisputes: number; pendingNoShows: number; unresolvedAlerts: number; escrowJ48: number
+    /** Ancien compteur KYC ; absent d'un back qui ne l'envoie plus. */
+    pendingKyc?: number
+    /** Vérifications en attente de décision admin (file /kyc), nouveau back seulement. */
+    kycInReview?: number
+  }
 }

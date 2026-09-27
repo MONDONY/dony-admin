@@ -50,13 +50,19 @@ export function useOverview() {
   const queues = computed<QueueCard[]>(() => {
     const q = data.value?.queues
     if (!q) return []
-    return [
+    // Compteur KYC : `kycInReview` (nouveau back) sinon `pendingKyc` ; la carte mène à la file
+    // /kyc et disparaît si le back n'envoie ni l'un ni l'autre.
+    const kycCount = q.kycInReview ?? q.pendingKyc
+    const cards: QueueCard[] = [
       { id: 'disputes', label: 'Litiges ouverts', count: q.openDisputes, tone: 'danger', href: '/incidents' },
       { id: 'noshows', label: 'No-shows à arbitrer', count: q.pendingNoShows, tone: 'warning', href: '/incidents' },
       { id: 'alerts', label: 'Alertes non résolues', count: q.unresolvedAlerts, tone: 'danger', href: '/alertes' },
-      { id: 'kyc', label: 'KYC en attente', count: q.pendingKyc, tone: 'info', href: '/users' },
-      { id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: '/transactions' },
     ]
+    if (typeof kycCount === 'number') {
+      cards.push({ id: 'kyc', label: 'Identités à vérifier', count: kycCount, tone: 'info', href: '/kyc' })
+    }
+    cards.push({ id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: '/transactions' })
+    return cards
   })
 
   return { data, isLoading, error, kpis, volumes, queues, fetchOverview }
