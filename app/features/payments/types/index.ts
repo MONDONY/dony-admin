@@ -12,7 +12,15 @@ export type PaymentCurrencyFilter = 'TOUTES' | PaymentCurrency
 export type ChargebackStatus = 'OPEN' | 'WON' | 'LOST'
 
 export interface AdminPaymentListItem { id: string; bidId: string | null; status: PaymentStatus; method: PaymentMethod; amountCents: number; commissionCents: number; currency: string; createdAt: string }
-export interface AdminPaymentDetail extends AdminPaymentListItem { refundedCents: number; stripePaymentIntentId: string | null; escrowReleasedAt: string | null; disputed: boolean }
+/**
+ * Les trois identifiants pawaPay sont la DERNIÈRE opération connue de chaque type (null sur le
+ * rail Stripe ou tant qu'aucune opération n'a eu lieu). Optionnels : un ancien back ne les
+ * envoie pas.
+ */
+export interface AdminPaymentDetail extends AdminPaymentListItem {
+  refundedCents: number; stripePaymentIntentId: string | null; escrowReleasedAt: string | null; disputed: boolean
+  pawapayDepositId?: string | null; pawapayPayoutId?: string | null; pawapayRefundId?: string | null
+}
 export interface AdminChargeback { id: string; bidId: string | null; amountCents: number; currency?: string | null; reason: string | null; status: ChargebackStatus; openedAt: string }
 export interface AdminPaymentPage { content: AdminPaymentListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminChargebackPage { content: AdminChargeback[]; totalElements: number; totalPages: number; number: number; size: number }

@@ -162,3 +162,87 @@ describe('PaymentDetailPanel — gardes vues depuis un rôle sans les permission
     expect(w.find('[data-test="payment-close"]').exists()).toBe(true)
   })
 })
+
+/**
+ * Relances mobile money : le back n'accepte la relance de versement que sur un paiement
+ * pawaPay RELEASED, celle du remboursement que sur REFUNDED ou CANCELLED, et toutes deux
+ * exigent PAYMENT_RELEASE (AdminPaymentController). Sans opération connue du bon type,
+ * il répond 422 « introuvable » : le bouton ne s'affiche donc pas non plus.
+ */
+describe('PaymentDetailPanel : relances mobile money', () => {
+  const mm = { ...mockPayment, method: 'PAWAPAY', currency: 'XOF', stripePaymentIntentId: null, pawapayDepositId: 'd1', pawapayPayoutId: 'po1', pawapayRefundId: 'r1' }
+  beforeEach(() => seedAuth('ADMIN'))
+
+  it('propose « Relancer le versement » sur un paiement mobile money RELEASED', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'RELEASED' }, open: true } })
+    expect(w.find('[data-test="action-retry-payout"]').text()).toContain('Relancer le versement')
+    expect(w.find('[data-test="action-retry-refund"]').exists()).toBe(false)
+  })
+
+  it.each(['REFUNDED', 'CANCELLED'])('propose « Relancer le remboursement » sur un paiement mobile money %s', (status) => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status }, open: true } })
+    expect(w.find('[data-test="action-retry-refund"]').text()).toContain('Relancer le remboursement')
+    expect(w.find('[data-test="action-retry-payout"]').exists()).toBe(false)
+  })
+
+  it('aucune relance sur un paiement carte, même RELEASED', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, status: 'RELEASED' }, open: true } })
+    expect(w.find('[data-test="action-retry-payout"]').exists()).toBe(false)
+  })
+
+  it('aucune relance de versement sans opération de versement connue', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'RELEASED', pawapayPayoutId: null }, open: true } })
+    expect(w.find('[data-test="action-retry-payout"]').exists()).toBe(false)
+  })
+
+  it('aucune relance de remboursement sans opération de remboursement connue', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'CANCELLED', pawapayRefundId: null }, open: true } })
+    expect(w.find('[data-test="action-retry-refund"]').exists()).toBe(false)
+  })
+
+  it('aucune relance sur ESCROW', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'ESCROW' }, open: true } })
+    expect(w.find('[data-test="action-retry-payout"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-retry-refund"]').exists()).toBe(false)
+  })
+
+  it('confirme avant d’émettre retry-payout', async () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'RELEASED' }, open: true } })
+    await w.find('[data-test="action-retry-payout"]').trigger('click')
+    expect(w.emitted('retry-payout')).toBeFalsy()
+    const dialog = w.findComponent({ name: 'ConfirmActionDialog' })
+    expect(dialog.props('title')).toBe('Relancer le versement')
+    await dialog.vm.$emit('confirm', '')
+    expect(w.emitted('retry-payout')).toBeTruthy()
+  })
+
+  it('confirme avant d’émettre retry-refund', async () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'REFUNDED' }, open: true } })
+    await w.find('[data-test="action-retry-refund"]').trigger('click')
+    const dialog = w.findComponent({ name: 'ConfirmActionDialog' })
+    expect(dialog.props('title')).toBe('Relancer le remboursement')
+    await dialog.vm.$emit('confirm', '')
+    expect(w.emitted('retry-refund')).toBeTruthy()
+  })
+
+  it('désactive la relance pendant l’envoi', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'RELEASED' }, open: true, busy: true } })
+    const b = w.find('[data-test="action-retry-payout"]')
+    expect(b.attributes('disabled')).toBeDefined()
+    expect(b.text()).toContain('En cours')
+  })
+
+  it('SUPPORT (sans PAYMENT_RELEASE) ne voit aucune relance', () => {
+    seedAuth('SUPPORT')
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'RELEASED' }, open: true } })
+    expect(w.find('[data-test="action-retry-payout"]').exists()).toBe(false)
+    const w2 = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'REFUNDED' }, open: true } })
+    expect(w2.find('[data-test="action-retry-refund"]').exists()).toBe(false)
+  })
+
+  it('un ADMIN privé de PAYMENT_RELEASE mais avec PAYMENT_REFUND ne voit pas la relance de remboursement', () => {
+    seedAuth('ADMIN', { PAYMENT_RELEASE: false })
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'REFUNDED' }, open: true } })
+    expect(w.find('[data-test="action-retry-refund"]').exists()).toBe(false)
+  })
+})

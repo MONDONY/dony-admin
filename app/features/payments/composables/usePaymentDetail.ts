@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { paymentsService } from '@/features/payments/services/paymentsService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminPaymentDetail } from '@/features/payments/types/index'
 
 export function usePaymentDetail() {
@@ -9,11 +10,14 @@ export function usePaymentDetail() {
 
   async function open(id: string) {
     error.value = null
-    try { payment.value = await paymentsService.get(id) } catch (e) { error.value = (e as Error).message }
+    try { payment.value = await paymentsService.get(id) } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger le paiement') }
   }
   function close() { payment.value = null; error.value = null }
 
-  /** Retourne true si l'action a réussi, false si l'API renvoie une erreur. */
+  /**
+   * Retourne true si l'action a réussi, false si l'API renvoie une erreur. Chaque action du
+   * back renvoie le détail à jour : il remplace celui affiché, sans second GET.
+   */
   async function run(fn: () => Promise<AdminPaymentDetail>): Promise<boolean> {
     error.value = null
     busy.value = true
@@ -21,7 +25,7 @@ export function usePaymentDetail() {
       payment.value = await fn()
       return true
     } catch (e) {
-      error.value = (e as Error).message || 'Action échouée'
+      error.value = extractProblemMessage(e, 'Action échouée')
       return false
     } finally {
       busy.value = false
@@ -29,5 +33,7 @@ export function usePaymentDetail() {
   }
   const forceRelease = () => run(() => paymentsService.forceRelease(payment.value!.id))
   const refund = () => run(() => paymentsService.refund(payment.value!.id))
-  return { payment, error, busy, open, close, forceRelease, refund }
+  const retryPayout = () => run(() => paymentsService.retryMobileMoneyPayout(payment.value!.id))
+  const retryRefund = () => run(() => paymentsService.retryMobileMoneyRefund(payment.value!.id))
+  return { payment, error, busy, open, close, forceRelease, refund, retryPayout, retryRefund }
 }

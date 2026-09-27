@@ -183,6 +183,8 @@ onMounted(fetchPayments)
         @close="detail.close"
         @force-release="onAction(detail.forceRelease)"
         @refund="onAction(detail.refund)"
+        @retry-payout="onAction(detail.retryPayout)"
+        @retry-refund="onAction(detail.retryRefund)"
       />
     </template>
     <template v-else-if="tab === 'chargebacks'">
