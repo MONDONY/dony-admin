@@ -16,7 +16,7 @@ const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
-  openKyc: []; resetKyc: [reason: string]; requestDelete: [];
+  openKyc: []; resetKyc: [reason: string]; kycDecided: [kyc: AdminKycDetail]; kycStale: []; requestDelete: [];
   grantPro: [reason: string]; revokePro: [];
 }>()
 const auth = useAuthStore()
@@ -57,6 +57,8 @@ function openTab(next: Tab) {
   }
 }
 const fullName = () => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || '—'
+/** Nom à ressaisir avant une révocation KYC ; null si inconnu (repli sur l'identifiant). */
+const kycUserName = computed(() => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || null)
 function confirmReason(reason: string) {
   if (pending.value === 'suspend') emit('suspend', reason)
   else if (pending.value === 'ban') emit('ban', reason)
@@ -414,7 +416,9 @@ const dialogConfig = computed<DialogConfig>(() => {
       <UserKycTab
         v-if="tab === 'kyc'"
         :kyc="props.kyc ?? null" :loading="props.kycLoading" :error="props.kycError" :busy="props.busy"
+        :user-name="kycUserName"
         @reset="(reason) => emit('resetKyc', reason)"
+        @decided="(k) => emit('kycDecided', k)" @stale="emit('kycStale')"
       />
 
       <UserWalletTab v-if="tab === 'wallet'" :key="user.id" :user-id="user.id" />

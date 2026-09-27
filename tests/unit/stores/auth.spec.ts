@@ -142,8 +142,16 @@ describe('useAuthStore (admin)', () => {
   // attrapera une divergence que ce nombre laisserait passer.
   // 34 avec REPORT_DELETE (suppression des signalements, yadony-back #318).
   // 35 avec WALLET_ADJUST (correction manuelle de solde, PR dony-back feature/admin-wallet-ajustement).
-  it('exposes 35 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(35)
+  // 36 avec KYC_DECIDE (décisions manuelles KYC, PR dony-back feature/admin-kyc-file-decisions).
+  it('exposes 36 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(36)
+  })
+
+  it('KYC_DECIDE : ADMIN et SUPER_ADMIN, pas SUPPORT (qui garde USER_KYC)', () => {
+    expect(effectivePermissions('ADMIN', {}).has('KYC_DECIDE')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('KYC_DECIDE')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('KYC_DECIDE')).toBe(false)
+    expect(effectivePermissions('SUPPORT', {}).has('USER_KYC')).toBe(true)
   })
 
   it('WALLET_ADJUST : ADMIN et SUPER_ADMIN, pas SUPPORT', () => {

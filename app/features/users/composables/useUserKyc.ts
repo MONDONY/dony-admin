@@ -40,5 +40,21 @@ export function useUserKyc() {
     finally { busy.value = false }
   }
 
-  return { kyc, isLoading, error, busy, load, reset }
+  /**
+   * Relecture silencieuse après un conflit (fiche en retard sur la base) : la fiche reste
+   * affichée pendant l'appel, et un échec la laisse telle quelle. `load()` la viderait, ce
+   * qui démonterait le dialogue de décision et son message d'erreur.
+   */
+  async function refresh(userId: string) {
+    try { kyc.value = await usersService.getKyc(userId) }
+    catch { /* la fiche affichée reste la dernière connue */ }
+  }
+
+  /** Remplace la fiche par celle renvoyée par une décision admin. */
+  function set(next: AdminKycDetail) {
+    kyc.value = next
+    error.value = null
+  }
+
+  return { kyc, isLoading, error, busy, load, refresh, set, reset }
 }

@@ -66,6 +66,17 @@ export const usersService = {
   resetKyc(id: string, reason: string): Promise<AdminKycDetail> {
     return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/reset`, { method: 'POST', body: { reason } })
   },
+  /** Décision manuelle (KYC_DECIDE) : le back exige d'avoir une session chez le fournisseur. */
+  approveKyc(id: string, reason: string): Promise<AdminKycDetail> {
+    return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/approve`, { method: 'POST', body: { reason } })
+  },
+  /** `code` (catalogue) est montré à l'utilisateur ; `reason` reste interne (journal d'audit). */
+  rejectKyc(id: string, code: string, reason: string): Promise<AdminKycDetail> {
+    return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/reject`, { method: 'POST', body: { code, reason } })
+  },
+  revokeKyc(id: string, code: string, reason: string): Promise<AdminKycDetail> {
+    return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/revoke`, { method: 'POST', body: { code, reason } })
+  },
   listGdprRequests(page: number, size: number): Promise<AdminGdprRequestPage> {
     return useApi()<AdminGdprRequestPage>('/admin/users/gdpr-requests', { query: { page, size } })
   },

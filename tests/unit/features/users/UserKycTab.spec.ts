@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import UserKycTab from '@/features/users/components/UserKycTab.vue'
 import { seedAuth } from '~/tests/helpers/auth'
+
+vi.mock('@/features/users/services/usersService', () => ({ usersService: { approveKyc: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() } }))
 
 const KYC = {
   userId: 'u1', kycStatus: 'REJECTED', verificationStatus: 'REJECTED',
@@ -61,5 +63,40 @@ describe('UserKycTab', () => {
   it('affiche l\'erreur remontée par le back', () => {
     const w = mount(UserKycTab, { props: { kyc: KYC, error: 'Action échouée' } })
     expect(w.find('[data-test="kyc-error"]').text()).toContain('Action échouée')
+  })
+
+  it('affiche le fournisseur, la décision admin et l’historique, sans tiret cadratin', () => {
+    const w = mount(UserKycTab, {
+      props: {
+        userName: 'Jean Dupont',
+        kyc: {
+          ...KYC, provider: 'DIDIT', decisionKind: 'REJECTED', decidedAt: '2026-09-26T09:00:00Z',
+          decidedByAdminEmail: 'admin.1@yadony.com', decisionReason: 'Document expiré', history: [],
+          rejectionReason: null, stripeStatus: null, stripeLastErrorReason: null, stripeLastErrorCode: null, stripeCreatedAt: null,
+        },
+      },
+    })
+    expect(w.find('[data-test="kyc-provider"]').text()).toBe('Didit')
+    expect(w.find('[data-test="kyc-decision"]').text()).toContain('Refusée par un admin')
+    expect(w.find('[data-test="kyc-history-empty"]').exists()).toBe(true)
+    expect(w.text()).not.toContain('—')
+  })
+
+  it('propose les décisions (ADMIN) et relaie decided et stale', async () => {
+    const w = mount(UserKycTab, { props: { kyc: KYC, userName: 'Jean Dupont' } })
+    expect(w.find('[data-test="kyc-approve"]').exists()).toBe(true)
+    const actions = w.findComponent({ name: 'KycDecisionActions' })
+    expect(actions.props('userName')).toBe('Jean Dupont')
+    actions.vm.$emit('decided', KYC)
+    actions.vm.$emit('stale')
+    expect(w.emitted('decided')![0]).toEqual([KYC])
+    expect(w.emitted('stale')).toHaveLength(1)
+  })
+
+  it('SUPPORT : aucune décision, la réinitialisation reste', () => {
+    seedAuth('SUPPORT')
+    const w = mount(UserKycTab, { props: { kyc: KYC } })
+    expect(w.find('[data-test="kyc-approve"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-reset-kyc"]').exists()).toBe(true)
   })
 })

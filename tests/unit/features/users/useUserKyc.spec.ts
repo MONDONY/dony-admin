@@ -58,4 +58,34 @@ describe('useUserKyc', () => {
     expect(c.error.value).toBe("Cet utilisateur n'a jamais démarré de vérification d'identité")
     expect(c.kyc.value?.kycStatus).toBe('REJECTED')
   })
+
+  it('refresh() relit la fiche sans la vider ni afficher le chargement', async () => {
+    getKyc.mockResolvedValueOnce(KYC)
+    const c = useUserKyc()
+    await c.load('u1')
+    let resolve!: (_value: unknown) => void
+    getKyc.mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    const pending = c.refresh('u1')
+    expect(c.kyc.value?.kycStatus).toBe('REJECTED')
+    expect(c.isLoading.value).toBe(false)
+    resolve({ ...KYC, kycStatus: 'VERIFIED' })
+    await pending
+    expect(c.kyc.value?.kycStatus).toBe('VERIFIED')
+  })
+
+  it('refresh() en échec garde la fiche affichée', async () => {
+    getKyc.mockResolvedValueOnce(KYC)
+    const c = useUserKyc()
+    await c.load('u1')
+    getKyc.mockRejectedValueOnce({ data: { detail: 'Réseau' } })
+    await c.refresh('u1')
+    expect(c.kyc.value?.kycStatus).toBe('REJECTED')
+  })
+
+  it('set() remplace la fiche par celle renvoyée par une décision', () => {
+    const c = useUserKyc()
+    c.set({ ...KYC, kycStatus: 'VERIFIED' } as never)
+    expect(c.kyc.value?.kycStatus).toBe('VERIFIED')
+    expect(c.error.value).toBeNull()
+  })
 })

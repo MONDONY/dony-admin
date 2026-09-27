@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
   Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone, Settings,
-  LifeBuoy,
+  LifeBuoy, IdCard,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -118,6 +118,7 @@ onBeforeUnmount(() => {
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
       <NavItem v-if="can('METRICS_VIEW')" to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_VIEW')" to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('USER_KYC')" to="/kyc" label="Vérifications d’identité"><template #icon><IdCard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_GDPR_DELETE')" to="/users/rgpd" label="Demandes RGPD"><template #icon><UserX class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('BID_VIEW')" to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>
