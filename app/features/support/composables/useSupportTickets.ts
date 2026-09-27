@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { supportService } from '@/features/support/services/supportService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import type {
   AdminSupportTicket, SupportStatusFilter, SupportTicketScope,
 } from '@/features/support/types/index'
@@ -37,7 +38,7 @@ export function useSupportTickets() {
       totalElements.value = page.totalElements
       totalPages.value = page.totalPages
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les tickets')
     } finally {
       isLoading.value = false
     }
@@ -66,7 +67,7 @@ export function useSupportTickets() {
     try {
       selected.value = await supportService.get(id)
     } catch (e) {
-      actionError.value = (e as Error).message
+      actionError.value = extractProblemMessage(e, 'Action impossible')
     } finally {
       isDetailLoading.value = false
     }
@@ -91,7 +92,7 @@ export function useSupportTickets() {
       await refreshAfterAction(id)
       return true
     } catch (e) {
-      actionError.value = (e as Error).message
+      actionError.value = extractProblemMessage(e, 'Action impossible')
       return false
     } finally {
       isActing.value = false

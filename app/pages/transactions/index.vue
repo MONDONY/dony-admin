@@ -9,6 +9,7 @@ import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
 import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
 import WalletRefundRequestsTable from '@/features/finance/components/WalletRefundRequestsTable.vue'
+import PeriodFilter from '@/features/finance/components/PeriodFilter.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePayments } from '@/features/payments/composables/usePayments'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
@@ -27,6 +28,9 @@ const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, go
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
+const cbPage = ref(0)
+const cbTotalPages = ref(0)
+const cbLoaded = ref(false)
 
 const wallets = ref<AdminWallet[]>([])
 const walletsLoading = ref(false)
@@ -40,6 +44,8 @@ const mmTotalPages = ref(0)
 
 const mmCommissions = ref<AdminMobileMoneyCommissions | null>(null)
 const mmCommissionsLoading = ref(false)
+const mmCommissionsFrom = ref<string | null>(null)
+const mmCommissionsTo = ref<string | null>(null)
 const cashCommissions = ref<AdminCashCommission[]>([])
 const cashLoading = ref(false)
 const cashPage = ref(0)
@@ -57,10 +63,14 @@ const walletRefundBusyId = ref<string | null>(null)
 // compte réellement sans portefeuille ni commission.
 const tabError = ref<string | null>(null)
 
-async function loadCbs() {
+async function loadCbs(page = cbPage.value) {
   cbLoading.value = true
   tabError.value = null
-  try { cbs.value = (await paymentsService.listChargebacks(0, 20)).content }
+  try {
+    const res = await paymentsService.listChargebacks(page, 20)
+    cbs.value = res.content; cbTotalPages.value = res.totalPages; cbPage.value = res.number
+    cbLoaded.value = true
+  }
   catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les litiges bancaires') }
   finally { cbLoading.value = false }
 }
@@ -89,10 +99,16 @@ async function loadMobileMoneyCommissions() {
   mmCommissionsLoading.value = true
   tabError.value = null
   try {
-    mmCommissions.value = await financeService.getMobileMoneyCommissions()
+    mmCommissions.value = await financeService.getMobileMoneyCommissionsForDays(mmCommissionsFrom.value, mmCommissionsTo.value)
   }
   catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les commissions mobile money') }
   finally { mmCommissionsLoading.value = false }
+}
+
+async function setMmCommissionsPeriod(from: string | null, to: string | null) {
+  mmCommissionsFrom.value = from
+  mmCommissionsTo.value = to
+  await loadMobileMoneyCommissions()
 }
 
 async function loadCashCommissions(page = cashPage.value) {
@@ -130,7 +146,7 @@ async function resolveWalletRefund(id: string) {
 
 async function switchTab(t: Tab) {
   tab.value = t
-  if (t === 'chargebacks' && cbs.value.length === 0) await loadCbs()
+  if (t === 'chargebacks' && !cbLoaded.value) await loadCbs()
   if (t === 'wallets' && wallets.value.length === 0) await loadWallets()
   if (t === 'mobile-money' && mmPayments.value.length === 0) await loadMobileMoney()
   if (t === 'mm-commissions' && mmCommissions.value === null) await loadMobileMoneyCommissions()
@@ -183,10 +199,13 @@ onMounted(fetchPayments)
         @close="detail.close"
         @force-release="onAction(detail.forceRelease)"
         @refund="onAction(detail.refund)"
+        @retry-payout="onAction(detail.retryPayout)"
+        @retry-refund="onAction(detail.retryRefund)"
       />
     </template>
     <template v-else-if="tab === 'chargebacks'">
       <ChargebacksTable :chargebacks="cbs" :loading="cbLoading" />
+      <div class="mt-4"><PaginationControls :page="cbPage" :total-pages="cbTotalPages" @change="loadCbs" /></div>
     </template>
     <template v-else-if="tab === 'wallets'">
       <WalletsTable :wallets="wallets" :loading="walletsLoading" />
@@ -197,6 +216,10 @@ onMounted(fetchPayments)
       <div class="mt-4"><PaginationControls :page="mmPage" :total-pages="mmTotalPages" @change="loadMobileMoney" /></div>
     </template>
     <template v-else-if="tab === 'mm-commissions'">
+      <PeriodFilter
+        :model-date-from="mmCommissionsFrom" :model-date-to="mmCommissionsTo"
+        @update:date-range="setMmCommissionsPeriod"
+      />
       <MobileMoneyCommissionsPanel :data="mmCommissions" :loading="mmCommissionsLoading" />
     </template>
     <template v-else-if="tab === 'cash-commissions'">

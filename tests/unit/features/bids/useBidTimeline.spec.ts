@@ -27,4 +27,10 @@ describe('useBidTimeline', () => {
     const t = useBidTimeline(); await t.open('b1')
     expect(t.error.value).toBe('e')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.getBid.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const t = useBidTimeline(); await t.open('b1')
+    expect(t.error.value).toBe('Détail lisible du back')
+  })
 })

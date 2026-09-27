@@ -44,6 +44,13 @@ describe('useConversationThread', () => {
     expect(t.error.value).toBe('thread boom')
   })
 
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.getMessages.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const t = useConversationThread()
+    await t.open('c1')
+    expect(t.error.value).toBe('Détail lisible du back')
+  })
+
   it('deleteMessage() est un no-op quand activeId est null', async () => {
     const t = useConversationThread()
     // activeId.value = null par défaut → la garde empêche l'appel au service

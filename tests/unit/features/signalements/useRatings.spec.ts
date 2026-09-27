@@ -41,8 +41,8 @@ describe('useRatings', () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     svc.remove.mockResolvedValue(undefined)
     const r = useRatings()
-    await r.remove('rt1')
-    expect(svc.remove).toHaveBeenCalledWith('rt1')
+    await r.remove('rt1', 'spam')
+    expect(svc.remove).toHaveBeenCalledWith('rt1', 'spam')
     expect(svc.list).toHaveBeenCalled()
   })
 
@@ -52,4 +52,39 @@ describe('useRatings', () => {
     await r.fetchRatings()
     expect(r.error.value).toBe('nope')
   })
+
+  it('préfère le detail du ProblemDetail au message technique', async () => {
+    svc.list.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { data: { detail: 'Accès refusé' } }))
+    const r = useRatings()
+    await r.fetchRatings()
+    expect(r.error.value).toBe('Accès refusé')
+  })
+
+  describe('remove en échec', () => {
+    it('attrape l’erreur, expose le detail du ProblemDetail et ne recharge pas', async () => {
+      svc.remove.mockRejectedValue(Object.assign(new Error('409 Conflict'), { data: { detail: 'Avis déjà supprimé' } }))
+      const r = useRatings()
+      const ok = await r.remove('rt1', 'spam')
+      expect(ok).toBe(false)
+      expect(r.error.value).toBe('Avis déjà supprimé')
+      expect(svc.list).not.toHaveBeenCalled()
+    })
+
+    it('retombe sur un message de secours en français', async () => {
+      svc.remove.mockRejectedValue({})
+      const r = useRatings()
+      await r.remove('rt1', 'spam')
+      expect(r.error.value).toBe('Impossible de supprimer cet avis')
+    })
+
+    it('renvoie true et efface l’erreur précédente en cas de succès', async () => {
+      svc.remove.mockRejectedValueOnce({}).mockResolvedValueOnce(undefined)
+      svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+      const r = useRatings()
+      await r.remove('rt1', 'spam')
+      expect(await r.remove('rt1', 'spam')).toBe(true)
+      expect(r.error.value).toBeNull()
+    })
+  })
 })
+

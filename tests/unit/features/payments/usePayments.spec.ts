@@ -27,6 +27,14 @@ describe('usePayments', () => {
     expect(p.error.value).toBe('x')
   })
 
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    const err = Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } })
+    svc.list.mockRejectedValue(err)
+    const p = usePayments()
+    await p.fetchPayments()
+    expect(p.error.value).toBe('Détail lisible du back')
+  })
+
   it('setMethodFilter réinitialise la page et filtre par méthode', async () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     const p = usePayments()

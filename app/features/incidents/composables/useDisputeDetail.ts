@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { incidentsService } from '@/features/incidents/services/incidentsService'
 import type { AdminDisputeDetail, DisputeResolution } from '@/features/incidents/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useDisputeDetail() {
   const dispute = ref<AdminDisputeDetail | null>(null)
@@ -10,12 +11,12 @@ export function useDisputeDetail() {
   async function open(id: string) {
     isLoading.value = true; error.value = null
     try { dispute.value = await incidentsService.getDispute(id) }
-    catch (e) { error.value = (e as Error).message } finally { isLoading.value = false }
+    catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger le litige') } finally { isLoading.value = false }
   }
   function close() { dispute.value = null }
   async function run(fn: () => Promise<AdminDisputeDetail>) {
     error.value = null
-    try { dispute.value = await fn() } catch (e) { error.value = (e as Error).message }
+    try { dispute.value = await fn() } catch (e) { error.value = extractProblemMessage(e, 'Action échouée') }
   }
   const resolve = (resolution: DisputeResolution, note: string) => run(() => incidentsService.resolveDispute(dispute.value!.id, resolution, note))
   const payGuarantee = (amountCents: number, beneficiaryUserId: string, reason: string, currency?: string | null) =>

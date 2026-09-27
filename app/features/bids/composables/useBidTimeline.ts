@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
 import type { AdminBidDetail, AdminBidTimeline } from '@/features/bids/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useBidTimeline() {
   const bid = ref<AdminBidDetail | null>(null)
@@ -13,7 +14,7 @@ export function useBidTimeline() {
     try {
       const [b, t] = await Promise.all([bidsAdminService.getBid(id), bidsAdminService.getTimeline(id)])
       bid.value = b; timeline.value = t
-    } catch (e) { error.value = (e as Error).message } finally { isLoading.value = false }
+    } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger le colis') } finally { isLoading.value = false }
   }
   function close() { bid.value = null; timeline.value = null }
 

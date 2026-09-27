@@ -1,6 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import { reportsService } from '@/features/signalements/services/reportsService'
 import type { AdminReport, ReportAction, ReportsFilterState, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useReports() {
   const reports = ref<AdminReport[]>([])
@@ -54,7 +55,7 @@ export function useReports() {
       totalPages.value = page.totalPages
       totalElements.value = page.totalElements
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les signalements')
     } finally {
       isLoading.value = false
     }

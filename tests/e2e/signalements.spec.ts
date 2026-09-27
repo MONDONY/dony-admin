@@ -82,12 +82,18 @@ test('admin excludes a rating with a reason', async ({ page }) => {
 })
 
 test('admin removes a rating', async ({ page }) => {
+  let deleteUrl = ''
+  page.on('request', (req) => { if (req.method() === 'DELETE' && req.url().includes('/admin/ratings/')) deleteUrl = req.url() })
   await page.goto('/signalements')
   await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
   await page.locator('[data-test="tab-ratings"]').click()
   await page.locator('[data-test="remove-rt1"]').click()
+  // Le motif est désormais exigé et transmis au back (paramètre `reason`).
+  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
+  await page.locator('[data-test="reason"]').fill('propos injurieux')
   await page.locator('[data-test="confirm"]').click()
   await expect(page.locator('[data-test="overlay"]')).toHaveCount(0)
+  await expect.poll(() => deleteUrl).toMatch(/reason=propos(\+|%20)injurieux/)
 })
 
 test('a failed load shows an error banner, distinct from an empty list', async ({ page }) => {
@@ -116,4 +122,20 @@ test('resolving a USER report offers Suspendre la cible but not Retirer le conte
   const options = await page.locator('[data-test="resolve-action"] option').allTextContents()
   expect(options).toContain('Suspendre la cible')
   expect(options).not.toContain('Retirer le contenu')
+})
+
+test('un refus de suppression d’avis s’affiche au lieu d’être avalé', async ({ page }) => {
+  await page.route('**/api/v1/admin/ratings**', (route) => {
+    if (route.request().method() === 'DELETE') {
+      return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ status: 409, detail: 'Avis déjà supprimé' }) })
+    }
+    return route.fulfill({ json: RATINGS_PAGE })
+  })
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
+  await page.locator('[data-test="tab-ratings"]').click()
+  await page.locator('[data-test="remove-rt1"]').click()
+  await page.locator('[data-test="reason"]').fill('spam')
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="ratings-error"]')).toHaveText('Avis déjà supprimé')
 })

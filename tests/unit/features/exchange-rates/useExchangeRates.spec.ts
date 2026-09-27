@@ -15,6 +15,7 @@ describe('useExchangeRates', () => {
     vi.clearAllMocks()
     svc.list = vi.fn()
     svc.update = vi.fn()
+    svc.sync = vi.fn()
   })
 
   it('load charge la liste des taux', async () => {
@@ -122,4 +123,53 @@ describe('useExchangeRates', () => {
     await p.update('USD', 1.2)
     expect(p.rates.value).toEqual([eur])
   })
+
+  describe('sync (BCE)', () => {
+    it('synchronise puis recharge la liste et annonce le nombre de devises mises à jour', async () => {
+      svc.list.mockResolvedValueOnce([usd]).mockResolvedValueOnce([{ ...usd, unitsPerEur: 1.09 }])
+      svc.sync.mockResolvedValue({ updated: 2 })
+      const p = useExchangeRates()
+      await p.load()
+      await p.sync()
+      expect(svc.sync).toHaveBeenCalledTimes(1)
+      expect(svc.list).toHaveBeenCalledTimes(2)
+      expect(p.rates.value[0].unitsPerEur).toBe(1.09)
+      expect(p.syncMessage.value).toBe('2 devises mises à jour par la BCE')
+      expect(p.syncing.value).toBe(false)
+    })
+
+    it('accorde le message au singulier et à zéro', async () => {
+      svc.list.mockResolvedValue([usd])
+      const p = useExchangeRates()
+      svc.sync.mockResolvedValue({ updated: 1 })
+      await p.sync()
+      expect(p.syncMessage.value).toBe('1 devise mise à jour par la BCE')
+      svc.sync.mockResolvedValue({ updated: 0 })
+      await p.sync()
+      expect(p.syncMessage.value).toBe('Aucune devise modifiée : les taux étaient déjà à jour')
+    })
+
+    it('syncing est vrai pendant l’appel', async () => {
+      svc.list.mockResolvedValue([usd])
+      let resolveSync!: (_v: unknown) => void
+      svc.sync.mockReturnValue(new Promise((r) => { resolveSync = r }))
+      const p = useExchangeRates()
+      const pending = p.sync()
+      expect(p.syncing.value).toBe(true)
+      resolveSync({ updated: 0 })
+      await pending
+      expect(p.syncing.value).toBe(false)
+    })
+
+    it('expose le detail du ProblemDetail en cas d’échec, sans recharger', async () => {
+      svc.sync.mockRejectedValue(Object.assign(new Error('502 Bad Gateway'), { data: { detail: 'BCE injoignable' } }))
+      const p = useExchangeRates()
+      await p.sync()
+      expect(p.error.value).toBe('BCE injoignable')
+      expect(p.syncMessage.value).toBeNull()
+      expect(svc.list).not.toHaveBeenCalled()
+      expect(p.syncing.value).toBe(false)
+    })
+  })
 })
+

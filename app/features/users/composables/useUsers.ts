@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { usersService } from '@/features/users/services/usersService'
 import type { AdminUserListItem, UsersFilterState, UserStatusFilter } from '@/features/users/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useUsers() {
   const users = ref<AdminUserListItem[]>([])
@@ -23,7 +24,7 @@ export function useUsers() {
       totalElements.value = page.totalElements
       totalPages.value = page.totalPages
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les utilisateurs')
     } finally {
       isLoading.value = false
     }

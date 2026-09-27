@@ -443,3 +443,49 @@ describe('UserDetailPanel', () => {
     expect(w.find('[data-test="user-mobile-money"]').text()).toBe('—')
   })
 })
+
+/**
+ * Le back lève suspension ET bannissement par le même POST /admin/users/{id}/unsuspend
+ * (USER_SUSPEND). Un compte BANNED n'avait aucun geste pour revenir en arrière.
+ */
+describe('UserDetailPanel : lever le bannissement', () => {
+  beforeEach(() => seedAuth('ADMIN'))
+
+  it('propose « Lever le bannissement » pour un compte BANNED, pas « Réactiver »', () => {
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'BANNED' }, open: true } })
+    expect(w.find('[data-test="action-unban"]').text()).toBe('Lever le bannissement')
+    expect(w.find('[data-test="action-unsuspend"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-suspend"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-ban"]').exists()).toBe(false)
+  })
+
+  it('demande confirmation puis émet unsuspend', async () => {
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'BANNED' }, open: true } })
+    await w.find('[data-test="action-unban"]').trigger('click')
+    expect(w.emitted('unsuspend')).toBeFalsy()
+    expect(w.text()).toContain('Lever le bannissement de ce compte')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('unsuspend')).toHaveLength(1)
+  })
+
+  it('n’offre pas le geste sur un compte ACTIVE, SUSPENDED ou PENDING_DELETION', () => {
+    for (const status of ['ACTIVE', 'SUSPENDED', 'PENDING_DELETION']) {
+      const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status }, open: true } })
+      expect(w.find('[data-test="action-unban"]').exists()).toBe(false)
+    }
+  })
+
+  it('PENDING_DELETION n’a pas non plus « Réactiver »', () => {
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'PENDING_DELETION' }, open: true } })
+    expect(w.find('[data-test="action-unsuspend"]').exists()).toBe(false)
+  })
+
+  it('exige USER_SUSPEND (garde du back) et USER_BAN (symétrie avec le bannissement)', () => {
+    seedAuth('ADMIN', { USER_BAN: false })
+    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'BANNED' }, open: true } })
+    expect(w.find('[data-test="action-unban"]').exists()).toBe(false)
+    seedAuth('ADMIN', { USER_SUSPEND: false })
+    const w2 = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'BANNED' }, open: true } })
+    expect(w2.find('[data-test="action-unban"]').exists()).toBe(false)
+  })
+})

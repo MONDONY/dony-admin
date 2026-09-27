@@ -101,3 +101,36 @@ test('support role has no admin accounts link and is redirected from /administra
   await page.goto('/administrateurs')
   await expect(page).toHaveURL(/\/denied$/)
 })
+
+test('super admin supprime un compte après avoir ressaisi son email, sans action sur sa propre ligne', async ({ page }) => {
+  await seedAdmin(page, SUPER_ADMIN)
+  const target = { id: 'a9', email: 'old.admin@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, createdAt: null, lastLoginAt: null }
+  const self = { id: 's1', email: SUPER_ADMIN.email, role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, createdAt: null, lastLoginAt: null }
+  let content = [self, target]
+  const deleted: string[] = []
+  await page.route('**/api/v1/admin/admins**', (route) => {
+    const req = route.request()
+    if (req.method() === 'DELETE') {
+      const id = req.url().split('/admin/admins/')[1]
+      deleted.push(id)
+      content = content.filter((a) => a.id !== id)
+      return route.fulfill({ status: 204, body: '' })
+    }
+    return route.fulfill({ json: { content, totalElements: content.length, totalPages: 1, number: 0, size: 20 } })
+  })
+
+  await page.goto('/administrateurs')
+  await expect(page.locator('[data-test="admin-row-a9"]')).toBeVisible()
+  await expect(page.locator('[data-test="delete-s1"]')).toHaveCount(0)
+
+  await expect(async () => {
+    await page.locator('[data-test="delete-a9"]').click()
+    await expect(page.locator('[data-test="confirmation-input"]')).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 15000 })
+  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
+  await page.locator('[data-test="confirmation-input"]').fill('old.admin@yadony.com')
+  await page.locator('[data-test="confirm"]').click()
+
+  await expect.poll(() => deleted).toEqual(['a9'])
+  await expect(page.locator('[data-test="admin-row-a9"]')).toHaveCount(0)
+})

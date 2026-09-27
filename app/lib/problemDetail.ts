@@ -9,3 +9,19 @@ export function extractProblemMessage(e: unknown, fallback: string): string {
   if (typeof data?.detail === 'string' && data.detail.trim().length > 0) return data.detail
   return (e as Error | undefined)?.message || fallback
 }
+
+/**
+ * Variante pour les requêtes en `responseType: 'blob'` (exports CSV) : ofetch y livre aussi
+ * le corps d'erreur en Blob, qu'il faut lire comme du JSON pour atteindre `detail`.
+ */
+export async function extractProblemMessageAsync(e: unknown, fallback: string): Promise<string> {
+  const data = (e as { data?: unknown } | undefined)?.data
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text()) as { detail?: unknown }
+      if (typeof parsed?.detail === 'string' && parsed.detail.trim().length > 0) return parsed.detail
+    } catch { /* corps non JSON : on retombe sur le message */ }
+    return (e as Error | undefined)?.message || fallback
+  }
+  return extractProblemMessage(e, fallback)
+}

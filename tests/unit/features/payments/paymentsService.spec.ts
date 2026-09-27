@@ -31,4 +31,14 @@ describe('paymentsService', () => {
     await paymentsService.listChargebacks(0, 20)
     expect(apiMock).toHaveBeenCalledWith('/admin/chargebacks', { query: { page: 0, size: 20 } })
   })
+  it('retryMobileMoneyPayout POSTs la relance de versement', async () => {
+    apiMock.mockResolvedValue({ id: 'p1', status: 'RELEASED' })
+    await paymentsService.retryMobileMoneyPayout('p1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/payments/p1/mobile-money/retry-payout', { method: 'POST' })
+  })
+  it('retryMobileMoneyRefund POSTs la relance de remboursement', async () => {
+    apiMock.mockResolvedValue({ id: 'p1', status: 'REFUNDED' })
+    await paymentsService.retryMobileMoneyRefund('p1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/payments/p1/mobile-money/retry-refund', { method: 'POST' })
+  })
 })

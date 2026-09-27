@@ -31,4 +31,11 @@ describe('useConversations', () => {
     await c.fetchConversations()
     expect(c.error.value).toBe('conv boom')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.listConversations.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const c = useConversations()
+    await c.fetchConversations()
+    expect(c.error.value).toBe('Détail lisible du back')
+  })
 })

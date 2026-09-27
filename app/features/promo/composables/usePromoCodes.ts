@@ -1,6 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import { promoService } from '@/features/promo/services/promoService'
 import type { AdminPromoCode, PromoCodeInput, PromoFilterState, PromoStatus } from '@/features/promo/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 const PAGE_SIZE = 20
 
@@ -25,7 +26,7 @@ export function usePromoCodes() {
       // Garde-fou : tolère une réponse inattendue (mock périmé, erreur proxy).
       allCodes.value = Array.isArray(result) ? result : []
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les codes promo')
     } finally {
       isLoading.value = false
     }

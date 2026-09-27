@@ -99,3 +99,24 @@ test('un compte sans CONFIG_MANAGE ne voit pas Paramètres et est redirigé s’
   await page.goto('/parametres')
   await expect(page).toHaveURL(/\/denied$/)
 })
+
+test('synchroniser avec la BCE recharge les taux et annonce le nombre de devises modifiées', async ({ page }) => {
+  await seed(page, ADMIN)
+  let rates = [{ currency: 'USD', unitsPerEur: 1.08, updatedAt: null, updatedBy: null }]
+  let syncCalls = 0
+  await page.route('**/api/v1/admin/settings**', (route) => route.fulfill({ json: SETTINGS }))
+  await page.route('**/api/v1/admin/exchange-rates**', (route) => {
+    const req = route.request()
+    if (req.method() === 'POST' && req.url().endsWith('/admin/exchange-rates/sync')) {
+      syncCalls++
+      rates = [{ currency: 'USD', unitsPerEur: 1.0912, updatedAt: '2026-09-27T07:00:00Z', updatedBy: null }]
+      return route.fulfill({ json: { updated: 1 } })
+    }
+    return route.fulfill({ json: rates })
+  })
+
+  await page.goto('/parametres')
+  await page.locator('[data-test="rates-sync"]').click()
+  await expect.poll(() => syncCalls).toBe(1)
+  await expect(page.locator('[data-test="rates-sync-result"]')).toHaveText('1 devise mise à jour par la BCE')
+})

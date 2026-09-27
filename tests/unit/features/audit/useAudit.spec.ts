@@ -44,4 +44,11 @@ describe('useAudit', () => {
     await a.fetchAudit()
     expect(a.error.value).toBe('audit boom')
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    svc.list.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const a = useAudit()
+    await a.fetchAudit()
+    expect(a.error.value).toBe('Détail lisible du back')
+  })
 })

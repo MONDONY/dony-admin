@@ -2,11 +2,13 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminAccount, ManagedAdminRole, AdminStatus } from '@/features/admin-accounts/types/index'
 
-defineProps<{ accounts: AdminAccount[]; loading: boolean }>()
+/** `currentAdminId` : la ligne de l'admin connecté n'offre pas la suppression (refusée par le back). */
+defineProps<{ accounts: AdminAccount[]; loading: boolean; currentAdminId?: string | null }>()
 const emit = defineEmits<{
   role: [id: string, role: ManagedAdminRole]
   status: [id: string, status: AdminStatus]
   reset: [id: string]
+  delete: [account: AdminAccount]
 }>()
 
 const isRoot = (account: AdminAccount) => account.role === 'SUPER_ADMIN'
@@ -58,6 +60,11 @@ function fmtDate(d: string | null) {
               class="ml-2 rounded-btn px-3 py-1.5 text-sm bg-danger/15 text-danger hover:bg-danger/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               @click="emit('reset', a.id)"
             >Réinitialiser</button>
+            <button
+              v-if="a.id !== currentAdminId" type="button" :data-test="`delete-${a.id}`" :disabled="isRoot(a)"
+              class="ml-2 rounded-btn px-3 py-1.5 text-sm bg-danger text-white hover:bg-danger/90 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed transition-[background-color,transform]"
+              @click="emit('delete', a)"
+            >Supprimer</button>
           </td>
         </tr>
       </tbody>

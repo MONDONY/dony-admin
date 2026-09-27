@@ -14,7 +14,13 @@ export const ratingsService = {
   exclude(id: string, excluded: boolean, reason: string): Promise<AdminRating> {
     return useApi()<AdminRating>(`/admin/ratings/${id}/exclude`, { method: 'POST', body: { excluded, reason } })
   },
-  remove(id: string): Promise<void> {
-    return useApi()<void>(`/admin/ratings/${id}`, { method: 'DELETE' })
+  /**
+   * Le motif part en paramètre de requête (un DELETE ne porte pas de corps fiable). Omis
+   * s'il est vide : un back qui ne le lit pas encore l'ignore sans erreur.
+   */
+  remove(id: string, reason?: string): Promise<void> {
+    const trimmed = reason?.trim()
+    if (!trimmed) return useApi()<void>(`/admin/ratings/${id}`, { method: 'DELETE' })
+    return useApi()<void>(`/admin/ratings/${id}`, { method: 'DELETE', query: { reason: trimmed } })
   },
 }

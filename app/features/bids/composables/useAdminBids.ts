@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
 import type { AdminBidListItem, BidsFilterState, BidStatusFilter } from '@/features/bids/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 export function useAdminBids() {
   const bids = ref<AdminBidListItem[]>([])
@@ -16,7 +17,7 @@ export function useAdminBids() {
     try {
       const page = await bidsAdminService.listBids(filters, currentPage.value, pageSize.value)
       bids.value = page.content; totalPages.value = page.totalPages
-    } catch (e) { error.value = (e as Error).message } finally { isLoading.value = false }
+    } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger les colis') } finally { isLoading.value = false }
   }
   async function goToPage(p: number) { currentPage.value = p; await fetchBids() }
   async function setStatusFilter(s: BidStatusFilter) { filters.status = s; currentPage.value = 0; await fetchBids() }

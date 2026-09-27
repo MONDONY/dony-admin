@@ -22,6 +22,13 @@ export const financeService = {
   getMobileMoneyCommissions(from?: string, to?: string): Promise<AdminMobileMoneyCommissions> {
     return useApi()<AdminMobileMoneyCommissions>('/admin/mobile-money-commissions', { query: { from, to } })
   },
+  /** Même appel, bornes saisies au jour : du début du premier jour à la fin du dernier. */
+  getMobileMoneyCommissionsForDays(dateFrom: string | null, dateTo: string | null): Promise<AdminMobileMoneyCommissions> {
+    return financeService.getMobileMoneyCommissions(
+      dateFrom ? `${dateFrom}T00:00:00` : undefined,
+      dateTo ? `${dateTo}T23:59:59` : undefined,
+    )
+  },
   /** Demandes de remboursement wallet en attente (suppression de compte). */
   listWalletRefundRequests(page: number, size: number): Promise<AdminWalletRefundRequestPage> {
     return useApi()<AdminWalletRefundRequestPage>('/admin/wallet-refund-requests', { query: { page, size } })

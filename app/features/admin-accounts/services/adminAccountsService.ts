@@ -23,4 +23,9 @@ export const adminAccountsService = {
   resetPassword(id: string): Promise<TemporaryCredentials> {
     return useApi()<TemporaryCredentials>(`/admin/admins/${id}/reset-password`, { method: 'POST' })
   },
+
+  /** Suppression logique côté back (compte désactivé, session Firebase révoquée). */
+  remove(id: string): Promise<void> {
+    return useApi()<void>(`/admin/admins/${id}`, { method: 'DELETE' })
+  },
 }

@@ -29,9 +29,21 @@ describe('ratingsService', () => {
     })
   })
 
-  it('remove DELETEs', async () => {
+  it('remove DELETEs sans paramètre quand aucun motif', async () => {
     apiMock.mockResolvedValue(undefined)
     await ratingsService.remove('rt1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/ratings/rt1', { method: 'DELETE' })
+  })
+
+  it('remove transmet le motif en paramètre de requête', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await ratingsService.remove('rt1', 'propos injurieux')
+    expect(apiMock).toHaveBeenCalledWith('/admin/ratings/rt1', { method: 'DELETE', query: { reason: 'propos injurieux' } })
+  })
+
+  it('remove omet un motif vide ou fait d’espaces', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await ratingsService.remove('rt1', '   ')
     expect(apiMock).toHaveBeenCalledWith('/admin/ratings/rt1', { method: 'DELETE' })
   })
 })

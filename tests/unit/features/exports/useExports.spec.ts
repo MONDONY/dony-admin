@@ -39,4 +39,14 @@ describe('useExports', () => {
     expect(e.error.value).toBe('export boom')
     expect(dl).not.toHaveBeenCalled()
   })
+
+  it('lit le detail du ProblemDetail reçu en Blob (réponse attendue en blob)', async () => {
+    const body = new Blob([JSON.stringify({ detail: 'La période ne peut dépasser 12 mois' })], { type: 'application/problem+json' })
+    svc.fetchBlob.mockRejectedValue(Object.assign(new Error('400 Bad Request'), { data: body }))
+    const e = useExports()
+    await e.run()
+    expect(e.error.value).toBe('La période ne peut dépasser 12 mois')
+    expect(dl).not.toHaveBeenCalled()
+  })
 })
+

@@ -137,4 +137,39 @@ describe('useAdminAnnouncements', () => {
     await s.restore('a1')
     expect(s.error.value).toBeNull()
   })
+
+  describe('pagination', () => {
+    it('load demande la page courante et retient le nombre de pages', async () => {
+      svc.listAnnouncements.mockResolvedValue({ content: [a1], totalElements: 45, totalPages: 3, number: 0, size: 20 })
+      const s = seeded()
+      await s.load()
+      expect(svc.listAnnouncements).toHaveBeenCalledWith(0, 20)
+      expect(s.totalPages.value).toBe(3)
+      expect(s.currentPage.value).toBe(0)
+    })
+
+    it('goToPage charge la page demandée', async () => {
+      svc.listAnnouncements
+        .mockResolvedValueOnce({ content: [a1], totalElements: 45, totalPages: 3, number: 0, size: 20 })
+        .mockResolvedValueOnce({ content: [a2], totalElements: 45, totalPages: 3, number: 2, size: 20 })
+      const s = seeded()
+      await s.load()
+      await s.goToPage(2)
+      expect(svc.listAnnouncements).toHaveBeenLastCalledWith(2, 20)
+      expect(s.currentPage.value).toBe(2)
+      expect(s.announcements.value).toEqual([a2])
+    })
+
+    it('goToPage garde la page affichée si le chargement échoue', async () => {
+      svc.listAnnouncements
+        .mockResolvedValueOnce({ content: [a1], totalElements: 45, totalPages: 3, number: 0, size: 20 })
+        .mockRejectedValueOnce(Object.assign(new Error('500'), { data: { detail: 'Erreur serveur' } }))
+      const s = seeded()
+      await s.load()
+      await s.goToPage(1)
+      expect(s.currentPage.value).toBe(0)
+      expect(s.error.value).toBe('Erreur serveur')
+    })
+  })
 })
+

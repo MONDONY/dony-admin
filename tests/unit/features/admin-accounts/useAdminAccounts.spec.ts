@@ -11,6 +11,7 @@ describe('useAdminAccounts', () => {
     svc.create = vi.fn()
     svc.update = vi.fn()
     svc.resetPassword = vi.fn()
+    svc.remove = vi.fn()
   })
 
   it('fetchAccounts loads page', async () => {
@@ -94,4 +95,49 @@ describe('useAdminAccounts', () => {
     await promise
     expect(p.loading.value).toBe(false)
   })
+
+  describe('deleteAccount', () => {
+    const problem = (code: string, detail: string) =>
+      Object.assign(new Error('409 Conflict'), { data: { code, detail } })
+
+    it('supprime puis recharge la liste', async () => {
+      svc.remove.mockResolvedValue(undefined)
+      svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+      const p = useAdminAccounts()
+      expect(await p.deleteAccount('a1')).toBe(true)
+      expect(svc.remove).toHaveBeenCalledWith('a1')
+      expect(svc.list).toHaveBeenCalledTimes(1)
+      expect(p.actionError.value).toBeNull()
+    })
+
+    it('traduit le refus d’auto-suppression', async () => {
+      svc.remove.mockRejectedValue(problem('ADMIN_SELF_DELETE', 'You cannot delete your own admin account'))
+      const p = useAdminAccounts()
+      expect(await p.deleteAccount('me')).toBe(false)
+      expect(p.actionError.value).toBe('Vous ne pouvez pas supprimer votre propre compte.')
+      expect(svc.list).not.toHaveBeenCalled()
+    })
+
+    it('traduit le refus sur le super-administrateur', async () => {
+      svc.remove.mockRejectedValue(problem('ADMIN_SUPER_ADMIN_IMMUTABLE', 'SUPER_ADMIN is immutable'))
+      const p = useAdminAccounts()
+      await p.deleteAccount('root')
+      expect(p.actionError.value).toBe('Le compte super-administrateur ne peut être ni modifié ni supprimé.')
+    })
+
+    it('retombe sur le detail du ProblemDetail pour un autre code', async () => {
+      svc.remove.mockRejectedValue(problem('OTHER', 'Compte introuvable'))
+      const p = useAdminAccounts()
+      await p.deleteAccount('x')
+      expect(p.actionError.value).toBe('Compte introuvable')
+    })
+  })
+
+  it('fetchAccounts expose le detail du ProblemDetail', async () => {
+    svc.list.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { data: { detail: 'Accès refusé' } }))
+    const p = useAdminAccounts()
+    await p.fetchAccounts()
+    expect(p.error.value).toBe('Accès refusé')
+  })
 })
+

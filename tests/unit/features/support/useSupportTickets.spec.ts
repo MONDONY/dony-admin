@@ -105,4 +105,14 @@ describe('useSupportTickets', () => {
     expect(s.isActing.value).toBe(false)
     expect(getMock).not.toHaveBeenCalled()
   })
+
+  it('affiche le detail du ProblemDetail plutôt que le message technique', async () => {
+    resolveMock.mockRejectedValue(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
+    const s = useSupportTickets()
+    const ok = await s.resolve('t1')
+    expect(ok).toBe(false)
+    expect(s.actionError.value).toBe('Détail lisible du back')
+    expect(s.isActing.value).toBe(false)
+    expect(getMock).not.toHaveBeenCalled()
+  })
 })

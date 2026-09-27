@@ -110,8 +110,7 @@ async function confirmExclude(reason: string) {
   pendingExcludeId.value = null
 }
 async function confirmRemove(reason: string) {
-  if (pendingRemoveId.value) await rt.remove(pendingRemoveId.value)
-  void reason
+  if (pendingRemoveId.value) await rt.remove(pendingRemoveId.value, reason)
   pendingRemoveId.value = null
 }
 
@@ -221,6 +220,11 @@ onMounted(r.fetchReports)
         Signalés uniquement
       </label>
 
+      <p
+        v-if="rt.error.value" data-test="ratings-error" role="alert"
+        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >{{ rt.error.value }}</p>
+
       <RatingsTable
         :ratings="rt.ratings.value" :loading="rt.isLoading.value"
         @exclude="(id) => pendingExcludeId = id" @remove="(id) => pendingRemoveId = id"
@@ -316,6 +320,7 @@ onMounted(r.fetchReports)
       title="Supprimer l'avis"
       message="Suppression définitive (soft delete). Cette action est irréversible côté public."
       confirm-label="Supprimer"
+      :require-reason="true"
       @confirm="confirmRemove"
       @cancel="pendingRemoveId = null"
     />

@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { auditService } from '@/features/audit/services/auditService'
 import type { AdminAuditEntry, AuditFilterState } from '@/features/audit/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 
 function emptyFilters(): AuditFilterState {
   return { action: null, entityType: null, actorId: null, from: null, to: null }
@@ -23,7 +24,7 @@ export function useAudit() {
       entries.value = page.content
       totalPages.value = page.totalPages
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger le journal d’audit')
     } finally {
       isLoading.value = false
     }

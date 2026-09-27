@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue'
 import { ratingsService } from '@/features/signalements/services/ratingsService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminRating, RatingsFilterState } from '@/features/signalements/types/index'
 
 export function useRatings() {
@@ -19,7 +20,7 @@ export function useRatings() {
       ratings.value = page.content
       totalPages.value = page.totalPages
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = extractProblemMessage(e, 'Impossible de charger les avis')
     } finally {
       isLoading.value = false
     }
@@ -31,9 +32,17 @@ export function useRatings() {
     await ratingsService.exclude(id, excluded, reason)
     await fetchRatings()
   }
-  async function remove(id: string) {
-    await ratingsService.remove(id)
+  /** Retourne true si l'avis est supprimé ; sinon `error` porte le motif du refus. */
+  async function remove(id: string, reason?: string): Promise<boolean> {
+    error.value = null
+    try {
+      await ratingsService.remove(id, reason)
+    } catch (e) {
+      error.value = extractProblemMessage(e, 'Impossible de supprimer cet avis')
+      return false
+    }
     await fetchRatings()
+    return true
   }
 
   return { ratings, isLoading, error, totalPages, currentPage, pageSize, filters, fetchRatings, goToPage, setFlaggedOnly, exclude, remove }

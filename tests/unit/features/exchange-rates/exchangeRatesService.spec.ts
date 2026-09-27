@@ -37,4 +37,11 @@ describe('exchangeRatesService', () => {
     expect(res.unitsPerEur).toBe(1.1)
     expect(res.updatedBy).toBe('admin-uuid')
   })
+
+  it('sync() POST /admin/exchange-rates/sync et renvoie le nombre de devises mises à jour', async () => {
+    apiMock.mockResolvedValue({ updated: 3 })
+    const res = await exchangeRatesService.sync()
+    expect(apiMock).toHaveBeenCalledWith('/admin/exchange-rates/sync', { method: 'POST' })
+    expect(res).toEqual({ updated: 3 })
+  })
 })

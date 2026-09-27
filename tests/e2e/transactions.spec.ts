@@ -150,3 +150,52 @@ test('admin traite une demande de remboursement wallet depuis son onglet', async
   // Après la résolution, la file est rechargée : la ligne reste (mock inchangé) mais l'appel est parti.
   await expect(page.locator('[data-test="transactions-error"]')).toHaveCount(0)
 })
+
+test('les litiges bancaires se paginent au-delà de 20', async ({ page }) => {
+  const pages: string[] = []
+  await page.route('**/api/v1/admin/chargebacks**', (route) => {
+    const p = new URL(route.request().url()).searchParams.get('page') ?? ''
+    pages.push(p)
+    return route.fulfill({ json: { ...CBS, totalElements: 25, totalPages: 2, number: Number(p) } })
+  })
+  await page.goto('/transactions')
+  await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-test="tab-chargebacks"]').click()
+  await expect(page.locator('[data-test="cb-row-cb1"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-test="next"]').click()
+  await expect.poll(() => pages).toEqual(['0', '1'])
+})
+
+test('les commissions mobile money suivent la période choisie', async ({ page }) => {
+  const queries: string[] = []
+  await page.route('**/api/v1/admin/mobile-money-commissions**', (route) => {
+    queries.push(decodeURIComponent(new URL(route.request().url()).search))
+    return route.fulfill({ json: MM_COMMISSIONS })
+  })
+  await page.goto('/transactions')
+  await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-test="tab-mm-commissions"]').click()
+  await expect(page.locator('[data-test="mm-commission-card-XOF"]')).toBeVisible({ timeout: 15000 })
+  expect(queries[0]).not.toContain('from=')
+  await page.locator('[data-test="period-from"]').fill('2026-08-01')
+  await expect.poll(() => queries.at(-1) ?? '').toContain('from=2026-08-01T00:00:00')
+  await page.locator('[data-test="period-to"]').fill('2026-08-31')
+  await expect.poll(() => queries.at(-1) ?? '').toContain('to=2026-08-31T23:59:59')
+})
+
+test('relance du versement mobile money depuis le détail d’un paiement pawaPay', async ({ page }) => {
+  const MM_DETAIL = { ...PAYMENTS.content[1], refundedCents: 0, stripePaymentIntentId: null, escrowReleasedAt: '2026-09-10T10:00:00Z', disputed: false, pawapayDepositId: 'd1', pawapayPayoutId: 'po1', pawapayRefundId: null }
+  let retried = 0
+  await page.route('**/api/v1/admin/payments**', (route) => {
+    const url = route.request().url(); const m = route.request().method()
+    if (m === 'POST' && url.includes('/p2/mobile-money/retry-payout')) { retried++; return route.fulfill({ json: { ...MM_DETAIL, pawapayPayoutId: 'po2' } }) }
+    if (url.includes('/admin/payments/p2')) return route.fulfill({ json: MM_DETAIL })
+    return route.fulfill({ json: PAYMENTS })
+  })
+  await page.goto('/transactions')
+  await page.locator('[data-test="payment-row-p2"]').click()
+  await page.locator('[data-test="action-retry-payout"]').click()
+  await page.locator('[data-test="confirm"]').click()
+  await expect.poll(() => retried).toBe(1)
+  await expect(page.locator('[data-test="payment-error"]')).toHaveCount(0)
+})
