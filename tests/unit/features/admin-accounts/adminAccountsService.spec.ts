@@ -62,4 +62,10 @@ describe('adminAccountsService', () => {
     await adminAccountsService.resetPassword('id-1')
     expect(apiMock).toHaveBeenCalledWith('/admin/admins/id-1/reset-password', { method: 'POST' })
   })
+
+  it('remove DELETE /admin/admins/{id} (soft delete côté back)', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await adminAccountsService.remove('id-1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/admins/id-1', { method: 'DELETE' })
+  })
 })

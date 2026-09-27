@@ -64,4 +64,24 @@ describe('AdminAccountsTable', () => {
   it('shows a loading state', () => {
     expect(mount(AdminAccountsTable, { props: { accounts: [], loading: true } }).text()).toMatch(/Chargement/i)
   })
+
+  describe('suppression', () => {
+    it('émet delete avec le compte pour une autre ligne', async () => {
+      const w = mount(AdminAccountsTable, { props: { accounts, loading: false, currentAdminId: 'me' } })
+      await w.find('[data-test="delete-a1"]').trigger('click')
+      expect(w.emitted('delete')![0]).toEqual([accounts[1]])
+    })
+
+    it('masque l’action sur sa propre ligne', () => {
+      const w = mount(AdminAccountsTable, { props: { accounts, loading: false, currentAdminId: 'a1' } })
+      expect(w.find('[data-test="delete-a1"]').exists()).toBe(false)
+      expect(w.find('[data-test="delete-s1"]').exists()).toBe(true)
+    })
+
+    it('désactive l’action sur le SUPER_ADMIN, que le back refuse', () => {
+      const w = mount(AdminAccountsTable, { props: { accounts, loading: false, currentAdminId: 'me' } })
+      expect((w.find('[data-test="delete-root"]').element as HTMLButtonElement).disabled).toBe(true)
+    })
+  })
 })
+
