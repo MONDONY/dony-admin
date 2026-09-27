@@ -281,6 +281,33 @@ describe('UserDetailPanel', () => {
     expect(w.find('[data-test="tab-kyc"]').exists()).toBe(false)
   })
 
+  // Onglet dédié plutôt qu'une section de plus sous Profil : la fiche est déjà dense, et le
+  // portefeuille charge deux lectures (soldes + journal) qu'on ne paie qu'à l'ouverture.
+  describe('onglet Portefeuille', () => {
+    const stubs = { UserWalletTab: { name: 'UserWalletTab', props: ['userId'], template: '<div data-test="wallet-tab-stub">{{ userId }}</div>' } }
+
+    it('visible avec PAYMENT_VIEW, charge le portefeuille seulement à l’ouverture', async () => {
+      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+      expect(w.find('[data-test="wallet-tab-stub"]').exists()).toBe(false)
+      await w.find('[data-test="tab-wallet"]').trigger('click')
+      expect(w.find('[data-test="tab-wallet"]').attributes('aria-selected')).toBe('true')
+      expect(w.find('[data-test="wallet-tab-stub"]').text()).toBe('u1')
+      expect(w.find('[data-test="action-suspend"]').exists()).toBe(false)
+    })
+
+    it('visible pour le rôle SUPPORT, qui a PAYMENT_VIEW', () => {
+      seedAuth('SUPPORT')
+      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+      expect(w.find('[data-test="tab-wallet"]').exists()).toBe(true)
+    })
+
+    it('masqué sans PAYMENT_VIEW', () => {
+      seedAuth('ADMIN', { PAYMENT_VIEW: false })
+      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+      expect(w.find('[data-test="tab-wallet"]').exists()).toBe(false)
+    })
+  })
+
   // Constat 4 — copie de l'UUID
   it('affiche le bouton de copie de l\'UUID et l\'UUID complet', () => {
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })

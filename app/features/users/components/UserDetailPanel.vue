@@ -4,6 +4,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { userStatusMeta } from './userStatus'
 import UserKycTab from './UserKycTab.vue'
+import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
 import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 
@@ -43,7 +44,9 @@ const pending = ref<Pending>(null)
 // « profil » par défaut : les gestes de compte restent immédiatement accessibles à
 // l'ouverture de la fiche. L'onglet KYC déclenche un chargement paresseux (openKyc), car
 // la lecture back interroge Stripe Identity en direct — inutile de la payer sans besoin.
-type Tab = 'profil' | 'kyc'
+// L'onglet Portefeuille est autonome (ses propres lectures et sa correction de solde) : la
+// fiche n'a ni props ni événements de plus, et il ne charge rien tant qu'on ne l'ouvre pas.
+type Tab = 'profil' | 'kyc' | 'wallet'
 const tab = ref<Tab>('profil')
 const kycLoaded = ref(false)
 function openTab(next: Tab) {
@@ -240,6 +243,12 @@ const dialogConfig = computed<DialogConfig>(() => {
           :class="tab === 'kyc' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
           @click="openTab('kyc')"
         >KYC</button>
+        <button
+          v-if="auth.can('PAYMENT_VIEW')" type="button" data-test="tab-wallet" role="tab" :aria-selected="tab === 'wallet'"
+          class="rounded-t-btn px-4 py-2 text-sm"
+          :class="tab === 'wallet' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
+          @click="openTab('wallet')"
+        >Portefeuille</button>
       </div>
 
       <template v-if="tab === 'profil'">
@@ -407,6 +416,8 @@ const dialogConfig = computed<DialogConfig>(() => {
         :kyc="props.kyc ?? null" :loading="props.kycLoading" :error="props.kycError" :busy="props.busy"
         @reset="(reason) => emit('resetKyc', reason)"
       />
+
+      <UserWalletTab v-if="tab === 'wallet'" :key="user.id" :user-id="user.id" />
 
       <ConfirmActionDialog
         :open="pending !== null"

@@ -141,8 +141,15 @@ describe('useAuthStore (admin)', () => {
   // permissionCoverage.spec.ts qui compare les noms un à un à l'enum backend, et qui
   // attrapera une divergence que ce nombre laisserait passer.
   // 34 avec REPORT_DELETE (suppression des signalements, yadony-back #318).
-  it('exposes 34 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(34)
+  // 35 avec WALLET_ADJUST (correction manuelle de solde, PR dony-back feature/admin-wallet-ajustement).
+  it('exposes 35 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(35)
+  })
+
+  it('WALLET_ADJUST : ADMIN et SUPER_ADMIN, pas SUPPORT', () => {
+    expect(effectivePermissions('ADMIN', {}).has('WALLET_ADJUST')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('WALLET_ADJUST')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('WALLET_ADJUST')).toBe(false)
   })
 
   it('REPORT_DELETE : ADMIN et SUPER_ADMIN, pas SUPPORT', () => {
