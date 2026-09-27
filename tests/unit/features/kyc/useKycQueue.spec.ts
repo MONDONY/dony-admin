@@ -96,4 +96,13 @@ describe('useKycQueue', () => {
     expect(q.totalPages.value).toBe(0)
     expect(q.currentPage.value).toBe(1)
   })
+
+  it('400 kyc-queue-status-invalid : le detail est affiché, ce n’est pas un ancien back', async () => {
+    list.mockRejectedValueOnce({ statusCode: 400, data: { code: 'kyc-queue-status-invalid', detail: 'Statut de file inconnu.' } })
+    const q = useKycQueue()
+    await q.setStatus('IN_PROGRESS')
+    expect(list.mock.calls[0][0].status).toBe('IN_PROGRESS')
+    expect(q.error.value).toBe('Statut de file inconnu.')
+    expect(q.unavailable.value).toBe(false)
+  })
 })

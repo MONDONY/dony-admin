@@ -37,7 +37,7 @@ function fmtDate(d: string | null | undefined) { return d ? new Date(d).toLocale
           <td class="px-4 py-3 text-sm text-text-muted">{{ kycProviderLabel(r.provider) }}</td>
           <td class="px-4 py-3">
             <div class="flex flex-wrap items-center gap-1.5">
-              <StatusBadge v-bind="kycStatusMeta(r.kycStatus)" />
+              <span :data-test="`kyc-status-${r.userId}`"><StatusBadge v-bind="kycStatusMeta(r.queueStatus ?? r.kycStatus)" /></span>
               <span v-if="r.decisionKind" :data-test="`kyc-decision-badge-${r.userId}`">
                 <StatusBadge v-bind="kycDecisionMeta(r.decisionKind)" />
               </span>
@@ -49,7 +49,7 @@ function fmtDate(d: string | null | undefined) { return d ? new Date(d).toLocale
             <span
               :data-test="`kyc-waiting-${r.userId}`" :data-overdue="isOverdue(r.waitingHours) ? 'true' : 'false'"
               :class="isOverdue(r.waitingHours) ? 'font-semibold text-danger' : 'text-text-muted'"
-            >{{ formatWaiting(r.waitingHours) }}</span>
+            >{{ r.waitingHours === null || r.waitingHours === undefined ? 'Sans objet' : formatWaiting(r.waitingHours) }}</span>
           </td>
         </tr>
       </tbody>

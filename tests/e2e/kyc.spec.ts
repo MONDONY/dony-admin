@@ -5,15 +5,16 @@ const SUPPORT = { ...ADMIN, id: 'a2', email: 'support@yadony.com', role: 'SUPPOR
 
 const ROW = {
   userId: 'u1', userName: 'Awa Diop', userPhone: '+221 77 *** ** 12', provider: 'DIDIT', kycStatus: 'IN_REVIEW',
-  recordStatus: 'PENDING', submittedAt: '2026-09-24T10:00:00Z', waitingHours: 60,
+  recordStatus: 'PENDING', queueStatus: 'IN_REVIEW', submittedAt: '2026-09-24T10:00:00Z', waitingHours: 60,
 }
-const VERIFIED_ROW = { ...ROW, userId: 'u2', userName: 'Moussa Sow', kycStatus: 'VERIFIED', waitingHours: 2 }
+const VERIFIED_ROW = { ...ROW, userId: 'u2', userName: 'Moussa Sow', kycStatus: 'VERIFIED', queueStatus: 'VERIFIED', waitingHours: null }
 const DETAIL_PENDING = {
   userId: 'u1', kycStatus: 'PENDING', verificationStatus: 'PENDING', stripeSessionId: 'sess_1', stripeStatus: 'In Review',
   stripeUnavailable: false, provider: 'DIDIT', providerSessionUrl: 'https://business.didit.me/session/sess_1',
-  history: [{ action: 'SESSION_STARTED', at: '2026-09-24T10:00:00Z', actorKind: 'USER' }],
+  history: [{ action: 'KYC_SESSION_CREATED', at: '2026-09-24T10:00:00Z', actorKind: 'USER' }],
 }
-const DETAIL_VERIFIED = { ...DETAIL_PENDING, userId: 'u2', kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED' }
+const { providerSessionUrl: _noConsoleUrl, ...DETAIL_NO_URL } = DETAIL_PENDING
+const DETAIL_VERIFIED = { ...DETAIL_NO_URL, userId: 'u2', kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED' }
 const APPROVED = {
   ...DETAIL_PENDING, kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED', decisionKind: 'APPROVED',
   decidedAt: '2026-09-27T10:00:00Z', decidedByAdminEmail: 'admin.1@yadony.com', decisionReason: 'Pièces contrôlées chez Didit, conformes.',
@@ -40,6 +41,8 @@ async function mockBackend(
     if (status === 'VERIFIED') return route.fulfill({ json: page1([VERIFIED_ROW]) })
     return route.fulfill({ json: page1(state.decided ? [] : [ROW]) })
   })
+  await page.route('**/api/v1/admin/kyc/rejection-codes', (route) =>
+    route.fulfill({ json: ['document_expired', 'selfie_face_mismatch', 'suspected_fraud', 'other'] }))
   await page.route('**/api/v1/admin/users/*/kyc**', (route) => {
     const req = route.request()
     const url = new URL(req.url())
@@ -104,6 +107,8 @@ test('refus avec un code du catalogue et motif interne', async ({ page }) => {
   await page.goto('/kyc')
   await openRow(page)
   await page.locator('[data-test="kyc-reject"]').click()
+  // Catalogue servi par le back : 4 codes, pas les 16 de la liste locale.
+  await expect(page.locator('[data-test="kyc-code"] option:not([disabled])')).toHaveCount(4)
   await page.locator('[data-test="kyc-code"]').selectOption('document_expired')
   await expect(page.locator('[data-test="kyc-code-user-message"]')).toContainText('expirée')
   await page.locator('[data-test="kyc-reason"]').fill('Passeport expiré depuis 2024')
@@ -121,6 +126,8 @@ test('révocation d’une identité validée avec ressaisie du nom', async ({ pa
   await page.locator('[data-test="kyc-tab-VERIFIED"]').click()
   await openRow(page, 'u2')
   await expect(page.locator('[data-test="kyc-approve"]')).toHaveCount(0)
+  // Sans modèle d'URL console côté back : pas de lien, la révocation reste possible.
+  await expect(page.locator('[data-test="kyc-provider-link"]')).toHaveCount(0)
   await page.locator('[data-test="kyc-revoke"]').click()
   await expect(page.locator('[data-test="kyc-revoke-warning"]')).toContainText('ne sont pas annulés')
   await page.locator('[data-test="kyc-code"]').selectOption('suspected_fraud')
@@ -159,7 +166,7 @@ test('SUPPORT consulte la file sans aucun bouton de décision', async ({ page })
   await mockBackend(page, { admin: SUPPORT })
   await page.goto('/kyc')
   await openRow(page)
-  await expect(page.locator('[data-test="kyc-history"]')).toContainText('Vérification démarrée')
+  await expect(page.locator('[data-test="kyc-history"]')).toContainText('Parcours de vérification commencé')
   await expect(page.locator('[data-test="action-reset-kyc"]')).toBeVisible()
   await expect(page.locator('[data-test="kyc-approve"]')).toHaveCount(0)
   await expect(page.locator('[data-test="kyc-reject"]')).toHaveCount(0)

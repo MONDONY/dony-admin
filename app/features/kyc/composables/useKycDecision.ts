@@ -8,7 +8,7 @@ import type { AdminKycDetail } from '@/features/users/types/index'
 const CODE_MESSAGES: Record<string, string> = {
   'kyc-already-verified': 'Cette identité est déjà validée : la fiche a été relue.',
   'kyc-not-verified': 'Cette identité n’est pas validée : il n’y a rien à révoquer. La fiche a été relue.',
-  'kyc-no-provider-session': 'Aucune session chez le fournisseur : impossible de valider une identité dont les pièces n’ont pas été contrôlées.',
+  'kyc-no-provider-session': 'Aucune session chez le fournisseur : aucune pièce n’a été envoyée, la décision est impossible.',
   'kyc-reject-code-invalid': 'Code de refus non reconnu par le serveur. Choisissez-en un autre.',
 }
 /** Conflits qui signifient « l'écran est en retard sur la base » : le parent relit la fiche. */
@@ -30,6 +30,8 @@ export function useKycDecision(userId: () => string | null, options: Options = {
   const error = ref<string | null>(null)
   const errorCode = ref<string | null>(null)
   const unavailable = ref(false)
+  /** Codes acceptés, renvoyés avec un 400 `kyc-reject-code-invalid` : le catalogue s'y réaligne. */
+  const allowedCodes = ref<string[] | null>(null)
 
   function clearError() {
     error.value = null
@@ -50,6 +52,8 @@ export function useKycDecision(userId: () => string | null, options: Options = {
       }
       const code = problemCode(e)
       errorCode.value = code
+      const allowed = (e as { data?: { allowedCodes?: unknown } })?.data?.allowedCodes
+      if (Array.isArray(allowed)) allowedCodes.value = allowed.filter((c): c is string => typeof c === 'string')
       const hasDetail = typeof (e as { data?: { detail?: unknown } })?.data?.detail === 'string'
       error.value = !hasDetail && code && CODE_MESSAGES[code]
         ? CODE_MESSAGES[code]
@@ -65,5 +69,5 @@ export function useKycDecision(userId: () => string | null, options: Options = {
   const reject = (code: string, reason: string) => run((id) => usersService.rejectKyc(id, code, reason.trim()))
   const revoke = (code: string, reason: string) => run((id) => usersService.revokeKyc(id, code, reason.trim()))
 
-  return { busy, error, errorCode, unavailable, clearError, approve, reject, revoke }
+  return { busy, error, errorCode, unavailable, allowedCodes, clearError, approve, reject, revoke }
 }

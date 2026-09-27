@@ -26,6 +26,15 @@ describe('kycService', () => {
   })
 })
 
+describe('kycService, catalogue', () => {
+  beforeEach(() => apiMock.mockReset())
+  it('listRejectionCodes() lit /admin/kyc/rejection-codes', async () => {
+    apiMock.mockResolvedValue(['other'])
+    expect(await kycService.listRejectionCodes()).toEqual(['other'])
+    expect(apiMock).toHaveBeenCalledWith('/admin/kyc/rejection-codes')
+  })
+})
+
 describe('usersService, décisions KYC', () => {
   beforeEach(() => apiMock.mockReset())
 

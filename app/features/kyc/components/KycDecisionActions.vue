@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import KycDecisionDialog from './KycDecisionDialog.vue'
 import type { KycDecisionMode, KycDecisionPayload } from './KycDecisionDialog.vue'
 import { useKycDecision } from '@/features/kyc/composables/useKycDecision'
+import { toDecisionCodes, useKycRejectionCodes } from '@/features/kyc/composables/useKycRejectionCodes'
 import { KYC_DECISIONS_UNAVAILABLE } from '@/features/kyc/types/index'
 import type { AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -27,7 +28,15 @@ const decision = useKycDecision(() => props.kyc.userId, { onStale: () => emit('s
 
 const canDecide = computed(() => auth.can('KYC_DECIDE') && !decision.unavailable.value)
 const isVerified = computed(() => props.kyc.kycStatus === 'VERIFIED')
-const hasProviderSession = computed(() => Boolean(props.kyc.stripeSessionId || props.kyc.providerSessionUrl))
+// La session se lit sur son identifiant (`stripeSessionId`, qui porte celui du fournisseur
+// courant). `providerSessionUrl` est absent tant que les modèles d'URL console ne sont pas
+// configurés côté back : il ne dit rien de l'existence d'une session.
+const hasProviderSession = computed(() => Boolean(props.kyc.stripeSessionId))
+
+const catalogue = useKycRejectionCodes()
+onMounted(() => { if (auth.can('KYC_DECIDE')) void catalogue.load() })
+const codeOptions = computed(() =>
+  decision.allowedCodes.value?.length ? toDecisionCodes(decision.allowedCodes.value) : catalogue.codes.value)
 /** Nom à ressaisir ; sans nom connu, le début de l'identifiant, toujours présent. */
 const confirmationName = computed(() => props.userName?.trim() || props.kyc.userId.slice(0, 8))
 
@@ -80,7 +89,7 @@ const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-co
           @click="openDialog('approve')"
         >Valider l’identité</button>
         <button
-          type="button" data-test="kyc-reject" :disabled="decision.busy.value"
+          type="button" data-test="kyc-reject" :disabled="decision.busy.value || !hasProviderSession"
           :class="[btn, 'bg-danger/15 text-danger hover:bg-danger/25']"
           @click="openDialog('reject')"
         >Refuser</button>
@@ -100,13 +109,14 @@ const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-co
     <p
       v-if="canDecide && !isVerified && !hasProviderSession" data-test="kyc-approve-no-session"
       class="mt-2 text-xs text-text-muted text-pretty"
-    >Validation impossible : aucune session chez le fournisseur, l’utilisateur n’a encore envoyé aucune pièce.</p>
+    >Décision impossible : aucune session chez le fournisseur, l’utilisateur n’a encore envoyé aucune pièce.</p>
 
     <KycDecisionDialog
       :open="mode !== null"
       :mode="mode ?? 'approve'"
       :user-name="confirmationName"
       :provider-session-url="props.kyc.providerSessionUrl ?? null"
+      :codes="codeOptions"
       :busy="decision.busy.value"
       :error="decision.error.value"
       @submit="onSubmit"

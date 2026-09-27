@@ -8,12 +8,14 @@ import {
 describe('types KYC', () => {
   it('ouvre la file sur « En attente de décision »', () => {
     expect(KYC_QUEUE_STATUS_TABS[0]).toEqual({ value: 'IN_REVIEW', label: 'En attente de décision' })
-    expect(KYC_QUEUE_STATUS_TABS.map((t) => t.value)).toEqual(['IN_REVIEW', 'REJECTED', 'VERIFIED', 'NOT_STARTED'])
+    expect(KYC_QUEUE_STATUS_TABS.map((t) => t.value)).toEqual(['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'VERIFIED', 'NOT_STARTED'])
+    expect(KYC_QUEUE_STATUS_TABS[1]!.label).toBe('Parcours en cours')
   })
 
   it('libellés de statut, PENDING compris, et repli sur le code brut', () => {
     expect(kycStatusMeta('IN_REVIEW')).toEqual({ label: 'En attente de décision', tone: 'warning' })
     expect(kycStatusMeta('PENDING').label).toBe('En cours chez le fournisseur')
+    expect(kycStatusMeta('IN_PROGRESS')).toEqual({ label: 'Parcours en cours', tone: 'info' })
     expect(kycStatusMeta('VERIFIED').tone).toBe('success')
     expect(kycStatusMeta('REJECTED').tone).toBe('danger')
     expect(kycStatusMeta('NOT_STARTED').label).toBe('Non commencée')
@@ -42,17 +44,27 @@ describe('types KYC', () => {
     expect(kycActorLabel('X')).toBe('X')
   })
 
-  it('actions de l’historique : connues traduites, inconnues rendues lisibles', () => {
-    expect(kycHistoryActionLabel('ADMIN_APPROVED')).toBe('Identité validée par un admin')
+  it('actions de l’historique : les douze actions du back sont traduites, les inconnues rendues lisibles', () => {
+    const actions = [
+      'KYC_SESSION_CREATED', 'KYC_SESSION_ABANDONED', 'KYC_VERIFIED', 'KYC_REJECTED', 'KYC_IN_REVIEW', 'KYC_ABANDONED',
+      'KYC_EXPIRED', 'KYC_CANCELED', 'KYC_RESET_BY_ADMIN', 'KYC_VERIFIED_BY_ADMIN', 'KYC_REJECTED_BY_ADMIN', 'KYC_REVOKED_BY_ADMIN',
+    ]
+    const labels = actions.map(kycHistoryActionLabel)
+    for (const [i, l] of labels.entries()) expect(l, actions[i]).not.toMatch(/^Kyc /)
+    expect(new Set(labels).size).toBe(actions.length)
+    expect(kycHistoryActionLabel('KYC_SESSION_CREATED')).toBe('Parcours de vérification commencé')
+    expect(kycHistoryActionLabel('KYC_VERIFIED_BY_ADMIN')).toBe('Identité validée par un admin')
+    expect(kycHistoryActionLabel('KYC_REVOKED_BY_ADMIN')).toBe('Identité révoquée par un admin')
     expect(kycHistoryActionLabel('SOME_NEW_ACTION')).toBe('Some new action')
   })
 
-  it('catalogue des codes : repris de l’app mobile, chaque code a un libellé et le message vu par l’utilisateur', () => {
-    const values = KYC_DECISION_CODES.map((c) => c.value)
-    expect(values).toContain('document_expired')
-    expect(values).toContain('selfie_face_mismatch')
-    expect(values).toContain('suspected_fraud')
-    expect(values).toContain('other')
+  it('catalogue local : exactement les 16 codes du back (KycRejectionCodes.ALL), avec libellé et message utilisateur', () => {
+    expect(KYC_DECISION_CODES.map((c) => c.value)).toEqual([
+      'document_expired', 'document_type_not_supported', 'document_unverified_other', 'country_not_supported',
+      'id_number_insufficient_document_data', 'id_number_mismatch', 'id_number_unverified_other',
+      'selfie_document_missing_photo', 'selfie_face_mismatch', 'selfie_manipulated', 'selfie_unverified_other',
+      'under_supported_age', 'consent_declined', 'session_canceled', 'suspected_fraud', 'other',
+    ])
     for (const c of KYC_DECISION_CODES) {
       expect(c.label.length).toBeGreaterThan(0)
       expect(c.userMessage.length).toBeGreaterThan(0)
@@ -60,8 +72,8 @@ describe('types KYC', () => {
       expect(c.userMessage).not.toContain('—')
     }
     expect(kycDecisionCodeLabel('document_expired')).toBe('Document expiré')
-    // Codes fournisseur hors catalogue de décision, déjà connus de l'app.
     expect(kycDecisionCodeLabel('consent_declined')).toBe('Consentement refusé')
+    expect(kycDecisionCodeUserMessage('id_number_unverified_other')).toContain('informations de votre document')
     expect(kycDecisionCodeLabel('code_inconnu')).toBe('code_inconnu')
     expect(kycDecisionCodeLabel(null)).toBe('Aucun')
     expect(kycDecisionCodeUserMessage('document_expired')).toContain('expirée')

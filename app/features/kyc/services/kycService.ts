@@ -21,4 +21,8 @@ export const kycService = {
   listVerifications(filters: KycQueueFilters, page: number, size: number): Promise<AdminKycQueuePage> {
     return useApi()<AdminKycQueuePage>('/admin/kyc/verifications', { query: buildQuery(filters, page, size) })
   },
+  /** Codes de refus et de révocation acceptés par le back (liste de slugs, sans libellés). */
+  listRejectionCodes(): Promise<string[]> {
+    return useApi()<string[]>('/admin/kyc/rejection-codes')
+  },
 }

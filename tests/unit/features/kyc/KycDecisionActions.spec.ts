@@ -4,6 +4,9 @@ import { seedAuth } from '~/tests/helpers/auth'
 
 const svc = vi.hoisted(() => ({ approveKyc: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() }))
 vi.mock('@/features/users/services/usersService', () => ({ usersService: svc }))
+const kycSvc = vi.hoisted(() => ({ listRejectionCodes: vi.fn(), listVerifications: vi.fn() }))
+vi.mock('@/features/kyc/services/kycService', () => ({ kycService: kycSvc }))
+import { resetKycRejectionCodesCache } from '@/features/kyc/composables/useKycRejectionCodes'
 
 import KycDecisionActions from '@/features/kyc/components/KycDecisionActions.vue'
 
@@ -23,6 +26,9 @@ describe('KycDecisionActions', () => {
   beforeEach(() => {
     seedAuth('ADMIN')
     svc.approveKyc.mockReset(); svc.rejectKyc.mockReset(); svc.revokeKyc.mockReset()
+    resetKycRejectionCodesCache()
+    kycSvc.listRejectionCodes.mockReset()
+    kycSvc.listRejectionCodes.mockResolvedValue(['document_expired', 'suspected_fraud', 'other'])
   })
 
   it('identité non validée : valider et refuser, pas de révocation', () => {
@@ -40,10 +46,40 @@ describe('KycDecisionActions', () => {
     expect(w.find('[data-test="kyc-revoke"]').exists()).toBe(true)
   })
 
-  it('sans session chez le fournisseur, valider est désactivé et expliqué', () => {
+  it('sans identifiant de session chez le fournisseur, valider et refuser sont désactivés et expliqués', () => {
     const w = mountActions({ ...BASE, stripeSessionId: null, kycStatus: 'NOT_STARTED' })
     expect(w.find('[data-test="kyc-approve"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-test="kyc-reject"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-test="kyc-approve-no-session"]').exists()).toBe(true)
+  })
+
+  it('la session se lit sur son identifiant : un providerSessionUrl absent ne bloque rien, un lien seul ne suffit pas', () => {
+    const w = mountActions({ ...BASE, providerSessionUrl: undefined })
+    expect(w.find('[data-test="kyc-approve"]').attributes('disabled')).toBeUndefined()
+    const linkOnly = mountActions({ ...BASE, stripeSessionId: undefined, providerSessionUrl: 'https://x.test/s' })
+    expect(linkOnly.find('[data-test="kyc-approve"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('le dialogue propose le catalogue servi par le back', async () => {
+    const w = mountActions()
+    await flushPromises()
+    await w.find('[data-test="kyc-reject"]').trigger('click')
+    expect(w.findAll('[data-test="kyc-code"] option').map((o) => o.attributes('value')).filter(Boolean))
+      .toEqual(['document_expired', 'suspected_fraud', 'other'])
+  })
+
+  it('400 kyc-reject-code-invalid : le catalogue est remplacé par allowedCodes', async () => {
+    svc.rejectKyc.mockRejectedValue({ statusCode: 400, data: { code: 'kyc-reject-code-invalid', detail: 'Code refusé.', allowedCodes: ['other'] } })
+    const w = mountActions()
+    await flushPromises()
+    await w.find('[data-test="kyc-reject"]').trigger('click')
+    await w.find('[data-test="kyc-code"]').setValue('document_expired')
+    await w.find('[data-test="kyc-reason"]').setValue(LONG)
+    await w.find('[data-test="kyc-dialog-submit"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-dialog-error"]').text()).toBe('Code refusé.')
+    expect(w.findAll('[data-test="kyc-code"] option').map((o) => o.attributes('value')).filter(Boolean)).toEqual(['other'])
+    expect((w.find('[data-test="kyc-code"]').element as HTMLSelectElement).value).toBe('')
   })
 
   it('SUPPORT (sans KYC_DECIDE) garde la réinitialisation mais aucun bouton de décision', () => {

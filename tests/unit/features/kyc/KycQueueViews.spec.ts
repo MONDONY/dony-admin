@@ -28,6 +28,12 @@ describe('KycQueueTable', () => {
     expect(w.emitted('select')).toEqual([['u1'], ['u2']])
   })
 
+  it('affiche queueStatus quand le back l’envoie (Parcours en cours)', () => {
+    const w = mount(KycQueueTable, { props: { items: [{ ...ROW, kycStatus: 'PENDING', queueStatus: 'IN_PROGRESS', waitingHours: null }], loading: false } })
+    expect(w.find('[data-test="kyc-status-u1"]').text()).toBe('Parcours en cours')
+    expect(w.find('[data-test="kyc-waiting-u1"]').text()).toBe('Sans objet')
+  })
+
   it('badge de décision admin et code de refus lisible', () => {
     const w = mount(KycQueueTable, {
       props: { items: [{ ...ROW, kycStatus: 'REJECTED', rejectionCode: 'document_expired', decisionKind: 'REJECTED' }], loading: false },
@@ -85,8 +91,8 @@ describe('KycReviewDetails', () => {
     decisionKind: 'APPROVED', decidedAt: '2026-09-26T09:30:00Z', decidedByAdminEmail: 'admin.1@yadony.com',
     decisionReason: 'Pièces contrôlées chez Didit', providerSessionUrl: 'https://business.didit.me/session/1',
     history: [
-      { action: 'SESSION_STARTED', at: '2026-09-25T10:00:00Z', actorKind: 'USER', actorEmail: null, detail: null },
-      { action: 'ADMIN_APPROVED', at: '2026-09-26T09:30:00Z', actorKind: 'ADMIN', actorEmail: 'admin.1@yadony.com', detail: 'Pièces contrôlées' },
+      { action: 'KYC_SESSION_CREATED', at: '2026-09-25T10:00:00Z', actorKind: 'USER', actorEmail: null, detail: null },
+      { action: 'KYC_VERIFIED_BY_ADMIN', at: '2026-09-26T09:30:00Z', actorKind: 'ADMIN', actorEmail: 'admin.1@yadony.com', detail: 'Pièces contrôlées' },
     ],
   }
 

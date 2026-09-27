@@ -62,6 +62,29 @@ describe('useKycDecision', () => {
     expect(onStale).toHaveBeenCalledTimes(1)
   })
 
+  it('400 kyc-reject-code-invalid : retient allowedCodes pour réaligner le catalogue', async () => {
+    svc.rejectKyc.mockRejectedValue({ statusCode: 400, data: { code: 'kyc-reject-code-invalid', detail: 'Code inconnu.', allowedCodes: ['other', 'suspected_fraud'] } })
+    const d = useKycDecision(() => 'u1')
+    await d.reject('x', 'motif suffisamment long')
+    expect(d.error.value).toBe('Code inconnu.')
+    expect(d.allowedCodes.value).toEqual(['other', 'suspected_fraud'])
+  })
+
+  it('422 de validation : le detail du back est affiché', async () => {
+    svc.revokeKyc.mockRejectedValue({ statusCode: 422, data: { detail: 'Le motif doit faire au moins 20 caractères.' } })
+    const d = useKycDecision(() => 'u1')
+    await d.revoke('other', 'court')
+    expect(d.error.value).toBe('Le motif doit faire au moins 20 caractères.')
+    expect(d.unavailable.value).toBe(false)
+  })
+
+  it('422 kyc-no-provider-session aussi sur un refus', async () => {
+    svc.rejectKyc.mockRejectedValue({ statusCode: 422, data: { code: 'kyc-no-provider-session' } })
+    const d = useKycDecision(() => 'u1')
+    await d.reject('other', 'motif suffisamment long')
+    expect(d.error.value).toContain('Aucune session chez le fournisseur')
+  })
+
   it('erreur sans code ni detail : message générique', async () => {
     svc.approveKyc.mockRejectedValue(problem(500))
     const d = useKycDecision(() => 'u1')

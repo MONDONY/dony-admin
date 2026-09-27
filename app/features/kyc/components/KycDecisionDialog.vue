@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { KycDecisionCode } from '@/features/kyc/types/index'
 import {
   KYC_APPROVE_REASON_MIN, KYC_DECISION_CODES, KYC_REASON_MAX, KYC_REJECT_REASON_MIN, KYC_REVOKE_REASON_MIN,
   kycDecisionCodeUserMessage, reasonLengthValid,
@@ -14,6 +15,8 @@ const props = defineProps<{
   /** Nom à ressaisir pour confirmer une révocation. */
   userName: string
   providerSessionUrl?: string | null
+  /** Catalogue proposé (servi par le back, ou liste locale en repli). */
+  codes?: readonly KycDecisionCode[]
   busy?: boolean
   error?: string | null
 }>()
@@ -26,6 +29,12 @@ const confirmName = ref('')
 watch(() => props.open, (o) => {
   if (o) { reason.value = ''; code.value = ''; checked.value = false; confirmName.value = '' }
 }, { immediate: true })
+
+const codeOptions = computed(() => props.codes?.length ? props.codes : KYC_DECISION_CODES)
+// Catalogue réaligné (400 `kyc-reject-code-invalid`) : un code choisi qui n'y figure plus est vidé.
+watch(codeOptions, (opts) => {
+  if (code.value && !opts.some((c) => c.value === code.value)) code.value = ''
+})
 
 const TITLES: Record<KycDecisionMode, string> = {
   approve: 'Valider l’identité',
@@ -55,7 +64,10 @@ const reasonPlaceholder = computed(() => ({
   reject: 'Ce qui ne va pas dans le dossier, pour l’équipe',
   revoke: 'Pourquoi cette identité ne peut plus être considérée comme vérifiée',
 }[props.mode]))
-const userMessage = computed(() => code.value ? kycDecisionCodeUserMessage(code.value) : null)
+const userMessage = computed(() => {
+  if (!code.value) return null
+  return codeOptions.value.find((c) => c.value === code.value)?.userMessage ?? kycDecisionCodeUserMessage(code.value)
+})
 // Comparaison après trim, sensible à la casse : même règle que la double confirmation RGPD.
 const nameMatches = computed(() => confirmName.value.trim() === props.userName.trim())
 
@@ -127,7 +139,7 @@ function onSubmit() {
           class="w-full rounded-btn border border-border bg-bg p-2 text-sm text-text"
         >
           <option value="" disabled>Choisir un code…</option>
-          <option v-for="c in KYC_DECISION_CODES" :key="c.value" :value="c.value">{{ c.label }}</option>
+          <option v-for="c in codeOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
         </select>
         <p
           v-if="userMessage" data-test="kyc-code-user-message"

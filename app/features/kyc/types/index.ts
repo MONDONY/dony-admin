@@ -9,7 +9,7 @@ type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral'
 type Meta = { label: string; tone: Tone }
 
 /** Statuts filtrables de la file (paramètre `status` de GET /admin/kyc/verifications). */
-export const KYC_QUEUE_STATUSES = ['IN_REVIEW', 'REJECTED', 'VERIFIED', 'NOT_STARTED'] as const
+export const KYC_QUEUE_STATUSES = ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'VERIFIED', 'NOT_STARTED'] as const
 export type KycQueueStatus = typeof KYC_QUEUE_STATUSES[number]
 
 export const KYC_PROVIDERS = ['DIDIT', 'STRIPE'] as const
@@ -26,6 +26,8 @@ export interface AdminKycQueueItem {
   provider?: KycProvider | string | null
   kycStatus: string
   recordStatus?: string | null
+  /** État métier de la ligne dans la file (IN_REVIEW, IN_PROGRESS…), à afficher en priorité. */
+  queueStatus?: KycQueueStatus | string | null
   rejectionCode?: string | null
   rejectionReason?: string | null
   decisionKind?: KycDecisionKind | string | null
@@ -69,6 +71,7 @@ export interface KycDecisionFields {
 
 export const KYC_QUEUE_STATUS_TABS: readonly { value: KycQueueStatus; label: string }[] = [
   { value: 'IN_REVIEW', label: 'En attente de décision' },
+  { value: 'IN_PROGRESS', label: 'Parcours en cours' },
   { value: 'REJECTED', label: 'Refusées' },
   { value: 'VERIFIED', label: 'Validées' },
   { value: 'NOT_STARTED', label: 'Non commencées' },
@@ -80,6 +83,7 @@ export function isKycQueueStatus(v: unknown): v is KycQueueStatus {
 
 const STATUS: Record<string, Meta> = {
   IN_REVIEW: { label: 'En attente de décision', tone: 'warning' },
+  IN_PROGRESS: { label: 'Parcours en cours', tone: 'info' },
   PENDING: { label: 'En cours chez le fournisseur', tone: 'info' },
   VERIFIED: { label: 'Validée', tone: 'success' },
   REJECTED: { label: 'Refusée', tone: 'danger' },
@@ -112,19 +116,23 @@ export function kycActorLabel(kind: string): string {
   return ACTORS[kind] ?? kind
 }
 
-/** Provisoire : le back figera la liste des actions. Une action inconnue reste lisible. */
+/** Actions de `history[]` servies par le back (#335). Une action inconnue reste lisible. */
 const HISTORY_ACTIONS: Record<string, string> = {
-  SESSION_CREATED: 'Vérification démarrée',
-  SESSION_STARTED: 'Vérification démarrée',
-  SUBMITTED: 'Pièces envoyées au fournisseur',
-  PROVIDER_IN_REVIEW: 'Mise en revue par le fournisseur',
-  PROVIDER_VERIFIED: 'Identité validée par le fournisseur',
-  PROVIDER_REJECTED: 'Identité refusée par le fournisseur',
-  ADMIN_APPROVED: 'Identité validée par un admin',
-  ADMIN_REJECTED: 'Identité refusée par un admin',
-  ADMIN_REVOKED: 'Identité révoquée par un admin',
-  ADMIN_RESET: 'Vérification réinitialisée par un admin',
-  RESET: 'Vérification réinitialisée',
+  // USER
+  KYC_SESSION_CREATED: 'Parcours de vérification commencé',
+  KYC_SESSION_ABANDONED: 'Parcours abandonné par l’utilisateur',
+  // PROVIDER
+  KYC_VERIFIED: 'Identité validée par le fournisseur',
+  KYC_REJECTED: 'Identité refusée par le fournisseur',
+  KYC_IN_REVIEW: 'Mise en revue manuelle par le fournisseur',
+  KYC_ABANDONED: 'Vérification abandonnée chez le fournisseur',
+  KYC_EXPIRED: 'Session expirée chez le fournisseur',
+  KYC_CANCELED: 'Session annulée chez le fournisseur',
+  // ADMIN
+  KYC_RESET_BY_ADMIN: 'Vérification réinitialisée par un admin',
+  KYC_VERIFIED_BY_ADMIN: 'Identité validée par un admin',
+  KYC_REJECTED_BY_ADMIN: 'Identité refusée par un admin',
+  KYC_REVOKED_BY_ADMIN: 'Identité révoquée par un admin',
 }
 export function kycHistoryActionLabel(action: string): string {
   const known = HISTORY_ACTIONS[action]
@@ -134,41 +142,39 @@ export function kycHistoryActionLabel(action: string): string {
 }
 
 /**
- * Catalogue PROVISOIRE des codes de refus et de révocation (le back le figera).
- *
- * Les codes sont ceux que l'app mobile sait déjà traduire (`kyc_rejection_messages.dart`,
- * codes Didit / Stripe Identity) : l'utilisateur lit donc exactement `userMessage`. Les deux
- * derniers codes lui sont inconnus et tombent sur son message générique, repris ici.
+ * Catalogue LOCAL des codes de refus et de révocation : repli quand GET
+ * /admin/kyc/rejection-codes est absent (ancien back). Miroir exact de `KycRejectionCodes.ALL`
+ * côté back, soit les codes que l'app mobile traduit (`kyc_rejection_messages.dart`) plus
+ * `suspected_fraud` et `other`. `userMessage` est le texte que l'app montre pour ce code ; les
+ * deux derniers lui sont inconnus et tombent sur son message générique.
  */
 const GENERIC_USER_MESSAGE = 'Nous n\'avons pas pu vérifier votre identité. Assurez-vous que votre document est lisible et réessayez.'
+const ID_NUMBER_MESSAGE = 'Les informations de votre document n\'ont pas pu être confirmées. Vérifiez qu\'elles sont bien lisibles et réessayez.'
+const SELFIE_MESSAGE = 'Votre selfie n\'a pas pu être vérifié. Réessayez dans un endroit bien éclairé, sans lunettes ni couvre-chef.'
 
 export interface KycDecisionCode { value: string; label: string; userMessage: string }
 export const KYC_DECISION_CODES: readonly KycDecisionCode[] = [
-  { value: 'document_unverified_other', label: 'Document illisible ou invérifiable', userMessage: 'Le document fourni n\'a pas pu être lu ou vérifié. Assurez-vous qu\'il est net, complet et bien éclairé, puis réessayez.' },
   { value: 'document_expired', label: 'Document expiré', userMessage: 'Votre pièce d\'identité est expirée. Utilisez un document valide et réessayez.' },
   { value: 'document_type_not_supported', label: 'Type de document non accepté', userMessage: 'Ce type de document n\'est pas accepté. Utilisez une carte d\'identité, un passeport ou un permis de conduire.' },
-  { value: 'id_number_mismatch', label: 'Informations du document non concordantes', userMessage: 'Les informations de votre document n\'ont pas pu être confirmées. Vérifiez qu\'elles sont bien lisibles et réessayez.' },
+  { value: 'document_unverified_other', label: 'Document illisible ou invérifiable', userMessage: 'Le document fourni n\'a pas pu être lu ou vérifié. Assurez-vous qu\'il est net, complet et bien éclairé, puis réessayez.' },
+  { value: 'country_not_supported', label: 'Pays du document non pris en charge', userMessage: 'Le pays de votre document n\'est pas pris en charge pour la vérification.' },
+  { value: 'id_number_insufficient_document_data', label: 'Données du document insuffisantes', userMessage: ID_NUMBER_MESSAGE },
+  { value: 'id_number_mismatch', label: 'Informations du document non concordantes', userMessage: ID_NUMBER_MESSAGE },
+  { value: 'id_number_unverified_other', label: 'Numéro de document invérifiable', userMessage: ID_NUMBER_MESSAGE },
+  { value: 'selfie_document_missing_photo', label: 'Document sans photo exploitable', userMessage: 'La photo sur votre document n\'a pas pu être comparée à votre selfie. Réessayez avec une pièce d\'identité comportant une photo nette.' },
   { value: 'selfie_face_mismatch', label: 'Selfie différent de la photo du document', userMessage: 'Votre selfie ne correspond pas à la photo du document. Reprenez la vérification dans de bonnes conditions de lumière.' },
-  { value: 'selfie_manipulated', label: 'Selfie manipulé ou invérifiable', userMessage: 'Votre selfie n\'a pas pu être vérifié. Réessayez dans un endroit bien éclairé, sans lunettes ni couvre-chef.' },
+  { value: 'selfie_manipulated', label: 'Selfie manipulé', userMessage: SELFIE_MESSAGE },
+  { value: 'selfie_unverified_other', label: 'Selfie invérifiable', userMessage: SELFIE_MESSAGE },
   { value: 'under_supported_age', label: 'Utilisateur mineur', userMessage: 'La vérification d\'identité est réservée aux personnes majeures.' },
+  { value: 'consent_declined', label: 'Consentement refusé', userMessage: 'Vous avez refusé de donner votre consentement, indispensable pour vérifier votre identité.' },
+  { value: 'session_canceled', label: 'Vérification abandonnée', userMessage: 'La vérification a été fermée avant d\'être terminée.' },
   { value: 'suspected_fraud', label: 'Suspicion de fraude', userMessage: GENERIC_USER_MESSAGE },
   { value: 'other', label: 'Autre motif', userMessage: GENERIC_USER_MESSAGE },
 ]
 
-/** Codes renvoyés par les fournisseurs, hors catalogue de décision (affichage seulement). */
-const PROVIDER_CODE_LABELS: Record<string, string> = {
-  country_not_supported: 'Pays du document non pris en charge',
-  id_number_insufficient_document_data: 'Données du document insuffisantes',
-  id_number_unverified_other: 'Numéro de document invérifiable',
-  selfie_document_missing_photo: 'Document sans photo exploitable',
-  selfie_unverified_other: 'Selfie invérifiable',
-  consent_declined: 'Consentement refusé',
-  session_canceled: 'Vérification abandonnée',
-}
-
 export function kycDecisionCodeLabel(code: string | null | undefined): string {
   if (!code) return 'Aucun'
-  return KYC_DECISION_CODES.find((c) => c.value === code)?.label ?? PROVIDER_CODE_LABELS[code] ?? code
+  return KYC_DECISION_CODES.find((c) => c.value === code)?.label ?? code
 }
 export function kycDecisionCodeUserMessage(code: string): string {
   return KYC_DECISION_CODES.find((c) => c.value === code)?.userMessage ?? GENERIC_USER_MESSAGE
@@ -197,6 +203,11 @@ export function formatWaiting(hours: number | null | undefined): string {
   const days = Math.floor(whole / 24)
   const rest = whole % 24
   return rest ? `${days} j ${rest} h` : `${days} j`
+}
+
+/** Code servi par le back : libellé et message français connus, sinon le code brut. */
+export function kycDecisionCode(value: string): KycDecisionCode {
+  return KYC_DECISION_CODES.find((c) => c.value === value) ?? { value, label: value, userMessage: GENERIC_USER_MESSAGE }
 }
 
 export const KYC_QUEUE_UNAVAILABLE = 'File des vérifications indisponible pour le moment'
