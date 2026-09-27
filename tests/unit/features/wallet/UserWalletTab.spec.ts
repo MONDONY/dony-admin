@@ -69,6 +69,17 @@ describe('UserWalletTab', () => {
     expect(xof.find('[data-test="wallet-frozen"]').text()).toBe('Gelé')
   })
 
+  // Rejeu du ledger incohérent côté back : la part remboursable arrive à null. On le dit,
+  // plutôt que d'afficher un tiret ou un faux zéro.
+  it('part remboursable non calculable quand le back la rend à null', async () => {
+    getMock.mockResolvedValue({ accounts: [{ ...ACCOUNTS.accounts[0], refundEligibleAmount: null }] })
+    const w = await mountTab()
+    const eur = w.find('[data-test="wallet-account-EUR"]')
+    expect(eur.find('[data-test="wallet-refundable"]').text()).toBe('Remboursable : non calculable')
+    expect(eur.text()).toContain('12,50 EUR')
+    expect(w.text()).not.toContain('—')
+  })
+
   it('journal : libellés français, montants signés et colorés, type inconnu brut', async () => {
     const w = await mountTab()
     const t1 = w.find('[data-test="wallet-tx-t1"]')
@@ -187,6 +198,16 @@ describe('UserWalletTab', () => {
     expect(w.find('[data-test="adj-dialog"]').exists()).toBe(true)
     expect(getMock).not.toHaveBeenCalled()
     expect(w.find('[data-test="wallet-success"]').exists()).toBe(false)
+  })
+
+  it('solde insuffisant (insufficient-wallet-balance) : detail du back affiché', async () => {
+    adjustMock.mockRejectedValue({
+      statusCode: 422,
+      data: { code: 'insufficient-wallet-balance', detail: 'Solde insuffisant pour ce débit.' },
+    })
+    const w = await mountTab()
+    await submitCredit(w)
+    expect(w.find('[data-test="adj-error"]').text()).toBe('Solde insuffisant pour ce débit.')
   })
 
   it('annuler ferme le dialogue sans appel', async () => {

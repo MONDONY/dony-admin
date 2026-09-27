@@ -25,7 +25,10 @@ const txPage = (content: unknown[]) => ({ content, totalElements: content.length
 type AdjustmentMode = 'success' | 'cap-exceeded'
 interface Mocks { adjustments: Request[] }
 
-async function mockBackend(page: Page, opts: { walletMissing?: boolean; adjustment?: AdjustmentMode } = {}): Promise<Mocks> {
+async function mockBackend(
+  page: Page,
+  opts: { walletMissing?: boolean; adjustment?: AdjustmentMode; refundableUnknown?: boolean } = {},
+): Promise<Mocks> {
   const mocks: Mocks = { adjustments: [] }
   let credited = false
   await page.addInitScript((u) => {
@@ -59,7 +62,8 @@ async function mockBackend(page: Page, opts: { walletMissing?: boolean; adjustme
       if (url.includes('/u1/wallet/transactions')) {
         return route.fulfill({ json: txPage(credited ? [CREDIT, BID, TOP_UP] : [BID, TOP_UP]) })
       }
-      return route.fulfill({ json: { accounts: [credited ? { ...ACCOUNT_EUR, balance: 17.5 } : ACCOUNT_EUR] } })
+      const account = credited ? { ...ACCOUNT_EUR, balance: 17.5 } : ACCOUNT_EUR
+      return route.fulfill({ json: { accounts: [opts.refundableUnknown ? { ...account, refundEligibleAmount: null } : account] } })
     }
     if (url.includes('/u1') && req.method() === 'GET') return route.fulfill({ json: DETAIL })
     return route.fulfill({ json: LIST_PAGE })
@@ -107,6 +111,12 @@ test('un refus 422 du back est affiché dans le dialogue', async ({ page }) => {
   await expect(page.locator('[data-test="adj-error"]')).toHaveText('Une correction ne peut pas dépasser 500 € d’équivalent par opération.')
   await expect(page.locator('[data-test="adj-dialog"]')).toBeVisible()
   await expect(page.locator('[data-test="wallet-account-EUR"]')).toContainText('12,50 EUR')
+})
+
+test('part remboursable non calculable (null côté back) : mention discrète', async ({ page }) => {
+  await mockBackend(page, { refundableUnknown: true })
+  await openWalletTab(page)
+  await expect(page.locator('[data-test="wallet-account-EUR"] [data-test="wallet-refundable"]')).toHaveText('Remboursable : non calculable')
 })
 
 test('ancien back sans endpoint portefeuille : mention discrète et aucune correction', async ({ page }) => {

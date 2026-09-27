@@ -8,8 +8,11 @@ import { formatMajorAmount } from '@/features/finance/types/index'
 export interface AdminWalletAccount {
   currency: string
   balance: number
-  /** Part du solde remboursable vers un moyen de paiement (le reste est non cash). */
-  refundEligibleAmount: number
+  /**
+   * Part du solde remboursable vers un moyen de paiement (le reste est non cash). `null`
+   * quand le back ne sait pas la calculer (rejeu du journal incohérent).
+   */
+  refundEligibleAmount: number | null
   frozen: boolean
 }
 export interface AdminUserWallet { accounts: AdminWalletAccount[] }

@@ -95,7 +95,9 @@ onMounted(wallet.load)
               >Gelé</span>
             </div>
             <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatMajorAmount(a.balance, a.currency) }}</p>
-            <p class="text-xs text-text-muted tabular-nums">Remboursable : {{ formatMajorAmount(a.refundEligibleAmount, a.currency) }}</p>
+            <p data-test="wallet-refundable" class="text-xs text-text-muted tabular-nums">
+              Remboursable : {{ a.refundEligibleAmount == null ? 'non calculable' : formatMajorAmount(a.refundEligibleAmount, a.currency) }}
+            </p>
           </li>
         </ul>
       </div>

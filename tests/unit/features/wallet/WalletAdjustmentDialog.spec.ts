@@ -105,6 +105,25 @@ describe('WalletAdjustmentDialog', () => {
     expect(continueBtn(w).attributes('disabled')).toBeUndefined()
   })
 
+  // Le back refuse les DEUX sens sur une devise gelée (422 wallet-refund-pending), pas
+  // seulement le débit : le dialogue bloque donc crédit comme débit.
+  it('devise gelée : crédit ET débit bloqués, avec l’explication', async () => {
+    const w = mountDialog([FROZEN_EUR])
+    await fill(w, '5')
+    expect(w.find('[data-test="adj-direction-credit"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-test="adj-frozen"]').text()).toMatch(/gelé/i)
+    expect(continueBtn(w).attributes('disabled')).toBeDefined()
+    await w.find('[data-test="adj-direction-debit"]').trigger('click')
+    await fill(w, '5')
+    expect(w.find('[data-test="adj-frozen"]').text()).toMatch(/gelé/i)
+    expect(continueBtn(w).attributes('disabled')).toBeDefined()
+  })
+
+  it('libellé d’un compte dont la part remboursable est inconnue', () => {
+    const w = mountDialog([{ ...EUR, refundEligibleAmount: null }])
+    expect(w.find('[data-test="adj-currency"]').text()).toContain('12,50 EUR')
+  })
+
   it('confirmation explicite : un écran de vérification avant l’envoi', async () => {
     const w = mountDialog()
     await fill(w, '7,5')
