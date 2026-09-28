@@ -7,6 +7,8 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore, type AdminPermission } from '@/stores/auth'
+import { useNotificationsStore } from '@/stores/notifications'
+import { navBadges } from '@/features/notifications/lib/navBadges'
 import NavItem from './NavItem.vue'
 
 const auth = useAuthStore()
@@ -14,6 +16,15 @@ const initials = computed(() =>
   auth.user?.email?.slice(0, 2).toUpperCase() ?? '?',
 )
 const can = (p: AdminPermission) => auth.can(p)
+
+// Compteurs du menu : même source (et même minuteur) que la cloche de la barre du haut.
+const notifications = useNotificationsStore()
+const badges = computed(() => (notifications.unavailable ? {} : navBadges(notifications.counts)))
+const badgeProps = (to: string) => {
+  const b = badges.value[to]
+  return b ? { badge: b.count, badgeTone: b.tone } : {}
+}
+let unsubscribeNotifications: (() => void) | null = null
 
 const showProfileMenu = ref(false)
 const profileMenuRef = ref<HTMLElement | null>(null)
@@ -33,10 +44,12 @@ function onDocumentKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  unsubscribeNotifications = notifications.subscribe()
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onDocumentKeydown)
 })
 onBeforeUnmount(() => {
+  unsubscribeNotifications?.()
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onDocumentKeydown)
 })
@@ -118,18 +131,18 @@ onBeforeUnmount(() => {
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
       <NavItem v-if="can('METRICS_VIEW')" to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_VIEW')" to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('USER_KYC')" to="/kyc" label="Vérifications d’identité"><template #icon><IdCard class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('USER_GDPR_DELETE')" to="/users/rgpd" label="Demandes RGPD"><template #icon><UserX class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('USER_KYC')" to="/kyc" v-bind="badgeProps('/kyc')" label="Vérifications d’identité"><template #icon><IdCard class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('USER_GDPR_DELETE')" to="/users/rgpd" v-bind="badgeProps('/users/rgpd')" label="Demandes RGPD"><template #icon><UserX class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" v-bind="badgeProps('/transactions')" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('BID_VIEW')" to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('DISPUTE_VIEW')" to="/incidents" label="Incidents"><template #icon><AlertTriangle class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('ALERT_VIEW')" to="/alertes" label="Alertes"><template #icon><Bell class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('DISPUTE_VIEW')" to="/incidents" v-bind="badgeProps('/incidents')" label="Incidents"><template #icon><AlertTriangle class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('ALERT_VIEW')" to="/alertes" v-bind="badgeProps('/alertes')" label="Alertes"><template #icon><Bell class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('MODERATION_VIEW')" to="/moderation" label="Modération"><template #icon><MessageSquare class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('SUPPORT_TICKET_VIEW')" to="/support" label="Support"><template #icon><LifeBuoy class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('SUPPORT_TICKET_VIEW')" to="/support" v-bind="badgeProps('/support')" label="Support"><template #icon><LifeBuoy class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('PROMO_MANAGE')" to="/promo" label="Codes promo"><template #icon><Ticket class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('AUDIT_VIEW')" to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('EXPORT_RUN')" to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('REPORT_VIEW')" to="/signalements" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('REPORT_VIEW')" to="/signalements" v-bind="badgeProps('/signalements')" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('NOTIFICATION_SEND')" to="/communications" label="Communications"><template #icon><Megaphone class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('CONFIG_MANAGE')" to="/parametres" label="Paramètres"><template #icon><Settings class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('ADMIN_MANAGE')" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
