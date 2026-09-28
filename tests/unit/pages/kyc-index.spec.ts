@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
 vi.stubGlobal('definePageMeta', vi.fn())
@@ -54,6 +55,25 @@ describe('/kyc', () => {
     await w.find('[data-test="kyc-detail-close"]').trigger('click')
     expect(w.find('[data-test="kyc-detail"]').exists()).toBe(false)
     expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })
+  })
+
+  it('navigation interne vers ?open= (clic sur une notification) alors que la page est ouverte', async () => {
+    const route = reactive({ meta: {}, query: {} as Record<string, string> })
+    vi.stubGlobal('useRoute', () => route)
+    try {
+      const w = await mountPage()
+      expect(users.getKyc).not.toHaveBeenCalled()
+      route.query = { status: 'IN_REVIEW', open: 'u1' }
+      await flushPromises()
+      expect(users.getKyc).toHaveBeenCalledWith('u1')
+      expect(w.find('[data-test="kyc-detail"]').exists()).toBe(true)
+      // l'URL réécrite par la page elle-même (même id) ne recharge rien
+      route.query = { open: 'u1' }
+      await flushPromises()
+      expect(users.getKyc).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
+    }
   })
 
   it('lien profond ?status=REJECTED&open=u1', async () => {

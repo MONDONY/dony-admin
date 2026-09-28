@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import KycQueueFilters from '@/features/kyc/components/KycQueueFilters.vue'
 import KycQueueTable from '@/features/kyc/components/KycQueueTable.vue'
@@ -67,6 +67,11 @@ async function onReset(reason: string) {
   await detail.reset(openId.value, reason)
   await queue.load()
 }
+
+// Page déjà ouverte : un clic sur une notification KYC_IN_REVIEW ne remonte pas le composant.
+watch(() => route.query?.open, (v) => {
+  if (typeof v === 'string' && v && v !== openId.value) void open(v)
+})
 
 onMounted(async () => {
   const deepLink = route.query?.open

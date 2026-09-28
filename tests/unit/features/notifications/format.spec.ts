@@ -121,3 +121,21 @@ describe('notificationMeta', () => {
     expect(severityClasses('AUTRE')).toBe(severityClasses('INFO'))
   })
 })
+
+describe('dates ISO UTC du back (millisecondes ou microsecondes)', () => {
+  it('« il y a 5 min » avec millisecondes et microsecondes', () => {
+    expect(formatRelativeFr('2026-09-28T11:54:30.123Z', NOW)).toMatch(/^il y a 5\smin$/)
+    expect(formatRelativeFr('2026-09-28T11:54:30.123456Z', NOW)).toMatch(/^il y a 5\smin$/)
+    expect(formatFullDate('2026-09-28T11:55:00.123456Z')).toMatch(/septembre 2026/)
+  })
+  it('isUnread compare jusqu’à la microseconde', () => {
+    expect(isUnread('2026-09-28T10:00:00.000002Z', '2026-09-28T10:00:00.000001Z')).toBe(true)
+    expect(isUnread('2026-09-28T10:00:00.000001Z', '2026-09-28T10:00:00.000001Z')).toBe(false)
+    expect(isUnread('2026-09-28T10:00:00.5Z', '2026-09-28T10:00:00Z')).toBe(true)
+    expect(isUnread('2026-09-28T10:00:00Z', '2026-09-28T10:00:00.5Z')).toBe(false)
+    expect(isUnread('2026-09-28T10:00:00.123456Z', '2026-09-28T10:00:00.123Z')).toBe(true)
+  })
+  it('date invalide : jamais non lue', () => {
+    expect(isUnread('n/a', '2026-09-28T10:00:00Z')).toBe(false)
+  })
+})

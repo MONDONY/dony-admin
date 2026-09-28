@@ -157,3 +157,72 @@ test('ancien back : cloche sans pastille, panneau indisponible, plus de polling'
   expect(state.countersCalls).toBe(calls)
   await expect(page).not.toHaveTitle(/^\(/)
 })
+
+const SUPPORT_NOTIF = {
+  id: 'n5', type: 'SUPPORT_MESSAGE_RECEIVED', title: 'Nouveau message support', summary: 'Awa a répondu sur son ticket',
+  severity: 'INFO', createdAt: '2026-09-28T11:55:00.123456Z', link: '/support?ticket=t9',
+}
+const NOSHOW_NOTIF = {
+  id: 'n6', type: 'NOSHOW_PENDING', title: 'No-show à confirmer', summary: 'Le voyageur signale une absence',
+  severity: 'WARNING', createdAt: '2026-09-28T11:50:00.5Z', link: '/incidents?tab=noshows',
+}
+const TICKET = {
+  id: 't9', category: 'PAIEMENT', subject: 'Remboursement non reçu', status: 'ASSIGNED', priority: 'NORMAL', userId: 'u1',
+  userDisplayName: 'Awa Diop', assignedAdminId: 'a2', assignedAdminEmail: 'collegue@yadony.com',
+  createdAt: '2026-09-27T10:00:00Z', lastMessageAt: '2026-09-28T11:55:00Z', resolvedAt: null,
+  messages: [{ id: 'm1', authorType: 'USER', content: 'Bonjour, je n’ai rien reçu.', createdAt: '2026-09-28T11:55:00Z' }],
+}
+const pageOf = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
+
+test('notification support : clic vers le fil du ticket ouvert, périmètre « Tous » s’il n’est pas dans la file', async ({ page }) => {
+  await mockBackend(page, {
+    counters: { counts: { support: 1 }, unreadCount: 1 },
+    feed: { items: [SUPPORT_NOTIF], unreadCount: 1, lastSeenAt: '2026-09-21T12:00:00Z' },
+  })
+  const scopes: string[] = []
+  await page.route('**/api/v1/admin/support/tickets**', (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/tickets/t9')) return route.fulfill({ json: TICKET })
+    const scope = url.searchParams.get('scope') ?? ''
+    scopes.push(scope)
+    return route.fulfill({ json: pageOf(scope === 'all' ? [{ ...TICKET, messages: null }] : []) })
+  })
+  await page.goto('/audit')
+  await expect(bellBadge(page)).toHaveText('1')
+  await bell(page).click()
+  const row = page.locator('[data-test="notif-item"]').first()
+  await expect(row).toContainText(/il y a [45]\smin/) // microsecondes acceptées
+  await row.click()
+  await expect(page).toHaveURL(/\/support\?ticket=t9$/)
+  await expect(page.locator('aside').getByText('Bonjour, je n’ai rien reçu.')).toBeVisible()
+  await expect.poll(() => scopes.at(-1)).toBe('all')
+})
+
+test('notification no-show : clic vers l’onglet No-shows, y compris depuis la page Incidents déjà ouverte', async ({ page }) => {
+  await mockBackend(page, {
+    counters: { counts: { incidents: 1 }, unreadCount: 1 },
+    feed: { items: [NOSHOW_NOTIF], unreadCount: 1, lastSeenAt: '2026-09-21T12:00:00Z' },
+  })
+  await page.route('**/api/v1/admin/disputes**', (route) => route.fulfill({ json: pageOf([]) }))
+  await page.route('**/api/v1/admin/cancellations**', (route) => route.fulfill({ json: pageOf([
+    { id: 'c1', bidId: 'b9', cancelledBy: 'TRAVELER', reason: 'SENDER_NO_SHOW', noShowStatus: 'PENDING_CONFIRMATION', contestationDeadline: '2026-09-30T10:00:00Z', createdAt: '2026-09-28T11:50:00Z' },
+  ]) }))
+  await page.goto('/incidents')
+  await expect(page.locator('[data-test="tab-disputes"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(bellBadge(page)).toHaveText('1')
+  await bell(page).click()
+  await page.locator('[data-test="notif-item"]').first().click()
+  await expect(page).toHaveURL(/\/incidents\?tab=noshows$/)
+  await expect(page.locator('[data-test="tab-noshows"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="noshow-row-c1"]')).toBeVisible()
+})
+
+test('lien profond ?tab=wallet-refunds combiné à ?held=true : onglet ouvert au chargement', async ({ page }) => {
+  await mockBackend(page)
+  await page.route('**/api/v1/admin/payments**', (route) => route.fulfill({ json: pageOf([]) }))
+  await page.route('**/api/v1/admin/wallet-refund-requests**', (route) => route.fulfill({ json: pageOf([]) }))
+  await page.goto('/transactions?held=true&tab=wallet-refunds')
+  await expect(page.locator('[data-test="tab-wallet-refunds"]')).toHaveAttribute('aria-pressed', 'true')
+  await page.locator('[data-test="tab-payments"]').click()
+  await expect(page).toHaveURL(/\/transactions\?held=true$/)
+})
