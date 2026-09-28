@@ -1,6 +1,5 @@
 import { reactive, ref } from 'vue'
 import { paymentsService } from '@/features/payments/services/paymentsService'
-import { isPaymentHeld } from '@/features/payments/types/index'
 import type { AdminPaymentListItem, PaymentsFilterState, PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter } from '@/features/payments/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 
@@ -13,9 +12,9 @@ export function usePayments() {
   const pageSize = ref(20)
   const filters = reactive<PaymentsFilterState>({ status: 'TOUS', method: 'TOUS', currency: 'TOUTES', dateFrom: null, dateTo: null, held: false })
   /**
-   * Un ancien back ignore `held=true` et renvoie TOUS les paiements, sans aucun champ de
-   * retenue : les afficher sous le filtre « Versements retenus » ferait croire que tout est
-   * bloqué. On vide alors la liste et on le dit.
+   * Un ancien back ignore `held=true` et renvoie TOUS les paiements, sans
+   * `beneficiaryHeld` : les afficher sous le filtre « Versements retenus » ferait croire que
+   * tout est bloqué. On vide alors la liste et on le dit.
    */
   const heldFilterUnsupported = ref(false)
 
@@ -23,7 +22,10 @@ export function usePayments() {
     isLoading.value = true; error.value = null
     try {
       const page = await paymentsService.list(filters, currentPage.value, pageSize.value)
-      heldFilterUnsupported.value = Boolean(filters.held) && page.content.length > 0 && !page.content.some(isPaymentHeld)
+      // Le nouveau back envoie `beneficiaryHeld` sur CHAQUE paiement (booléen, même à false) :
+      // une page où aucun n'en porte vient d'un back qui ignore le filtre.
+      heldFilterUnsupported.value = Boolean(filters.held) && page.content.length > 0
+        && page.content.every((p) => p.beneficiaryHeld === undefined)
       payments.value = heldFilterUnsupported.value ? [] : page.content
       totalPages.value = heldFilterUnsupported.value ? 0 : page.totalPages
     } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger les paiements') } finally { isLoading.value = false }

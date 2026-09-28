@@ -14,9 +14,9 @@ const global = { stubs: { NuxtLink: NuxtLinkStub } }
 
 const filterProps = { modelStatus: 'TOUS', modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
 
-const row = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 1000, commissionCents: 120, currency: 'EUR', createdAt: '2026-09-01T10:00:00' } as const
+const row = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 1000, commissionCents: 120, currency: 'EUR', createdAt: '2026-09-01T10:00:00Z' } as const
 const detail = { ...row, refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false }
-const held = { ...detail, payoutHeldAt: '2026-09-20T10:00:00', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 't1' } as const
+const held = { ...detail, payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 't1' } as const
 
 describe('PaymentFilters : Versements retenus', () => {
   it('puce inactive par défaut, émet true au clic', async () => {
@@ -40,7 +40,7 @@ describe('PaymentFilters : Versements retenus', () => {
 describe('PaymentsTable : badge Versement retenu', () => {
   it('badge sur une ligne retenue, absent sinon (ancien back compris)', () => {
     const w = mount(PaymentsTable, {
-      props: { loading: false, payments: [{ ...row, id: 'p1', payoutHeldAt: '2026-09-20T10:00:00' }, { ...row, id: 'p2' }, { ...row, id: 'p3', beneficiaryHeld: true }] },
+      props: { loading: false, payments: [{ ...row, id: 'p1', payoutHeldAt: '2026-09-20T10:00:00Z' }, { ...row, id: 'p2' }, { ...row, id: 'p3', beneficiaryHeld: true }] },
     })
     expect(w.find('[data-test="payment-held-p1"]').text()).toBe('Versement retenu')
     expect(w.find('[data-test="payment-held-p2"]').exists()).toBe(false)
@@ -61,7 +61,7 @@ describe('PaymentDetailPanel : paiement retenu', () => {
     const notice = w.find('[data-test="payment-hold-notice"]')
     expect(notice.text()).toContain('Versement retenu')
     expect(notice.text()).toContain('banni')
-    expect(notice.text()).toContain(new Date('2026-09-20T10:00:00').toLocaleDateString('fr-FR'))
+    expect(notice.text()).toContain(new Date('2026-09-20T10:00:00Z').toLocaleDateString('fr-FR'))
     const link = w.find('[data-test="payment-hold-traveler-link"]')
     expect(link.attributes('href')).toContain('/users')
     expect(link.attributes('href')).toContain('t1')
@@ -96,6 +96,8 @@ describe('PaymentDetailPanel : paiement retenu', () => {
     await w.find('[data-test="override-reason"]').setValue('Livraison vérifiée par photo')
     await w.find('[data-test="override-submit"]').trigger('click')
     expect(w.emitted('force-release')?.[0]).toEqual([{ overrideHold: true, overrideReason: 'Livraison vérifiée par photo' }])
+    await w.setProps({ busy: true })
+    await w.setProps({ busy: false })
     expect(w.find('[data-test="override-dialog"]').exists()).toBe(false)
   })
 
@@ -113,7 +115,7 @@ describe('PaymentDetailPanel : paiement retenu', () => {
   it('409 reçu (overrideRequest) : le dialogue bascule en dérogation pour ce geste', async () => {
     const w = mount(PaymentDetailPanel, { props: { payment: detail, open: true }, global })
     expect(w.find('[data-test="override-dialog"]').exists()).toBe(false)
-    await w.setProps({ overrideRequest: { action: 'release', code: 'payment-disputed' } })
+    await w.setProps({ overrideRequest: { action: 'release', code: 'payment-disputed', blockers: [], holdReasons: [], travelerId: null } })
     expect(w.find('[data-test="override-warning"]').text()).toContain('litige bancaire')
     await w.find('[data-test="override-cancel"]').trigger('click')
     expect(w.find('[data-test="override-dialog"]').exists()).toBe(false)
@@ -122,7 +124,7 @@ describe('PaymentDetailPanel : paiement retenu', () => {
 
   it('le relais du 409 disparu : le dialogue se ferme', async () => {
     const w = mount(PaymentDetailPanel, {
-      props: { payment: detail, open: true, overrideRequest: { action: 'retry-payout', code: 'payout-beneficiary-held' } }, global,
+      props: { payment: detail, open: true, overrideRequest: { action: 'retry-payout', code: 'payout-beneficiary-held', blockers: [], holdReasons: [], travelerId: null } }, global,
     })
     expect(w.find('[data-test="override-dialog"]').exists()).toBe(true)
     await w.setProps({ overrideRequest: null })

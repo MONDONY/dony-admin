@@ -7,7 +7,7 @@ import UserKycTab from './UserKycTab.vue'
 import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
 import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
-import { heldPaymentsReminder, holdReasonLabel } from '@/features/payments/types/index'
+import { heldPaymentsReminder, holdReasonsLabel } from '@/features/payments/types/index'
 
 const props = defineProps<{
   user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
@@ -33,16 +33,27 @@ const mobileMoneyLabel = computed(() => {
 // Versements retenus (compte banni ou identité révoquée) : l'argent reste chez Yadony et ne
 // repart pas tout seul quand le compte est rétabli, d'où le bandeau ET les rappels ci-dessous.
 const heldCount = computed(() => props.user.heldPaymentsCount ?? 0)
-const payoutsHeld = computed(() => props.user.payoutsHeldSince != null || heldCount.value > 0)
 const plural = (n: number) => (n > 1 ? 's' : '')
+const heldReasons = computed<string[]>(() =>
+  props.user.payoutsHeldReasons ?? (props.user.payoutsHeldReason ? [props.user.payoutsHeldReason] : []))
+// Compte rétabli (le tableau des motifs, toujours envoyé par le nouveau back, est vide) mais
+// des paiements restent retenus : rien ne repart tout seul, l'admin doit les débloquer.
+const payoutsRestored = computed(() =>
+  props.user.payoutsHeldReasons !== undefined && props.user.payoutsHeldReasons.length === 0 && heldCount.value > 0)
+const payoutsHeld = computed(() => !payoutsRestored.value
+  && (props.user.payoutsHeldSince != null || heldReasons.value.length > 0 || heldCount.value > 0))
 const payoutsHeldText = computed(() => {
   const since = props.user.payoutsHeldSince
     ? ` depuis le ${new Date(props.user.payoutsHeldSince).toLocaleDateString('fr-FR')}`
     : ''
-  const reason = holdReasonLabel(props.user.payoutsHeldReason)
+  const reason = holdReasonsLabel(heldReasons.value)
   const n = heldCount.value
   const pendingPart = n > 0 ? `${n} paiement${plural(n)} en attente` : 'aucun paiement en attente'
   return `Versements bloqués${since}${reason ? ` (${reason})` : ''} : ${pendingPart}.`
+})
+const payoutsRestoredText = computed(() => {
+  const n = heldCount.value
+  return `Compte rétabli : ${n} paiement${plural(n)} toujours retenu${plural(n)}, à débloquer manuellement.`
 })
 const heldReminder = computed(() => heldCount.value > 0 ? ` ${heldPaymentsReminder(heldCount.value)}` : '')
 
@@ -250,12 +261,17 @@ const dialogConfig = computed<DialogConfig>(() => {
       </div>
 
       <div
-        v-if="payoutsHeld" data-test="user-payouts-held" role="status"
-        class="mb-4 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm"
+        v-if="payoutsHeld || payoutsRestored" :data-test="payoutsRestored ? 'user-payouts-restored' : 'user-payouts-held'" role="status"
+        :class="['mb-4 rounded-card border px-4 py-3 text-sm',
+          payoutsRestored ? 'border-warning/30 bg-warning/5' : 'border-danger/30 bg-danger/5']"
       >
-        <p class="font-medium text-danger text-pretty">{{ payoutsHeldText }}</p>
+        <p :class="['font-medium text-pretty', payoutsRestored ? 'text-warning' : 'text-danger']">
+          {{ payoutsRestored ? payoutsRestoredText : payoutsHeldText }}
+        </p>
         <p class="mt-1 text-xs text-text-muted text-pretty">
-          Ses gains restent chez Yadony. Chaque paiement se décide à part : rembourser l’expéditeur ou payer le voyageur par dérogation.
+          {{ payoutsRestored
+            ? 'Rien ne repart tout seul : débloquez chaque paiement depuis Transactions, ou remboursez l’expéditeur.'
+            : 'Ses gains restent chez Yadony. Chaque paiement se décide à part : rembourser l’expéditeur ou payer le voyageur par dérogation.' }}
         </p>
         <NuxtLink
           v-if="heldCount > 0 && auth.can('PAYMENT_VIEW')" data-test="user-payouts-held-link"

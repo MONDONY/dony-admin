@@ -6,17 +6,19 @@ import { test, expect } from '@playwright/test'
  */
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
-const NORMAL = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z' }
+const NORMAL = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z', beneficiaryHeld: false, travelerId: 'u1' }
 const HELD = {
   id: 'p9', bidId: 'b9', status: 'ESCROW', method: 'STRIPE', amountCents: 50000, commissionCents: 6000, currency: 'EUR', createdAt: '2026-09-18T10:00:00Z',
-  payoutHeldAt: '2026-09-20T10:00:00', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 'u7',
+  payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 'u7',
 }
 const detailOf = (p: object) => ({ ...p, refundedCents: 0, stripePaymentIntentId: 'pi_x', escrowReleasedAt: null, disputed: false })
 const page1 = (content: object[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
 
 type Captured = { url: string; body: string | null }
 
-async function routePayments(page: import('@playwright/test').Page, opts: { conflictOnFirstRelease?: string } = {}) {
+type ErrorReply = { status: number; body: Record<string, unknown> }
+
+async function routePayments(page: import('@playwright/test').Page, opts: { conflictOnFirstRelease?: string; firstReleaseError?: ErrorReply } = {}) {
   const posts: Captured[] = []
   const lists: string[] = []
   let conflictSent = false
@@ -25,11 +27,13 @@ async function routePayments(page: import('@playwright/test').Page, opts: { conf
     const req = route.request(); const url = req.url()
     if (req.method() === 'POST') {
       posts.push({ url, body: req.postData() })
-      if (opts.conflictOnFirstRelease && !conflictSent && url.includes('/force-release')) {
+      const reply = opts.firstReleaseError
+        ?? (opts.conflictOnFirstRelease ? { status: 409, body: { code: opts.conflictOnFirstRelease, detail: 'Refus du serveur' } } : null)
+      if (reply && !conflictSent && url.includes('/force-release')) {
         conflictSent = true
         return route.fulfill({
-          status: 409, contentType: 'application/problem+json',
-          body: JSON.stringify({ status: 409, code: opts.conflictOnFirstRelease, detail: 'Refus du serveur' }),
+          status: reply.status, contentType: 'application/problem+json',
+          body: JSON.stringify({ status: reply.status, ...reply.body }),
         })
       }
       const base = url.includes('/p9/') ? HELD : NORMAL
@@ -111,13 +115,54 @@ test('409 inattendu payout-beneficiary-held : bascule en dérogation puis renvoi
 })
 
 test('409 stripe-account-unusable : message clair, aucune dérogation proposée', async ({ page }) => {
-  await routePayments(page, { conflictOnFirstRelease: 'stripe-account-unusable' })
+  await routePayments(page, { firstReleaseError: { status: 409, body: { code: 'stripe-account-unusable', detail: 'x', stripeAccountStatus: 'DISABLED' } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
-  await expect(page.locator('[data-test="payment-error"]')).toContainText('compte Stripe du voyageur est inutilisable')
+  await expect(page.locator('[data-test="payment-error"]')).toContainText('compte Stripe du voyageur est inutilisable (statut : désactivé)')
+  await expect(page.locator('[data-test="override-dialog"]')).toHaveCount(0)
+})
+
+test('409 à deux blocages : litige bancaire ET compte gelé affichés ensemble', async ({ page }) => {
+  await routePayments(page, { firstReleaseError: { status: 409, body: {
+    code: 'payment-disputed', detail: 'x', blockers: ['DISPUTED', 'BENEFICIARY_HELD'], holdReasons: ['BANNED', 'KYC_REVOKED'], travelerId: 'u1',
+  } } })
+  await page.goto('/transactions')
+  await page.locator('[data-test="payment-row-p1"]').click()
+  await page.locator('[data-test="action-release"]').click()
+  await page.locator('[data-test="reason"]').fill('J+48 atteint')
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="override-blocker-DISPUTED"]')).toContainText('litige bancaire')
+  await expect(page.locator('[data-test="override-blocker-BENEFICIARY_HELD"]')).toContainText('banni et son identité a été révoquée')
+})
+
+test('422 override-reason-invalid : le dialogue reste ouvert avec le détail, puis le renvoi passe', async ({ page }) => {
+  const { posts } = await routePayments(page, { firstReleaseError: { status: 422, body: {
+    code: 'override-reason-invalid', detail: 'Le motif de dérogation doit faire entre 10 et 500 caractères',
+  } } })
+  await page.goto('/transactions')
+  await page.locator('[data-test="payment-row-p9"]').click()
+  await page.locator('[data-test="action-release"]').click()
+  await page.locator('[data-test="override-checked"]').check()
+  await page.locator('[data-test="override-reason"]').fill('Motif accepté côté front')
+  await page.locator('[data-test="override-submit"]').click()
+  await expect(page.locator('[data-test="override-error"]')).toHaveText('Le motif de dérogation doit faire entre 10 et 500 caractères')
+  await expect(page.locator('[data-test="override-reason"]')).toHaveValue('Motif accepté côté front')
+  await page.locator('[data-test="override-submit"]').click()
+  await expect(page.locator('aside').getByText('Libéré')).toBeVisible()
+  expect(posts).toHaveLength(2)
+})
+
+test('409 transfer-already-attempted : conseil de vérifier dans Stripe, aucune dérogation', async ({ page }) => {
+  await routePayments(page, { firstReleaseError: { status: 409, body: { code: 'transfer-already-attempted', detail: 'x' } } })
+  await page.goto('/transactions')
+  await page.locator('[data-test="payment-row-p1"]').click()
+  await page.locator('[data-test="action-release"]').click()
+  await page.locator('[data-test="reason"]').fill('J+48 atteint')
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="payment-error"]')).toContainText('Vérifiez dans Stripe')
   await expect(page.locator('[data-test="override-dialog"]')).toHaveCount(0)
 })
 
@@ -128,7 +173,7 @@ test('fiche utilisateur : bandeau des versements bloqués et lien vers Transacti
     status: 'BANNED', kycStatus: 'VERIFIED', isProAccount: false, averageRating: null, totalTrips: 4, totalShipments: 0, createdAt: '2026-01-01',
     roles: ['TRAVELER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null, publishingSuspended: false, kiloPro: false,
     cancellationCount: 0, noShowCount: 0, refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 0, deletionRequestedAt: null,
-    messagingMutedUntil: null, payoutsHeldSince: '2026-09-20T10:00:00', payoutsHeldReason: 'BANNED', heldPaymentsCount: 2,
+    messagingMutedUntil: null, payoutsHeldSince: '2026-09-20T10:00:00Z', payoutsHeldReason: 'BANNED', payoutsHeldReasons: ['BANNED', 'KYC_REVOKED'], heldPaymentsCount: 2,
   }
   await page.route('**/api/v1/admin/users**', (route) => {
     if (route.request().url().includes('/admin/users/u7')) return route.fulfill({ json: user })
@@ -138,7 +183,7 @@ test('fiche utilisateur : bandeau des versements bloqués et lien vers Transacti
 
   await page.goto('/users?query=u7&open=u7')
   const banner = page.locator('[data-test="user-payouts-held"]')
-  await expect(banner).toContainText('Versements bloqués depuis le 20/09/2026 (compte banni) : 2 paiements en attente.')
+  await expect(banner).toContainText('Versements bloqués depuis le 20/09/2026 (compte banni et identité révoquée) : 2 paiements en attente.')
 
   await page.locator('[data-test="action-unban"]').click()
   await expect(page.locator('[data-test="overlay"]')).toContainText('ne repartiront pas tout seuls')

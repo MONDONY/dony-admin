@@ -222,6 +222,7 @@ onMounted(async () => {
         :payment="detail.payment.value" :open="detail.payment.value !== null"
         :error="detail.error.value" :busy="detail.busy.value"
         :override-request="detail.overrideRequest.value"
+        :override-error="detail.overrideError.value"
         @close="detail.close"
         @force-release="(o) => onAction(() => detail.forceRelease(o))"
         @refund="onAction(detail.refund)"

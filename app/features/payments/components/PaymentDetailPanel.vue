@@ -13,6 +13,8 @@ const props = defineProps<{
   payment: AdminPaymentDetail; open: boolean; error?: string | null; busy?: boolean
   /** 409 de blocage reçu du back : le geste concerné repasse par la dérogation. */
   overrideRequest?: PayoutOverrideRequest | null
+  /** Refus du motif de dérogation (422) : le dialogue reste ouvert pour corriger. */
+  overrideError?: string | null
 }>()
 // Les deux gestes qui paient le voyageur émettent la dérogation quand il y en a une, rien sinon.
 const emit = defineEmits<{
@@ -71,15 +73,41 @@ function ask(action: PayoutAction) {
   if (held.value) overridePending.value = action
   else pending.value = action === 'release' ? 'release' : 'retry-payout'
 }
+// Le dialogue reste ouvert pendant l'appel : il ne se ferme qu'une fois la réponse reçue, et
+// reste ouvert (saisie conservée) si le serveur refuse le motif. Toute autre issue le ferme :
+// succès, ou erreur affichée dans le bandeau du panneau.
+const overrideSubmitted = ref(false)
 function confirmOverride(override: PayoutOverride) {
+  overrideSubmitted.value = true
   if (overridePending.value === 'release') emit('force-release', override)
   else emit('retry-payout', override)
-  overridePending.value = null
 }
+watch(() => props.busy, (now, before) => {
+  if (!before || now || !overrideSubmitted.value) return
+  overrideSubmitted.value = false
+  if (!props.overrideError) overridePending.value = null
+})
 function cancelOverride() {
+  overrideSubmitted.value = false
   overridePending.value = null
   emit('override-dismiss')
 }
+
+/**
+ * Blocages montrés dans la dérogation : ceux du 409 s'il les énumère, sinon déduits de son
+ * code, sinon lus sur le paiement (gel du voyageur, plus litige bancaire s'il y en a un).
+ */
+const overrideBlockers = computed<string[]>(() => {
+  const r = props.overrideRequest
+  if (r?.blockers.length) return r.blockers
+  if (r?.code === 'payment-disputed') return ['DISPUTED']
+  if (r?.code === 'payout-beneficiary-held') return ['BENEFICIARY_HELD']
+  return props.payment.disputed ? ['BENEFICIARY_HELD', 'DISPUTED'] : ['BENEFICIARY_HELD']
+})
+const overrideHoldReasons = computed<string[]>(() => {
+  if (props.overrideRequest?.holdReasons.length) return props.overrideRequest.holdReasons
+  return props.payment.beneficiaryHoldReason ? [props.payment.beneficiaryHoldReason] : []
+})
 
 const holdWho = computed(() => {
   if (props.payment.beneficiaryHoldReason === 'BANNED') return 'Le voyageur a été banni.'
@@ -155,8 +183,9 @@ function confirm() {
       <PayoutOverrideDialog
         :open="overridePending !== null"
         :action="overridePending ?? 'release'"
-        :hold-reason="payment.beneficiaryHoldReason ?? null"
-        :conflict-code="overrideRequest?.code ?? null"
+        :blockers="overrideBlockers"
+        :hold-reasons="overrideHoldReasons"
+        :error="overrideError ?? null"
         :busy="busy"
         @confirm="confirmOverride"
         @cancel="cancelOverride"

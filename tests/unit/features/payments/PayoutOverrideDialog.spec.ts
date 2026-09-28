@@ -13,16 +13,16 @@ describe('PayoutOverrideDialog', () => {
   })
 
   it('avertit clairement, selon le motif de blocage du voyageur', () => {
-    const banned = mountDialog({ holdReason: 'BANNED' })
+    const banned = mountDialog({ holdReasons: ['BANNED'] })
     expect(banned.find('[data-test="override-warning"]').text()).toContain('banni')
-    const revoked = mountDialog({ holdReason: 'KYC_REVOKED' })
+    const revoked = mountDialog({ holdReasons: ['KYC_REVOKED'] })
     expect(revoked.find('[data-test="override-warning"]').text()).toContain('a été révoquée')
     const unknown = mountDialog()
     expect(unknown.find('[data-test="override-warning"]').text()).toContain('bloqué')
   })
 
-  it('litige bancaire (409 payment-disputed) : avertissement dédié', () => {
-    const w = mountDialog({ conflictCode: 'payment-disputed' })
+  it('litige bancaire (blocker DISPUTED) : avertissement dédié', () => {
+    const w = mountDialog({ blockers: ['DISPUTED'] })
     expect(w.find('[data-test="override-warning"]').text()).toContain('litige bancaire')
   })
 
@@ -90,7 +90,7 @@ describe('PayoutOverrideDialog', () => {
   })
 
   it('aucun tiret cadratin dans le texte affiché', () => {
-    for (const props of [{}, { conflictCode: 'payment-disputed' }, { holdReason: 'BANNED', action: 'retry-payout' }]) {
+    for (const props of [{}, { blockers: ['DISPUTED', 'BENEFICIARY_HELD'] }, { holdReasons: ['BANNED'], action: 'retry-payout' }]) {
       expect(mountDialog(props).text()).not.toContain('—')
     }
   })

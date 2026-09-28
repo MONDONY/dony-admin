@@ -63,6 +63,23 @@ export type PayoutAction = 'release' | 'retry-payout'
 export const OVERRIDABLE_CONFLICT_CODES = ['payout-beneficiary-held', 'payment-disputed'] as const
 /** Compte Stripe du voyageur inutilisable : aucune dérogation n'y peut rien. */
 export const STRIPE_ACCOUNT_UNUSABLE = 'stripe-account-unusable'
+/** Force-release : un transfert Stripe a déjà été tenté, le relancer risquerait de payer deux fois. */
+export const TRANSFER_ALREADY_ATTEMPTED = 'transfer-already-attempted'
+/** 422 : motif de dérogation hors 10 à 500 caractères après trim, montré dans le dialogue. */
+export const OVERRIDE_REASON_INVALID = 'override-reason-invalid'
+/** Blocages que le 409 énumère dans `blockers` ; ils peuvent coexister. */
+export type PayoutBlocker = 'DISPUTED' | 'BENEFICIARY_HELD'
+
+export function stripeAccountStatusLabel(status: string | null | undefined): string | null {
+  if (!status) return null
+  return ({ DISABLED: 'désactivé', REJECTED: 'refusé' } as Record<string, string>)[status] ?? status
+}
+
+/** « compte banni et identité révoquée » ; null sans motif connu. */
+export function holdReasonsLabel(reasons: readonly (string | null | undefined)[]): string | null {
+  const labels = reasons.map(holdReasonLabel).filter((l): l is string => Boolean(l))
+  return labels.length ? labels.join(' et ') : null
+}
 
 export function isPaymentHeld(p: PayoutHoldFields): boolean {
   return p.beneficiaryHeld === true || p.payoutHeldAt != null

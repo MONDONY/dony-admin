@@ -22,7 +22,7 @@ const baseUser = {
   proSubscription: null,
 }
 const bannedHeld = {
-  ...baseUser, status: 'BANNED', payoutsHeldSince: '2026-09-20T10:00:00', payoutsHeldReason: 'BANNED', heldPaymentsCount: 2,
+  ...baseUser, status: 'BANNED', payoutsHeldSince: '2026-09-20T10:00:00Z', payoutsHeldReason: 'BANNED', heldPaymentsCount: 2,
 }
 
 describe('UserDetailPanel : versements bloqués', () => {
@@ -36,7 +36,7 @@ describe('UserDetailPanel : versements bloqués', () => {
   it('bandeau : date, motif et nombre de paiements en attente, lien vers Transactions filtré', () => {
     const w = mount(UserDetailPanel, { props: { user: bannedHeld, open: true }, global })
     const banner = w.find('[data-test="user-payouts-held"]')
-    const date = new Date('2026-09-20T10:00:00').toLocaleDateString('fr-FR')
+    const date = new Date('2026-09-20T10:00:00Z').toLocaleDateString('fr-FR')
     expect(banner.text()).toContain(`Versements bloqués depuis le ${date}`)
     expect(banner.text()).toContain('compte banni')
     expect(banner.text()).toContain('2 paiements en attente')
@@ -46,7 +46,7 @@ describe('UserDetailPanel : versements bloqués', () => {
 
   it('bandeau : singulier, identité révoquée', () => {
     const w = mount(UserDetailPanel, {
-      props: { user: { ...baseUser, payoutsHeldSince: '2026-09-20T10:00:00', payoutsHeldReason: 'KYC_REVOKED', heldPaymentsCount: 1 }, open: true },
+      props: { user: { ...baseUser, payoutsHeldSince: '2026-09-20T10:00:00Z', payoutsHeldReason: 'KYC_REVOKED', heldPaymentsCount: 1 }, open: true },
       global,
     })
     const banner = w.find('[data-test="user-payouts-held"]')
@@ -60,7 +60,7 @@ describe('UserDetailPanel : versements bloqués', () => {
     expect(w.find('[data-test="user-payouts-held"]').text()).toContain('3 paiements en attente')
 
     const none = mount(UserDetailPanel, {
-      props: { user: { ...baseUser, payoutsHeldSince: '2026-09-20T10:00:00', payoutsHeldReason: 'BANNED', heldPaymentsCount: 0 }, open: true },
+      props: { user: { ...baseUser, payoutsHeldSince: '2026-09-20T10:00:00Z', payoutsHeldReason: 'BANNED', heldPaymentsCount: 0 }, open: true },
       global,
     })
     expect(none.find('[data-test="user-payouts-held"]').text()).toContain('aucun paiement en attente')

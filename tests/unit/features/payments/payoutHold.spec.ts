@@ -65,7 +65,7 @@ describe('paymentsService : versements retenus', () => {
 describe('types : lecture de la retenue', () => {
   it('isPaymentHeld : bénéficiaire gelé ou date de retenue', () => {
     expect(isPaymentHeld({ beneficiaryHeld: true })).toBe(true)
-    expect(isPaymentHeld({ payoutHeldAt: '2026-09-20T10:00:00' })).toBe(true)
+    expect(isPaymentHeld({ payoutHeldAt: '2026-09-20T10:00:00Z' })).toBe(true)
     expect(isPaymentHeld({ beneficiaryHeld: false, payoutHeldAt: null })).toBe(false)
     // Ancien back : aucun champ.
     expect(isPaymentHeld({})).toBe(false)
@@ -93,7 +93,7 @@ describe('usePayments : filtre Versements retenus', () => {
   beforeEach(() => apiMock.mockReset())
 
   it('setHeldFilter active le filtre, revient en page 0 et relit la liste', async () => {
-    apiMock.mockResolvedValue({ ...EMPTY_PAGE, content: [{ id: 'p1', payoutHeldAt: '2026-09-20T10:00:00' }] })
+    apiMock.mockResolvedValue({ ...EMPTY_PAGE, content: [{ id: 'p1', beneficiaryHeld: true, payoutHeldAt: '2026-09-20T10:00:00Z' }] })
     const p = usePayments()
     await p.goToPage(3)
     await p.setHeldFilter(true)
@@ -142,7 +142,7 @@ describe('usePaymentDetail : dérogation', () => {
     const d = await opened()
     apiMock.mockRejectedValueOnce(conflict('payout-beneficiary-held'))
     expect(await d.forceRelease()).toBe(false)
-    expect(d.overrideRequest.value).toEqual({ action: 'release', code: 'payout-beneficiary-held' })
+    expect(d.overrideRequest.value).toEqual({ action: 'release', code: 'payout-beneficiary-held', blockers: [], holdReasons: [], travelerId: null })
     expect(d.error.value).toContain('retenu')
   })
 
@@ -150,7 +150,7 @@ describe('usePaymentDetail : dérogation', () => {
     const d = await opened()
     apiMock.mockRejectedValueOnce(conflict('payment-disputed'))
     expect(await d.retryPayout()).toBe(false)
-    expect(d.overrideRequest.value).toEqual({ action: 'retry-payout', code: 'payment-disputed' })
+    expect(d.overrideRequest.value).toEqual({ action: 'retry-payout', code: 'payment-disputed', blockers: [], holdReasons: [], travelerId: null })
     expect(d.error.value).toContain('litige bancaire')
   })
 

@@ -11,11 +11,16 @@ import type { PayoutAction, PayoutOverride } from '@/features/payments/types/ind
 const props = defineProps<{
   open: boolean
   action: PayoutAction
-  /** Motif du blocage lu sur le paiement (nouveau back), s'il est connu. */
-  holdReason?: string | null
-  /** Code du 409 qui a déclenché la dérogation, s'il y en a eu un. */
-  conflictCode?: string | null
+  /**
+   * Blocages à lever (`DISPUTED`, `BENEFICIARY_HELD`), qui peuvent coexister. Vide : gel du
+   * voyageur, seul cas où la dérogation s'ouvre sans 409.
+   */
+  blockers?: readonly string[]
+  /** Motifs du gel (`BANNED`, `KYC_REVOKED`), plusieurs à la fois possibles. */
+  holdReasons?: readonly string[]
   busy?: boolean
+  /** Refus du motif par le serveur (422), affiché près de la saisie. */
+  error?: string | null
 }>()
 const emit = defineEmits<{ confirm: [override: PayoutOverride]; cancel: [] }>()
 
@@ -27,16 +32,20 @@ const title = computed(() => props.action === 'release'
   ? 'Payer le voyageur malgré le blocage'
   : 'Relancer le versement malgré le blocage')
 
-const warning = computed(() => {
-  if (props.conflictCode === 'payment-disputed') {
-    return 'Ce paiement fait l’objet d’un litige bancaire ouvert. En confirmant, l’argent sera versé au voyageur alors que le litige n’est pas tranché.'
-  }
-  const who = props.holdReason === 'BANNED'
-    ? 'Ce voyageur est banni'
-    : props.holdReason === 'KYC_REVOKED'
-      ? 'L’identité de ce voyageur a été révoquée'
-      : 'Ce voyageur est bloqué'
-  return `${who} : ses versements sont retenus chez Yadony. En confirmant, l’argent lui sera versé quand même. Si la livraison pose problème, remboursez plutôt l’expéditeur.`
+const showDisputed = computed(() => (props.blockers ?? []).includes('DISPUTED'))
+const showHeld = computed(() => !props.blockers?.length || props.blockers.includes('BENEFICIARY_HELD'))
+const heldText = computed(() => {
+  const r = props.holdReasons ?? []
+  const banned = r.includes('BANNED')
+  const revoked = r.includes('KYC_REVOKED')
+  const who = banned && revoked
+    ? 'Ce voyageur est banni et son identité a été révoquée'
+    : banned
+      ? 'Ce voyageur est banni'
+      : revoked
+        ? 'L’identité de ce voyageur a été révoquée'
+        : 'Ce voyageur est bloqué'
+  return `${who} : ses versements sont retenus chez Yadony.`
 })
 
 const reasonLength = computed(() => reason.value.trim().length)
@@ -61,10 +70,16 @@ function onSubmit() {
     >
       <h2 id="override-dialog-title" class="font-display text-lg font-semibold mb-3 text-balance">{{ title }}</h2>
 
-      <p
+      <div
         data-test="override-warning" role="alert"
-        class="mb-4 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
-      >{{ warning }}</p>
+        class="mb-4 space-y-1 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
+      >
+        <p v-if="showHeld" data-test="override-blocker-BENEFICIARY_HELD">{{ heldText }}</p>
+        <p v-if="showDisputed" data-test="override-blocker-DISPUTED">
+          Ce paiement fait l’objet d’un litige bancaire ouvert, pas encore tranché.
+        </p>
+        <p>En confirmant, l’argent sera versé au voyageur quand même. Si la livraison pose problème, remboursez plutôt l’expéditeur.</p>
+      </div>
 
       <label class="mb-4 flex items-start gap-2 text-sm cursor-pointer select-none">
         <input v-model="checked" data-test="override-checked" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0">
@@ -84,6 +99,11 @@ function onSubmit() {
           :class="reasonLength > PAYOUT_OVERRIDE_REASON_MAX ? 'text-danger' : 'text-text-muted'"
         >{{ reasonLength }} / {{ PAYOUT_OVERRIDE_REASON_MAX }}</span>
       </div>
+
+      <p
+        v-if="error" data-test="override-error" role="alert"
+        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
+      >{{ error }}</p>
 
       <div class="flex justify-end gap-2">
         <button

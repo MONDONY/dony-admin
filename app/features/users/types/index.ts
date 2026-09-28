@@ -68,7 +68,11 @@ export interface AdminUserDetail extends AdminUserListItem {
    * NON_NULL) : absents d'un ancien back, et alors aucun bandeau ne s'affiche.
    */
   payoutsHeldSince?: string | null
+  /** Motif principal ; `payoutsHeldReasons` les donne tous (banni ET identité révoquée possible). */
   payoutsHeldReason?: 'BANNED' | 'KYC_REVOKED' | null
+  /** Toujours présent avec le nouveau back, vide quand le compte n'est plus gelé. */
+  payoutsHeldReasons?: ('BANNED' | 'KYC_REVOKED')[]
+  /** Reste > 0 après la levée du gel tant que les paiements ne sont pas débloqués un par un. */
   heldPaymentsCount?: number | null
 }
 
