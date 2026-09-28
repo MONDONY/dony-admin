@@ -39,6 +39,8 @@ export interface AdminBroadcastPage {
 
 export interface BroadcastAudience {
   recipientCount: number
+  /** Cible USER : nom du compte visé (nouveau back, NON_NULL), pour vérifier avant l'envoi. */
+  targetUserName?: string | null
 }
 
 export const TARGET_LABELS: Record<BroadcastTargetType, string> = {

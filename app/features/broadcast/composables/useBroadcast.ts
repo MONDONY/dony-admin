@@ -6,6 +6,18 @@ import type { AdminBroadcast, BroadcastTarget } from '@/features/broadcast/types
 const PAGE_SIZE = 20
 
 /**
+ * 404 sur une cible USER = compte inconnu. Le `detail` du back prime ; un 404 sans detail
+ * (proxy, ancien back) reçoit un message clair plutôt que « 404 Not Found ».
+ */
+function broadcastError(e: unknown, fallback: string): string {
+  const err = e as { statusCode?: number; status?: number; data?: { detail?: unknown } } | undefined
+  const status = err?.statusCode ?? err?.status
+  const detail = err?.data?.detail
+  if (status === 404 && !(typeof detail === 'string' && detail.trim())) return 'Utilisateur introuvable : vérifiez l’identifiant.'
+  return extractProblemMessage(e, fallback)
+}
+
+/**
  * Rédaction, aperçu et historique des broadcasts.
  *
  * Le back répond 202 : la diffusion n'a pas encore eu lieu quand la promesse se résout.
@@ -19,6 +31,7 @@ export function useBroadcast() {
   const previewing = ref(false)
   const error = ref<string | null>(null)
   const recipientCount = ref<number | null>(null)
+  const targetUserName = ref<string | null>(null)
   const currentPage = ref(0)
   const totalPages = ref(0)
 
@@ -45,10 +58,13 @@ export function useBroadcast() {
     previewing.value = true
     error.value = null
     try {
-      recipientCount.value = (await broadcastService.preview(target)).recipientCount
+      const audience = await broadcastService.preview(target)
+      targetUserName.value = audience.targetUserName ?? null
+      recipientCount.value = audience.recipientCount
     } catch (e) {
       recipientCount.value = null
-      error.value = extractProblemMessage(e, 'Impossible d’estimer le nombre de destinataires')
+      targetUserName.value = null
+      error.value = broadcastError(e, 'Impossible d’estimer le nombre de destinataires')
     } finally {
       previewing.value = false
     }
@@ -60,16 +76,17 @@ export function useBroadcast() {
     try {
       await broadcastService.send(title, body, target)
       recipientCount.value = null
+      targetUserName.value = null
       await fetchHistory()
     } catch (e) {
-      error.value = extractProblemMessage(e, 'Envoi impossible')
+      error.value = broadcastError(e, 'Envoi impossible')
     } finally {
       busy.value = false
     }
   }
 
   return {
-    history, isLoading, busy, previewing, error, recipientCount, currentPage, totalPages,
+    history, isLoading, busy, previewing, error, recipientCount, targetUserName, currentPage, totalPages,
     fetchHistory, goToPage, preview, send,
   }
 }

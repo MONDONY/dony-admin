@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
+import BroadcastUserPicker from '@/features/broadcast/components/BroadcastUserPicker.vue'
 import { TARGET_LABELS, type BroadcastTarget, type BroadcastTargetType } from '@/features/broadcast/types/index'
 
 const props = defineProps<{
   recipientCount: number | null
   busy?: boolean
   previewing?: boolean
+  /** Pré-remplissage depuis la fiche utilisateur (`?target=USER&userId=`). */
+  initialUserId?: string | null
+  /** Nom du destinataire renvoyé par la preview (nouveau back), absent sinon. */
+  targetUserName?: string | null
+  /** Recherche par nom possible (USER_VIEW) ; sinon seul l'identifiant collé est accepté. */
+  canSearchUsers?: boolean
 }>()
 const emit = defineEmits<{
   preview: [target: BroadcastTarget]
@@ -15,10 +22,10 @@ const emit = defineEmits<{
 
 const title = ref('')
 const body = ref('')
-const targetType = ref<BroadcastTargetType>('ALL')
+const targetType = ref<BroadcastTargetType>(props.initialUserId ? 'USER' : 'ALL')
 const origin = ref('')
 const destination = ref('')
-const userId = ref('')
+const userId = ref(props.initialUserId ?? '')
 const confirmOpen = ref(false)
 
 // Seuls les champs pertinents pour le type choisi entrent dans le ciblage — un champ
@@ -45,6 +52,8 @@ const freshCount = computed<number | null>(() =>
     : null,
 )
 const estimateIsStale = computed(() => props.recipientCount !== null && freshCount.value === null)
+const shownUserName = computed(() =>
+  targetType.value === 'USER' && freshCount.value !== null && props.targetUserName ? props.targetUserName : null)
 
 // Phrase de contrôle exigée pour la cible la plus large. Réservée à `ALL` : l'imposer sur
 // toutes les cibles la banaliserait, et une confirmation qu'on tape sans lire ne protège
@@ -130,12 +139,9 @@ const confirmMessage = computed(() => {
       </label>
     </div>
 
-    <label v-if="targetType === 'USER'" class="block text-sm text-text-muted">Identifiant utilisateur
-      <input
-        v-model="userId" data-test="broadcast-user-id" type="text" :disabled="busy"
-        class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm disabled:opacity-40"
-      >
-    </label>
+    <BroadcastUserPicker
+      v-if="targetType === 'USER'" v-model="userId" :can-search="canSearchUsers" :disabled="busy"
+    />
 
     <div class="flex items-center gap-3">
       <button
@@ -147,8 +153,9 @@ const confirmMessage = computed(() => {
         {{ freshCount }} destinataire{{ freshCount > 1 ? 's' : '' }} estimé{{ freshCount > 1 ? 's' : '' }}
       </span>
       <span v-else-if="estimateIsStale" data-test="broadcast-stale-estimate" class="text-sm text-warning">
-        Le ciblage a changé — relancez l’estimation.
+        Le ciblage a changé : relancez l’estimation.
       </span>
+      <span v-if="shownUserName" data-test="broadcast-target-user-name" class="text-sm font-medium text-text">Destinataire : {{ shownUserName }}</span>
     </div>
 
     <div class="flex justify-end">
