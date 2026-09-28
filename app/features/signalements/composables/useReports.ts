@@ -12,16 +12,28 @@ import { reasonViolationMessage } from '@/lib/restoreReason'
 function resolveErrorMessage(e: unknown): string {
   const err = e as { statusCode?: number; status?: number } | undefined
   const status = err?.statusCode ?? err?.status
+  const code = problemCode(e)
+  const data = (e as { data?: { detail?: unknown } } | undefined)?.data
+  const detail = typeof data?.detail === 'string' && data.detail.trim() ? data.detail : null
+  // `authority-required` : le detail du back (« Permission USER_SUSPEND requise… ») est
+  // technique ; on garde le code de permission, utile pour la demander, dans une phrase claire.
+  if (code === 'authority-required') {
+    const permission = detail?.match(/\b[A-Z][A-Z_]{2,}\b/)?.[0]
+    const suffix = permission ? ` (${permission})` : ''
+    return `Votre compte n’a pas la permission requise pour cette action${suffix}. Demandez-la à un super administrateur.`
+  }
   let fallback = 'Impossible de traiter ce signalement'
   if (status === 403) fallback = 'Vous n’avez pas la permission d’appliquer cette action.'
-  else if (problemCode(e) === 'report-target-unresolvable') {
+  else if (code === 'report-target-unresolvable') {
     fallback = 'La cible de ce signalement est introuvable : elle a peut-être déjà été supprimée.'
   }
-  const data = (e as { data?: { detail?: unknown } } | undefined)?.data
-  if (typeof data?.detail === 'string' && data.detail.trim()) return data.detail
+  if (detail) return detail
   // Sans `detail`, le message technique d'ofetch (« 403 Forbidden ») ne vaut pas le repli.
-  return status === 403 || problemCode(e) ? fallback : extractProblemMessage(e, fallback)
+  return status === 403 || code ? fallback : extractProblemMessage(e, fallback)
 }
+
+/** Issue d'un traitement : fait, déjà traité ailleurs (409), ou refusé. */
+export type ResolveOutcome = 'ok' | 'closed' | 'error'
 
 /** Plafond de POST /admin/reports/bulk-restore. */
 const BULK_RESTORE_MAX = 100
@@ -48,6 +60,8 @@ export function useReports() {
   const resolveError = ref<string | null>(null)
   /** Dernier signalement traité : alimente le message de confirmation de la page. */
   const lastResolved = ref<AdminReport | null>(null)
+  /** 409 `report-already-closed` : un autre admin l'a traité ; avis affiché sur la page. */
+  const closedNotice = ref<string | null>(null)
 
   // ---- Sélection (modèle Gmail) ----
   // `selectedIds` : les lignes cochées sur la page courante. `allResultsSelected` :
@@ -88,6 +102,7 @@ export function useReports() {
     error.value = null
     // Tout rechargement (filtre, page, suppression) rend le message « Signalement traité » périmé.
     lastResolved.value = null
+    closedNotice.value = null
     try {
       const page = await reportsService.list(filters, currentPage.value, pageSize.value)
       deletedFilterUnsupported.value = Boolean(filters.deleted) && page.content.length > 0
@@ -122,22 +137,31 @@ export function useReports() {
   function clearResolveFeedback() {
     resolveError.value = null
     lastResolved.value = null
+    closedNotice.value = null
   }
 
   /**
    * Traite un signalement et met SA ligne à jour sur place (statut, action prise) plutôt que
    * de recharger : sous « Ouverts », la ligne reste visible jusqu'au prochain chargement,
-   * ce qui montre le résultat. Rend false sur refus, sans jamais lever.
+   * ce qui montre le résultat. Ne lève jamais : un refus rend 'error' (message dans
+   * `resolveError`), un signalement déjà traité par un autre admin rend 'closed' après
+   * relecture de la liste (avis dans `closedNotice`).
    */
-  async function resolve(id: string, action: ReportAction | string, note: string): Promise<boolean> {
-    resolveError.value = null
-    lastResolved.value = null
+  async function resolve(id: string, action: ReportAction | string, note: string): Promise<ResolveOutcome> {
+    clearResolveFeedback()
     let updated: AdminReport | undefined
     try {
       updated = await reportsService.resolve(id, action, note)
     } catch (e) {
+      if (problemCode(e) === 'report-already-closed') {
+        const data = (e as { data?: { detail?: unknown } }).data
+        const notice = typeof data?.detail === 'string' && data.detail.trim() ? data.detail : 'Ce signalement a déjà été traité'
+        await fetchReports()
+        closedNotice.value = notice
+        return 'closed'
+      }
       resolveError.value = resolveErrorMessage(e)
-      return false
+      return 'error'
     }
     const current = reports.value.find((x) => x.id === id)
     // Une réponse vide (204, ancien mock) ne doit pas effacer la ligne : repli sur l'action envoyée.
@@ -152,7 +176,7 @@ export function useReports() {
     } as AdminReport
     reports.value = reports.value.map((x) => (x.id === id ? merged : x))
     lastResolved.value = merged
-    return true
+    return 'ok'
   }
 
   /** Supprime un signalement, puis recharge la page. */
@@ -223,7 +247,7 @@ export function useReports() {
     reports, isLoading, error, totalPages, totalElements, currentPage, pageSize, filters,
     selectedIds, allResultsSelected, selectedCount, pageFullySelected, canSelectAllResults,
     fetchReports, goToPage, setStatusFilter, setTargetTypeFilter, setQuery, resolve,
-    resolveError, lastResolved, clearResolveFeedback,
+    resolveError, lastResolved, closedNotice, clearResolveFeedback,
     toggleSelect, togglePage, selectAllResults, clearSelection, deleteOne, deleteSelected,
   }
 }

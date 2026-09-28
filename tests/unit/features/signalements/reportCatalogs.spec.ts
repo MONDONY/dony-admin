@@ -56,6 +56,12 @@ describe('libellés des actions', () => {
     expect(reportActionLabel('RESOLVE', author)).toBe('Marquer comme traité')
   })
 
+  it('targetAuthor null (cible APP) : aucun nom dans les libellés', () => {
+    expect(reportActionLabel('WARN_AUTHOR', null)).toBe('Avertir l’auteur')
+    expect(reportActionLabel('SUSPEND_AUTHOR', null)).toBe('Suspendre l’auteur')
+    expect(reportActionConsequence('SUSPEND_AUTHOR', null)).toContain('Le compte de l’auteur')
+  })
+
   it('auteur sans nom : libellé générique', () => {
     expect(reportActionLabel('WARN_AUTHOR', { userId: 'u1', name: null })).toBe('Avertir l’auteur')
     expect(reportActionLabel('SUSPEND_AUTHOR', { userId: 'u1', name: '  ' })).toBe('Suspendre l’auteur')

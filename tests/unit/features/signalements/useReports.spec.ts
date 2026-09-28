@@ -44,8 +44,8 @@ describe('useReports', () => {
     const r = useReports()
     await r.fetchReports()
     svc.list.mockClear()
-    const ok = await r.resolve('r1', 'RESOLVE', '')
-    expect(ok).toBe(true)
+    const outcome = await r.resolve('r1', 'RESOLVE', '')
+    expect(outcome).toBe('ok')
     expect(svc.resolve).toHaveBeenCalledWith('r1', 'RESOLVE', '')
     expect(svc.list).not.toHaveBeenCalled()
     expect(r.reports.value[0]).toMatchObject({ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE', availableActions: [] })
@@ -68,8 +68,8 @@ describe('useReports', () => {
     svc.resolve.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { statusCode: 403, data: { status: 403, detail: 'Permission USER_SUSPEND requise' } }))
     const r = useReports()
     await r.fetchReports()
-    const ok = await r.resolve('r1', 'SUSPEND_AUTHOR', 'menaces')
-    expect(ok).toBe(false)
+    const outcome = await r.resolve('r1', 'SUSPEND_AUTHOR', 'menaces')
+    expect(outcome).toBe('error')
     expect(r.resolveError.value).toBe('Permission USER_SUSPEND requise')
     expect(r.reports.value[0].status).toBe('OPEN')
   })
@@ -94,8 +94,52 @@ describe('useReports', () => {
   it('ancien back qui refuse RESOLVE : detail affiché, pas d’exception', async () => {
     svc.resolve.mockRejectedValue(Object.assign(new Error('400 Bad Request'), { statusCode: 400, data: { detail: 'Corps de requête illisible' } }))
     const r = useReports()
-    await expect(r.resolve('r1', 'RESOLVE', '')).resolves.toBe(false)
+    await expect(r.resolve('r1', 'RESOLVE', '')).resolves.toBe('error')
     expect(r.resolveError.value).toBe('Corps de requête illisible')
+  })
+
+  it('403 authority-required : message clair qui nomme la permission', async () => {
+    svc.resolve.mockRejectedValue(Object.assign(new Error('403 Forbidden'), {
+      statusCode: 403, data: { code: 'authority-required', detail: 'Permission USER_SUSPEND requise pour cette action' },
+    }))
+    const r = useReports()
+    await r.resolve('r1', 'SUSPEND_AUTHOR', 'x')
+    expect(r.resolveError.value).toBe('Votre compte n’a pas la permission requise pour cette action (USER_SUSPEND). Demandez-la à un super administrateur.')
+  })
+
+  it('403 authority-required sans detail : message clair générique', async () => {
+    svc.resolve.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { statusCode: 403, data: { code: 'authority-required' } }))
+    const r = useReports()
+    await r.resolve('r1', 'DELETE_RATING', 'x')
+    expect(r.resolveError.value).toBe('Votre compte n’a pas la permission requise pour cette action. Demandez-la à un super administrateur.')
+  })
+
+  it('409 report-already-closed : recharge la liste, rend closed et pose un avis (detail du back)', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    const r = useReports()
+    await r.fetchReports()
+    svc.list.mockClear()
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE', availableActions: [] }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    svc.resolve.mockRejectedValue(Object.assign(new Error('409 Conflict'), {
+      statusCode: 409, data: { code: 'report-already-closed', detail: 'Ce signalement est déjà traité' },
+    }))
+    const outcome = await r.resolve('r1', 'DELETE_MESSAGE', 'x')
+    expect(outcome).toBe('closed')
+    expect(svc.list).toHaveBeenCalledTimes(1)
+    expect(r.reports.value[0].status).toBe('RESOLVED')
+    expect(r.resolveError.value).toBeNull()
+    expect(r.closedNotice.value).toBe('Ce signalement est déjà traité')
+  })
+
+  it('409 report-already-closed sans detail : « Ce signalement a déjà été traité »', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    svc.resolve.mockRejectedValue(Object.assign(new Error('409 Conflict'), { statusCode: 409, data: { code: 'report-already-closed' } }))
+    const r = useReports()
+    await r.resolve('r1', 'RESOLVE', '')
+    expect(r.closedNotice.value).toBe('Ce signalement a déjà été traité')
+    // Un chargement suivant rend l'avis périmé.
+    await r.fetchReports()
+    expect(r.closedNotice.value).toBeNull()
   })
 
   it('un rechargement efface le message du dernier traitement', async () => {

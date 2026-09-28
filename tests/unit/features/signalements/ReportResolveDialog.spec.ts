@@ -142,6 +142,22 @@ describe('ReportResolveDialog', () => {
     expect(w.emitted('confirm')).toBeUndefined()
   })
 
+  it('cible APP avec targetAuthor null : libellés sans nom', () => {
+    const w = mountDialog({ ...base, targetType: 'APP', targetId: null, targetAuthor: null, availableActions: ['RESOLVE', 'DISMISS'] })
+    const labels = w.findAll('[data-test="resolve-action-label"]').map((x) => x.text())
+    expect(labels).toEqual(['Marquer comme traité', 'Rejeter le signalement'])
+    expect(w.text()).not.toContain('null')
+  })
+
+  it('MESSAGE sans messageId : le back ne propose que traiter ou rejeter, affiché tel quel', async () => {
+    const w = mountDialog({ ...base, targetId: null, targetLabel: null, targetAuthor: null, availableActions: ['DISMISS', 'RESOLVE'] })
+    const labels = w.findAll('[data-test="resolve-action-label"]').map((x) => x.text())
+    expect(labels).toEqual(['Marquer comme traité', 'Rejeter le signalement'])
+    expect(w.find('[data-test="resolve-consequence"]').exists()).toBe(false)
+    await confirmBtn(w).trigger('click')
+    expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', ''])
+  })
+
   it('Annuler émet cancel', async () => {
     const w = mountDialog(messageReport)
     await w.find('[data-test="resolve-cancel"]').trigger('click')

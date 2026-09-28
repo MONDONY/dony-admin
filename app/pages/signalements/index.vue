@@ -140,10 +140,11 @@ function cancelResolve() {
 async function confirmResolve(action: string, note: string) {
   if (!pendingReportId.value) return
   resolveBusy.value = true
-  const ok = await r.resolve(pendingReportId.value, action, note)
+  const outcome = await r.resolve(pendingReportId.value, action, note)
   resolveBusy.value = false
-  // Refus (403, 422, ancien back) : le dialogue reste ouvert et montre le detail.
-  if (ok) pendingReportId.value = null
+  // Refus (403, 422, ancien back) : le dialogue reste ouvert et montre le detail. Déjà
+  // traité par un autre admin (409) : on ferme, la liste relue montre son état réel.
+  if (outcome !== 'error') pendingReportId.value = null
 }
 
 // ---- Avis ----
@@ -253,6 +254,10 @@ onMounted(r.fetchReports)
         v-if="resolvedMessage" data-test="reports-resolved" role="status"
         class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success text-pretty"
       >{{ resolvedMessage }}</p>
+      <p
+        v-if="r.closedNotice.value" data-test="reports-already-closed" role="status"
+        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+      >{{ r.closedNotice.value }}</p>
       <p v-if="lastDeleted !== null" data-test="reports-deleted" class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted">
         {{ lastDeleted }} signalement{{ lastDeleted > 1 ? 's' : '' }} supprimé{{ lastDeleted > 1 ? 's' : '' }}.
       </p>

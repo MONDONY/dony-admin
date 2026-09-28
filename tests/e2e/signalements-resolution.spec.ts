@@ -148,3 +148,52 @@ test('ancien back : repli local avec Marquer comme traité, son refus s’affich
   await expect(page.locator('[data-test="report-row-app1"]')).toContainText('Rejeté')
   await expect(page.locator('[data-test="reports-resolved"]')).toHaveText('Signalement rejeté.')
 })
+
+test('409 report-already-closed : dialogue fermé, avis affiché, liste relue', async ({ page }) => {
+  let closed = false
+  const reports = [MESSAGE]
+  await page.route('**/api/v1/admin/reports**', (route) => {
+    const req = route.request()
+    if (req.method() === 'POST' && req.url().includes('/resolve')) {
+      closed = true
+      return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ status: 409, code: 'report-already-closed', detail: 'Ce signalement est déjà traité' }) })
+    }
+    const content = closed ? [{ ...MESSAGE, status: 'RESOLVED', actionTaken: 'WARN_AUTHOR', availableActions: [] }] : reports
+    return route.fulfill({ json: { content, totalElements: 1, totalPages: 1, number: 0, size: 20 } })
+  })
+  await page.goto('/signalements')
+  await page.locator('[data-test="resolve-msg1"]').click()
+  await page.locator('[data-test="resolve-confirm"]').click()
+  await expect(page.locator('[data-test="resolve-overlay"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="reports-already-closed"]')).toHaveText('Ce signalement est déjà traité')
+  await expect(page.locator('[data-test="report-action-taken-msg1"]')).toHaveText('Auteur averti')
+  await expect(page.locator('[data-test="resolve-msg1"]')).toHaveCount(0)
+})
+
+test('403 authority-required : message clair dans le dialogue', async ({ page }) => {
+  await mockReports(page, [RATING], () => ({
+    status: 403,
+    json: { status: 403, code: 'authority-required', detail: 'Permission RATING_DELETE requise pour cette action' },
+  }))
+  await page.goto('/signalements')
+  await page.locator('[data-test="resolve-rat1"]').click()
+  await page.locator('[data-test="resolve-action-DELETE_RATING"]').click()
+  await page.locator('[data-test="resolve-note"]').fill('propos injurieux')
+  await page.locator('[data-test="resolve-acknowledge"]').check()
+  await page.locator('[data-test="resolve-confirm"]').click()
+  await expect(page.locator('[data-test="resolve-error"]'))
+    .toHaveText('Votre compte n’a pas la permission requise pour cette action (RATING_DELETE). Demandez-la à un super administrateur.')
+})
+
+test('bug APP sans auteur et message sans messageId : traiter ou rejeter, sans nom fantôme', async ({ page }) => {
+  const orphan = { ...base, id: 'msg0', targetType: 'MESSAGE', targetId: null, targetLabel: null, reason: 'HARASSMENT', availableActions: ['RESOLVE', 'DISMISS'], targetAuthor: null }
+  await mockReports(page, [{ ...APP_BUG, targetAuthor: null }, orphan])
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-msg0"]')).toContainText('Cible inconnue')
+  await page.locator('[data-test="resolve-msg0"]').click()
+  expect(await page.locator('[data-test="resolve-action-label"]').allTextContents()).toEqual(['Marquer comme traité', 'Rejeter le signalement'])
+  await page.locator('[data-test="resolve-cancel"]').click()
+  await page.locator('[data-test="resolve-app1"]').click()
+  expect(await page.locator('[data-test="resolve-action-label"]').allTextContents()).toEqual(['Marquer comme traité', 'Rejeter le signalement'])
+  await expect(page.locator('[data-test="resolve-overlay"]')).not.toContainText('null')
+})

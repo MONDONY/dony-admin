@@ -204,6 +204,14 @@ describe('ReportsTable', () => {
       expect(w.find('[data-test="resolve-r1"]').exists()).toBe(false)
     })
 
+    it('MESSAGE sans messageId ni libellé : « Cible inconnue », Traiter disponible', () => {
+      const orphan = [{ ...reports[0], targetType: 'MESSAGE', targetId: null, targetLabel: null, availableActions: ['RESOLVE', 'DISMISS'] }]
+      const w = mount(ReportsTable, { props: { reports: orphan, loading: false } })
+      expect(w.find('[data-test="report-row-r1"]').text()).toContain('Cible inconnue')
+      expect(w.find('[data-test="report-row-r1"]').text()).toContain('Message')
+      expect(w.find('[data-test="resolve-r1"]').exists()).toBe(true)
+    })
+
     it('signalant inconnu : pas de tiret cadratin affiché', () => {
       const w = mount(ReportsTable, { props: { reports: [{ ...reports[0], reporterName: null }], loading: false } })
       expect(w.find('[data-test="report-row-r1"]').text()).not.toContain('—')
