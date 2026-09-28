@@ -5,12 +5,13 @@ import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import PhotoViewer from '@/components/ui/PhotoViewer.vue'
+import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
 import { actionsFor } from '@/features/signalements/reportActions'
 import { REPORT_ACTION_LABELS, REPORT_TARGET_TYPE_LABELS } from '@/features/signalements/reportActionLabels'
-import type { ReportAction, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
+import type { BulkRestoreResult, ReportAction, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
@@ -62,6 +63,7 @@ const deleteMessage = computed(() => {
   return `${n} signalement${n > 1 ? 's' : ''} (${scope}) seront masqués de l’admin (suppression douce).`
 })
 async function confirmDelete() {
+  lastRestored.value = null
   if (pendingDeleteId.value) {
     await r.deleteOne(pendingDeleteId.value)
     lastDeleted.value = 1
@@ -70,6 +72,41 @@ async function confirmDelete() {
   }
   lastDeleted.value = await r.deleteSelected()
   bulkDeleteOpen.value = false
+}
+
+// ---- Restauration (unitaire motivée, ou groupée) ----
+const pendingRestoreId = ref<string | null>(null)
+const restoreBusy = ref(false)
+const bulkRestoreOpen = ref(false)
+const lastRestored = ref<BulkRestoreResult | null>(null)
+const plural = (n: number) => (n > 1 ? 's' : '')
+const restoredMessage = computed(() => {
+  const res = lastRestored.value
+  if (!res) return ''
+  const done = `${res.restored} signalement${plural(res.restored)} restauré${plural(res.restored)}`
+  return res.skipped > 0 ? `${done}, ${res.skipped} ignoré${plural(res.skipped)} (déjà actif${plural(res.skipped)}).` : `${done}.`
+})
+const bulkRestoreMessage = computed(() => {
+  const n = Math.min(r.selectedIds.value.length, 100)
+  return `${n} signalement${plural(n)} redeviendr${n > 1 ? 'ont' : 'a'} visible${plural(n)} dans l’admin. Ceux déjà actifs seront ignorés.`
+})
+async function toggleDeletedFilter() {
+  lastDeleted.value = null
+  lastRestored.value = null
+  await r.setDeletedFilter(!r.filters.deleted)
+}
+async function confirmRestore(reason: string) {
+  if (!pendingRestoreId.value) return
+  restoreBusy.value = true
+  const ok = await r.restoreOne(pendingRestoreId.value, reason)
+  restoreBusy.value = false
+  pendingRestoreId.value = null
+  if (ok) lastRestored.value = { restored: 1, skipped: 0 }
+}
+async function confirmBulkRestore() {
+  bulkRestoreOpen.value = false
+  const res = await r.restoreSelected()
+  if (res) lastRestored.value = res
 }
 
 // Le signalement en cours de traitement — sert à filtrer les actions proposées
@@ -114,6 +151,20 @@ async function confirmRemove(reason: string) {
   if (pendingRemoveId.value) await rt.remove(pendingRemoveId.value, reason)
   pendingRemoveId.value = null
 }
+const pendingRatingRestoreId = ref<string | null>(null)
+const ratingRestoreBusy = ref(false)
+const ratingRestored = ref(false)
+async function confirmRatingRestore(reason: string) {
+  if (!pendingRatingRestoreId.value) return
+  ratingRestoreBusy.value = true
+  ratingRestored.value = await rt.restore(pendingRatingRestoreId.value, reason)
+  ratingRestoreBusy.value = false
+  pendingRatingRestoreId.value = null
+}
+async function toggleRatingsDeleted(v: boolean) {
+  ratingRestored.value = false
+  await rt.setDeletedFilter(v)
+}
 
 function switchTab(t: 'reports' | 'ratings') {
   activeTab.value = t
@@ -147,10 +198,18 @@ onMounted(r.fetchReports)
         <div class="flex gap-1">
           <button
             v-for="t in reportStatusTabs" :key="t.value" type="button" :data-test="`report-tab-${t.value}`"
-            :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
-              r.filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+            :disabled="r.filters.deleted"
+            :class="['rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40',
+              r.filters.status === t.value && !r.filters.deleted ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
             @click="r.setStatusFilter(t.value)"
           >{{ t.label }}</button>
+          <button
+            v-if="auth.can('REPORT_DELETE')" type="button" data-test="report-filter-deleted"
+            :aria-pressed="r.filters.deleted ? 'true' : 'false'"
+            :class="['ml-1 rounded-full px-3 py-1.5 text-sm transition-colors',
+              r.filters.deleted ? 'bg-danger text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+            @click="toggleDeletedFilter"
+          >Supprimés</button>
         </div>
         <input
           type="search" data-test="report-search" :value="searchInput"
@@ -169,6 +228,18 @@ onMounted(r.fetchReports)
       </div>
 
       <p v-if="r.error.value" data-test="reports-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ r.error.value }}</p>
+      <p
+        v-if="r.deletedFilterUnsupported.value" data-test="reports-deleted-filter-unsupported"
+        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+      >Filtre disponible après mise à jour du serveur : il ne sait pas encore isoler les signalements supprimés.</p>
+      <p
+        v-if="r.restoreUnavailable.value" data-test="reports-restore-unavailable"
+        class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted text-pretty"
+      >Restauration indisponible tant que le serveur n’est pas mis à jour.</p>
+      <p
+        v-if="lastRestored" data-test="reports-restored" role="status"
+        class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success tabular-nums"
+      >{{ restoredMessage }}</p>
       <p v-if="lastDeleted !== null" data-test="reports-deleted" class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted">
         {{ lastDeleted }} signalement{{ lastDeleted > 1 ? 's' : '' }} supprimé{{ lastDeleted > 1 ? 's' : '' }}.
       </p>
@@ -193,7 +264,12 @@ onMounted(r.fetchReports)
           @click="r.clearSelection()"
         >Annuler</button>
         <button
-          type="button" data-test="bulk-delete"
+          v-if="r.filters.deleted && !r.restoreUnavailable.value" type="button" data-test="bulk-restore"
+          class="rounded-btn px-3 py-1.5 bg-primary text-white transition-[background-color,scale] hover:bg-primary/90 active:scale-[0.96]"
+          @click="bulkRestoreOpen = true"
+        >Restaurer la sélection ({{ r.selectedCount.value }})</button>
+        <button
+          v-else-if="!r.filters.deleted" type="button" data-test="bulk-delete"
           class="rounded-btn px-3 py-1.5 bg-danger text-white hover:bg-danger/90"
           @click="bulkDeleteOpen = true"
         >Supprimer ({{ r.selectedCount.value }})</button>
@@ -201,6 +277,8 @@ onMounted(r.fetchReports)
 
       <ReportsTable
         :reports="r.reports.value" :loading="r.isLoading.value" :selected="r.selectedIds.value"
+        :restore-unavailable="r.restoreUnavailable.value"
+        @restore="(id) => { lastRestored = null; pendingRestoreId = id }"
         @resolve="openResolve" @view-photos="(urls) => viewerUrls = urls"
         @toggle="r.toggleSelect" @toggle-page="r.togglePage" @delete="(id) => pendingDeleteId = id"
       />
@@ -220,6 +298,27 @@ onMounted(r.fetchReports)
         >
         Signalés uniquement
       </label>
+      <label v-if="auth.can('RATING_DELETE')" class="flex items-center gap-2 mb-4 text-sm text-text-muted cursor-pointer">
+        <input
+          type="checkbox" data-test="ratings-deleted-only"
+          :checked="rt.filters.deleted"
+          @change="toggleRatingsDeleted(($event.target as HTMLInputElement).checked)"
+        >
+        Supprimés
+      </label>
+
+      <p
+        v-if="rt.deletedFilterUnsupported.value" data-test="ratings-deleted-filter-unsupported"
+        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+      >Filtre disponible après mise à jour du serveur : il ne sait pas encore isoler les avis supprimés.</p>
+      <p
+        v-if="rt.restoreUnavailable.value" data-test="ratings-restore-unavailable"
+        class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted text-pretty"
+      >Restauration indisponible tant que le serveur n’est pas mis à jour.</p>
+      <p
+        v-if="ratingRestored" data-test="ratings-restored" role="status"
+        class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
+      >Avis restauré : la note moyenne du voyageur est recalculée.</p>
 
       <p
         v-if="rt.error.value" data-test="ratings-error" role="alert"
@@ -227,7 +326,8 @@ onMounted(r.fetchReports)
       >{{ rt.error.value }}</p>
 
       <RatingsTable
-        :ratings="rt.ratings.value" :loading="rt.isLoading.value"
+        :ratings="rt.ratings.value" :loading="rt.isLoading.value" :restore-unavailable="rt.restoreUnavailable.value"
+        @restore="(id) => { ratingRestored = false; pendingRatingRestoreId = id }"
         @exclude="(id) => pendingExcludeId = id" @remove="(id) => pendingRemoveId = id"
       />
 
@@ -281,6 +381,40 @@ onMounted(r.fetchReports)
       confirm-label="Supprimer"
       @confirm="confirmDelete"
       @cancel="pendingDeleteId = null; bulkDeleteOpen = false"
+    />
+
+    <!-- Restaurer un signalement supprimé (motif journalisé) -->
+    <RestoreReasonDialog
+      :open="pendingRestoreId !== null"
+      title="Restaurer le signalement"
+      message="Le signalement redevient visible dans l’admin, avec son statut d’avant la suppression."
+      confirm-label="Restaurer"
+      :busy="restoreBusy"
+      @confirm="confirmRestore"
+      @cancel="pendingRestoreId = null"
+    />
+
+    <!-- Restaurer la sélection -->
+    <ConfirmActionDialog
+      :open="bulkRestoreOpen"
+      title="Restaurer la sélection"
+      :message="bulkRestoreMessage"
+      confirm-label="Restaurer"
+      confirm-tone="primary"
+      @confirm="confirmBulkRestore"
+      @cancel="bulkRestoreOpen = false"
+    />
+
+    <!-- Restaurer un avis supprimé -->
+    <RestoreReasonDialog
+      :open="pendingRatingRestoreId !== null"
+      title="Restaurer l’avis"
+      message="L’avis redevient public sur le profil du voyageur."
+      notice="La note moyenne du voyageur sera recalculée avec cet avis."
+      confirm-label="Restaurer"
+      :busy="ratingRestoreBusy"
+      @confirm="confirmRatingRestore"
+      @cancel="pendingRatingRestoreId = null"
     />
 
     <!-- Exclure un avis -->

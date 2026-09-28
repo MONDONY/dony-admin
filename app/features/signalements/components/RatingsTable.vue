@@ -2,10 +2,20 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminRating } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
-defineProps<{ ratings: AdminRating[]; loading: boolean }>()
-const emit = defineEmits<{ exclude: [id: string]; remove: [id: string] }>()
+defineProps<{
+  ratings: AdminRating[]
+  loading: boolean
+  /** POST /admin/ratings/{id}/restore absent (ancien back) : le bouton Restaurer disparaît. */
+  restoreUnavailable?: boolean
+}>()
+const emit = defineEmits<{ exclude: [id: string]; remove: [id: string]; restore: [id: string] }>()
 const auth = useAuthStore()
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
+/** « Supprimé le … par … » : qui et quand ; le motif s'affiche à part. */
+function deletedInfo(r: AdminRating): string {
+  const when = r.deletedAt ? `Supprimé le ${fmt(r.deletedAt)}` : 'Supprimé'
+  return r.deletedByAdminEmail ? `${when} par ${r.deletedByAdminEmail}` : when
+}
 function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n)) }
 </script>
 
@@ -31,11 +41,22 @@ function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 
           </td>
           <td class="px-4 py-3 text-sm">
             <span :class="r.excluded ? 'line-through text-text-muted' : ''">{{ r.comment ?? '—' }}</span>
-            <div v-if="r.excluded" class="text-xs text-danger">Exclu{{ r.excludedReason ? ` — ${r.excludedReason}` : '' }}</div>
+            <div v-if="r.excluded" class="text-xs text-danger">Exclu{{ r.excludedReason ? ` : ${r.excludedReason}` : '' }}</div>
+            <div v-if="r.deletedAt" :data-test="`rating-deleted-info-${r.id}`" class="mt-1 text-xs text-text-muted text-pretty">
+              <span class="tabular-nums">{{ deletedInfo(r) }}</span>
+              <span v-if="r.deleteReason" class="block">Motif : {{ r.deleteReason }}</span>
+            </div>
           </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ r.raterName ?? '—' }} → {{ r.ratedName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
-          <td class="px-4 py-3 text-right whitespace-nowrap">
+          <td v-if="r.deletedAt" class="px-4 py-3 text-right whitespace-nowrap">
+            <button
+              v-if="auth.can('RATING_DELETE') && !restoreUnavailable" type="button" :data-test="`restore-rating-${r.id}`"
+              class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary transition-[background-color,scale] hover:bg-primary/25 active:scale-[0.96]"
+              @click="emit('restore', r.id)"
+            >Restaurer</button>
+          </td>
+          <td v-else class="px-4 py-3 text-right whitespace-nowrap">
             <button
               v-if="!r.excluded && auth.can('RATING_MODERATE')" type="button" :data-test="`exclude-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-warning/15 text-warning hover:bg-warning/25"
