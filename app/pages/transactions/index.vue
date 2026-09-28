@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import PaymentsTable from '@/features/payments/components/PaymentsTable.vue'
 import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
@@ -23,6 +23,8 @@ definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle
 
 type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions' | 'wallet-refunds'
 
+const TABS: readonly Tab[] = ['payments', 'chargebacks', 'wallets', 'mobile-money', 'mm-commissions', 'cash-commissions', 'wallet-refunds']
+const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TABS as readonly string[]).includes(v)
 const tab = ref<Tab>('payments')
 const route = useRoute()
 const router = useRouter()
@@ -146,8 +148,20 @@ async function resolveWalletRefund(id: string) {
   finally { walletRefundBusyId.value = null }
 }
 
-async function switchTab(t: Tab) {
+/**
+ * L'onglet vit dans l'URL (?tab=wallet-refunds, notification WALLET_REFUND_REQUESTED), à côté
+ * de ?held=true qu'il ne touche pas. Paiements = pas de paramètre.
+ */
+function syncTabQuery(t: Tab) {
+  const query = { ...(route.query ?? {}) }
+  if (t === 'payments') delete query.tab
+  else query.tab = t
+  if (query.tab === route.query?.tab) return
+  void router.replace({ query })
+}
+async function switchTab(t: Tab, fromUrl = false) {
   tab.value = t
+  if (!fromUrl) syncTabQuery(t)
   if (t === 'chargebacks' && !cbLoaded.value) await loadCbs()
   if (t === 'wallets' && wallets.value.length === 0) await loadWallets()
   if (t === 'mobile-money' && mmPayments.value.length === 0) await loadMobileMoney()
@@ -177,20 +191,26 @@ async function onAction(fn: () => Promise<boolean>) {
 
 onMounted(async () => {
   if (route.query?.held === 'true') filters.held = true
-  await fetchPayments()
+  const wanted = route.query?.tab
+  await Promise.all([fetchPayments(), isTab(wanted) && wanted !== 'payments' ? switchTab(wanted, true) : Promise.resolve()])
+})
+// Page déjà ouverte : un clic sur une notification change seulement la query.
+watch(() => route.query?.tab, (v) => {
+  const t: Tab = isTab(v) ? v : 'payments'
+  if (t !== tab.value) void switchTab(t, true)
 })
 </script>
 
 <template>
   <div>
     <div class="flex gap-1 mb-4 flex-wrap">
-      <button type="button" data-test="tab-payments" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'payments' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('payments')">Paiements</button>
-      <button type="button" data-test="tab-chargebacks" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'chargebacks' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('chargebacks')">Litiges bancaires</button>
-      <button type="button" data-test="tab-wallets" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallets' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallets')">Portefeuilles</button>
-      <button type="button" data-test="tab-mobile-money" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mobile-money' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mobile-money')">Mobile money</button>
-      <button type="button" data-test="tab-mm-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mm-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mm-commissions')">Commissions mobile money</button>
-      <button type="button" data-test="tab-cash-commissions" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'cash-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('cash-commissions')">Commissions cash</button>
-      <button type="button" data-test="tab-wallet-refunds" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallet-refunds' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallet-refunds')">Remboursements wallet</button>
+      <button type="button" data-test="tab-payments" :aria-pressed="tab === 'payments'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'payments' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('payments')">Paiements</button>
+      <button type="button" data-test="tab-chargebacks" :aria-pressed="tab === 'chargebacks'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'chargebacks' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('chargebacks')">Litiges bancaires</button>
+      <button type="button" data-test="tab-wallets" :aria-pressed="tab === 'wallets'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallets' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallets')">Portefeuilles</button>
+      <button type="button" data-test="tab-mobile-money" :aria-pressed="tab === 'mobile-money'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mobile-money' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mobile-money')">Mobile money</button>
+      <button type="button" data-test="tab-mm-commissions" :aria-pressed="tab === 'mm-commissions'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mm-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mm-commissions')">Commissions mobile money</button>
+      <button type="button" data-test="tab-cash-commissions" :aria-pressed="tab === 'cash-commissions'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'cash-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('cash-commissions')">Commissions cash</button>
+      <button type="button" data-test="tab-wallet-refunds" :aria-pressed="tab === 'wallet-refunds'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallet-refunds' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallet-refunds')">Remboursements wallet</button>
     </div>
     <p
       v-if="tabError" data-test="transactions-error"

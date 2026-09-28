@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import SupportTicketThread from '@/features/support/components/SupportTicketThread.vue'
 import SupportTicketsTable from '@/features/support/components/SupportTicketsTable.vue'
@@ -21,8 +21,43 @@ const SCOPES: { key: SupportTicketScope, label: string }[] = [
 ]
 
 const s = useSupportTickets()
+const route = useRoute()
+const router = useRouter()
 
-onMounted(() => s.fetchTickets())
+/**
+ * Lien profond ?ticket=<id> (notifications de ticket ou de message) : ouvre le fil. Le ticket
+ * peut ne pas figurer dans le périmètre affiché (déjà assigné à un collègue, résolu) : on
+ * bascule alors sur « Tous » pour qu'il apparaisse aussi dans la liste.
+ */
+async function openFromLink(id: string) {
+  await s.openTicket(id)
+  if (s.selected.value?.id !== id) return
+  if (s.scope.value !== 'all' && !s.tickets.value.some((t) => t.id === id)) await s.setScope('all')
+}
+
+function ticketParam(): string | null {
+  const v = route.query?.ticket
+  return typeof v === 'string' && v ? v : null
+}
+
+/** Fermer retire ?ticket= : un nouveau clic sur la même notification rouvrira le fil. */
+function closeTicket() {
+  s.closeTicket()
+  if (!ticketParam()) return
+  const query = { ...(route.query ?? {}) }
+  delete query.ticket
+  void router.replace({ query })
+}
+
+onMounted(async () => {
+  await s.fetchTickets()
+  const id = ticketParam()
+  if (id) await openFromLink(id)
+})
+// Page déjà ouverte : un clic sur une notification ne remonte pas le composant.
+watch(() => route.query?.ticket, (v) => {
+  if (typeof v === 'string' && v && v !== s.selected.value?.id) void openFromLink(v)
+})
 </script>
 
 <template>
@@ -76,7 +111,7 @@ onMounted(() => s.fetchTickets())
     <div
       v-if="s.selected.value || s.isDetailLoading.value"
       class="fixed inset-0 z-40 bg-black/30"
-      @click.self="s.closeTicket()"
+      @click.self="closeTicket()"
     >
       <aside class="absolute inset-y-0 right-0 w-full max-w-xl border-l border-border bg-surface shadow-xl">
         <p v-if="s.isDetailLoading.value" class="p-6 text-center text-sm text-text-muted">
@@ -87,7 +122,7 @@ onMounted(() => s.fetchTickets())
           :ticket="s.selected.value"
           :acting="s.isActing.value"
           :action-error="s.actionError.value"
-          @close="s.closeTicket()"
+          @close="closeTicket()"
           @assign="s.assign"
           @reassign="s.reassign"
           @reply="(id, content, keys) => s.reply(id, content, keys)"

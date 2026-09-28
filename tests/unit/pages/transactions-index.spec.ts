@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
 vi.stubGlobal('definePageMeta', vi.fn())
@@ -20,10 +21,14 @@ vi.mock('@/features/payments/services/paymentsService', () => ({
   },
 }))
 
+const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn() }))
+vi.mock('@/features/finance/services/financeService', () => ({ financeService: finance }))
+
 const replaceMock = vi.fn()
 
-async function mountPage(query: Record<string, string> = {}) {
-  vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
+async function mountPage(query: Record<string, string> | { meta: object; query: Record<string, string> } = {}) {
+  const route = 'meta' in query ? query : { meta: {}, query }
+  vi.stubGlobal('useRoute', () => route)
   vi.stubGlobal('useRouter', () => ({ replace: replaceMock }))
   const mod = await import('@/pages/transactions/index.vue')
   const w = mount(mod.default, { global: { stubs: { PaymentDetailPanel: true, PaginationControls: true, NuxtLink: true } } })
@@ -36,6 +41,7 @@ describe('pages/transactions', () => {
     seedAuth('ADMIN')
     listMock.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     replaceMock.mockReset().mockResolvedValue(undefined)
+    finance.listWalletRefundRequests.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
   })
 
   it('sans paramètre : liste sans filtre de retenue', async () => {
@@ -68,5 +74,47 @@ describe('pages/transactions', () => {
     listMock.mockResolvedValue({ content: [{ id: 'p1', bidId: null, status: 'ESCROW', method: 'STRIPE', amountCents: 1, commissionCents: 0, currency: 'EUR', createdAt: '2026-09-01' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
     const w = await mountPage({ held: 'true' })
     expect(w.find('[data-test="held-filter-unsupported"]').exists()).toBe(true)
+  })
+  describe('onglet dans l’URL (?tab=)', () => {
+    it('?tab=wallet-refunds : onglet Remboursements wallet ouvert et chargé', async () => {
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      expect(w.find('[data-test="tab-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
+      expect(finance.listWalletRefundRequests).toHaveBeenCalledTimes(1)
+      expect(replaceMock).not.toHaveBeenCalled()
+    })
+
+    it('?tab= se combine avec ?held=true sans le perdre', async () => {
+      const w = await mountPage({ tab: 'wallet-refunds', held: 'true' })
+      expect(listMock.mock.calls[0][0].held).toBe(true)
+      expect(w.find('[data-test="tab-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('valeur inconnue : onglet Paiements', async () => {
+      const w = await mountPage({ tab: 'nimporte' })
+      expect(w.find('[data-test="tab-payments"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('navigation interne vers ?tab=wallet-refunds alors que la page est ouverte', async () => {
+      const route = reactive({ meta: {}, query: {} as Record<string, string> })
+      const w = await mountPage(route)
+      route.query = { tab: 'wallet-refunds' }
+      await flushPromises()
+      expect(w.find('[data-test="tab-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
+      expect(finance.listWalletRefundRequests).toHaveBeenCalledTimes(1)
+    })
+
+    it('un clic sur un onglet le reporte dans l’URL en gardant held, Paiements le retire', async () => {
+      const w = await mountPage({ held: 'true' })
+      await w.find('[data-test="tab-wallet-refunds"]').trigger('click')
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { held: 'true', tab: 'wallet-refunds' } })
+    })
+
+    it('revenir sur Paiements retire tab de l’URL', async () => {
+      const w = await mountPage({ tab: 'wallet-refunds', held: 'true' })
+      await w.find('[data-test="tab-payments"]').trigger('click')
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { held: 'true' } })
+    })
   })
 })

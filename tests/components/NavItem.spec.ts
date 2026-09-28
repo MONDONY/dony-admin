@@ -34,4 +34,36 @@ describe('NavItem', () => {
     })
     expect(wrapper.find('[data-test="badge"]').exists()).toBe(false)
   })
+  it('« 99+ » au-delà de 99, chiffres tabulaires', () => {
+    const wrapper = mount(NavItem, {
+      props: { to: '/kyc', label: 'KYC', badge: 150 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    })
+    const badge = wrapper.find('[data-test="badge"]')
+    expect(badge.text()).toContain('99+')
+    expect(badge.classes()).toContain('tabular-nums')
+  })
+
+  it('badge neutre par défaut, rouge en tonalité danger', () => {
+    const neutral = mount(NavItem, {
+      props: { to: '/kyc', label: 'KYC', badge: 2 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    }).find('[data-test="badge"]')
+    expect(neutral.attributes('data-tone')).toBe('neutral')
+    expect(neutral.classes()).not.toContain('bg-danger')
+    const danger = mount(NavItem, {
+      props: { to: '/alertes', label: 'Alertes', badge: 2, badgeTone: 'danger' },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    }).find('[data-test="badge"]')
+    expect(danger.attributes('data-tone')).toBe('danger')
+    expect(danger.classes()).toContain('bg-danger')
+  })
+
+  it('libellé accessible du badge', () => {
+    const wrapper = mount(NavItem, {
+      props: { to: '/alertes', label: 'Alertes', badge: 3 },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    })
+    expect(wrapper.find('[data-test="badge"] .sr-only').text()).toBe('à traiter')
+  })
 })
