@@ -19,7 +19,21 @@ const validation = (violations: unknown) => Object.assign(new Error('422'), {
 })
 
 describe('reasonViolationMessage (422 de validation standard, sans code)', () => {
-  it('rend le message de la première violation', () => {
+  it('forme réelle du back : objet { champ: message }, clé reason prioritaire', () => {
+    expect(reasonViolationMessage(validation({ note: 'autre', reason: 'la taille doit être comprise entre 10 et 500' })))
+      .toBe('la taille doit être comprise entre 10 et 500')
+  })
+  it('objet sans clé reason : première valeur', () => {
+    expect(reasonViolationMessage(validation({ motif: 'ne doit pas être vide' }))).toBe('ne doit pas être vide')
+  })
+  it('objet vide ou valeurs vides : repli FR', () => {
+    expect(reasonViolationMessage(validation({}))).toBe('Motif refusé : il doit compter entre 10 et 500 caractères.')
+    expect(reasonViolationMessage(validation({ reason: '  ' }))).toBe('Motif refusé : il doit compter entre 10 et 500 caractères.')
+  })
+  it('violations d’un type inattendu : pas une erreur de validation', () => {
+    expect(reasonViolationMessage(validation('texte'))).toBeNull()
+  })
+  it('rend le message de la première violation (tableau toléré)', () => {
     expect(reasonViolationMessage(validation([{ field: 'reason', message: 'la taille doit être comprise entre 10 et 500' }])))
       .toBe('la taille doit être comprise entre 10 et 500')
   })

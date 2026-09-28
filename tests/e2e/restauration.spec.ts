@@ -274,7 +274,7 @@ test('motif refusé par le back (422 violations) : refus dans le dialogue, saisi
     if (req.method() === 'POST' && req.url().includes('/restore')) {
       return route.fulfill({
         status: 422, contentType: 'application/problem+json',
-        body: JSON.stringify({ status: 422, title: 'Bad Request', detail: 'Validation failed', violations: [{ field: 'reason', message: 'la taille doit être comprise entre 10 et 500' }] }),
+        body: JSON.stringify({ status: 422, title: 'Bad Request', detail: 'Validation failed', violations: { reason: 'la taille doit être comprise entre 10 et 500' } }),
       })
     }
     if (req.url().includes('deleted=true')) return route.fulfill({ json: page1([report('r1', true)]) })

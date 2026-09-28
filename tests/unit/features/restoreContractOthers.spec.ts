@@ -11,7 +11,7 @@ import BroadcastComposer from '@/features/broadcast/components/BroadcastComposer
 import { useBroadcast } from '@/features/broadcast/composables/useBroadcast'
 
 const validation = (message: string) => Object.assign(new Error('422'), {
-  statusCode: 422, data: { status: 422, detail: 'Validation failed', violations: [{ field: 'reason', message }] },
+  statusCode: 422, data: { status: 422, detail: 'Validation failed', violations: { reason: message } },
 })
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
 
