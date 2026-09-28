@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
-import { reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
+import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
 const props = withDefaults(defineProps<{
@@ -39,7 +39,20 @@ function requestLink(r: AdminReport): string | null {
 }
 /** Cible APP : ni libellé ni identifiant côté back, on nomme l’application. */
 function targetLabel(r: AdminReport) {
-  return r.targetLabel ?? r.targetId ?? (r.targetType === 'APP' ? 'Application' : '—')
+  return r.targetLabel ?? r.targetId ?? (r.targetType === 'APP' ? 'Application' : 'Cible inconnue')
+}
+/**
+ * Bouton Traiter : `availableActions` du back fait foi (permissions comprises) ; sur un
+ * ancien back, on garde la règle locale (ouvert + REPORT_RESOLVE).
+ */
+function canResolve(r: AdminReport): boolean {
+  if (Array.isArray(r.availableActions)) return r.availableActions.length > 0
+  return r.status === 'OPEN' && auth.can('REPORT_RESOLVE')
+}
+/** Action prise, sauf le rejet que le statut « Rejeté » dit déjà. */
+function actionTaken(r: AdminReport): string | null {
+  if (!r.actionTaken || r.actionTaken === 'DISMISS') return null
+  return reportActionTakenLabel(r.actionTaken)
 }
 </script>
 
@@ -103,10 +116,14 @@ function targetLabel(r: AdminReport) {
               </button>
             </div>
           </td>
-          <td class="px-4 py-3 text-sm text-text-muted">{{ r.reporterName ?? '—' }}</td>
+          <td class="px-4 py-3 text-sm text-text-muted">{{ r.reporterName ?? 'Inconnu' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
           <td class="px-4 py-3">
             <StatusBadge v-bind="reportStatusMeta(r.status)" />
+            <div
+              v-if="actionTaken(r)" :data-test="`report-action-taken-${r.id}`"
+              class="mt-1 text-xs text-text-muted text-pretty"
+            >{{ actionTaken(r) }}</div>
             <div
               v-if="r.deletedAt" :data-test="`report-deleted-info-${r.id}`"
               class="mt-1 text-xs text-text-muted text-pretty tabular-nums"
@@ -121,7 +138,7 @@ function targetLabel(r: AdminReport) {
           </td>
           <td v-else class="px-4 py-3 text-right whitespace-nowrap">
             <button
-              v-if="r.status === 'OPEN' && auth.can('REPORT_RESOLVE')" type="button" :data-test="`resolve-${r.id}`"
+              v-if="canResolve(r)" type="button" :data-test="`resolve-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary hover:bg-primary/25"
               @click="emit('resolve', r.id)"
             >Traiter</button>

@@ -18,7 +18,8 @@ export const reportsService = {
   list(filters: ReportsFilterState, page: number, size: number): Promise<AdminReportPage> {
     return useApi()<AdminReportPage>('/admin/reports', { query: buildQuery(filters, page, size) })
   },
-  resolve(id: string, action: ReportAction, note: string): Promise<AdminReport> {
+  /** `action` peut être une valeur de `availableActions` que ce front ne connaît pas encore. */
+  resolve(id: string, action: ReportAction | string, note: string): Promise<AdminReport> {
     return useApi()<AdminReport>(`/admin/reports/${id}/resolve`, { method: 'POST', body: { action, note } })
   },
   /** Suppression douce d’un signalement (yadony-back #318). */

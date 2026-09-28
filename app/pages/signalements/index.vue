@@ -9,9 +9,9 @@ import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
-import { actionsFor } from '@/features/signalements/reportActions'
-import { REPORT_ACTION_LABELS, REPORT_TARGET_TYPE_LABELS } from '@/features/signalements/reportActionLabels'
-import type { BulkRestoreResult, ReportAction, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
+import ReportResolveDialog from '@/features/signalements/components/ReportResolveDialog.vue'
+import { REPORT_TARGET_TYPE_LABELS, reportActionTakenLabel } from '@/features/signalements/reportActionLabels'
+import type { BulkRestoreResult, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
@@ -35,8 +35,7 @@ const targetTypeFilters: { value: ReportTargetType | null; label: string }[] = [
     .map(([value, label]) => ({ value, label })),
 ]
 const pendingReportId = ref<string | null>(null)
-const chosenAction = ref<ReportAction>('DISMISS')
-const resolveNote = ref('')
+const resolveBusy = ref(false)
 const viewerUrls = ref<string[] | null>(null)
 
 // ---- Recherche (débounce court : une requête par pause de frappe) ----
@@ -115,13 +114,14 @@ async function confirmBulkRestore() {
   if (res) lastRestored.value = res
 }
 
-// Le signalement en cours de traitement — sert à filtrer les actions proposées
-// (SUSPEND_TARGET n'a de sens que sur USER, REMOVE_CONTENT que sur ANNOUNCEMENT ;
-// le back les rejette de toute façon, mais autant ne pas les proposer).
+// Le signalement en cours de traitement : le dialogue en tire ses actions (availableActions
+// du back, ou repli local sur un ancien back).
 const pendingReport = computed(() => r.reports.value.find((x) => x.id === pendingReportId.value) ?? null)
-const availableActions = computed<{ value: ReportAction; label: string }[]>(() => {
-  const targetType = pendingReport.value?.targetType ?? 'APP'
-  return actionsFor(targetType, auth.permissions).map((value) => ({ value, label: REPORT_ACTION_LABELS[value] }))
+const resolvedMessage = computed(() => {
+  const done = r.lastResolved.value
+  if (!done) return ''
+  if (done.status === 'DISMISSED') return 'Signalement rejeté.'
+  return done.actionTaken ? `Signalement traité : ${reportActionTakenLabel(done.actionTaken)}.` : 'Signalement traité.'
 })
 
 function onTargetTypeFilterChange(e: Event) {
@@ -130,18 +130,21 @@ function onTargetTypeFilterChange(e: Event) {
 }
 
 function openResolve(id: string) {
+  r.clearResolveFeedback()
   pendingReportId.value = id
-  // DISMISS s'applique toujours, quel que soit le type de cible — les actions
-  // délèguées (WARN/SUSPEND_TARGET/REMOVE_CONTENT) ne sont pas toutes valides
-  // pour tous les types, donc jamais choisies par défaut.
-  chosenAction.value = 'DISMISS'
-  resolveNote.value = ''
 }
-async function confirmResolve() {
-  if (pendingReportId.value && resolveNote.value.trim()) {
-    await r.resolve(pendingReportId.value, chosenAction.value, resolveNote.value.trim())
-    pendingReportId.value = null
-  }
+function cancelResolve() {
+  pendingReportId.value = null
+  r.resolveError.value = null
+}
+async function confirmResolve(action: string, note: string) {
+  if (!pendingReportId.value) return
+  resolveBusy.value = true
+  const outcome = await r.resolve(pendingReportId.value, action, note)
+  resolveBusy.value = false
+  // Refus (403, 422, ancien back) : le dialogue reste ouvert et montre le detail. Déjà
+  // traité par un autre admin (409) : on ferme, la liste relue montre son état réel.
+  if (outcome !== 'error') pendingReportId.value = null
 }
 
 // ---- Avis ----
@@ -247,6 +250,14 @@ onMounted(r.fetchReports)
         v-if="lastRestored" data-test="reports-restored" role="status"
         class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success tabular-nums"
       >{{ restoredMessage }}</p>
+      <p
+        v-if="resolvedMessage" data-test="reports-resolved" role="status"
+        class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success text-pretty"
+      >{{ resolvedMessage }}</p>
+      <p
+        v-if="r.closedNotice.value" data-test="reports-already-closed" role="status"
+        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+      >{{ r.closedNotice.value }}</p>
       <p v-if="lastDeleted !== null" data-test="reports-deleted" class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted">
         {{ lastDeleted }} signalement{{ lastDeleted > 1 ? 's' : '' }} supprimé{{ lastDeleted > 1 ? 's' : '' }}.
       </p>
@@ -347,38 +358,10 @@ onMounted(r.fetchReports)
     <PhotoViewer :urls="viewerUrls" @close="viewerUrls = null" />
 
     <!-- Dialogue de résolution d'un signalement (action + note) -->
-    <div
-      v-if="pendingReportId !== null"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-test="resolve-overlay"
-    >
-      <div class="w-full max-w-sm rounded-card border border-border bg-surface p-6 shadow-xl">
-        <h2 class="font-display text-lg font-semibold mb-1">Traiter le signalement</h2>
-        <p class="text-sm text-text-muted mb-4">Choisis l'action et documente la décision.</p>
-        <select
-          v-model="chosenAction" data-test="resolve-action"
-          class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-3"
-        >
-          <option v-for="a in availableActions" :key="a.value" :value="a.value">{{ a.label }}</option>
-        </select>
-        <textarea
-          v-model="resolveNote" data-test="resolve-note" rows="3"
-          placeholder="Motif (obligatoire)"
-          class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-4"
-        />
-        <div class="flex justify-end gap-2">
-          <button
-            type="button" data-test="resolve-cancel"
-            class="rounded-btn px-4 py-2 text-sm border border-border hover:bg-surface-elevated"
-            @click="pendingReportId = null"
-          >Annuler</button>
-          <button
-            type="button" data-test="resolve-confirm" :disabled="!resolveNote.trim()"
-            class="rounded-btn px-4 py-2 text-sm bg-primary text-white disabled:opacity-40 hover:bg-primary/90"
-            @click="confirmResolve"
-          >Confirmer</button>
-        </div>
-      </div>
-    </div>
+    <ReportResolveDialog
+      :report="pendingReport" :busy="resolveBusy" :error="r.resolveError.value"
+      @confirm="confirmResolve" @cancel="cancelResolve"
+    />
 
     <!-- Supprimer un ou plusieurs signalements -->
     <ConfirmActionDialog

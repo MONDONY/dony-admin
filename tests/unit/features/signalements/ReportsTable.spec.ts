@@ -173,4 +173,48 @@ describe('ReportsTable', () => {
       expect(w.find('[data-test="report-row-r6"]').text()).toContain('SOMETHING')
     })
   })
+
+  describe('résolution : action prise et source des actions', () => {
+    it('affiche l’action prise en français sous le statut', () => {
+      const done = [{ ...reports[0], status: 'RESOLVED', actionTaken: 'DELETE_MESSAGE' }]
+      const w = mount(ReportsTable, { props: { reports: done, loading: false } })
+      expect(w.find('[data-test="report-action-taken-r1"]').text()).toBe('Message supprimé')
+    })
+
+    it('RESOLVE affiché « Marqué comme traité »', () => {
+      const done = [{ ...reports[0], status: 'RESOLVED', actionTaken: 'RESOLVE' }]
+      const w = mount(ReportsTable, { props: { reports: done, loading: false } })
+      expect(w.find('[data-test="report-action-taken-r1"]').text()).toBe('Marqué comme traité')
+    })
+
+    it('rejet : le statut « Rejeté » suffit, pas de doublon', () => {
+      const done = [{ ...reports[0], status: 'DISMISSED', actionTaken: 'DISMISS' }]
+      const w = mount(ReportsTable, { props: { reports: done, loading: false } })
+      expect(w.find('[data-test="report-action-taken-r1"]').exists()).toBe(false)
+    })
+
+    it('availableActions non vide : Traiter visible même sans REPORT_RESOLVE local (le back a tranché)', () => {
+      seedAuth('SUPPORT', { REPORT_RESOLVE: false })
+      const w = mount(ReportsTable, { props: { reports: [{ ...reports[0], availableActions: ['RESOLVE'] }], loading: false } })
+      expect(w.find('[data-test="resolve-r1"]').exists()).toBe(true)
+    })
+
+    it('availableActions vide : Traiter masqué', () => {
+      const w = mount(ReportsTable, { props: { reports: [{ ...reports[0], availableActions: [] }], loading: false } })
+      expect(w.find('[data-test="resolve-r1"]').exists()).toBe(false)
+    })
+
+    it('MESSAGE sans messageId ni libellé : « Cible inconnue », Traiter disponible', () => {
+      const orphan = [{ ...reports[0], targetType: 'MESSAGE', targetId: null, targetLabel: null, availableActions: ['RESOLVE', 'DISMISS'] }]
+      const w = mount(ReportsTable, { props: { reports: orphan, loading: false } })
+      expect(w.find('[data-test="report-row-r1"]').text()).toContain('Cible inconnue')
+      expect(w.find('[data-test="report-row-r1"]').text()).toContain('Message')
+      expect(w.find('[data-test="resolve-r1"]').exists()).toBe(true)
+    })
+
+    it('signalant inconnu : pas de tiret cadratin affiché', () => {
+      const w = mount(ReportsTable, { props: { reports: [{ ...reports[0], reporterName: null }], loading: false } })
+      expect(w.find('[data-test="report-row-r1"]').text()).not.toContain('—')
+    })
+  })
 })

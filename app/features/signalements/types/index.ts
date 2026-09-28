@@ -2,7 +2,28 @@
 export type ReportStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
 export type ReportStatusFilter = 'ALL' | ReportStatus
 export type ReportTargetType = 'USER' | 'ANNOUNCEMENT' | 'BID' | 'MESSAGE' | 'RATING' | 'APP' | 'PACKAGE_REQUEST'
-export type ReportAction = 'DISMISS' | 'WARN' | 'SUSPEND_TARGET' | 'REMOVE_CONTENT'
+/**
+ * Miroir de `com.yadony.api.signalements.ReportAction`. RESOLVE (« Marquer comme traité »)
+ * s'applique à tout type de cible ; les actions *_AUTHOR visent l'auteur d'un message, d'un
+ * avis ou d'une candidature (`targetAuthor`).
+ */
+export type ReportAction =
+  | 'RESOLVE'
+  | 'DISMISS'
+  | 'WARN'
+  | 'SUSPEND_TARGET'
+  | 'REMOVE_CONTENT'
+  | 'DELETE_MESSAGE'
+  | 'EXCLUDE_RATING'
+  | 'DELETE_RATING'
+  | 'WARN_AUTHOR'
+  | 'SUSPEND_AUTHOR'
+
+/** Auteur de la cible (message, avis, candidature) quand le back sait le résoudre. */
+export interface ReportTargetAuthor {
+  userId: string
+  name: string | null
+}
 
 export interface AdminReport {
   id: string
@@ -13,7 +34,8 @@ export interface AdminReport {
   description: string | null
   reporterName: string | null
   status: ReportStatus
-  actionTaken: ReportAction | null
+  /** Action prise ; une chaîne inconnue (back plus récent) s'affiche telle quelle. */
+  actionTaken: ReportAction | string | null
   resolutionNote: string | null
   resolvedAt: string | null
   createdAt: string
@@ -23,6 +45,13 @@ export interface AdminReport {
   /** Signalement supprimé (liste `deleted=true` du nouveau back) : absents sinon (NON_NULL). */
   deletedAt?: string | null
   deletedByAdminEmail?: string | null
+  /**
+   * Actions que CET admin peut appliquer (type de cible × cible résolvable × permissions),
+   * calculées par le back ; vide si le signalement est déjà traité. Absent sur un ancien
+   * back : le front retombe alors sur ses propres règles.
+   */
+  availableActions?: string[] | null
+  targetAuthor?: ReportTargetAuthor | null
 }
 
 export interface AdminReportPage {

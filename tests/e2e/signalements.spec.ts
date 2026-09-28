@@ -55,8 +55,9 @@ test('admin sees open reports, with the target resolved (not just its type)', as
 test('admin resolves a report with an action + note', async ({ page }) => {
   await page.goto('/signalements')
   await page.locator('[data-test="resolve-r1"]').click()
-  await page.locator('[data-test="resolve-action"]').selectOption('SUSPEND_TARGET')
+  await page.locator('[data-test="resolve-action-SUSPEND_TARGET"]').click()
   await page.locator('[data-test="resolve-note"]').fill('compte frauduleux confirmé')
+  await page.locator('[data-test="resolve-acknowledge"]').check()
   await page.locator('[data-test="resolve-confirm"]').click()
   await expect(page.locator('[data-test="resolve-overlay"]')).toHaveCount(0)
 })
@@ -119,7 +120,7 @@ test('filtering by target type sends targetType to the API', async ({ page }) =>
 test('resolving a USER report offers Suspendre la cible but not Retirer le contenu', async ({ page }) => {
   await page.goto('/signalements')
   await page.locator('[data-test="resolve-r1"]').click()
-  const options = await page.locator('[data-test="resolve-action"] option').allTextContents()
+  const options = await page.locator('[data-test="resolve-action-label"]').allTextContents()
   expect(options).toContain('Suspendre la cible')
   expect(options).not.toContain('Retirer le contenu')
 })
