@@ -78,7 +78,7 @@ watch(() => props.modelValue, async (id) => {
       <input
         :id="inputId" data-test="broadcast-user-search" type="search" :value="term" :disabled="disabled"
         autocomplete="off"
-        :placeholder="canSearch ? 'Nom, téléphone, email ou identifiant' : 'Identifiant du compte (UUID)'"
+        :placeholder="canSearch ? 'Nom, e-mail, téléphone, UID ou identifiant' : 'Identifiant du compte (UUID)'"
         class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text disabled:opacity-40"
         @input="onInput"
       >
