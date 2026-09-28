@@ -17,6 +17,22 @@ describe('usersService', () => {
     expect(opts.query.role).toBeUndefined()
   })
 
+  // Les UID Firebase sont sensibles à la casse : seul le trim() est permis avant l'envoi.
+  it('list() envoie un UID Firebase ou un UUID collé tel quel, sans les espaces autour', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    const base = { status: 'TOUS' as const, role: null, kyc: null, pro: null, city: null }
+    await usersService.list({ ...base, query: '  aB3xYz9QkLmN0pRsTuVwXyZ12345  ' }, 0, 20)
+    await usersService.list({ ...base, query: '\t3F2504E0-4F89-11D3-9A0C-0305E82C3301\n' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.query).toBe('aB3xYz9QkLmN0pRsTuVwXyZ12345')
+    expect(apiMock.mock.calls[1][1].query.query).toBe('3F2504E0-4F89-11D3-9A0C-0305E82C3301')
+  })
+
+  it('list() omet une recherche faite uniquement d\'espaces', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await usersService.list({ status: 'TOUS', role: null, kyc: null, pro: null, city: null, query: '   ' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.query).toBeUndefined()
+  })
+
   it('list() omits TOUS status', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     await usersService.list({ status: 'TOUS', role: null, kyc: null, pro: null, city: null, query: '' }, 0, 20)

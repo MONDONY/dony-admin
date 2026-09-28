@@ -24,8 +24,11 @@ const q = ref('')
       >{{ c.label }}</button>
     </div>
     <input
-      data-test="search" v-model="q" type="search" placeholder="Nom, téléphone, email…"
-      class="flex-1 min-w-[200px] rounded-btn border border-border bg-surface px-3 py-2 text-sm"
+      v-model="q" data-test="search" type="search"
+      placeholder="Nom, e-mail, téléphone, UID ou identifiant"
+      aria-label="Rechercher par nom, e-mail, téléphone, UID Firebase ou identifiant"
+      title="L'UID Firebase et l'identifiant doivent être collés en entier."
+      class="flex-1 min-w-[280px] rounded-btn border border-border bg-surface px-3 py-2 text-sm"
       @keyup.enter="emit('update:query', q)"
     >
   </div>
