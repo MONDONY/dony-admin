@@ -56,6 +56,16 @@ describe('/colis, onglet Demandes', () => {
     expect(w.find('[data-test="pr-detail"]').exists()).toBe(true)
   })
 
+  it('?open=<bidId> sans onglet : ouvre la fiche du colis (lien depuis un no-show)', async () => {
+    query = { open: 'b1' }
+    bids.getBid.mockResolvedValue({ id: 'b1' })
+    bids.getTimeline.mockResolvedValue({ bidId: 'b1', entries: [] })
+    await mountPage()
+    expect(bids.listBids).toHaveBeenCalledTimes(1)
+    expect(bids.getBid).toHaveBeenCalledWith('b1')
+    expect(bids.getTimeline).toHaveBeenCalledWith('b1')
+  })
+
   it('bascule d’onglet mémorisée dans l’URL, clic sur une ligne ajoute open', async () => {
     const w = await mountPage()
     expect(bids.listBids).toHaveBeenCalledTimes(1)

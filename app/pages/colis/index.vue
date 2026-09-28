@@ -111,7 +111,12 @@ onMounted(async () => {
     await loadAnns()
     return
   }
-  await loadBidsOnce()
+  // ?open=<bidId> sur l'onglet Bids (lien « Ouvrir le colis » d'un no-show) : ouvre la fiche.
+  const openBid = route.query?.open
+  await Promise.all([
+    loadBidsOnce(),
+    typeof openBid === 'string' && openBid ? detail.open(openBid) : Promise.resolve(),
+  ])
 })
 </script>
 
