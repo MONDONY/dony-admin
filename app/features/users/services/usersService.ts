@@ -60,6 +60,13 @@ export const usersService = {
   unmuteMessaging(id: string): Promise<AdminUserDetail> {
     return useApi()<AdminUserDetail>(`/admin/users/${id}/unmute-messaging`, { method: 'POST' })
   },
+  /**
+   * Annule une suppression de compte demandée (USER_DELETE) : le compte redevient actif et
+   * l'utilisateur est prévenu. 409 `user-deletion-not-cancellable` si elle ne l'est plus.
+   */
+  cancelDeletion(id: string, reason: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${id}/cancel-deletion`, { method: 'POST', body: { reason } })
+  },
   getKyc(id: string): Promise<AdminKycDetail> {
     return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc`)
   },

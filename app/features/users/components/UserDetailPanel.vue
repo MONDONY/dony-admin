@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
+import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { userStatusMeta } from './userStatus'
 import UserKycTab from './UserKycTab.vue'
 import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
@@ -12,13 +13,15 @@ import { heldPaymentsReminder, holdReasonsLabel } from '@/features/payments/type
 const props = defineProps<{
   user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
   kyc?: AdminKycDetail | null; kycLoading?: boolean; kycError?: string | null
+  /** Ancien back sans POST /admin/users/{id}/cancel-deletion : bouton masqué. */
+  cancelDeletionUnavailable?: boolean
 }>()
 const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
   openKyc: []; resetKyc: [reason: string]; kycDecided: [kyc: AdminKycDetail]; kycStale: []; requestDelete: [];
-  grantPro: [reason: string]; revokePro: [];
+  grantPro: [reason: string]; revokePro: []; cancelDeletion: [reason: string];
 }>()
 const auth = useAuthStore()
 // Le rail de versement mobile money manquait à la fiche : seul Stripe y figurait, alors qu'un
@@ -56,6 +59,21 @@ const payoutsRestoredText = computed(() => {
   return `Compte rétabli : ${n} paiement${plural(n)} toujours retenu${plural(n)}, à débloquer manuellement.`
 })
 const heldReminder = computed(() => heldCount.value > 0 ? ` ${heldPaymentsReminder(heldCount.value)}` : '')
+
+// Suppression demandée (délai de rétractation) : l'admin peut l'annuler, motif à l'appui.
+const pendingDeletion = computed(() => props.user.status === 'PENDING_DELETION')
+const pendingDeletionText = computed(() => {
+  const d = (iso: string) => new Date(iso).toLocaleDateString('fr-FR')
+  if (props.user.deletionScheduledFor) return `Suppression prévue le ${d(props.user.deletionScheduledFor)}`
+  if (props.user.deletionRequestedAt) return `Suppression demandée le ${d(props.user.deletionRequestedAt)}`
+  return 'Suppression demandée'
+})
+const cancelDeletionOpen = ref(false)
+function confirmCancelDeletion(reason: string) {
+  cancelDeletionOpen.value = false
+  emit('cancelDeletion', reason)
+}
+const notifyLink = computed(() => `/communications?target=USER&userId=${encodeURIComponent(props.user.id)}`)
 
 // Constat 4 — copie de l'UUID en un clic avec retour visuel
 const idCopied = ref(false)
@@ -280,6 +298,26 @@ const dialogConfig = computed<DialogConfig>(() => {
         >Voir les versements retenus</NuxtLink>
       </div>
 
+      <div
+        v-if="pendingDeletion" data-test="user-pending-deletion" role="status"
+        class="mb-4 rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm"
+      >
+        <p class="font-medium text-warning tabular-nums">{{ pendingDeletionText }}</p>
+        <p class="mt-1 text-xs text-text-muted text-pretty">
+          L’utilisateur a demandé la suppression de son compte. Tant qu’elle n’est pas exécutée, elle peut être annulée.
+        </p>
+        <template v-if="auth.can('USER_DELETE')">
+          <p v-if="cancelDeletionUnavailable" data-test="cancel-deletion-unavailable" class="mt-2 text-xs text-text-muted">
+            Annulation indisponible tant que le serveur n’est pas mis à jour.
+          </p>
+          <button
+            v-else type="button" data-test="action-cancel-deletion" :disabled="busy"
+            class="mt-2 rounded-btn bg-primary px-3 py-1.5 text-sm text-white transition-[background-color,scale] hover:bg-primary/90 active:scale-[0.96] disabled:opacity-40"
+            @click="cancelDeletionOpen = true"
+          >Annuler la suppression</button>
+        </template>
+      </div>
+
       <div class="mb-4 flex gap-1 border-b border-border" role="tablist">
         <button
           type="button" data-test="tab-profil" role="tab" :aria-selected="tab === 'profil'"
@@ -341,6 +379,10 @@ const dialogConfig = computed<DialogConfig>(() => {
       <p v-if="error" data-test="user-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
 
       <div class="flex flex-wrap gap-2">
+        <NuxtLink
+          v-if="auth.can('NOTIFICATION_SEND')" data-test="action-notify" :to="notifyLink"
+          class="rounded-btn px-4 py-2 text-sm border border-border transition-colors hover:bg-surface-elevated"
+        >Envoyer une notification</NuxtLink>
         <button
           v-if="user.status === 'ACTIVE' && auth.can('USER_SUSPEND')" type="button" data-test="action-suspend"
           class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30"
@@ -479,6 +521,17 @@ const dialogConfig = computed<DialogConfig>(() => {
         :require-reason="dialogConfig.requireReason"
         @confirm="confirmReason"
         @cancel="pending = null"
+      />
+
+      <RestoreReasonDialog
+        :open="cancelDeletionOpen"
+        title="Annuler la suppression du compte"
+        message="Le compte est conservé et redevient actif."
+        notice="L’utilisateur sera prévenu que son compte n’est plus supprimé."
+        confirm-label="Annuler la suppression"
+        :busy="busy"
+        @confirm="confirmCancelDeletion"
+        @cancel="cancelDeletionOpen = false"
       />
     </aside>
   </div>

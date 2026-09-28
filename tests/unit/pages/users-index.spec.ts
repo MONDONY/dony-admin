@@ -94,6 +94,8 @@ vi.mock('@/features/users/composables/useUserDetail', () => ({
     setCommissionRate: vi.fn(),
     muteMessaging: vi.fn(),
     unmuteMessaging: vi.fn(),
+    cancelDeletion: vi.fn(),
+    cancelDeletionUnavailable: ref(false),
   }),
 }))
 
