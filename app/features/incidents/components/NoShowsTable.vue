@@ -1,39 +1,53 @@
 <script setup lang="ts">
-import type { AdminCancellation } from '@/features/incidents/types/index'
-import { useAuthStore } from '@/stores/auth'
+import StatusBadge from '@/components/ui/StatusBadge.vue'
+import type { AdminNoShow } from '@/features/incidents/types/index'
+import {
+  amountLabel, disputeHref, disputeLinkLabel, formatDateTime, noShowSentence, noShowStatusMeta, noShowTitle, remainingMeta, scopeMeta, tripLabel,
+} from './noShowLabels'
 
-defineProps<{ cancellations: AdminCancellation[]; loading: boolean }>()
-const emit = defineEmits<{ confirm: [bidId: string] }>()
-const auth = useAuthStore()
+const props = defineProps<{ rows: AdminNoShow[]; loading: boolean; now?: number }>()
+const emit = defineEmits<{ select: [row: AdminNoShow] }>()
 
-function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') : '—' }
+const remaining = (r: AdminNoShow) => remainingMeta(r, props.now ?? Date.now())
+function details(r: AdminNoShow): string[] {
+  const handover = formatDateTime(r.handoverAt)
+  return [tripLabel(r.trip), handover ? `Remise prévue le ${handover}` : null, amountLabel(r)].filter((x): x is string => !!x)
+}
 </script>
 
 <template>
   <div class="rounded-card border border-border bg-surface overflow-hidden">
-    <table class="w-full">
-      <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
-        <tr><th class="px-4 py-2 font-medium">Bid</th><th class="px-4 py-2 font-medium">Déclaré par</th><th class="px-4 py-2 font-medium">État</th><th class="px-4 py-2 font-medium">Échéance</th><th class="px-4 py-2 font-medium"></th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="c in cancellations" :key="c.id" :data-test="`noshow-row-${c.id}`" class="border-b border-border">
-          <td class="px-4 py-3 text-sm font-medium">{{ c.bidId }}</td>
-          <td class="px-4 py-3 text-sm text-text-muted">{{ c.cancelledBy }}</td>
-          <td class="px-4 py-3 text-sm text-text-muted">{{ c.noShowStatus }}</td>
-          <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(c.contestationDeadline) }}</td>
-          <td class="px-4 py-3 text-right">
-            <button
-              v-if="auth.can('DISPUTE_RESOLVE')"
-              type="button"
-              :data-test="`confirm-noshow-${c.bidId}`"
-              class="rounded-btn px-3 py-1.5 text-sm bg-warning/20 text-warning hover:bg-warning/30"
-              @click="emit('confirm', c.bidId)"
-            >Confirmer no-show</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <ul v-if="rows.length" class="divide-y divide-border">
+      <li
+        v-for="r in rows" :key="r.id" :data-test="`noshow-row-${r.id}`"
+        role="button" tabindex="0"
+        class="flex cursor-pointer flex-col gap-2 px-4 py-3 transition-colors hover:bg-surface-elevated focus-visible:bg-surface-elevated focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between"
+        @click="emit('select', r)"
+        @keydown.enter.prevent="emit('select', r)"
+      >
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <StatusBadge v-if="r.scope" v-bind="scopeMeta(r.scope)" />
+            <p class="text-sm font-medium text-pretty">{{ noShowTitle(r) }}</p>
+          </div>
+          <p v-if="r.legacy" class="mt-0.5 text-sm text-text-muted text-pretty">{{ noShowSentence(r) }}</p>
+          <p v-if="details(r).length" class="mt-1 text-xs text-text-muted tabular-nums">{{ details(r).join(' · ') }}</p>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+          <NuxtLink
+            v-if="r.dispute" :to="disputeHref(r.dispute)" :data-test="`noshow-dispute-${r.id}`"
+            class="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/25"
+            @click.stop
+          >{{ disputeLinkLabel(r.dispute) }}</NuxtLink>
+          <StatusBadge v-bind="noShowStatusMeta(r.status, r.adminDecision)" />
+          <span
+            v-if="remaining(r)" :data-test="`noshow-remaining-${r.id}`"
+            :class="['text-xs font-medium tabular-nums', remaining(r)!.urgent ? 'text-danger' : 'text-text-muted']"
+          >{{ remaining(r)!.label }}</span>
+        </div>
+      </li>
+    </ul>
     <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="cancellations.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun no-show à arbitrer</p>
+    <p v-else-if="rows.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune déclaration d’absence pour ces filtres</p>
   </div>
 </template>

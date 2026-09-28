@@ -1,5 +1,43 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminDisputeDetail, AdminDisputePage, AdminCancellationPage, DisputeStatusFilter, DisputeResolution, NoShowFilter } from '@/features/incidents/types/index'
+import type {
+  AdminDisputeDetail, AdminDisputePage, DisputeStatusFilter, DisputeResolution,
+  AdminNoShow, AdminNoShowPage, AdminNoShowPageRaw, AdminNoShowRaw, NoShowFilters, NoShowParty, NoShowStatus,
+} from '@/features/incidents/types/index'
+
+/** Rôles déduits du motif quand l'ancien back ne décrit pas les parties. */
+const LEGACY_ROLES: Record<string, [NoShowParty['role'], NoShowParty['role']]> = {
+  SENDER_NO_SHOW: ['TRAVELER', 'SENDER'],
+  RECIPIENT_NO_SHOW: ['TRAVELER', 'RECIPIENT'],
+  TRAVELER_DELIVERY_NO_SHOW: ['SENDER', 'TRAVELER'],
+}
+
+/**
+ * Ligne lisible par l'écran, quel que soit le back. L'ancien (sans `scope`) ne renvoie que
+ * l'UUID de l'auteur et `noShowStatus` ; son unique action admin confirme une absence de
+ * l'expéditeur encore en attente, et il ne sait pas rejeter.
+ */
+export function normalizeNoShow(raw: AdminNoShowRaw): AdminNoShow {
+  const legacy = raw.scope == null
+  const status: NoShowStatus = raw.status ?? raw.noShowStatus ?? 'PENDING_CONFIRMATION'
+  let declarant = raw.declarant ?? null
+  let accused = raw.accused ?? null
+  const roles = LEGACY_ROLES[raw.reason]
+  if (legacy && roles) {
+    declarant = declarant ?? { role: roles[0], userId: raw.cancelledBy ?? null }
+    accused = accused ?? { role: roles[1] }
+  }
+  return {
+    id: raw.id, bidId: raw.bidId, legacy, scope: raw.scope ?? null, reason: raw.reason, status,
+    contestationDeadline: raw.contestationDeadline ?? null, remainingMinutes: raw.remainingMinutes ?? null,
+    createdAt: raw.createdAt, declarant, accused, trip: raw.trip ?? null, handoverAt: raw.handoverAt ?? null,
+    amount: raw.amount ?? null, currency: raw.currency ?? null, paymentMethod: raw.paymentMethod ?? null,
+    paymentStatus: raw.paymentStatus ?? null, bidStatus: raw.bidStatus ?? null, dispute: raw.dispute ?? null,
+    canConfirm: legacy ? status === 'PENDING_CONFIRMATION' && raw.reason === 'SENDER_NO_SHOW' : raw.canConfirm === true,
+    canReject: legacy ? false : raw.canReject === true,
+    commissionStatus: raw.commissionStatus ?? null, adminDecision: raw.adminDecision ?? null,
+    decidedAt: raw.decidedAt ?? null, decisionReason: raw.decisionReason ?? null,
+  }
+}
 
 export const incidentsService = {
   listDisputes(status: DisputeStatusFilter, page: number, size: number): Promise<AdminDisputePage> {
@@ -20,12 +58,22 @@ export const incidentsService = {
     if (currency) body.currency = currency
     return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/guarantee-fund`, { method: 'POST', body })
   },
-  listCancellations(noShow: NoShowFilter, page: number, size: number): Promise<AdminCancellationPage> {
+  /** `noShowStatus` double `status` pour l'ancien back, qui ignore `status` et `scope`. */
+  async listNoShows(filters: NoShowFilters, page: number, size: number): Promise<AdminNoShowPage> {
     const query: Record<string, string | number> = { page, size }
-    if (noShow !== 'ALL') query.noShowStatus = noShow
-    return useApi()<AdminCancellationPage>('/admin/cancellations', { query })
+    if (filters.status !== 'ALL') { query.status = filters.status; query.noShowStatus = filters.status }
+    if (filters.scope !== 'ALL') query.scope = filters.scope
+    const res = await useApi()<AdminNoShowPageRaw>('/admin/cancellations', { query })
+    return { ...res, content: (res.content ?? []).map(normalizeNoShow) }
   },
-  confirmNoShow(bidId: string): Promise<unknown> {
+  async confirmNoShow(id: string, reason: string): Promise<AdminNoShow> {
+    return normalizeNoShow(await useApi()<AdminNoShowRaw>(`/admin/cancellations/${id}/confirm`, { method: 'POST', body: { reason } }))
+  },
+  async rejectNoShow(id: string, reason: string): Promise<AdminNoShow> {
+    return normalizeNoShow(await useApi()<AdminNoShowRaw>(`/admin/cancellations/${id}/reject`, { method: 'POST', body: { reason } }))
+  },
+  /** Ancien back : confirmation par bid, seulement pour une absence de l'expéditeur au départ. */
+  confirmLegacyNoShow(bidId: string): Promise<unknown> {
     return useApi()<unknown>(`/cancellations/bids/${bidId}/confirm-noshow`, { method: 'POST' })
   },
 }
