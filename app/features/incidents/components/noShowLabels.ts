@@ -5,6 +5,7 @@ import { paymentStatusMeta } from '@/features/payments/components/paymentStatus'
 import { bidStatusMeta } from '@/features/bids/components/bidStatus'
 import type { PaymentStatus } from '@/features/payments/types/index'
 import type { BidStatus } from '@/features/bids/types/index'
+import { parseServerDate } from '@/lib/serverDate'
 
 type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -104,7 +105,7 @@ export function remainingMeta(row: AdminNoShow, now: number = Date.now()): { lab
   let minutes = row.remainingMinutes
   if (minutes == null) {
     if (!row.contestationDeadline) return null
-    const t = Date.parse(row.contestationDeadline)
+    const t = parseServerDate(row.contestationDeadline)
     if (Number.isNaN(t)) return null
     minutes = Math.floor((t - now) / MINUTE)
   }
@@ -119,18 +120,25 @@ const dayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'shor
 const dayMonthParis = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })
 const hourParis = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 
-/** « Bamako → Abidjan, 15 sept. » ; la date de départ est une date sans heure (lue en UTC). */
+/**
+ * « Bamako → Abidjan, 15 sept. ». Une date seule est un jour calendaire (affiché tel quel) ;
+ * une date-heure est un instant UTC, affiché à l'heure de Paris.
+ */
 export function tripLabel(trip: NoShowTrip | null | undefined): string | null {
   if (!trip || (!trip.departureCity && !trip.arrivalCity)) return null
   const route = `${trip.departureCity ?? '?'} → ${trip.arrivalCity ?? '?'}`
-  const t = trip.departureDate ? Date.parse(trip.departureDate.length === 10 ? `${trip.departureDate}T00:00:00Z` : trip.departureDate) : NaN
-  return Number.isNaN(t) ? route : `${route}, ${dayMonth.format(t)}`
+  const d = trip.departureDate
+  if (!d) return route
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(d)
+  const t = dateOnly ? Date.parse(`${d}T00:00:00Z`) : parseServerDate(d)
+  if (Number.isNaN(t)) return route
+  return `${route}, ${(dateOnly ? dayMonth : dayMonthParis).format(t)}`
 }
 
 /** « 15 sept. à 14:30 », heure de Paris. */
 export function formatDateTime(iso: string | null | undefined): string | null {
   if (!iso) return null
-  const t = Date.parse(iso)
+  const t = parseServerDate(iso)
   if (Number.isNaN(t)) return null
   return `${dayMonthParis.format(t)} à ${hourParis.format(t)}`
 }

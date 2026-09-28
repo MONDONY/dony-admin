@@ -14,6 +14,8 @@ const HANDOVER = {
 }
 const DELIVERY = {
   ...HANDOVER, id: 'c2', bidId: '7a1b2c3d-aaaa-bbbb-cccc-dddddddddddd', scope: 'DELIVERY', reason: 'RECIPIENT_NO_SHOW', remainingMinutes: 45,
+  // LocalDateTime du back : UTC sans fuseau, microsecondes Java.
+  handoverAt: '2026-09-15T16:00:00.123456',
   accused: { name: 'Fatou S.', role: 'RECIPIENT' }, paymentMethod: 'STRIPE',
 }
 const page = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
@@ -49,6 +51,7 @@ test('liste lisible : phrases, portée, trajet, montant, temps restant, sans UUI
   await expect(row).toContainText('reste 5 h')
   await expect(p.locator('[data-test="noshow-row-c2"]')).toContainText('Le voyageur Awa D. déclare le destinataire Fatou S. absent à la livraison')
   await expect(p.locator('[data-test="noshow-remaining-c2"]')).toHaveClass(/text-danger/)
+  await expect(p.locator('[data-test="noshow-row-c2"]')).toContainText('Remise prévue le 15 sept. à 18:00')
   const text = await p.locator('main').innerText()
   expect(text).not.toContain('PENDING_CONFIRMATION')
   expect(text).not.toContain('89125c9c-aaaa')

@@ -85,6 +85,12 @@ describe('remainingMeta', () => {
     expect(remainingMeta(row({ remainingMinutes: 0 }), now)).toEqual({ label: 'échu', urgent: true })
     expect(remainingMeta(row({ remainingMinutes: -30 }), now)).toEqual({ label: 'échu', urgent: true })
   })
+  it('échéance sans fuseau lue en UTC', () => {
+    expect(remainingMeta(row({ remainingMinutes: null, contestationDeadline: '2026-09-28T15:00:00' }), now)).toEqual({ label: 'reste 5 h', urgent: false })
+  })
+  it('trajet avec une date-heure sans fuseau', () => {
+    expect(tripLabel({ departureCity: 'Paris', arrivalCity: 'Dakar', departureDate: '2026-09-15T23:30:00' })).toBe('Paris → Dakar, 16 sept.')
+  })
   it('calculé depuis l’échéance quand le back ne donne pas les minutes', () => {
     expect(remainingMeta(row({ remainingMinutes: null }), now)).toEqual({ label: 'reste 5 h', urgent: false })
     expect(remainingMeta(row({ remainingMinutes: null, contestationDeadline: '2026-09-28T09:00:00Z' }), now)).toEqual({ label: 'échu', urgent: true })
@@ -109,6 +115,9 @@ describe('trajet, dates, montant', () => {
   })
   it('date et heure', () => {
     expect(formatDateTime('2026-09-15T12:30:00Z')).toBe('15 sept. à 14:30')
+    // LocalDateTime du back sans fuseau = UTC
+    expect(formatDateTime('2026-09-15T12:30:00')).toBe('15 sept. à 14:30')
+    expect(formatDateTime('2026-09-15T12:30:00.123456')).toBe('15 sept. à 14:30')
     expect(formatDateTime(null)).toBeNull()
     expect(formatDateTime('nope')).toBeNull()
   })
