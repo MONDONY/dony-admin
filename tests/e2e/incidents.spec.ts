@@ -57,7 +57,9 @@ test('admin switches to no-shows tab', async ({ page }) => {
   await page.locator('[data-test="dispute-row-d1"]').waitFor({ state: 'visible' })
   await page.locator('[data-test="tab-noshows"]').click()
   await expect(page.locator('[data-test="noshow-row-c1"]')).toBeVisible({ timeout: 15000 })
-  await expect(page.locator('[data-test="confirm-noshow-b9"]')).toBeVisible()
+  // Ancien back : ligne lisible, jamais l'UUID nu ni le statut brut.
+  await expect(page.locator('[data-test="noshow-row-c1"]')).toContainText('Colis b9')
+  await expect(page.locator('[data-test="noshow-row-c1"]')).not.toContainText('PENDING_CONFIRMATION')
 })
 
 test('les no-shows se paginent au-delà de 20', async ({ page }) => {
