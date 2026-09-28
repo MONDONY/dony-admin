@@ -4,6 +4,7 @@ import type { AdminRating, AdminRatingPage, RatingsFilterState } from '@/feature
 function buildQuery(f: RatingsFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
   if (f.flaggedOnly) q.flaggedOnly = true
+  if (f.deleted) q.deleted = true
   return q
 }
 
@@ -22,5 +23,9 @@ export const ratingsService = {
     const trimmed = reason?.trim()
     if (!trimmed) return useApi()<void>(`/admin/ratings/${id}`, { method: 'DELETE' })
     return useApi()<void>(`/admin/ratings/${id}`, { method: 'DELETE', query: { reason: trimmed } })
+  },
+  /** Restaure un avis supprimé (RATING_DELETE) : le back recalcule la note du voyageur. */
+  restore(id: string, reason: string): Promise<AdminRating> {
+    return useApi()<AdminRating>(`/admin/ratings/${id}/restore`, { method: 'POST', body: { reason } })
   },
 }

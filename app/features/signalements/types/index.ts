@@ -20,6 +20,9 @@ export interface AdminReport {
   photoUrls: string[]
   /** Route de l’écran d’origine pour un rapport du scarabée (SCREEN_BUG), sinon absent. */
   screenRoute?: string | null
+  /** Signalement supprimé (liste `deleted=true` du nouveau back) : absents sinon (NON_NULL). */
+  deletedAt?: string | null
+  deletedByAdminEmail?: string | null
 }
 
 export interface AdminReportPage {
@@ -35,6 +38,14 @@ export interface ReportsFilterState {
   targetType: ReportTargetType | null
   /** Recherche libre (description, route d’écran, signalant, motif) ; vide = pas de filtre. */
   q?: string
+  /** « Supprimés » : envoyé en `deleted=true`, jamais quand il est faux ; le statut est alors ignoré. */
+  deleted?: boolean
+}
+
+/** Réponse de POST /admin/reports/bulk-restore : `skipped` compte les signalements déjà actifs. */
+export interface BulkRestoreResult {
+  restored: number
+  skipped: number
 }
 
 // ----- Avis (ratings) -----
@@ -49,6 +60,10 @@ export interface AdminRating {
   excluded: boolean
   excludedReason: string | null
   createdAt: string
+  /** Avis supprimé (liste `deleted=true` du nouveau back) : absents sinon (NON_NULL). */
+  deletedAt?: string | null
+  deletedByAdminEmail?: string | null
+  deleteReason?: string | null
 }
 
 export interface AdminRatingPage {
@@ -61,4 +76,6 @@ export interface AdminRatingPage {
 
 export interface RatingsFilterState {
   flaggedOnly: boolean
+  /** « Supprimés » : envoyé en `deleted=true`, jamais quand il est faux. */
+  deleted?: boolean
 }

@@ -84,7 +84,7 @@ describe('BroadcastComposer — phrase de contrôle sur la cible la plus large',
     const w = mountComposer({ recipientCount: 3 })
     await fillMessage(w)
     await w.find('[data-test="broadcast-target"]').setValue('USER')
-    await w.find('[data-test="broadcast-user-id"]').setValue('u-1')
+    await w.find('[data-test="broadcast-user-search"]').setValue('3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b')
     await w.find('[data-test="broadcast-preview"]').trigger('click')
     await w.setProps({ recipientCount: 1 })
 

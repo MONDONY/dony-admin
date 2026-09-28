@@ -8,13 +8,14 @@ const chips: { value: UserStatusFilter; label: string }[] = [
   { value: 'ACTIVE', label: 'Actifs' },
   { value: 'SUSPENDED', label: 'Suspendus' },
   { value: 'BANNED', label: 'Bannis' },
+  { value: 'PENDING_DELETION', label: 'Suppression demandée' },
 ]
 const q = ref('')
 </script>
 
 <template>
   <div class="flex flex-wrap items-center gap-3 mb-4">
-    <div class="flex gap-1">
+    <div class="flex flex-wrap gap-1">
       <button
         v-for="c in chips" :key="c.value" type="button" :data-test="`chip-${c.value}`"
         :class="['rounded-full px-3 py-1.5 text-sm transition-colors',

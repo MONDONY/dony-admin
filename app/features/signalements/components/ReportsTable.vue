@@ -11,19 +11,27 @@ const props = withDefaults(defineProps<{
   loading: boolean
   /** Identifiants cochés ; la colonne de cases n'apparaît qu'avec REPORT_DELETE. */
   selected?: string[]
-}>(), { selected: () => [] })
+  /** Endpoints de restauration absents (ancien back) : le bouton Restaurer disparaît. */
+  restoreUnavailable?: boolean
+}>(), { selected: () => [], restoreUnavailable: false })
 const emit = defineEmits<{
   resolve: [id: string]
   viewPhotos: [urls: string[]]
   toggle: [id: string]
   togglePage: []
   delete: [id: string]
+  restore: [id: string]
 }>()
 const auth = useAuthStore()
 const canDelete = computed(() => auth.can('REPORT_DELETE'))
 const allChecked = computed(() => props.reports.length > 0 && props.reports.every((r) => props.selected.includes(r.id)))
 const someChecked = computed(() => !allChecked.value && props.reports.some((r) => props.selected.includes(r.id)))
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
+/** « Supprimé le … par … » : qui et quand, pour décider d'une restauration. */
+function deletedInfo(r: AdminReport): string {
+  const when = r.deletedAt ? `Supprimé le ${fmt(r.deletedAt)}` : 'Supprimé'
+  return r.deletedByAdminEmail ? `${when} par ${r.deletedByAdminEmail}` : when
+}
 /** Demande d'envoi signalée : lien profond vers sa fiche de modération dans /colis. */
 function requestLink(r: AdminReport): string | null {
   if (r.targetType !== 'PACKAGE_REQUEST' || !r.targetId || !auth.can('BID_VIEW')) return null
@@ -59,7 +67,7 @@ function targetLabel(r: AdminReport) {
       <tbody>
         <tr
           v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`"
-          :class="['border-b border-border', selected.includes(r.id) ? 'bg-primary/5' : '']"
+          :class="['border-b border-border', selected.includes(r.id) ? 'bg-primary/5' : '', r.deletedAt ? 'text-text-muted' : '']"
         >
           <td v-if="canDelete" class="px-3 py-3">
             <input
@@ -97,8 +105,21 @@ function targetLabel(r: AdminReport) {
           </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ r.reporterName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
-          <td class="px-4 py-3"><StatusBadge v-bind="reportStatusMeta(r.status)" /></td>
-          <td class="px-4 py-3 text-right whitespace-nowrap">
+          <td class="px-4 py-3">
+            <StatusBadge v-bind="reportStatusMeta(r.status)" />
+            <div
+              v-if="r.deletedAt" :data-test="`report-deleted-info-${r.id}`"
+              class="mt-1 text-xs text-text-muted text-pretty tabular-nums"
+            >{{ deletedInfo(r) }}</div>
+          </td>
+          <td v-if="r.deletedAt" class="px-4 py-3 text-right whitespace-nowrap">
+            <button
+              v-if="canDelete && !restoreUnavailable" type="button" :data-test="`restore-${r.id}`"
+              class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary transition-[background-color,scale] hover:bg-primary/25 active:scale-[0.96]"
+              @click="emit('restore', r.id)"
+            >Restaurer</button>
+          </td>
+          <td v-else class="px-4 py-3 text-right whitespace-nowrap">
             <button
               v-if="r.status === 'OPEN' && auth.can('REPORT_RESOLVE')" type="button" :data-test="`resolve-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary hover:bg-primary/25"

@@ -1,9 +1,11 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminReport, AdminReportPage, ReportAction, ReportsFilterState } from '@/features/signalements/types/index'
+import type { AdminReport, AdminReportPage, BulkRestoreResult, ReportAction, ReportsFilterState } from '@/features/signalements/types/index'
 
 function buildQuery(f: ReportsFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
-  if (f.status !== 'ALL') q.status = f.status
+  // Les supprimés se consultent tous statuts confondus : le statut n'a plus de sens.
+  if (f.deleted) q.deleted = true
+  else if (f.status !== 'ALL') q.status = f.status
   if (f.targetType) q.targetType = f.targetType
   if (f.q && f.q.trim()) q.q = f.q.trim()
   return q
@@ -34,5 +36,13 @@ export const reportsService = {
           q: input.filters.q?.trim() || undefined,
         }
     return useApi()<{ deleted: number }>('/admin/reports/bulk-delete', { method: 'POST', body })
+  },
+  /** Restaure un signalement supprimé (REPORT_DELETE) ; 409 `report-not-deleted` s'il est actif. */
+  restore(id: string, reason: string): Promise<AdminReport> {
+    return useApi()<AdminReport>(`/admin/reports/${id}/restore`, { method: 'POST', body: { reason } })
+  },
+  /** Restauration groupée, 100 identifiants au plus ; `skipped` = déjà actifs ou introuvables. */
+  bulkRestore(ids: string[]): Promise<BulkRestoreResult> {
+    return useApi()<BulkRestoreResult>('/admin/reports/bulk-restore', { method: 'POST', body: { ids } })
   },
 }

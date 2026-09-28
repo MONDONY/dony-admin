@@ -30,7 +30,7 @@ describe('BroadcastComposer', () => {
     await w.find('[data-test="broadcast-target"]').setValue('CORRIDOR')
     expect(w.find('[data-test="broadcast-origin"]').exists()).toBe(true)
     expect(w.find('[data-test="broadcast-destination"]').exists()).toBe(true)
-    expect(w.find('[data-test="broadcast-user-id"]').exists()).toBe(false)
+    expect(w.find('[data-test="broadcast-user-search"]').exists()).toBe(false)
 
     await w.find('[data-test="broadcast-target"]').setValue('ALL')
     expect(w.find('[data-test="broadcast-origin"]').exists()).toBe(false)
@@ -40,7 +40,7 @@ describe('BroadcastComposer', () => {
   it('révèle le champ identifiant utilisateur pour la cible USER', async () => {
     const w = mountComposer()
     await w.find('[data-test="broadcast-target"]').setValue('USER')
-    expect(w.find('[data-test="broadcast-user-id"]').exists()).toBe(true)
+    expect(w.find('[data-test="broadcast-user-search"]').exists()).toBe(true)
     expect(w.find('[data-test="broadcast-origin"]').exists()).toBe(false)
   })
 
@@ -57,10 +57,10 @@ describe('BroadcastComposer', () => {
   it('« Estimer les destinataires » avec la cible USER compose userId', async () => {
     const w = mountComposer()
     await w.find('[data-test="broadcast-target"]').setValue('USER')
-    await w.find('[data-test="broadcast-user-id"]').setValue('u-42')
+    await w.find('[data-test="broadcast-user-search"]').setValue('3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b')
     await w.find('[data-test="broadcast-preview"]').trigger('click')
 
-    expect(w.emitted('preview')![0]).toEqual([{ type: 'USER', userId: 'u-42' }])
+    expect(w.emitted('preview')![0]).toEqual([{ type: 'USER', userId: '3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b' }])
   })
 
   it('affiche le nombre de destinataires estimé quand il est fourni', () => {
