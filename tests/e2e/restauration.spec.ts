@@ -126,7 +126,8 @@ test('restaurer un message supprimé par un admin', async ({ page }) => {
     if (req.method() === 'POST' && req.url().includes('/messages/m1/restore')) {
       restoreCalls.push(req.postDataJSON())
       restored = true
-      return route.fulfill({ json: { ...message, deleted: false } })
+      // Contrat back : 204 sans corps, le fil se relit ensuite.
+      return route.fulfill({ status: 204, body: '' })
     }
     if (req.url().includes('/messages')) {
       return route.fulfill({ json: [restored ? { ...message, deleted: false } : { ...message, deleted: true, deletedByAdmin: true, deletedAt: '2026-09-20T10:00:00Z' }] })
@@ -264,5 +265,92 @@ test('composer : recherche d’un utilisateur par nom, puis 422 non joignable', 
   await expect(page.locator('[data-test="broadcast-user-selected"]')).toContainText('Awa Diop')
   await page.locator('[data-test="broadcast-preview"]').click()
   await expect(page.locator('[data-test="broadcast-error"]')).toHaveText('Cet utilisateur n’a aucun appareil joignable.')
+  await expect(page.locator('[data-test="broadcast-send"]')).toBeDisabled()
+})
+
+test('motif refusé par le back (422 violations) : refus dans le dialogue, saisie conservée', async ({ page }) => {
+  await page.route('**/api/v1/admin/reports**', (route) => {
+    const req = route.request()
+    if (req.method() === 'POST' && req.url().includes('/restore')) {
+      return route.fulfill({
+        status: 422, contentType: 'application/problem+json',
+        body: JSON.stringify({ status: 422, title: 'Bad Request', detail: 'Validation failed', violations: [{ field: 'reason', message: 'la taille doit être comprise entre 10 et 500' }] }),
+      })
+    }
+    if (req.url().includes('deleted=true')) return route.fulfill({ json: page1([report('r1', true)]) })
+    return route.fulfill({ json: page1([report('r9', false)]) })
+  })
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-r9"]')).toBeVisible()
+  await page.locator('[data-test="report-filter-deleted"]').click()
+  await expect(page.locator('[data-test="report-search"]')).toHaveAttribute('placeholder', 'Rechercher (texte, écran, motif)')
+  await page.locator('[data-test="restore-r1"]').click()
+  await page.locator('[data-test="restore-reason"]').fill(REASON)
+  await page.locator('[data-test="restore-confirm"]').click()
+  await expect(page.locator('[data-test="restore-error"]')).toHaveText('la taille doit être comprise entre 10 et 500')
+  await expect(page.locator('[data-test="restore-reason"]')).toHaveValue(REASON)
+})
+
+test('avis supplanté (409 rating-superseded) : message clair, plus de bouton', async ({ page }) => {
+  const rating = {
+    id: 'rt1', bidId: 'b1', raterName: 'Awa', ratedName: 'Karim', score: 2, comment: 'bof', flagged: false,
+    excluded: false, excludedReason: null, createdAt: '2026-06-01T10:00:00Z', deletedAt: '2026-09-20T10:00:00Z',
+  }
+  await page.route('**/api/v1/admin/reports**', (route) => route.fulfill({ json: page1([report('r9', false)]) }))
+  await page.route('**/api/v1/admin/ratings**', (route) => {
+    const req = route.request()
+    if (req.method() === 'POST') {
+      return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ status: 409, code: 'rating-superseded', detail: 'Rating superseded' }) })
+    }
+    return route.fulfill({ json: page1(req.url().includes('deleted=true') ? [rating] : []) })
+  })
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-r9"]')).toBeVisible()
+  await page.locator('[data-test="tab-ratings"]').click()
+  await page.locator('[data-test="ratings-deleted-only"]').check()
+  await page.locator('[data-test="restore-rating-rt1"]').click()
+  await page.locator('[data-test="restore-reason"]').fill(REASON)
+  await page.locator('[data-test="restore-confirm"]').click()
+  await expect(page.locator('[data-test="ratings-error"]')).toContainText('ne peut plus être restauré')
+  await expect(page.locator('[data-test="restore-rating-rt1"]')).toHaveCount(0)
+})
+
+test('SUPPORT consulte les corbeilles sans pouvoir restaurer avis ni signalements', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { __yadonyAuthSeed: unknown }).__yadonyAuthSeed = { id: 's1', email: 'support@yadony.com', role: 'SUPPORT', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
+  })
+  await page.route('**/api/v1/admin/reports**', (route) =>
+    route.fulfill({ json: page1([route.request().url().includes('deleted=true') ? report('r1', true) : report('r9', false)]) }))
+  await page.route('**/api/v1/admin/ratings**', (route) =>
+    route.fulfill({ json: page1(route.request().url().includes('deleted=true')
+      ? [{ id: 'rt1', bidId: 'b1', raterName: 'Awa', ratedName: 'Karim', score: 2, comment: 'bof', flagged: false, excluded: false, excludedReason: null, createdAt: '2026-06-01T10:00:00Z', deletedAt: '2026-09-20T10:00:00Z' }]
+      : []) }))
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-row-r9"]')).toBeVisible()
+  await page.locator('[data-test="report-filter-deleted"]').click()
+  await expect(page.locator('[data-test="report-deleted-info-r1"]')).toBeVisible()
+  await expect(page.locator('[data-test="restore-r1"]')).toHaveCount(0)
+  await page.locator('[data-test="tab-ratings"]').click()
+  await page.locator('[data-test="ratings-deleted-only"]').check()
+  await expect(page.locator('[data-test="rating-deleted-info-rt1"]')).toBeVisible()
+  await expect(page.locator('[data-test="restore-rating-rt1"]')).toHaveCount(0)
+})
+
+test('preview : compte non joignable, avertissement et envoi bloqué', async ({ page }) => {
+  await page.route('**/api/v1/admin/users**', (route) => route.fulfill({ json: { ...userDetail } }))
+  await page.route('**/api/v1/admin/notifications/**', (route) => {
+    const req = route.request()
+    if (req.method() === 'POST' && req.url().includes('/broadcast/preview')) {
+      return route.fulfill({ json: { recipientCount: 0, targetUserName: 'Awa Diop', targetUserReachable: false } })
+    }
+    return route.fulfill({ json: page1([{ id: 'br0', title: 'Ancienne', body: 'x', targetType: 'ALL', targetOrigin: null, targetDestination: null, targetUserId: null, recipientCount: 5, adminId: 'a1', createdAt: '2026-08-01T09:00:00Z' }]) })
+  })
+  await page.goto(`/communications?target=USER&userId=${USER_ID}`)
+  await expect(page.locator('[data-test="broadcast-row-br0"]')).toBeVisible()
+  await expect(page.locator('[data-test="broadcast-user-selected"]')).toContainText('Awa Diop')
+  await page.locator('[data-test="broadcast-title"]').fill('Titre')
+  await page.locator('[data-test="broadcast-body"]').fill('Corps du message')
+  await page.locator('[data-test="broadcast-preview"]').click()
+  await expect(page.locator('[data-test="broadcast-user-unreachable"]')).toHaveText('Ce compte ne recevra pas la notification.')
   await expect(page.locator('[data-test="broadcast-send"]')).toBeDisabled()
 })

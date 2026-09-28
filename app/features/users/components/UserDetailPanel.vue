@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
@@ -15,6 +15,8 @@ const props = defineProps<{
   kyc?: AdminKycDetail | null; kycLoading?: boolean; kycError?: string | null
   /** Ancien back sans POST /admin/users/{id}/cancel-deletion : bouton masqué. */
   cancelDeletionUnavailable?: boolean
+  /** Motif refusé par le back (422) : montré dans le dialogue, qui reste ouvert. */
+  cancelDeletionReasonError?: string | null
 }>()
 const emit = defineEmits<{
   close: []; suspend: [reason: string]; ban: [reason: string]; unsuspend: [];
@@ -68,11 +70,19 @@ const pendingDeletionText = computed(() => {
   if (props.user.deletionRequestedAt) return `Suppression demandée le ${d(props.user.deletionRequestedAt)}`
   return 'Suppression demandée'
 })
+// Le dialogue reste ouvert après la confirmation : un motif refusé (422) doit s'afficher à côté
+// de la saisie, conservée. Il se ferme quand le compte n'est plus en suppression (succès), sur
+// un refus métier (erreur de fiche) ou quand l'endpoint se révèle absent.
 const cancelDeletionOpen = ref(false)
 function confirmCancelDeletion(reason: string) {
-  cancelDeletionOpen.value = false
   emit('cancelDeletion', reason)
 }
+watch(
+  () => [props.user.status, props.error, props.cancelDeletionUnavailable] as const,
+  ([status, error, unavailable]) => {
+    if (status !== 'PENDING_DELETION' || error || unavailable) cancelDeletionOpen.value = false
+  },
+)
 const notifyLink = computed(() => `/communications?target=USER&userId=${encodeURIComponent(props.user.id)}`)
 
 // Constat 4 — copie de l'UUID en un clic avec retour visuel
@@ -529,7 +539,7 @@ const dialogConfig = computed<DialogConfig>(() => {
         message="Le compte est conservé et redevient actif."
         notice="L’utilisateur sera prévenu que son compte n’est plus supprimé."
         confirm-label="Annuler la suppression"
-        :busy="busy"
+        :busy="busy" :error="cancelDeletionReasonError"
         @confirm="confirmCancelDeletion"
         @cancel="cancelDeletionOpen = false"
       />

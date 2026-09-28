@@ -12,6 +12,11 @@ const props = defineProps<{
   initialUserId?: string | null
   /** Nom du destinataire renvoyé par la preview (nouveau back), absent sinon. */
   targetUserName?: string | null
+  /**
+   * La preview a répondu `targetUserReachable: false` (banni, suppression demandée) : l'envoi est
+   * bloqué. Booléen « négatif » exprès : un booléen Vue absent vaut false, soit « pas bloqué ».
+   */
+  targetUserUnreachable?: boolean
   /** Recherche par nom possible (USER_VIEW) ; sinon seul l'identifiant collé est accepté. */
   canSearchUsers?: boolean
 }>()
@@ -52,6 +57,8 @@ const freshCount = computed<number | null>(() =>
     : null,
 )
 const estimateIsStale = computed(() => props.recipientCount !== null && freshCount.value === null)
+const targetUnreachable = computed(() =>
+  targetType.value === 'USER' && freshCount.value !== null && props.targetUserUnreachable)
 const shownUserName = computed(() =>
   targetType.value === 'USER' && freshCount.value !== null && props.targetUserName ? props.targetUserName : null)
 
@@ -67,7 +74,8 @@ const canSend = computed(() =>
   title.value.trim().length > 0
   && body.value.trim().length > 0
   && !props.busy
-  && freshCount.value !== null,
+  && freshCount.value !== null
+  && !targetUnreachable.value,
 )
 
 function onPreview() {
@@ -157,6 +165,10 @@ const confirmMessage = computed(() => {
       </span>
       <span v-if="shownUserName" data-test="broadcast-target-user-name" class="text-sm font-medium text-text">Destinataire : {{ shownUserName }}</span>
     </div>
+    <p
+      v-if="targetUnreachable" data-test="broadcast-user-unreachable" role="alert"
+      class="rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+    >Ce compte ne recevra pas la notification.</p>
 
     <div class="flex justify-end">
       <button

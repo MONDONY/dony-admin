@@ -96,6 +96,7 @@ vi.mock('@/features/users/composables/useUserDetail', () => ({
     unmuteMessaging: vi.fn(),
     cancelDeletion: vi.fn(),
     cancelDeletionUnavailable: ref(false),
+    cancelDeletionReasonError: ref(null),
   }),
 }))
 

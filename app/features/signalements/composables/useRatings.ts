@@ -1,7 +1,8 @@
 import { reactive, ref } from 'vue'
 import { ratingsService } from '@/features/signalements/services/ratingsService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import { isEndpointMissing } from '@/lib/endpointMissing'
+import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
+import { reasonViolationMessage } from '@/lib/restoreReason'
 import type { AdminRating, RatingsFilterState } from '@/features/signalements/types/index'
 
 export function useRatings() {
@@ -16,6 +17,10 @@ export function useRatings() {
   const deletedFilterUnsupported = ref(false)
   /** POST /admin/ratings/{id}/restore absent (404/405 sans code) : action masquée. */
   const restoreUnavailable = ref(false)
+  /** Motif refusé par la validation du back (422 `violations`) : affiché dans le dialogue. */
+  const reasonError = ref<string | null>(null)
+  /** Avis supplantés (409 `rating-superseded`) : l'auteur a renoté, plus de restauration possible. */
+  const supersededIds = ref<string[]>([])
 
   async function fetchRatings() {
     isLoading.value = true
@@ -56,10 +61,18 @@ export function useRatings() {
   /** Rend true si l'avis est restauré ; un 409 relit la liste et garde le detail dans `error`. */
   async function restore(id: string, reason: string): Promise<boolean> {
     error.value = null
+    reasonError.value = null
     try {
       await ratingsService.restore(id, reason)
     } catch (e) {
       if (isEndpointMissing(e)) { restoreUnavailable.value = true; return false }
+      const invalid = reasonViolationMessage(e)
+      if (invalid) { reasonError.value = invalid; return false }
+      if (problemCode(e) === 'rating-superseded') {
+        if (!supersededIds.value.includes(id)) supersededIds.value = [...supersededIds.value, id]
+        error.value = 'L’auteur a noté de nouveau cette livraison depuis : cet avis ne peut plus être restauré.'
+        return false
+      }
       const message = extractProblemMessage(e, 'Impossible de restaurer cet avis')
       // La relecture remet `error` à zéro : le refus est posé après.
       await fetchRatings()
@@ -70,5 +83,5 @@ export function useRatings() {
     return true
   }
 
-  return { deletedFilterUnsupported, restoreUnavailable, setDeletedFilter, restore, ratings, isLoading, error, totalPages, currentPage, pageSize, filters, fetchRatings, goToPage, setFlaggedOnly, exclude, remove }
+  return { deletedFilterUnsupported, restoreUnavailable, reasonError, supersededIds, setDeletedFilter, restore, ratings, isLoading, error, totalPages, currentPage, pageSize, filters, fetchRatings, goToPage, setFlaggedOnly, exclude, remove }
 }

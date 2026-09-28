@@ -15,7 +15,7 @@ definePageMeta({
 })
 
 const {
-  history, isLoading, busy, previewing, error, recipientCount, targetUserName, currentPage, totalPages,
+  history, isLoading, busy, previewing, error, recipientCount, targetUserName, targetUserReachable, currentPage, totalPages,
   fetchHistory, goToPage, preview, send,
 } = useBroadcast()
 const auth = useAuthStore()
@@ -46,7 +46,7 @@ onMounted(fetchHistory)
     <BroadcastComposer
       class="mb-6"
       :recipient-count="recipientCount" :busy="busy" :previewing="previewing"
-      :initial-user-id="initialUserId" :target-user-name="targetUserName" :can-search-users="auth.can('USER_VIEW')"
+      :initial-user-id="initialUserId" :target-user-name="targetUserName" :target-user-unreachable="targetUserReachable === false" :can-search-users="auth.can('USER_VIEW')"
       @preview="onPreview" @send="onSend"
     />
 

@@ -32,6 +32,7 @@ export function useBroadcast() {
   const error = ref<string | null>(null)
   const recipientCount = ref<number | null>(null)
   const targetUserName = ref<string | null>(null)
+  const targetUserReachable = ref<boolean | null>(null)
   const currentPage = ref(0)
   const totalPages = ref(0)
 
@@ -60,10 +61,12 @@ export function useBroadcast() {
     try {
       const audience = await broadcastService.preview(target)
       targetUserName.value = audience.targetUserName ?? null
+      targetUserReachable.value = typeof audience.targetUserReachable === 'boolean' ? audience.targetUserReachable : null
       recipientCount.value = audience.recipientCount
     } catch (e) {
       recipientCount.value = null
       targetUserName.value = null
+      targetUserReachable.value = null
       error.value = broadcastError(e, 'Impossible d’estimer le nombre de destinataires')
     } finally {
       previewing.value = false
@@ -77,6 +80,7 @@ export function useBroadcast() {
       await broadcastService.send(title, body, target)
       recipientCount.value = null
       targetUserName.value = null
+      targetUserReachable.value = null
       await fetchHistory()
     } catch (e) {
       error.value = broadcastError(e, 'Envoi impossible')
@@ -86,7 +90,7 @@ export function useBroadcast() {
   }
 
   return {
-    history, isLoading, busy, previewing, error, recipientCount, targetUserName, currentPage, totalPages,
+    history, isLoading, busy, previewing, error, recipientCount, targetUserName, targetUserReachable, currentPage, totalPages,
     fetchHistory, goToPage, preview, send,
   }
 }

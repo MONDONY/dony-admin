@@ -41,6 +41,11 @@ export interface BroadcastAudience {
   recipientCount: number
   /** Cible USER : nom du compte visé (nouveau back, NON_NULL), pour vérifier avant l'envoi. */
   targetUserName?: string | null
+  /**
+   * Cible USER : false si le compte ne recevra rien (banni, suppression demandée, supprimé).
+   * Absent d'un ancien back : on ne bloque pas.
+   */
+  targetUserReachable?: boolean
 }
 
 export const TARGET_LABELS: Record<BroadcastTargetType, string> = {

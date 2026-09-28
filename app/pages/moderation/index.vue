@@ -26,6 +26,8 @@ async function confirmRestore(reason: string) {
   restoreBusy.value = true
   await thread.restoreMessage(pendingRestoreId.value, reason)
   restoreBusy.value = false
+  // Motif refusé (422) : le dialogue reste ouvert, saisie conservée.
+  if (thread.restoreReasonError.value) return
   pendingRestoreId.value = null
 }
 
@@ -94,9 +96,9 @@ onMounted(fetchConversations)
       title="Restaurer le message"
       message="Le message redevient visible pour les deux participants de la conversation."
       confirm-label="Restaurer"
-      :busy="restoreBusy"
+      :busy="restoreBusy" :error="thread.restoreReasonError.value"
       @confirm="confirmRestore"
-      @cancel="pendingRestoreId = null"
+      @cancel="pendingRestoreId = null; thread.restoreReasonError.value = null"
     />
   </div>
 </template>

@@ -7,6 +7,8 @@ defineProps<{
   loading: boolean
   /** POST /admin/ratings/{id}/restore absent (ancien back) : le bouton Restaurer disparaît. */
   restoreUnavailable?: boolean
+  /** Avis qui ne peuvent plus être restaurés (supplantés par une nouvelle note). */
+  nonRestorableIds?: string[]
 }>()
 const emit = defineEmits<{ exclude: [id: string]; remove: [id: string]; restore: [id: string] }>()
 const auth = useAuthStore()
@@ -51,7 +53,7 @@ function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(r.createdAt) }}</td>
           <td v-if="r.deletedAt" class="px-4 py-3 text-right whitespace-nowrap">
             <button
-              v-if="auth.can('RATING_DELETE') && !restoreUnavailable" type="button" :data-test="`restore-rating-${r.id}`"
+              v-if="auth.can('RATING_DELETE') && !restoreUnavailable && !nonRestorableIds?.includes(r.id)" type="button" :data-test="`restore-rating-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary transition-[background-color,scale] hover:bg-primary/25 active:scale-[0.96]"
               @click="emit('restore', r.id)"
             >Restaurer</button>

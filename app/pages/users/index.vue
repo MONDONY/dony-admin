@@ -87,6 +87,7 @@ onMounted(async () => {
       :error="detail.error.value" :busy="detail.busy.value"
       :kyc="kyc.kyc.value" :kyc-loading="kyc.isLoading.value" :kyc-error="kyc.error.value"
       :cancel-deletion-unavailable="detail.cancelDeletionUnavailable.value"
+      :cancel-deletion-reason-error="detail.cancelDeletionReasonError.value"
       @close="detail.close"
       @cancel-deletion="async (r) => { if (await detail.cancelDeletion(r)) await afterAction() }"
       @suspend="async (r) => { await detail.suspend(r); await afterAction() }"

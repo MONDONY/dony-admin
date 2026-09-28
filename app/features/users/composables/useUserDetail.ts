@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { usersService } from '@/features/users/services/usersService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { isEndpointMissing } from '@/lib/endpointMissing'
+import { reasonViolationMessage } from '@/lib/restoreReason'
 import type { AdminUserDetail } from '@/features/users/types/index'
 
 export function useUserDetail() {
@@ -11,6 +12,8 @@ export function useUserDetail() {
   const busy = ref(false)
   /** POST /admin/users/{id}/cancel-deletion absent (ancien back) : bouton masqué. */
   const cancelDeletionUnavailable = ref(false)
+  /** Motif refusé (422 `violations`) : affiché dans le dialogue, saisie conservée. */
+  const cancelDeletionReasonError = ref<string | null>(null)
 
   async function open(id: string) {
     isLoading.value = true
@@ -47,12 +50,15 @@ export function useUserDetail() {
     if (!user.value) return false
     const id = user.value.id
     error.value = null
+    cancelDeletionReasonError.value = null
     busy.value = true
     try {
       user.value = await usersService.cancelDeletion(id, reason)
       return true
     } catch (e) {
-      if (isEndpointMissing(e)) cancelDeletionUnavailable.value = true
+      const invalid = reasonViolationMessage(e)
+      if (invalid) cancelDeletionReasonError.value = invalid
+      else if (isEndpointMissing(e)) cancelDeletionUnavailable.value = true
       else error.value = extractProblemMessage(e, 'Impossible d’annuler la suppression')
       return false
     } finally {
@@ -61,7 +67,7 @@ export function useUserDetail() {
   }
 
   return {
-    cancelDeletion, cancelDeletionUnavailable,
+    cancelDeletion, cancelDeletionUnavailable, cancelDeletionReasonError,
     user, isLoading, error, busy, open, close, suspend, ban, unsuspend, setCommissionRate,
     suspendPublishing, liftPublishing, muteMessaging, unmuteMessaging, grantPro, revokePro,
   }

@@ -3,6 +3,7 @@ import { reportsService } from '@/features/signalements/services/reportsService'
 import type { AdminReport, BulkRestoreResult, ReportAction, ReportsFilterState, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { isEndpointMissing } from '@/lib/endpointMissing'
+import { reasonViolationMessage } from '@/lib/restoreReason'
 
 /** Plafond de POST /admin/reports/bulk-restore. */
 const BULK_RESTORE_MAX = 100
@@ -23,6 +24,8 @@ export function useReports() {
   const deletedFilterUnsupported = ref(false)
   /** Endpoints de restauration absents (404/405 sans code) : l'action est masquée. */
   const restoreUnavailable = ref(false)
+  /** Motif refusé par la validation du back (422 `violations`) : affiché dans le dialogue. */
+  const reasonError = ref<string | null>(null)
 
   // ---- Sélection (modèle Gmail) ----
   // `selectedIds` : les lignes cochées sur la page courante. `allResultsSelected` :
@@ -122,10 +125,13 @@ export function useReports() {
   /** Rend true si le signalement est restauré ; sinon `error` porte le refus (409 compris). */
   async function restoreOne(id: string, reason: string): Promise<boolean> {
     error.value = null
+    reasonError.value = null
     try {
       await reportsService.restore(id, reason)
     } catch (e) {
       if (isEndpointMissing(e)) { restoreUnavailable.value = true; return false }
+      const invalid = reasonViolationMessage(e)
+      if (invalid) { reasonError.value = invalid; return false }
       const message = extractProblemMessage(e, 'Impossible de restaurer ce signalement')
       // Un 409 dit que la liste est périmée (déjà restauré ailleurs) : on la relit, puis on
       // pose le refus (la relecture remet `error` à zéro).
@@ -157,7 +163,7 @@ export function useReports() {
   }
 
   return {
-    deletedFilterUnsupported, restoreUnavailable, setDeletedFilter, restoreOne, restoreSelected,
+    deletedFilterUnsupported, restoreUnavailable, reasonError, setDeletedFilter, restoreOne, restoreSelected,
     reports, isLoading, error, totalPages, totalElements, currentPage, pageSize, filters,
     selectedIds, allResultsSelected, selectedCount, pageFullySelected, canSelectAllResults,
     fetchReports, goToPage, setStatusFilter, setTargetTypeFilter, setQuery, resolve,

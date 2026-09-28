@@ -41,6 +41,10 @@ const viewerUrls = ref<string[] | null>(null)
 
 // ---- Recherche (débounce court : une requête par pause de frappe) ----
 const searchInput = ref('')
+// Dans la corbeille, le back ne cherche pas dans le nom du signalant.
+const searchPlaceholder = computed(() => r.filters.deleted
+  ? 'Rechercher (texte, écran, motif)'
+  : 'Rechercher (texte, écran, signalant, motif)')
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 function onSearchInput(e: Event) {
   searchInput.value = (e.target as HTMLInputElement).value
@@ -100,6 +104,8 @@ async function confirmRestore(reason: string) {
   restoreBusy.value = true
   const ok = await r.restoreOne(pendingRestoreId.value, reason)
   restoreBusy.value = false
+  // Motif refusé (422) : le dialogue reste ouvert, saisie conservée, refus affiché dedans.
+  if (r.reasonError.value) return
   pendingRestoreId.value = null
   if (ok) lastRestored.value = { restored: 1, skipped: 0 }
 }
@@ -159,6 +165,7 @@ async function confirmRatingRestore(reason: string) {
   ratingRestoreBusy.value = true
   ratingRestored.value = await rt.restore(pendingRatingRestoreId.value, reason)
   ratingRestoreBusy.value = false
+  if (rt.reasonError.value) return
   pendingRatingRestoreId.value = null
 }
 async function toggleRatingsDeleted(v: boolean) {
@@ -204,7 +211,7 @@ onMounted(r.fetchReports)
             @click="r.setStatusFilter(t.value)"
           >{{ t.label }}</button>
           <button
-            v-if="auth.can('REPORT_DELETE')" type="button" data-test="report-filter-deleted"
+            v-if="auth.can('REPORT_VIEW')" type="button" data-test="report-filter-deleted"
             :aria-pressed="r.filters.deleted ? 'true' : 'false'"
             :class="['ml-1 rounded-full px-3 py-1.5 text-sm transition-colors',
               r.filters.deleted ? 'bg-danger text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
@@ -213,7 +220,7 @@ onMounted(r.fetchReports)
         </div>
         <input
           type="search" data-test="report-search" :value="searchInput"
-          placeholder="Rechercher (texte, écran, signalant, motif)"
+          :placeholder="searchPlaceholder"
           class="min-w-64 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm"
           @input="onSearchInput" @keydown.enter.prevent="submitSearch"
         >
@@ -298,7 +305,7 @@ onMounted(r.fetchReports)
         >
         Signalés uniquement
       </label>
-      <label v-if="auth.can('RATING_DELETE')" class="flex items-center gap-2 mb-4 text-sm text-text-muted cursor-pointer">
+      <label class="flex items-center gap-2 mb-4 text-sm text-text-muted cursor-pointer">
         <input
           type="checkbox" data-test="ratings-deleted-only"
           :checked="rt.filters.deleted"
@@ -326,7 +333,7 @@ onMounted(r.fetchReports)
       >{{ rt.error.value }}</p>
 
       <RatingsTable
-        :ratings="rt.ratings.value" :loading="rt.isLoading.value" :restore-unavailable="rt.restoreUnavailable.value"
+        :ratings="rt.ratings.value" :loading="rt.isLoading.value" :restore-unavailable="rt.restoreUnavailable.value" :non-restorable-ids="rt.supersededIds.value"
         @restore="(id) => { ratingRestored = false; pendingRatingRestoreId = id }"
         @exclude="(id) => pendingExcludeId = id" @remove="(id) => pendingRemoveId = id"
       />
@@ -389,9 +396,9 @@ onMounted(r.fetchReports)
       title="Restaurer le signalement"
       message="Le signalement redevient visible dans l’admin, avec son statut d’avant la suppression."
       confirm-label="Restaurer"
-      :busy="restoreBusy"
+      :busy="restoreBusy" :error="r.reasonError.value"
       @confirm="confirmRestore"
-      @cancel="pendingRestoreId = null"
+      @cancel="pendingRestoreId = null; r.reasonError.value = null"
     />
 
     <!-- Restaurer la sélection -->
@@ -412,9 +419,9 @@ onMounted(r.fetchReports)
       message="L’avis redevient public sur le profil du voyageur."
       notice="La note moyenne du voyageur sera recalculée avec cet avis."
       confirm-label="Restaurer"
-      :busy="ratingRestoreBusy"
+      :busy="ratingRestoreBusy" :error="rt.reasonError.value"
       @confirm="confirmRatingRestore"
-      @cancel="pendingRatingRestoreId = null"
+      @cancel="pendingRatingRestoreId = null; rt.reasonError.value = null"
     />
 
     <!-- Exclure un avis -->

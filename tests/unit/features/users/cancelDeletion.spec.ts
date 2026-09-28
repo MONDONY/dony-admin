@@ -101,7 +101,8 @@ describe('UserDetailPanel : compte en suppression', () => {
     await w.find('[data-test="restore-reason"]').setValue('demande retirée au support')
     await w.find('[data-test="restore-confirm"]').trigger('click')
     expect(w.emitted('cancelDeletion')![0]).toEqual(['demande retirée au support'])
-    expect(w.find('[data-test="restore-dialog"]').exists()).toBe(false)
+    // Le dialogue reste ouvert jusqu’à la réponse du back (motif refusé en 422 : saisie conservée).
+    expect(w.find('[data-test="restore-dialog"]').exists()).toBe(true)
   })
 
   it('sans date prévue, retombe sur la date de la demande', () => {
