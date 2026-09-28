@@ -38,13 +38,85 @@ describe('useReports', () => {
     expect(r.currentPage.value).toBe(0)
   })
 
-  it('resolve calls service then refetches', async () => {
-    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    svc.resolve.mockResolvedValue({ id: 'r1', status: 'RESOLVED' })
+  it('resolve : appelle le service et met la ligne à jour sur place, sans recharger', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN', actionTaken: null, availableActions: ['RESOLVE', 'DISMISS'] }, { id: 'r2', status: 'OPEN' }], totalElements: 2, totalPages: 1, number: 0, size: 20 })
+    svc.resolve.mockResolvedValue({ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE' })
     const r = useReports()
-    await r.resolve('r1', 'WARN', 'avertissement')
-    expect(svc.resolve).toHaveBeenCalledWith('r1', 'WARN', 'avertissement')
-    expect(svc.list).toHaveBeenCalled()
+    await r.fetchReports()
+    svc.list.mockClear()
+    const ok = await r.resolve('r1', 'RESOLVE', '')
+    expect(ok).toBe(true)
+    expect(svc.resolve).toHaveBeenCalledWith('r1', 'RESOLVE', '')
+    expect(svc.list).not.toHaveBeenCalled()
+    expect(r.reports.value[0]).toMatchObject({ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE', availableActions: [] })
+    expect(r.reports.value[1]).toMatchObject({ id: 'r2', status: 'OPEN' })
+    expect(r.lastResolved.value).toMatchObject({ id: 'r1', status: 'RESOLVED' })
+    expect(r.resolveError.value).toBeNull()
+  })
+
+  it('resolve : réponse sans corps exploitable, on retombe sur l’action envoyée', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN', actionTaken: null }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    svc.resolve.mockResolvedValue(undefined)
+    const r = useReports()
+    await r.fetchReports()
+    await r.resolve('r1', 'DISMISS', '')
+    expect(r.reports.value[0]).toMatchObject({ status: 'DISMISSED', actionTaken: 'DISMISS', availableActions: [] })
+  })
+
+  it('resolve 403 : detail affiché, ligne inchangée', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    svc.resolve.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { statusCode: 403, data: { status: 403, detail: 'Permission USER_SUSPEND requise' } }))
+    const r = useReports()
+    await r.fetchReports()
+    const ok = await r.resolve('r1', 'SUSPEND_AUTHOR', 'menaces')
+    expect(ok).toBe(false)
+    expect(r.resolveError.value).toBe('Permission USER_SUSPEND requise')
+    expect(r.reports.value[0].status).toBe('OPEN')
+  })
+
+  it('resolve 403 sans detail : message français', async () => {
+    svc.resolve.mockRejectedValue(Object.assign(new Error('403 Forbidden'), { statusCode: 403, data: {} }))
+    const r = useReports()
+    await r.resolve('r1', 'DELETE_MESSAGE', 'x')
+    expect(r.resolveError.value).toBe('Vous n’avez pas la permission d’appliquer cette action.')
+  })
+
+  it('resolve 422 report-target-unresolvable : detail du back, ou message français à défaut', async () => {
+    svc.resolve.mockRejectedValueOnce(Object.assign(new Error('422'), { statusCode: 422, data: { code: 'report-target-unresolvable', detail: 'Message introuvable' } }))
+    const r = useReports()
+    await r.resolve('r1', 'DELETE_MESSAGE', 'x')
+    expect(r.resolveError.value).toBe('Message introuvable')
+    svc.resolve.mockRejectedValueOnce(Object.assign(new Error('422 Unprocessable Entity'), { statusCode: 422, data: { code: 'report-target-unresolvable' } }))
+    await r.resolve('r1', 'DELETE_MESSAGE', 'x')
+    expect(r.resolveError.value).toBe('La cible de ce signalement est introuvable : elle a peut-être déjà été supprimée.')
+  })
+
+  it('ancien back qui refuse RESOLVE : detail affiché, pas d’exception', async () => {
+    svc.resolve.mockRejectedValue(Object.assign(new Error('400 Bad Request'), { statusCode: 400, data: { detail: 'Corps de requête illisible' } }))
+    const r = useReports()
+    await expect(r.resolve('r1', 'RESOLVE', '')).resolves.toBe(false)
+    expect(r.resolveError.value).toBe('Corps de requête illisible')
+  })
+
+  it('un rechargement efface le message du dernier traitement', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    svc.resolve.mockResolvedValue({ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE' })
+    const r = useReports()
+    await r.fetchReports()
+    await r.resolve('r1', 'RESOLVE', '')
+    expect(r.lastResolved.value).not.toBeNull()
+    await r.setStatusFilter('RESOLVED')
+    expect(r.lastResolved.value).toBeNull()
+  })
+
+  it('clearResolveFeedback efface erreur et succès', async () => {
+    svc.resolve.mockRejectedValue(new Error('boom'))
+    const r = useReports()
+    await r.resolve('r1', 'RESOLVE', '')
+    expect(r.resolveError.value).toBe('boom')
+    r.clearResolveFeedback()
+    expect(r.resolveError.value).toBeNull()
+    expect(r.lastResolved.value).toBeNull()
   })
 
   it('captures errors', async () => {

@@ -2,8 +2,26 @@ import { computed, reactive, ref } from 'vue'
 import { reportsService } from '@/features/signalements/services/reportsService'
 import type { AdminReport, BulkRestoreResult, ReportAction, ReportsFilterState, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import { isEndpointMissing } from '@/lib/endpointMissing'
+import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { reasonViolationMessage } from '@/lib/restoreReason'
+
+/**
+ * Message d'un refus de traitement : le `detail` du back d'abord (il nomme la permission ou
+ * la cible manquante), sinon un message français selon le statut ou le slug.
+ */
+function resolveErrorMessage(e: unknown): string {
+  const err = e as { statusCode?: number; status?: number } | undefined
+  const status = err?.statusCode ?? err?.status
+  let fallback = 'Impossible de traiter ce signalement'
+  if (status === 403) fallback = 'Vous n’avez pas la permission d’appliquer cette action.'
+  else if (problemCode(e) === 'report-target-unresolvable') {
+    fallback = 'La cible de ce signalement est introuvable : elle a peut-être déjà été supprimée.'
+  }
+  const data = (e as { data?: { detail?: unknown } } | undefined)?.data
+  if (typeof data?.detail === 'string' && data.detail.trim()) return data.detail
+  // Sans `detail`, le message technique d'ofetch (« 403 Forbidden ») ne vaut pas le repli.
+  return status === 403 || problemCode(e) ? fallback : extractProblemMessage(e, fallback)
+}
 
 /** Plafond de POST /admin/reports/bulk-restore. */
 const BULK_RESTORE_MAX = 100
@@ -26,6 +44,10 @@ export function useReports() {
   const restoreUnavailable = ref(false)
   /** Motif refusé par la validation du back (422 `violations`) : affiché dans le dialogue. */
   const reasonError = ref<string | null>(null)
+  /** Refus du traitement (403, 422, ancien back) : affiché dans le dialogue, qui reste ouvert. */
+  const resolveError = ref<string | null>(null)
+  /** Dernier signalement traité : alimente le message de confirmation de la page. */
+  const lastResolved = ref<AdminReport | null>(null)
 
   // ---- Sélection (modèle Gmail) ----
   // `selectedIds` : les lignes cochées sur la page courante. `allResultsSelected` :
@@ -64,6 +86,8 @@ export function useReports() {
   async function fetchReports() {
     isLoading.value = true
     error.value = null
+    // Tout rechargement (filtre, page, suppression) rend le message « Signalement traité » périmé.
+    lastResolved.value = null
     try {
       const page = await reportsService.list(filters, currentPage.value, pageSize.value)
       deletedFilterUnsupported.value = Boolean(filters.deleted) && page.content.length > 0
@@ -94,9 +118,41 @@ export function useReports() {
     await fetchReports()
   }
   async function setDeletedFilter(d: boolean) { filters.deleted = d; currentPage.value = 0; clearSelection(); await fetchReports() }
-  async function resolve(id: string, action: ReportAction, note: string) {
-    await reportsService.resolve(id, action, note)
-    await fetchReports()
+
+  function clearResolveFeedback() {
+    resolveError.value = null
+    lastResolved.value = null
+  }
+
+  /**
+   * Traite un signalement et met SA ligne à jour sur place (statut, action prise) plutôt que
+   * de recharger : sous « Ouverts », la ligne reste visible jusqu'au prochain chargement,
+   * ce qui montre le résultat. Rend false sur refus, sans jamais lever.
+   */
+  async function resolve(id: string, action: ReportAction | string, note: string): Promise<boolean> {
+    resolveError.value = null
+    lastResolved.value = null
+    let updated: AdminReport | undefined
+    try {
+      updated = await reportsService.resolve(id, action, note)
+    } catch (e) {
+      resolveError.value = resolveErrorMessage(e)
+      return false
+    }
+    const current = reports.value.find((x) => x.id === id)
+    // Une réponse vide (204, ancien mock) ne doit pas effacer la ligne : repli sur l'action envoyée.
+    const response: Partial<AdminReport> = updated ?? {}
+    const merged = {
+      ...current,
+      status: action === 'DISMISS' ? 'DISMISSED' : 'RESOLVED',
+      actionTaken: action,
+      ...response,
+      // Déjà traité : plus rien à proposer, même si la réponse omet le champ.
+      availableActions: [],
+    } as AdminReport
+    reports.value = reports.value.map((x) => (x.id === id ? merged : x))
+    lastResolved.value = merged
+    return true
   }
 
   /** Supprime un signalement, puis recharge la page. */
@@ -167,6 +223,7 @@ export function useReports() {
     reports, isLoading, error, totalPages, totalElements, currentPage, pageSize, filters,
     selectedIds, allResultsSelected, selectedCount, pageFullySelected, canSelectAllResults,
     fetchReports, goToPage, setStatusFilter, setTargetTypeFilter, setQuery, resolve,
+    resolveError, lastResolved, clearResolveFeedback,
     toggleSelect, togglePage, selectAllResults, clearSelection, deleteOne, deleteSelected,
   }
 }

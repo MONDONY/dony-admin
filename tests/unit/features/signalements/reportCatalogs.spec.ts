@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
-import { actionsFor } from '@/features/signalements/reportActions'
+import { legacyActionsFor } from '@/features/signalements/reportActions'
 import type { AdminPermission } from '@/stores/auth'
-import { REPORT_TARGET_TYPE_LABELS, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
+import {
+  REPORT_TARGET_TYPE_LABELS,
+  reportActionConsequence,
+  reportActionHelp,
+  reportActionLabel,
+  reportActionTakenLabel,
+  reportTargetTypeLabel,
+} from '@/features/signalements/reportActionLabels'
 
 describe('reportReasonLabel', () => {
   it('maps a known catalogue value to its French label', () => {
@@ -18,34 +25,6 @@ describe('reportReasonLabel', () => {
   })
 })
 
-describe('actionsFor', () => {
-  const allPermissions = new Set<AdminPermission>(['USER_SUSPEND', 'CONTENT_REMOVE'])
-  const noPermissions = new Set<AdminPermission>()
-
-  it('USER target with full permissions offers DISMISS, WARN, SUSPEND_TARGET', () => {
-    expect(actionsFor('USER', allPermissions)).toEqual(['DISMISS', 'WARN', 'SUSPEND_TARGET'])
-  })
-
-  it('USER target without USER_SUSPEND hides SUSPEND_TARGET', () => {
-    expect(actionsFor('USER', noPermissions)).toEqual(['DISMISS', 'WARN'])
-  })
-
-  it('ANNOUNCEMENT target with full permissions offers DISMISS, REMOVE_CONTENT', () => {
-    expect(actionsFor('ANNOUNCEMENT', allPermissions)).toEqual(['DISMISS', 'REMOVE_CONTENT'])
-  })
-
-  it('ANNOUNCEMENT target without CONTENT_REMOVE (SUPPORT) only offers DISMISS', () => {
-    expect(actionsFor('ANNOUNCEMENT', noPermissions)).toEqual(['DISMISS'])
-  })
-
-  it('BID/MESSAGE/RATING/APP targets only offer DISMISS — no delegated action exists yet', () => {
-    expect(actionsFor('BID', allPermissions)).toEqual(['DISMISS'])
-    expect(actionsFor('MESSAGE', allPermissions)).toEqual(['DISMISS'])
-    expect(actionsFor('RATING', allPermissions)).toEqual(['DISMISS'])
-    expect(actionsFor('APP', allPermissions)).toEqual(['DISMISS'])
-  })
-})
-
 describe('types de cible', () => {
   it('PACKAGE_REQUEST est libellé « Demande d\'envoi »', () => {
     expect(REPORT_TARGET_TYPE_LABELS.PACKAGE_REQUEST).toBe('Demande d\'envoi')
@@ -55,6 +34,70 @@ describe('types de cible', () => {
     expect(reportTargetTypeLabel('SOMETHING')).toBe('SOMETHING')
   })
   it('PACKAGE_REQUEST : seul le rejet se fait depuis le signalement, le retrait passe par la fiche', () => {
-    expect(actionsFor('PACKAGE_REQUEST', new Set<AdminPermission>(['CONTENT_REMOVE']))).toEqual(['DISMISS'])
+    expect(legacyActionsFor('PACKAGE_REQUEST', new Set<AdminPermission>(['CONTENT_REMOVE']))).toEqual(['RESOLVE', 'DISMISS'])
+  })
+})
+
+describe('libellés des actions', () => {
+  it('libellés français des nouvelles actions', () => {
+    expect(reportActionLabel('RESOLVE')).toBe('Marquer comme traité')
+    expect(reportActionLabel('DELETE_MESSAGE')).toBe('Supprimer le message')
+    expect(reportActionLabel('EXCLUDE_RATING')).toBe('Exclure l’avis de la note')
+    expect(reportActionLabel('DELETE_RATING')).toBe('Supprimer l’avis')
+    expect(reportActionLabel('WARN_AUTHOR')).toBe('Avertir l’auteur')
+    expect(reportActionLabel('SUSPEND_AUTHOR')).toBe('Suspendre l’auteur')
+    expect(reportActionLabel('DISMISS')).toBe('Rejeter le signalement')
+  })
+
+  it('avec targetAuthor : le nom remplace « l’auteur »', () => {
+    const author = { userId: 'u1', name: 'Awa D.' }
+    expect(reportActionLabel('WARN_AUTHOR', author)).toBe('Avertir Awa D.')
+    expect(reportActionLabel('SUSPEND_AUTHOR', author)).toBe('Suspendre Awa D.')
+    expect(reportActionLabel('RESOLVE', author)).toBe('Marquer comme traité')
+  })
+
+  it('auteur sans nom : libellé générique', () => {
+    expect(reportActionLabel('WARN_AUTHOR', { userId: 'u1', name: null })).toBe('Avertir l’auteur')
+    expect(reportActionLabel('SUSPEND_AUTHOR', { userId: 'u1', name: '  ' })).toBe('Suspendre l’auteur')
+  })
+
+  it('action inconnue affichée brute', () => {
+    expect(reportActionLabel('FUTURE_ACTION')).toBe('FUTURE_ACTION')
+    expect(reportActionTakenLabel('FUTURE_ACTION')).toBe('FUTURE_ACTION')
+  })
+
+  it('aide de « Marquer comme traité » : bug corrigé pour une cible APP', () => {
+    expect(reportActionHelp('RESOLVE', 'APP')).toBe('Bug corrigé ou pris en compte')
+    expect(reportActionHelp('RESOLVE', 'MESSAGE')).not.toBe('Bug corrigé ou pris en compte')
+    expect(reportActionHelp('RESOLVE', 'MESSAGE')).toBeTruthy()
+  })
+
+  it('chaque action connue a une aide, une action inconnue n’en a pas', () => {
+    for (const a of ['DISMISS', 'WARN', 'SUSPEND_TARGET', 'REMOVE_CONTENT', 'DELETE_MESSAGE', 'EXCLUDE_RATING', 'DELETE_RATING', 'WARN_AUTHOR', 'SUSPEND_AUTHOR']) {
+      expect(reportActionHelp(a, 'USER')).toBeTruthy()
+    }
+    expect(reportActionHelp('FUTURE_ACTION', 'USER')).toBeNull()
+  })
+
+  it('action prise : libellé au passé', () => {
+    expect(reportActionTakenLabel('RESOLVE')).toBe('Marqué comme traité')
+    expect(reportActionTakenLabel('DELETE_MESSAGE')).toBe('Message supprimé')
+    expect(reportActionTakenLabel('SUSPEND_AUTHOR')).toBe('Auteur suspendu')
+    expect(reportActionTakenLabel('EXCLUDE_RATING')).toBe('Avis exclu de la note')
+  })
+
+  it('conséquence explicite des actions à confirmation renforcée', () => {
+    expect(reportActionConsequence('SUSPEND_AUTHOR', { userId: 'u1', name: 'Awa D.' })).toContain('Awa D.')
+    expect(reportActionConsequence('SUSPEND_AUTHOR')).toContain('l’auteur')
+    expect(reportActionConsequence('SUSPEND_TARGET')).toContain('suspendu')
+    expect(reportActionConsequence('DELETE_MESSAGE')).toContain('message')
+    expect(reportActionConsequence('DELETE_RATING')).toContain('note moyenne')
+    expect(reportActionConsequence('RESOLVE')).toBeNull()
+  })
+
+  it('aucun libellé ne contient de tiret cadratin', () => {
+    const actions = ['RESOLVE', 'DISMISS', 'WARN', 'SUSPEND_TARGET', 'REMOVE_CONTENT', 'DELETE_MESSAGE', 'EXCLUDE_RATING', 'DELETE_RATING', 'WARN_AUTHOR', 'SUSPEND_AUTHOR']
+    const texts = actions.flatMap((a) => [reportActionLabel(a), reportActionTakenLabel(a), reportActionHelp(a, 'APP') ?? '', reportActionConsequence(a) ?? ''])
+    for (const t of texts) expect(t).not.toContain('—')
   })
 })
