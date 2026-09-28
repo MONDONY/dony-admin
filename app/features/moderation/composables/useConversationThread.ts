@@ -2,12 +2,16 @@ import { ref } from 'vue'
 import { moderationService } from '@/features/moderation/services/moderationService'
 import type { AdminMessage } from '@/features/moderation/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { isEndpointMissing } from '@/lib/endpointMissing'
 
 export function useConversationThread() {
   const activeId = ref<string | null>(null)
   const messages = ref<AdminMessage[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  /** Messages dont la restauration a répondu 404/405 sans code : bouton masqué pour eux. */
+  const restoreUnavailableIds = ref<string[]>([])
+  const restoreError = ref<string | null>(null)
 
   async function load() {
     if (!activeId.value) return
@@ -31,6 +35,8 @@ export function useConversationThread() {
     activeId.value = null
     messages.value = []
     error.value = null
+    restoreUnavailableIds.value = []
+    restoreError.value = null
   }
 
   async function deleteMessage(id: string) {
@@ -39,5 +45,26 @@ export function useConversationThread() {
     await load()
   }
 
-  return { activeId, messages, isLoading, error, open, close, deleteMessage }
+  /** Rend true si le message est restauré (puis la conversation relue). */
+  async function restoreMessage(id: string, reason: string): Promise<boolean> {
+    if (!activeId.value) return false
+    restoreError.value = null
+    try {
+      await moderationService.restoreMessage(activeId.value, id, reason)
+    } catch (e) {
+      if (isEndpointMissing(e)) {
+        if (!restoreUnavailableIds.value.includes(id)) restoreUnavailableIds.value = [...restoreUnavailableIds.value, id]
+      } else {
+        restoreError.value = extractProblemMessage(e, 'Impossible de restaurer ce message')
+      }
+      return false
+    }
+    await load()
+    return true
+  }
+
+  return {
+    activeId, messages, isLoading, error, restoreUnavailableIds, restoreError,
+    open, close, deleteMessage, restoreMessage,
+  }
 }

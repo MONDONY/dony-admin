@@ -4,6 +4,7 @@ import ConversationsTable from '@/features/moderation/components/ConversationsTa
 import MessageThread from '@/features/moderation/components/MessageThread.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
+import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { useConversations } from '@/features/moderation/composables/useConversations'
 import { useConversationThread } from '@/features/moderation/composables/useConversationThread'
 
@@ -16,6 +17,16 @@ const pendingDeleteId = ref<string | null>(null)
 async function confirmDelete() {
   if (pendingDeleteId.value) await thread.deleteMessage(pendingDeleteId.value)
   pendingDeleteId.value = null
+}
+
+const pendingRestoreId = ref<string | null>(null)
+const restoreBusy = ref(false)
+async function confirmRestore(reason: string) {
+  if (!pendingRestoreId.value) return
+  restoreBusy.value = true
+  await thread.restoreMessage(pendingRestoreId.value, reason)
+  restoreBusy.value = false
+  pendingRestoreId.value = null
 }
 
 onMounted(fetchConversations)
@@ -54,9 +65,15 @@ onMounted(fetchConversations)
           >Fermer</button>
         </div>
         <div class="flex-1 overflow-y-auto p-4">
+          <p
+            v-if="thread.restoreError.value" data-test="thread-restore-error" role="alert"
+            class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
+          >{{ thread.restoreError.value }}</p>
           <MessageThread
             :messages="thread.messages.value" :loading="thread.isLoading.value"
+            :restore-unavailable-ids="thread.restoreUnavailableIds.value"
             @delete="(id) => pendingDeleteId = id"
+            @restore="(id) => pendingRestoreId = id"
           />
         </div>
       </div>
@@ -70,6 +87,16 @@ onMounted(fetchConversations)
       :require-reason="true"
       @confirm="confirmDelete"
       @cancel="pendingDeleteId = null"
+    />
+
+    <RestoreReasonDialog
+      :open="pendingRestoreId !== null"
+      title="Restaurer le message"
+      message="Le message redevient visible pour les deux participants de la conversation."
+      confirm-label="Restaurer"
+      :busy="restoreBusy"
+      @confirm="confirmRestore"
+      @cancel="pendingRestoreId = null"
     />
   </div>
 </template>

@@ -16,6 +16,9 @@ export interface AdminMessage {
   content: string
   flagged: boolean
   deleted: boolean
+  /** Nouveau back (NON_NULL) : date de suppression, et `true` si un admin l'a supprimé. */
+  deletedAt?: string | null
+  deletedByAdmin?: boolean
   createdAt: string
 }
 
