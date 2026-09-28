@@ -30,3 +30,19 @@ test('overview shows KPIs, per-currency volumes and action queues', async ({ pag
   await expect(page.locator('[data-test="volume-commission-XOF"]')).toHaveText(/1.800,00 XOF/)
   await expect(page.locator('[data-test="volume-row-XOF"]')).not.toContainText('€')
 })
+
+test('carte Versements retenus : absente sur un ancien back, présente et cliquable sinon', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('[data-test="queue-disputes"]')).toBeVisible()
+  await expect(page.locator('[data-test="queue-heldPayouts"]')).toHaveCount(0)
+
+  await page.route('**/api/v1/admin/metrics/overview', (route) => route.fulfill({ json: { ...OVERVIEW, queues: { ...OVERVIEW.queues, heldPayouts: 4 } } }))
+  await page.route('**/api/v1/admin/payments**', (route) => route.fulfill({ json: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 } }))
+  await page.reload()
+  const card = page.locator('[data-test="queue-heldPayouts"]')
+  await expect(card).toContainText('Versements retenus')
+  await expect(card).toContainText('4')
+  await card.click()
+  await expect(page).toHaveURL(/\/transactions\?held=true/)
+  await expect(page.locator('[data-test="chip-held"]')).toHaveAttribute('aria-pressed', 'true')
+})

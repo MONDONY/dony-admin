@@ -24,7 +24,9 @@ definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle
 type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions' | 'wallet-refunds'
 
 const tab = ref<Tab>('payments')
-const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange } = usePayments()
+const route = useRoute()
+const router = useRouter()
+const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, heldFilterUnsupported } = usePayments()
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
@@ -158,13 +160,25 @@ async function switchTab(t: Tab) {
 function openWalletOwner(userId: string) {
   return navigateTo({ path: '/users', query: { query: userId, open: userId } })
 }
+// ?held=true (carte de la vue d'ensemble, fiche utilisateur) : le filtre « Versements
+// retenus » est le seul porté par l'URL, pour que ces liens restent partageables.
+async function onHeldFilter(h: boolean) {
+  const query = { ...(route.query ?? {}) }
+  if (h) query.held = 'true'
+  else delete query.held
+  await router.replace({ query })
+  await setHeldFilter(h)
+}
 async function afterAction() { await fetchPayments() }
 async function onAction(fn: () => Promise<boolean>) {
   await fn()
   await afterAction()
 }
 
-onMounted(fetchPayments)
+onMounted(async () => {
+  if (route.query?.held === 'true') filters.held = true
+  await fetchPayments()
+})
 </script>
 
 <template>
@@ -190,21 +204,30 @@ onMounted(fetchPayments)
         :model-currency="filters.currency"
         :model-date-from="filters.dateFrom"
         :model-date-to="filters.dateTo"
+        :model-held="filters.held"
+        @update:held="onHeldFilter"
         @update:status="setStatusFilter"
         @update:method="setMethodFilter"
         @update:currency="setCurrencyFilter"
         @update:date-range="(from, to) => setDateRange(from, to)"
       />
+      <p
+        v-if="heldFilterUnsupported" data-test="held-filter-unsupported"
+        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+      >Le serveur ne sait pas encore isoler les versements retenus : ce filtre sera disponible après sa mise à jour.</p>
       <PaymentsTable :payments="payments" :loading="isLoading" @select="detail.open" />
       <div class="mt-4"><PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" /></div>
       <PaymentDetailPanel
         v-if="detail.payment.value"
         :payment="detail.payment.value" :open="detail.payment.value !== null"
         :error="detail.error.value" :busy="detail.busy.value"
+        :override-request="detail.overrideRequest.value"
+        :override-error="detail.overrideError.value"
         @close="detail.close"
-        @force-release="onAction(detail.forceRelease)"
+        @force-release="(o) => onAction(() => detail.forceRelease(o))"
         @refund="onAction(detail.refund)"
-        @retry-payout="onAction(detail.retryPayout)"
+        @retry-payout="(o) => onAction(() => detail.retryPayout(o))"
+        @override-dismiss="detail.dismissOverride"
         @retry-refund="onAction(detail.retryRefund)"
       />
     </template>

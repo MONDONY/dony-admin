@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { paymentStatusMeta } from './paymentStatus'
-import { formatMoney, paymentMethodLabel } from '@/features/payments/types/index'
+import { formatMoney, isPaymentHeld, paymentMethodLabel } from '@/features/payments/types/index'
 import type { AdminPaymentListItem } from '@/features/payments/types/index'
 
 defineProps<{ payments: AdminPaymentListItem[]; loading: boolean }>()
@@ -19,7 +19,12 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
       <tbody>
         <tr v-for="p in payments" :key="p.id" :data-test="`payment-row-${p.id}`" class="border-b border-border hover:bg-surface-elevated cursor-pointer" @click="emit('select', p.id)">
           <td class="px-4 py-3 text-sm font-medium">{{ p.bidId ?? '—' }}</td>
-          <td class="px-4 py-3"><StatusBadge v-bind="paymentStatusMeta(p.status)" /></td>
+          <td class="px-4 py-3">
+            <div class="flex flex-wrap items-center gap-1">
+              <StatusBadge v-bind="paymentStatusMeta(p.status)" />
+              <StatusBadge v-if="isPaymentHeld(p)" :data-test="`payment-held-${p.id}`" label="Versement retenu" tone="danger" />
+            </div>
+          </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ paymentMethodLabel(p.method) }}</td>
           <td class="px-4 py-3 text-sm tabular-nums" :data-test="`payment-amount-${p.id}`">{{ formatMoney(p.amountCents, p.currency) }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ formatMoney(p.commissionCents, p.currency) }}</td>
