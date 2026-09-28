@@ -157,4 +157,27 @@ describe('NoShowDetailPanel', () => {
     expect(w.find('[data-test="noshow-success"]').exists()).toBe(false)
     w.unmount()
   })
+
+  it('décision prise : libellé, date et motif interne', () => {
+    const { w } = mountPanel(noShow({ status: 'RESOLVED', adminDecision: 'REJECTED', decidedAt: '2026-09-28T10:00:00Z', decisionReason: 'Remise bien faite, photo à l’appui', canConfirm: false, canReject: false, remainingMinutes: null }))
+    expect(w.text()).toContain('Rejetée')
+    expect(w.find('[data-test="noshow-decision"]').text()).toContain('Décision : Rejetée le 28 sept. à 12:00')
+    expect(w.find('[data-test="noshow-decision-reason"]').text()).toContain('Remise bien faite, photo à l’appui')
+    expect(w.find('[data-test="noshow-decision"]').text()).toMatch(/non transmis aux parties/)
+    w.unmount()
+  })
+
+  it('espèces sans montant : commission affichée', () => {
+    const { w } = mountPanel(noShow({ amount: null, paymentStatus: 'CHARGED', commissionStatus: 'CHARGED' }))
+    expect(w.find('[data-test="noshow-fact-amount"]').text()).toContain('Espèces · commission prélevée')
+    expect(w.find('[data-test="noshow-fact-payment"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('confirmé à l’arrivée sans litige encore créé : « Un litige va être ouvert », sans lien', () => {
+    const { w } = mountPanel(noShow({ scope: 'DELIVERY', status: 'CONFIRMED', adminDecision: 'CONFIRMED', dispute: null, canConfirm: false, canReject: false }))
+    expect(w.find('[data-test="noshow-dispute-pending"]').text()).toContain('Un litige va être ouvert')
+    expect(w.find('[data-test="noshow-dispute-link"]').exists()).toBe(false)
+    w.unmount()
+  })
 })

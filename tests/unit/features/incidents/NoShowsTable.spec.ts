@@ -53,6 +53,10 @@ describe('NoShowsTable', () => {
     expect(text).not.toContain('Départ')
   })
 
+  it('déclaration rejetée : « Rejetée »', () => {
+    expect(mountTable([noShow({ status: 'RESOLVED', adminDecision: 'REJECTED', remainingMinutes: null })]).text()).toContain('Rejetée')
+  })
+
   it('chargement et liste vide', () => {
     expect(mountTable([], true).text()).toContain('Chargement…')
     expect(mountTable([]).text()).toMatch(/Aucune déclaration/)

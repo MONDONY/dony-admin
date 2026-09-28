@@ -4,7 +4,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import NoShowDecisionDialog from './NoShowDecisionDialog.vue'
 import type { AdminNoShow, NoShowDecideFn, NoShowDecision, NoShowParty } from '@/features/incidents/types/index'
 import {
-  amountLabel, bidStatusLabel, disputeHref, disputeLinkLabel, formatDateTime, noShowSentence, noShowStatusMeta, noShowTitle,
+  amountLabel, bidStatusLabel, decisionSummary, disputeHref, disputePending, disputeLinkLabel, formatDateTime, noShowSentence, noShowStatusMeta, noShowTitle,
   partyLabel, partyRoleLabel, paymentStatusLabel, remainingMeta, scopeMeta, shortId, tripLabel,
 } from './noShowLabels'
 import { useAuthStore } from '@/stores/auth'
@@ -39,7 +39,8 @@ const facts = computed(() => {
     { key: 'trip', label: 'Trajet', value: tripLabel(r.trip) },
     { key: 'handover', label: 'Remise prévue', value: formatDateTime(r.handoverAt) },
     { key: 'amount', label: 'Montant et paiement', value: amountLabel(r) },
-    { key: 'payment', label: 'État du paiement', value: paymentStatusLabel(r.paymentStatus) },
+    // Remise en espèces : le back place l'état de la commission dans paymentStatus, déjà dit par le montant.
+    { key: 'payment', label: 'État du paiement', value: r.commissionStatus && r.paymentStatus === r.commissionStatus ? null : paymentStatusLabel(r.paymentStatus) },
     { key: 'bid', label: 'Statut du colis', value: bidStatusLabel(r.bidStatus) },
   ].filter((f) => !!f.value)
 })
@@ -71,7 +72,7 @@ function onEscape() { if (!pending.value) emit('close') }
     >
       <div class="mb-2 flex flex-wrap items-center gap-2">
         <StatusBadge v-if="row.scope" v-bind="scopeMeta(row.scope)" />
-        <StatusBadge v-bind="noShowStatusMeta(row.status)" />
+        <StatusBadge v-bind="noShowStatusMeta(row.status, row.adminDecision)" />
       </div>
       <h2 id="noshow-panel-title" class="font-display text-xl font-bold text-balance">{{ noShowTitle(row) }}</h2>
       <p v-if="row.legacy" class="mt-1 text-sm text-text-muted text-pretty">{{ noShowSentence(row) }}</p>
@@ -84,6 +85,17 @@ function onEscape() { if (!pending.value) emit('close') }
         v-if="success" data-test="noshow-success" role="status"
         class="mt-4 rounded-xs border border-success/40 bg-success/10 px-3 py-2 text-sm text-success text-pretty"
       >{{ success }}</p>
+
+      <div
+        v-if="decisionSummary(row)" data-test="noshow-decision"
+        class="mt-4 rounded-xs bg-surface-elevated px-3 py-2.5 text-sm"
+      >
+        <p class="font-medium">Décision : {{ decisionSummary(row) }}</p>
+        <p v-if="row.decisionReason" class="mt-1 text-text-muted text-pretty">
+          <span class="text-xs">Motif interne, non transmis aux parties :</span>
+          <span data-test="noshow-decision-reason" class="block text-text">{{ row.decisionReason }}</span>
+        </p>
+      </div>
 
       <dl class="mt-5 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div v-for="f in facts" :key="f.key" :data-test="`noshow-fact-${f.key}`">
@@ -114,6 +126,10 @@ function onEscape() { if (!pending.value) emit('close') }
           v-if="row.dispute" :to="disputeHref(row.dispute)" data-test="noshow-dispute-link"
           class="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/25"
         >{{ disputeLinkLabel(row.dispute) }} : l’ouvrir</NuxtLink>
+        <span
+          v-else-if="disputePending(row)" data-test="noshow-dispute-pending"
+          class="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning"
+        >Un litige va être ouvert</span>
       </section>
 
       <div class="mt-auto flex flex-wrap gap-2 pt-8">

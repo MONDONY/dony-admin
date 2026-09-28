@@ -8,7 +8,7 @@ import NoShowDetailPanel from '@/features/incidents/components/NoShowDetailPanel
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { useDisputes } from '@/features/incidents/composables/useDisputes'
 import { useDisputeDetail } from '@/features/incidents/composables/useDisputeDetail'
-import { useNoShows } from '@/features/incidents/composables/useNoShows'
+import { useNoShows, DISPUTE_REFRESH_MS } from '@/features/incidents/composables/useNoShows'
 import type { AdminNoShow, NoShowDecision } from '@/features/incidents/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'DISPUTE_VIEW', pageTitle: 'Incidents', pageSubtitle: 'Litiges & no-shows' })
@@ -80,8 +80,10 @@ function closeDispute() {
 async function decideNoShow(decision: NoShowDecision, reason: string) {
   const row = noshows.selected.value!
   const res = await noshows.decide(row, decision, reason)
-  // Confirmer à l'arrivée ouvre un litige : la liste des litiges doit le montrer.
-  if (res.ok && decision === 'confirm' && row.scope === 'DELIVERY') await fetchDisputes()
+  // Confirmer à l'arrivée ouvre un litige : la liste des litiges doit le montrer. Créé juste
+  // après la réponse (`disputePending`), il n'est relu qu'un peu plus tard.
+  if (res.ok && res.disputePending) setTimeout(() => { void fetchDisputes() }, DISPUTE_REFRESH_MS)
+  else if (res.ok && decision === 'confirm' && row.scope === 'DELIVERY') await fetchDisputes()
   return res
 }
 

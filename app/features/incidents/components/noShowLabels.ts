@@ -1,4 +1,4 @@
-import type { AdminNoShow, NoShowDecision, NoShowParty, NoShowPartyRole, NoShowScope, NoShowStatus, NoShowTrip } from '@/features/incidents/types/index'
+import type { AdminNoShow, NoShowAdminDecision, NoShowDecision, NoShowParty, NoShowPartyRole, NoShowScope, NoShowStatus, NoShowTrip } from '@/features/incidents/types/index'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import { paymentMethodsLabel } from '@/features/package-requests/labels'
 import { paymentStatusMeta } from '@/features/payments/components/paymentStatus'
@@ -51,8 +51,40 @@ const STATUS: Record<NoShowStatus, { label: string; tone: Tone }> = {
   CONFIRMED: { label: 'Absence confirmée', tone: 'neutral' },
   RESOLVED: { label: 'Résolu', tone: 'success' },
 }
-export function noShowStatusMeta(status: NoShowStatus): { label: string; tone: Tone } {
+const DECISION: Record<NoShowAdminDecision, { label: string; tone: Tone }> = {
+  CONFIRMED: { label: 'Absence confirmée', tone: 'neutral' },
+  REJECTED: { label: 'Rejetée', tone: 'neutral' },
+}
+/** La décision d'un administrateur prime : un rejet a status=RESOLVED, qu'on ne confond pas avec un litige résolu. */
+export function noShowStatusMeta(status: NoShowStatus, adminDecision?: NoShowAdminDecision | null): { label: string; tone: Tone } {
+  if (adminDecision && DECISION[adminDecision]) return DECISION[adminDecision]
   return STATUS[status] ?? { label: status, tone: 'neutral' }
+}
+
+/** « Rejetée le 28 sept. à 12:00 », ou null tant qu'aucun administrateur n'a tranché. */
+export function decisionSummary(row: AdminNoShow): string | null {
+  if (!row.adminDecision) return null
+  const label = noShowStatusMeta(row.status, row.adminDecision).label
+  const at = formatDateTime(row.decidedAt)
+  return at ? `${label} le ${at}` : label
+}
+
+/** Confirmé à l'arrivée par un administrateur, le litige est créé juste après la réponse. */
+export function disputePending(row: AdminNoShow): boolean {
+  return row.scope === 'DELIVERY' && row.adminDecision === 'CONFIRMED' && !row.dispute
+}
+
+const COMMISSION: Record<string, string> = {
+  PENDING: 'commission en attente',
+  REQUIRES_3DS: 'commission en attente de validation',
+  CHARGED: 'commission prélevée',
+  FAILED: 'commission non prélevée',
+  REFUNDED: 'commission remboursée',
+  REFUND_FAILED: 'remboursement de la commission échoué',
+}
+export function commissionStatusLabel(status: string | null | undefined): string | null {
+  if (!status) return null
+  return COMMISSION[status] ?? `commission : ${status}`
 }
 
 export function disputeLinkLabel(dispute: { id: string; status: string }): string {
@@ -106,7 +138,12 @@ export function formatDateTime(iso: string | null | undefined): string | null {
 export function amountLabel(row: AdminNoShow): string | null {
   const parts: string[] = []
   if (row.amount != null) parts.push(formatMajorAmount(row.amount, row.currency))
-  if (row.paymentMethod) parts.push(paymentMethodsLabel([row.paymentMethod]))
+  // Remise en espèces sans paiement : pas de montant, le back donne l'état de la commission.
+  const cash = row.amount == null && (row.paymentMethod === 'CASH' || !!row.commissionStatus)
+  if (cash) parts.push('Espèces')
+  else if (row.paymentMethod) parts.push(paymentMethodsLabel([row.paymentMethod]))
+  const commission = row.amount == null ? commissionStatusLabel(row.commissionStatus) : null
+  if (commission) parts.push(commission)
   return parts.length ? parts.join(' · ') : null
 }
 
@@ -137,9 +174,10 @@ export function decisionEffect(row: AdminNoShow, decision: NoShowDecision): stri
   return lines
 }
 
-export function decisionSuccess(row: AdminNoShow, decision: NoShowDecision): string {
+export function decisionSuccess(row: AdminNoShow, decision: NoShowDecision, pendingDispute = false): string {
   if (row.legacy) return 'Absence confirmée.'
   if (decision === 'reject') return 'Déclaration rejetée. Le colis continue normalement et les deux parties sont prévenues.'
+  if (momentOf(row) === 'DELIVERY' && pendingDispute) return 'Absence confirmée. Un litige va être ouvert : il apparaîtra dans l’onglet Litiges.'
   if (momentOf(row) === 'DELIVERY') return 'Absence confirmée. Litige ouvert : tranchez-le dans l’onglet Litiges.'
   return 'Absence confirmée. Le colis est annulé, l’expéditeur remboursé et les deux parties sont prévenues.'
 }

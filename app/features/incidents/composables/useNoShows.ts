@@ -3,11 +3,14 @@ import { incidentsService } from '@/features/incidents/services/incidentsService
 import type {
   AdminNoShow, NoShowDecision, NoShowDecisionResult, NoShowFilters, NoShowScopeFilter, NoShowStatusFilter,
 } from '@/features/incidents/types/index'
-import { decisionSuccess } from '@/features/incidents/components/noShowLabels'
+import { decisionSuccess, disputePending } from '@/features/incidents/components/noShowLabels'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 
 const ALREADY_DECIDED = 'noshow-already-decided'
+const NOT_FOUND = 'noshow-not-found'
+/** Le litige d'une absence confirmée à l'arrivée est créé après la réponse : on relit un peu plus tard. */
+export const DISPUTE_REFRESH_MS = 1000
 
 function httpStatus(e: unknown): number | undefined {
   const err = e as { statusCode?: number; status?: number; response?: { status?: number } } | undefined
@@ -27,6 +30,7 @@ function violationsMessage(e: unknown): string | null {
 
 function decisionErrorMessage(e: unknown): string {
   if (problemCode(e) === ALREADY_DECIDED) return 'Cette déclaration a déjà été tranchée par un autre administrateur. La liste a été rechargée.'
+  if (problemCode(e) === NOT_FOUND) return 'Cette déclaration n’existe plus. La liste a été rechargée.'
   const status = httpStatus(e)
   if (status === 422) return violationsMessage(e) ?? extractProblemMessage(e, 'Le motif est invalide.')
   if (isEndpointMissing(e)) return 'Action indisponible : le serveur n’est pas encore à jour.'
@@ -54,7 +58,11 @@ export function useNoShows() {
       rows.value = res.content
       totalPages.value = res.totalPages
       currentPage.value = page
-    } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger les no-shows') } finally { isLoading.value = false }
+    } catch (e) {
+      error.value = problemCode(e) === 'invalid-noshow-filter'
+        ? 'Ce filtre n’est pas reconnu par le serveur : choisissez « Tous ».'
+        : extractProblemMessage(e, 'Impossible de charger les no-shows')
+    } finally { isLoading.value = false }
   }
   const goToPage = (page: number) => fetch(page)
   async function setStatus(s: NoShowStatusFilter) { filters.status = s; await fetch(0) }
@@ -84,6 +92,12 @@ export function useNoShows() {
     if (selected.value?.id === id) selected.value = next
   }
 
+  async function refreshAfterDispute(updated: AdminNoShow) {
+    await fetch()
+    const reread = rows.value.find((r) => r.id === updated.id)
+    if (reread) replaceSelected(updated.id, reread)
+  }
+
   async function decide(row: AdminNoShow, decision: NoShowDecision, reason: string): Promise<NoShowDecisionResult> {
     success.value = null
     if (row.legacy && decision === 'reject') {
@@ -101,13 +115,19 @@ export function useNoShows() {
           : await incidentsService.rejectNoShow(row.id, motif)
         replaceSelected(row.id, updated)
         await fetch()
+        if (disputePending(updated)) {
+          const message = decisionSuccess(row, decision, true)
+          success.value = message
+          setTimeout(() => { void refreshAfterDispute(updated) }, DISPUTE_REFRESH_MS)
+          return { ok: true, message, disputePending: true }
+        }
       }
       const message = decisionSuccess(row, decision)
       success.value = message
       return { ok: true, message }
     } catch (e) {
       const code = problemCode(e)
-      if (code === ALREADY_DECIDED) {
+      if (code === ALREADY_DECIDED || code === NOT_FOUND) {
         await fetch()
         replaceSelected(row.id, rows.value.find((r) => r.id === row.id) ?? { ...row, canConfirm: false, canReject: false })
       }

@@ -39,7 +39,7 @@ function details(r: AdminNoShow): string[] {
             class="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/25"
             @click.stop
           >{{ disputeLinkLabel(r.dispute) }}</NuxtLink>
-          <StatusBadge v-bind="noShowStatusMeta(r.status)" />
+          <StatusBadge v-bind="noShowStatusMeta(r.status, r.adminDecision)" />
           <span
             v-if="remaining(r)" :data-test="`noshow-remaining-${r.id}`"
             :class="['text-xs font-medium tabular-nums', remaining(r)!.urgent ? 'text-danger' : 'text-text-muted']"

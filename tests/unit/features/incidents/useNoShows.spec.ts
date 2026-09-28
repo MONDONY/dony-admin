@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('@/features/incidents/services/incidentsService')
 import { useNoShows } from '@/features/incidents/composables/useNoShows'
 import { incidentsService } from '@/features/incidents/services/incidentsService'
@@ -10,6 +10,7 @@ const row = (over: Partial<AdminNoShow> = {}): AdminNoShow => ({
   contestationDeadline: null, remainingMinutes: 300, createdAt: '2026-09-28T10:00:00Z',
   declarant: { role: 'TRAVELER', name: 'Awa D.' }, accused: { role: 'SENDER', name: 'Moussa K.' }, trip: null, handoverAt: null,
   amount: 45, currency: 'EUR', paymentMethod: 'CASH', paymentStatus: null, bidStatus: null, dispute: null, canConfirm: true, canReject: true,
+  commissionStatus: null, adminDecision: null, decidedAt: null, decisionReason: null,
   ...over,
 })
 const page = (content: AdminNoShow[], number = 0, totalPages = 1) => ({ content, totalElements: content.length, totalPages, number, size: 20 })
@@ -56,6 +57,13 @@ describe('useNoShows', () => {
       svc.listNoShows.mockRejectedValueOnce({})
       await n.fetch()
       expect(n.error.value).toBe('Impossible de charger les no-shows')
+    })
+
+    it('422 invalid-noshow-filter : filtre refusé par le serveur', async () => {
+      svc.listNoShows.mockRejectedValueOnce(httpError(422, { code: 'invalid-noshow-filter', detail: 'status inconnu' }))
+      const n = useNoShows()
+      await n.fetch()
+      expect(n.error.value).toMatch(/filtre n’est pas reconnu/)
     })
   })
 
@@ -112,10 +120,52 @@ describe('useNoShows', () => {
     })
 
     it('confirmer à l’arrivée : message de litige', async () => {
-      svc.confirmNoShow.mockResolvedValue(row({ scope: 'DELIVERY', status: 'CONFIRMED', dispute: { id: 'd1', status: 'OPEN' } }))
+      svc.confirmNoShow.mockResolvedValue(row({ scope: 'DELIVERY', status: 'CONFIRMED', adminDecision: 'CONFIRMED', dispute: { id: 'd1', status: 'OPEN' } }))
       const n = useNoShows()
       const res = await n.confirm(row({ scope: 'DELIVERY' }), 'Destinataire injoignable')
       expect(res.message).toMatch(/Litige ouvert/)
+      expect(res.ok).toBe(true)
+      expect(res.ok && res.disputePending).toBeFalsy()
+    })
+
+    describe('litige créé après la réponse (dispute: null)', () => {
+      beforeEach(() => { vi.useFakeTimers() })
+      afterEach(() => { vi.useRealTimers() })
+
+      it('annonce le litige, puis recharge la liste ~1 s après et reprend la ligne avec son litige', async () => {
+        const decided = row({ scope: 'DELIVERY', status: 'CONFIRMED', adminDecision: 'CONFIRMED', dispute: null, canConfirm: false, canReject: false })
+        svc.confirmNoShow.mockResolvedValue(decided)
+        svc.listNoShows.mockResolvedValueOnce(page([decided])).mockResolvedValueOnce(page([{ ...decided, dispute: { id: 'd1', status: 'OPEN' } }]))
+        const n = useNoShows()
+        n.select(row({ scope: 'DELIVERY' }))
+        const res = await n.confirm(row({ scope: 'DELIVERY' }), 'Destinataire injoignable')
+        expect(res).toMatchObject({ ok: true, disputePending: true, message: expect.stringMatching(/Un litige va être ouvert/) })
+        expect(svc.listNoShows).toHaveBeenCalledTimes(1)
+        expect(n.selected.value?.dispute).toBeNull()
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(svc.listNoShows).toHaveBeenCalledTimes(2)
+        expect(n.selected.value?.dispute).toEqual({ id: 'd1', status: 'OPEN' })
+      })
+
+      it('garde la ligne affichée si elle n’est plus listée après le rechargement', async () => {
+        const decided = row({ scope: 'DELIVERY', status: 'CONFIRMED', adminDecision: 'CONFIRMED', dispute: null })
+        svc.confirmNoShow.mockResolvedValue(decided)
+        svc.listNoShows.mockResolvedValue(page([]))
+        const n = useNoShows()
+        n.select(row({ scope: 'DELIVERY' }))
+        await n.confirm(row({ scope: 'DELIVERY' }), 'Destinataire injoignable')
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(n.selected.value).toMatchObject({ adminDecision: 'CONFIRMED', dispute: null })
+      })
+    })
+
+    it('404 noshow-not-found : message clair et liste rechargée', async () => {
+      svc.confirmNoShow.mockRejectedValue(httpError(404, { code: 'noshow-not-found', detail: 'Not found' }))
+      svc.listNoShows.mockResolvedValue(page([]))
+      const n = useNoShows()
+      const res = await n.confirm(row(), 'motif assez long')
+      expect(res).toMatchObject({ ok: false, code: 'noshow-not-found', message: expect.stringMatching(/n’existe plus/) })
+      expect(svc.listNoShows).toHaveBeenCalledTimes(1)
     })
 
     it('rejeter : appelle reject et ne touche pas une autre ligne sélectionnée', async () => {

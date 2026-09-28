@@ -34,6 +34,8 @@ export function normalizeNoShow(raw: AdminNoShowRaw): AdminNoShow {
     paymentStatus: raw.paymentStatus ?? null, bidStatus: raw.bidStatus ?? null, dispute: raw.dispute ?? null,
     canConfirm: legacy ? status === 'PENDING_CONFIRMATION' && raw.reason === 'SENDER_NO_SHOW' : raw.canConfirm === true,
     canReject: legacy ? false : raw.canReject === true,
+    commissionStatus: raw.commissionStatus ?? null, adminDecision: raw.adminDecision ?? null,
+    decidedAt: raw.decidedAt ?? null, decisionReason: raw.decisionReason ?? null,
   }
 }
 

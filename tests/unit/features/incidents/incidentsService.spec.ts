@@ -68,6 +68,14 @@ describe('incidentsService', () => {
       expect(content[3]).toMatchObject({ declarant: null, accused: null, status: 'PENDING_CONFIRMATION', canConfirm: false })
     })
 
+    it('reprend la décision de l’administrateur et le statut de commission', async () => {
+      apiMock.mockResolvedValue({ content: [{ ...raw, status: 'RESOLVED', adminDecision: 'REJECTED', decidedAt: '2026-09-28T10:00:00Z', decisionReason: 'Remise faite', commissionStatus: 'CHARGED', amount: undefined }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      const { content } = await incidentsService.listNoShows({ status: 'ALL', scope: 'ALL' }, 0, 20)
+      expect(content[0]).toMatchObject({ adminDecision: 'REJECTED', decidedAt: '2026-09-28T10:00:00Z', decisionReason: 'Remise faite', commissionStatus: 'CHARGED', amount: null })
+      apiMock.mockResolvedValue({ content: [raw], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      expect((await incidentsService.listNoShows({ status: 'ALL', scope: 'ALL' }, 0, 20)).content[0]).toMatchObject({ adminDecision: null, decidedAt: null, decisionReason: null, commissionStatus: null })
+    })
+
     it('normalise une page sans contenu', async () => {
       apiMock.mockResolvedValue({ totalElements: 0, totalPages: 0, number: 0, size: 20 })
       expect((await incidentsService.listNoShows({ status: 'ALL', scope: 'ALL' }, 0, 20)).content).toEqual([])

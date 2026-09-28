@@ -18,7 +18,7 @@ const DELIVERY = {
 }
 const page = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
 
-async function setup(p: Page, role: 'ADMIN' | 'SUPPORT', list: unknown[], onPost?: (route: Route, action: string, id: string) => Promise<void> | void) {
+async function setup(p: Page, role: 'ADMIN' | 'SUPPORT', list: unknown[], onPost?: (_route: Route, _action: string, _id: string) => Promise<void> | void) {
   await p.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, admin(role))
   await p.route('**/api/v1/admin/disputes**', (route) => route.fulfill({ json: EMPTY_DISPUTES }))
   await p.route('**/api/v1/admin/cancellations**', async (route) => {
@@ -94,15 +94,70 @@ test('confirmer au départ : effet expliqué, motif envoyé, message de succès'
   await expect(p.locator('[data-test="noshow-panel"]')).toContainText('Absence confirmée')
 })
 
-test('confirmer à l’arrivée : un litige est ouvert, lien vers le litige', async ({ page: p }) => {
-  await setup(p, 'ADMIN', [DELIVERY], (route) => route.fulfill({ json: { ...DELIVERY, status: 'CONFIRMED', canConfirm: false, canReject: false, dispute: { id: 'd1', status: 'OPEN' } } }))
+test('confirmer à l’arrivée : litige annoncé, puis lien vers le litige une fois créé', async ({ page: p }) => {
+  let decided = false
+  const after = { ...DELIVERY, status: 'CONFIRMED', adminDecision: 'CONFIRMED', decidedAt: '2026-09-28T10:05:00Z', decisionReason: 'Destinataire injoignable toute la journée', canConfirm: false, canReject: false, remainingMinutes: undefined }
+  let gets = 0
+  await setup(p, 'ADMIN', [], (route) => { decided = true; return route.fulfill({ json: { ...after, dispute: null } }) })
+  await p.route('**/api/v1/admin/cancellations?**', (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    gets++
+    // Le litige n'existe qu'au deuxième relu après la décision (créé après la réponse).
+    const content = !decided ? [DELIVERY] : gets >= 3 ? [{ ...after, dispute: { id: 'd1', status: 'OPEN' } }] : [{ ...after, dispute: null }]
+    return route.fulfill({ json: page(content) })
+  })
   await openRow(p, 'c2')
   await p.locator('[data-test="noshow-confirm"]').click()
   await expect(p.locator('[data-test="noshow-dialog"]')).toContainText('Un litige est ouvert')
   await p.locator('[data-test="noshow-dialog-reason"]').fill('Destinataire injoignable toute la journée')
   await p.locator('[data-test="noshow-dialog-submit"]').click()
-  await expect(p.locator('[data-test="noshow-success"]')).toContainText('Litige ouvert')
+  await expect(p.locator('[data-test="noshow-success"]')).toContainText('Un litige va être ouvert')
+  await expect(p.locator('[data-test="noshow-decision"]')).toContainText('Décision : Absence confirmée le 28 sept. à 12:05')
   await expect(p.locator('[data-test="noshow-dispute-link"]')).toHaveAttribute('href', /\/incidents\?tab=disputes&open=d1$/)
+  await expect(p.locator('[data-test="noshow-dispute-pending"]')).toHaveCount(0)
+})
+
+test('déclaration rejetée : « Rejetée », décision datée et motif interne', async ({ page: p }) => {
+  const REJECTED = { ...HANDOVER, status: 'RESOLVED', adminDecision: 'REJECTED', decidedAt: '2026-09-28T10:00:00Z', decisionReason: 'Remise bien faite, photo à l’appui', canConfirm: false, canReject: false, remainingMinutes: undefined }
+  await setup(p, 'ADMIN', [REJECTED])
+  await p.goto('/incidents?tab=noshows')
+  await expect(p.locator('[data-test="noshow-row-c1"]')).toContainText('Rejetée')
+  await p.locator('[data-test="noshow-row-c1"]').click()
+  await expect(p.locator('[data-test="noshow-decision"]')).toContainText('Décision : Rejetée le 28 sept. à 12:00')
+  await expect(p.locator('[data-test="noshow-decision-reason"]')).toHaveText('Remise bien faite, photo à l’appui')
+})
+
+test('espèces sans montant : « Espèces » et état de la commission', async ({ page: p }) => {
+  await setup(p, 'ADMIN', [{ ...HANDOVER, amount: undefined, paymentStatus: 'CHARGED', commissionStatus: 'CHARGED' }])
+  await p.goto('/incidents?tab=noshows')
+  await expect(p.locator('[data-test="noshow-row-c1"]')).toContainText('Espèces · commission prélevée')
+})
+
+test('404 noshow-not-found : message dans le dialogue', async ({ page: p }) => {
+  await setup(p, 'ADMIN', [HANDOVER], (route) => route.fulfill({ status: 404, contentType: 'application/problem+json', json: { status: 404, code: 'noshow-not-found', detail: 'Not found' } }))
+  await openRow(p, 'c1')
+  await p.locator('[data-test="noshow-confirm"]').click()
+  await p.locator('[data-test="noshow-dialog-reason"]').fill(REASON)
+  await p.locator('[data-test="noshow-dialog-submit"]').click()
+  await expect(p.locator('[data-test="noshow-dialog-error"]')).toContainText('n’existe plus')
+})
+
+test('cloche : le lien NOSHOW_PENDING ouvre le détail du no-show', async ({ page: p }) => {
+  await setup(p, 'ADMIN', [HANDOVER, DELIVERY])
+  const item = { id: 'n1', type: 'NOSHOW_PENDING', title: 'No-show à arbitrer', summary: 'Absence déclarée à la livraison', severity: 'WARNING', createdAt: '2026-09-28T09:00:00Z', link: '/incidents?tab=noshows&open=c2' }
+  await p.route('**/api/v1/admin/notifications/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/counters')) return route.fulfill({ json: { counts: { incidents: 1 }, unreadCount: 1 } })
+    if (path.endsWith('/feed')) return route.fulfill({ json: { items: [item], unreadCount: 1, lastSeenAt: null } })
+    return route.fulfill({ status: 204, body: '' })
+  })
+  await p.goto('/incidents')
+  // Compteurs reçus = page hydratée : un clic plus tôt n'ouvrirait pas le panneau.
+  await expect(p.locator('[data-test="notif-bell"]')).toHaveAttribute('aria-label', 'Notifications, 1 non lue')
+  await p.locator('[data-test="notif-bell"]').click()
+  await p.locator('[data-test="notif-item"]').first().click()
+  await expect(p).toHaveURL(/\/incidents\?tab=noshows&open=c2$/)
+  await expect(p.locator('[data-test="noshow-panel"]')).toContainText('Fatou S.')
 })
 
 test('rejeter la déclaration', async ({ page: p }) => {

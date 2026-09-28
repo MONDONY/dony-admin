@@ -42,6 +42,8 @@ export type NoShowScope = 'HANDOVER' | 'DELIVERY'
 export type NoShowScopeFilter = NoShowScope | 'ALL'
 export type NoShowReason = 'SENDER_NO_SHOW' | 'RECIPIENT_NO_SHOW' | 'TRAVELER_DELIVERY_NO_SHOW'
 export type NoShowPartyRole = 'SENDER' | 'TRAVELER' | 'RECIPIENT'
+/** Décision d'un administrateur ; un rejet donne status=RESOLVED. */
+export type NoShowAdminDecision = 'CONFIRMED' | 'REJECTED'
 
 export interface NoShowParty { userId?: string | null; name?: string | null; role: NoShowPartyRole }
 export interface NoShowTrip { departureCity?: string | null; arrivalCity?: string | null; departureDate?: string | null }
@@ -68,6 +70,12 @@ export interface AdminNoShowRaw {
   dispute?: { id: string; status: string } | null
   canConfirm?: boolean | null
   canReject?: boolean | null
+  /** Statut de la commission (remise en espèces), `amount` est alors nul. */
+  commissionStatus?: string | null
+  adminDecision?: NoShowAdminDecision | null
+  decidedAt?: string | null
+  /** Motif interne de l'administrateur, jamais envoyé aux parties. */
+  decisionReason?: string | null
   /** Ancien back : UUID de l'auteur et statut sous un autre nom, rien d'autre. */
   cancelledBy?: string | null
   noShowStatus?: NoShowStatus | null
@@ -95,13 +103,18 @@ export interface AdminNoShow {
   dispute: { id: string; status: string } | null
   canConfirm: boolean
   canReject: boolean
+  commissionStatus: string | null
+  adminDecision: NoShowAdminDecision | null
+  decidedAt: string | null
+  decisionReason: string | null
 }
 
 export interface AdminNoShowPageRaw { content: AdminNoShowRaw[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminNoShowPage { content: AdminNoShow[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface NoShowFilters { status: NoShowStatusFilter; scope: NoShowScopeFilter }
 export type NoShowDecision = 'confirm' | 'reject'
-export type NoShowDecisionResult = { ok: true; message: string } | { ok: false; message: string; code: string | null }
+/** `disputePending` : confirmé à l'arrivée, le litige n'existe pas encore (créé après la réponse). */
+export type NoShowDecisionResult = { ok: true; message: string; disputePending?: boolean } | { ok: false; message: string; code: string | null }
 export const NOSHOW_REASON_MIN = 10
 export const NOSHOW_REASON_MAX = 500
 /** Signature de l'action « trancher » passée au panneau de détail. */

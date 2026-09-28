@@ -7,6 +7,7 @@ export const noShow = (over: Partial<AdminNoShow> = {}): AdminNoShow => ({
   trip: { departureCity: 'Bamako', arrivalCity: 'Abidjan', departureDate: '2026-09-15' },
   handoverAt: '2026-09-15T12:30:00Z', amount: 45, currency: 'EUR', paymentMethod: 'CASH', paymentStatus: 'ESCROW', bidStatus: 'ACCEPTED',
   dispute: null, canConfirm: true, canReject: true,
+  commissionStatus: null, adminDecision: null, decidedAt: null, decisionReason: null,
   ...over,
 })
 

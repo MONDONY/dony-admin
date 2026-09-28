@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  decisionSummary, commissionStatusLabel, disputePending,
   noShowSentence, noShowTitle, shortId, scopeMeta, noShowStatusMeta, remainingMeta, tripLabel, formatDateTime,
   amountLabel, partyLabel, partyRoleLabel, decisionEffect, decisionSuccess, disputeLinkLabel, paymentStatusLabel, bidStatusLabel,
 } from '@/features/incidents/components/noShowLabels'
@@ -12,6 +13,7 @@ const base: AdminNoShow = {
   trip: { departureCity: 'Bamako', arrivalCity: 'Abidjan', departureDate: '2026-09-15' },
   handoverAt: '2026-09-15T12:30:00Z', amount: 45, currency: 'EUR', paymentMethod: 'CASH', paymentStatus: null, bidStatus: 'ACCEPTED',
   dispute: null, canConfirm: true, canReject: true,
+  commissionStatus: null, adminDecision: null, decidedAt: null, decisionReason: null,
 }
 const row = (over: Partial<AdminNoShow>): AdminNoShow => ({ ...base, ...over })
 
@@ -163,5 +165,37 @@ describe('effets d’une décision', () => {
   it('aucun tiret cadratin affiché', () => {
     const all = [noShowSentence(base), ...decisionEffect(base, 'confirm'), ...decisionEffect(row({ scope: 'DELIVERY' }), 'confirm'), ...decisionEffect(base, 'reject'), decisionSuccess(base, 'confirm')]
     expect(all.join(' ')).not.toContain('—')
+  })
+})
+
+describe('décision de l’administrateur (back #345)', () => {
+  it('libellé : « Rejetée » ou « Absence confirmée » selon adminDecision', () => {
+    expect(noShowStatusMeta('RESOLVED', 'REJECTED')).toEqual({ label: 'Rejetée', tone: 'neutral' })
+    expect(noShowStatusMeta('CONFIRMED', 'CONFIRMED').label).toBe('Absence confirmée')
+    expect(noShowStatusMeta('RESOLVED', null).label).toBe('Résolu')
+  })
+  it('résumé daté de la décision', () => {
+    expect(decisionSummary(row({ adminDecision: 'REJECTED', decidedAt: '2026-09-28T10:00:00Z' }))).toBe('Rejetée le 28 sept. à 12:00')
+    expect(decisionSummary(row({ adminDecision: 'CONFIRMED', decidedAt: null }))).toBe('Absence confirmée')
+    expect(decisionSummary(base)).toBeNull()
+  })
+  it('espèces sans montant : « Espèces » et statut de commission', () => {
+    expect(amountLabel(row({ amount: null, commissionStatus: 'CHARGED' }))).toBe('Espèces · commission prélevée')
+    expect(amountLabel(row({ amount: null, paymentMethod: null, commissionStatus: 'PENDING' }))).toBe('Espèces · commission en attente')
+    expect(commissionStatusLabel('REFUNDED')).toBe('commission remboursée')
+    expect(commissionStatusLabel('REQUIRES_3DS')).toBe('commission en attente de validation')
+    expect(commissionStatusLabel('FAILED')).toBe('commission non prélevée')
+    expect(commissionStatusLabel('REFUND_FAILED')).toBe('remboursement de la commission échoué')
+    expect(commissionStatusLabel('AUTRE')).toBe('commission : AUTRE')
+    expect(commissionStatusLabel(null)).toBeNull()
+  })
+  it('litige en cours de création après une confirmation à l’arrivée', () => {
+    expect(disputePending(row({ scope: 'DELIVERY', adminDecision: 'CONFIRMED', dispute: null }))).toBe(true)
+    expect(disputePending(row({ scope: 'DELIVERY', adminDecision: 'CONFIRMED', dispute: { id: 'd1', status: 'OPEN' } }))).toBe(false)
+    expect(disputePending(row({ scope: 'HANDOVER', adminDecision: 'CONFIRMED' }))).toBe(false)
+    expect(disputePending(row({ scope: 'DELIVERY', adminDecision: 'REJECTED' }))).toBe(false)
+  })
+  it('succès à l’arrivée sans litige encore créé', () => {
+    expect(decisionSuccess(row({ scope: 'DELIVERY' }), 'confirm', true)).toMatch(/Un litige va être ouvert/)
   })
 })

@@ -120,6 +120,22 @@ describe('/incidents : onglet dans l’URL', () => {
     expect(incidents.listDisputes.mock.calls.length).toBe(before + 1)
   })
 
+  it('confirmé à l’arrivée sans litige encore créé : litiges relus ~1 s plus tard', async () => {
+    incidents.listNoShows.mockResolvedValue({ ...empty, content: [ns('c1')], totalPages: 1 })
+    incidents.confirmNoShow.mockResolvedValue(ns('c1', { status: 'CONFIRMED', adminDecision: 'CONFIRMED', dispute: null }))
+    route.query = { tab: 'noshows', open: 'c1' }
+    const w = await mountPage()
+    vi.useFakeTimers()
+    try {
+      const before = incidents.listDisputes.mock.calls.length
+      const decide = w.findComponent({ name: 'NoShowDetailPanel' }).props('decide') as (_d: string, _r: string) => Promise<{ ok: boolean }>
+      await decide('confirm', 'Destinataire injoignable toute la journée')
+      expect(incidents.listDisputes.mock.calls.length).toBe(before)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(incidents.listDisputes.mock.calls.length).toBe(before + 1)
+    } finally { vi.useRealTimers() }
+  })
+
   it('?tab=disputes&open=<id> ouvre le litige ; le fermer retire open de l’URL', async () => {
     incidents.getDispute.mockResolvedValue({ id: 'd1', status: 'OPEN' })
     route.query = { tab: 'disputes', open: 'd1' }
