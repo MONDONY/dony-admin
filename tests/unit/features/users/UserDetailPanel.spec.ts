@@ -332,6 +332,39 @@ describe('UserDetailPanel', () => {
     expect(w.find('[data-test="copy-id-feedback"]').text()).toContain('Copié')
   })
 
+  describe('UID Firebase', () => {
+    const uid = 'aB3xYz9QkLmN0pRsTuVwXyZ12345'
+
+    it('affiche l\'UID Firebase complet sous l\'identifiant, avec son libellé', () => {
+      const w = mount(UserDetailPanel, { props: { user: { ...baseUser, firebaseUid: uid }, open: true } })
+      const row = w.find('[data-test="user-firebase-uid-row"]')
+      expect(row.exists()).toBe(true)
+      expect(row.text()).toContain('UID Firebase')
+      expect(w.find('[data-test="user-firebase-uid"]').text()).toBe(uid)
+      expect(w.find('[data-test="user-firebase-uid"]').classes()).toContain('font-mono')
+      expect(w.find('[data-test="copy-firebase-uid"]').exists()).toBe(true)
+    })
+
+    it('masque la ligne quand le back ne fournit pas l\'UID (champ absent ou null)', () => {
+      const absent = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      expect(absent.find('[data-test="user-firebase-uid-row"]').exists()).toBe(false)
+      const nul = mount(UserDetailPanel, { props: { user: { ...baseUser, firebaseUid: null }, open: true } })
+      expect(nul.find('[data-test="user-firebase-uid-row"]').exists()).toBe(false)
+      expect(nul.find('[data-test="copy-id"]').exists()).toBe(true)
+    })
+
+    it('copie l\'UID tel quel et affiche « Copié » sans toucher au bouton de l\'identifiant', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      const w = mount(UserDetailPanel, { props: { user: { ...baseUser, firebaseUid: uid }, open: true } })
+      await w.find('[data-test="copy-firebase-uid"]').trigger('click')
+      await flushPromises()
+      expect(writeText).toHaveBeenCalledWith(uid)
+      expect(w.find('[data-test="copy-firebase-uid-feedback"]').text()).toContain('Copié')
+      expect(w.find('[data-test="copy-id-feedback"]').exists()).toBe(false)
+    })
+  })
+
   it('relaie l\'événement reset de l\'onglet KYC en resetKyc', async () => {
     const w = mount(UserDetailPanel, {
       props: { user: baseUser, open: true, kyc: {

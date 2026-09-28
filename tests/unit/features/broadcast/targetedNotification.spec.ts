@@ -122,6 +122,15 @@ describe('BroadcastUserPicker', () => {
     expect(w.find('[data-test="broadcast-user-search-empty"]').exists()).toBe(true)
   })
 
+  it('le placeholder annonce la recherche par UID ou identifiant, seulement avec le droit de recherche', () => {
+    const avec = mount(BroadcastUserPicker, { props: { modelValue: '', canSearch: true } })
+    expect(avec.find('[data-test="broadcast-user-search"]').attributes('placeholder'))
+      .toBe('Nom, e-mail, téléphone, UID ou identifiant')
+    const sans = mount(BroadcastUserPicker, { props: { modelValue: '', canSearch: false } })
+    expect(sans.find('[data-test="broadcast-user-search"]').attributes('placeholder'))
+      .toBe('Identifiant du compte (UUID)')
+  })
+
   it('sans droit de recherche, invite à coller un identifiant', async () => {
     const w = mount(BroadcastUserPicker, { props: { modelValue: '', canSearch: false } })
     await w.find('[data-test="broadcast-user-search"]').setValue('awa')

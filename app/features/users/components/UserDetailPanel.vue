@@ -93,6 +93,15 @@ async function copyId() {
   setTimeout(() => { idCopied.value = false }, 2000)
 }
 
+// UID Firebase : absent d'un back qui ne l'expose pas encore, la ligne est alors masquée.
+const uidCopied = ref(false)
+async function copyUid() {
+  if (!props.user.firebaseUid) return
+  await navigator.clipboard.writeText(props.user.firebaseUid)
+  uidCopied.value = true
+  setTimeout(() => { uidCopied.value = false }, 2000)
+}
+
 type Pending = 'suspend' | 'ban' | 'suspendPublishing' | 'setCommission' | 'resetCommission' | 'muteMessaging'
   | 'grantPro' | 'revokePro' | 'unban' | null
 const pending = ref<Pending>(null)
@@ -364,6 +373,23 @@ const dialogConfig = computed<DialogConfig>(() => {
           @click="copyId"
         >
           <span v-if="idCopied" data-test="copy-id-feedback" class="text-success">Copié ✓</span>
+          <span v-else>Copier</span>
+        </button>
+      </div>
+      <div v-if="user.firebaseUid" data-test="user-firebase-uid-row" class="-mt-1 mb-3 flex items-center gap-2">
+        <span class="shrink-0 text-xs text-text-muted">UID Firebase</span>
+        <span
+          data-test="user-firebase-uid"
+          class="font-mono text-xs text-text-muted truncate"
+          :title="user.firebaseUid"
+        >{{ user.firebaseUid }}</span>
+        <button
+          type="button"
+          data-test="copy-firebase-uid"
+          class="shrink-0 rounded-btn border border-border px-2 py-0.5 text-xs transition-colors hover:bg-surface-elevated"
+          @click="copyUid"
+        >
+          <span v-if="uidCopied" data-test="copy-firebase-uid-feedback" class="text-success">Copié ✓</span>
           <span v-else>Copier</span>
         </button>
       </div>

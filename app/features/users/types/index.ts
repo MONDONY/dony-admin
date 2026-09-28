@@ -44,6 +44,8 @@ export interface AdminProSubscription {
 }
 
 export interface AdminUserDetail extends AdminUserListItem {
+  /** UID Firebase du compte (sensible à la casse) : absent d'un back qui ne l'expose pas encore. */
+  firebaseUid?: string | null
   proSubscription: AdminProSubscription | null
   roles: string[]
   stripeAccountStatus: string | null
