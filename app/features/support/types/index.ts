@@ -55,6 +55,8 @@ export interface AdminSupportTicket {
   lastMessageAt: string
   resolvedAt: string | null
   messages: SupportMessage[] | null
+  /** Signalement (rapport de bug) dont la conversation est issue ; absent sur un ancien back. */
+  sourceReportId?: string | null
 }
 
 export interface AdminSupportTicketPage {

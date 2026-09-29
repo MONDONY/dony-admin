@@ -4,6 +4,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
+import { canReplyToReport, hasSupportConversation, supportConversationLink } from '@/features/signalements/reportReply'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
 const props = withDefaults(defineProps<{
@@ -13,7 +14,9 @@ const props = withDefaults(defineProps<{
   selected?: string[]
   /** Endpoints de restauration absents (ancien back) : le bouton Restaurer disparaît. */
   restoreUnavailable?: boolean
-}>(), { selected: () => [], restoreUnavailable: false })
+  /** Signalement ouvert par lien profond (`?open=`) : ligne mise en avant. */
+  highlightId?: string | null
+}>(), { selected: () => [], restoreUnavailable: false, highlightId: null })
 const emit = defineEmits<{
   resolve: [id: string]
   viewPhotos: [urls: string[]]
@@ -21,9 +24,12 @@ const emit = defineEmits<{
   togglePage: []
   delete: [id: string]
   restore: [id: string]
+  reply: [id: string]
 }>()
 const auth = useAuthStore()
 const canDelete = computed(() => auth.can('REPORT_DELETE'))
+const canOpenSupport = computed(() => auth.can('SUPPORT_TICKET_VIEW'))
+const canReply = (r: AdminReport) => canReplyToReport(r, auth.permissions)
 const allChecked = computed(() => props.reports.length > 0 && props.reports.every((r) => props.selected.includes(r.id)))
 const someChecked = computed(() => !allChecked.value && props.reports.some((r) => props.selected.includes(r.id)))
 function fmt(d: string) { return new Date(d).toLocaleString('fr-FR') }
@@ -80,7 +86,10 @@ function actionTaken(r: AdminReport): string | null {
       <tbody>
         <tr
           v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`"
-          :class="['border-b border-border', selected.includes(r.id) ? 'bg-primary/5' : '', r.deletedAt ? 'text-text-muted' : '']"
+          :data-highlighted="highlightId === r.id ? 'true' : undefined"
+          :class="['border-b border-border transition-[background-color]', selected.includes(r.id) || highlightId === r.id ? 'bg-primary/5' : '',
+            highlightId === r.id ? 'shadow-[inset_3px_0_0_rgb(var(--primary-rgb))]' : '',
+            r.deletedAt ? 'text-text-muted' : '']"
         >
           <td v-if="canDelete" class="px-3 py-3">
             <input
@@ -128,6 +137,15 @@ function actionTaken(r: AdminReport): string | null {
               v-if="r.deletedAt" :data-test="`report-deleted-info-${r.id}`"
               class="mt-1 text-xs text-text-muted text-pretty tabular-nums"
             >{{ deletedInfo(r) }}</div>
+            <!-- Réponse au signalant : la conversation support reste accessible d'ici -->
+            <div v-if="hasSupportConversation(r)" :data-test="`report-conversation-${r.id}`" class="mt-1.5">
+              <StatusBadge label="Conversation ouverte" tone="info" />
+              <NuxtLink
+                v-if="canOpenSupport" :to="supportConversationLink(r.supportTicketId!)"
+                :data-test="`report-conversation-link-${r.id}`"
+                class="mt-1 block text-xs text-primary underline-offset-2 hover:underline"
+              >Ouvrir la conversation</NuxtLink>
+            </div>
           </td>
           <td v-if="r.deletedAt" class="px-4 py-3 text-right whitespace-nowrap">
             <button
@@ -137,6 +155,11 @@ function actionTaken(r: AdminReport): string | null {
             >Restaurer</button>
           </td>
           <td v-else class="px-4 py-3 text-right whitespace-nowrap">
+            <button
+              v-if="canReply(r)" type="button" :data-test="`reply-${r.id}`"
+              class="mr-1 rounded-btn border border-border px-3 py-1.5 text-sm text-text transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96]"
+              @click="emit('reply', r.id)"
+            >{{ hasSupportConversation(r) ? 'Répondre à nouveau' : 'Répondre' }}</button>
             <button
               v-if="canResolve(r)" type="button" :data-test="`resolve-${r.id}`"
               class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary hover:bg-primary/25"

@@ -134,6 +134,45 @@ export function useReports() {
   }
   async function setDeletedFilter(d: boolean) { filters.deleted = d; currentPage.value = 0; clearSelection(); await fetchReports() }
 
+  // ---- Signalement ouvert par lien profond (`?open=<id>`, depuis une conversation support) ----
+  /** Lu par son identifiant : il peut ne pas figurer dans la page ni dans le filtre courant. */
+  const focusedReport = ref<AdminReport | null>(null)
+  const focusError = ref<string | null>(null)
+  /** La page, avec le signalement ouvert en tête s'il n'y figure pas déjà. */
+  const displayedReports = computed(() => {
+    const f = focusedReport.value
+    if (!f || reports.value.some((x) => x.id === f.id)) return reports.value
+    return [f, ...reports.value]
+  })
+
+  async function openReport(id: string) {
+    focusError.value = null
+    try {
+      focusedReport.value = await reportsService.get(id)
+    } catch (e) {
+      focusedReport.value = null
+      const status = (e as { statusCode?: number; status?: number } | undefined)?.statusCode
+        ?? (e as { status?: number } | undefined)?.status
+      focusError.value = status === 404
+        ? 'Ce signalement est introuvable : il a peut-être été supprimé.'
+        : extractProblemMessage(e, 'Impossible d’ouvrir ce signalement')
+    }
+  }
+  function closeFocus() {
+    focusedReport.value = null
+    focusError.value = null
+  }
+  /** Un signalement de la page ou celui ouvert par lien. */
+  function findReport(id: string | null): AdminReport | null {
+    if (!id) return null
+    return reports.value.find((x) => x.id === id) ?? (focusedReport.value?.id === id ? focusedReport.value : null)
+  }
+  /** Réponse envoyée : la ligne montre la conversation sans recharger (statut inchangé). */
+  function markReplied(id: string, ticketId: string) {
+    reports.value = reports.value.map((x) => (x.id === id ? { ...x, supportTicketId: ticketId } : x))
+    if (focusedReport.value?.id === id) focusedReport.value = { ...focusedReport.value, supportTicketId: ticketId }
+  }
+
   function clearResolveFeedback() {
     resolveError.value = null
     lastResolved.value = null
@@ -163,7 +202,7 @@ export function useReports() {
       resolveError.value = resolveErrorMessage(e)
       return 'error'
     }
-    const current = reports.value.find((x) => x.id === id)
+    const current = findReport(id)
     // Une réponse vide (204, ancien mock) ne doit pas effacer la ligne : repli sur l'action envoyée.
     const response: Partial<AdminReport> = updated ?? {}
     const merged = {
@@ -175,6 +214,7 @@ export function useReports() {
       availableActions: [],
     } as AdminReport
     reports.value = reports.value.map((x) => (x.id === id ? merged : x))
+    if (focusedReport.value?.id === id) focusedReport.value = merged
     lastResolved.value = merged
     return 'ok'
   }
@@ -249,5 +289,6 @@ export function useReports() {
     fetchReports, goToPage, setStatusFilter, setTargetTypeFilter, setQuery, resolve,
     resolveError, lastResolved, closedNotice, clearResolveFeedback,
     toggleSelect, togglePage, selectAllResults, clearSelection, deleteOne, deleteSelected,
+    focusedReport, focusError, displayedReports, openReport, closeFocus, findReport, markReplied,
   }
 }

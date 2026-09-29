@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
 import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -10,8 +10,10 @@ import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
 import ReportResolveDialog from '@/features/signalements/components/ReportResolveDialog.vue'
+import ReportReplyDialog from '@/features/signalements/components/ReportReplyDialog.vue'
+import { replySentMessage, reporterFirstName, supportConversationLink } from '@/features/signalements/reportReply'
 import { REPORT_TARGET_TYPE_LABELS, reportActionTakenLabel } from '@/features/signalements/reportActionLabels'
-import type { BulkRestoreResult, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
+import type { BulkRestoreResult, ReportReplyResponse, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
@@ -116,7 +118,7 @@ async function confirmBulkRestore() {
 
 // Le signalement en cours de traitement : le dialogue en tire ses actions (availableActions
 // du back, ou repli local sur un ancien back).
-const pendingReport = computed(() => r.reports.value.find((x) => x.id === pendingReportId.value) ?? null)
+const pendingReport = computed(() => r.findReport(pendingReportId.value))
 const resolvedMessage = computed(() => {
   const done = r.lastResolved.value
   if (!done) return ''
@@ -129,7 +131,51 @@ function onTargetTypeFilterChange(e: Event) {
   r.setTargetTypeFilter(value === '' ? null : (value as ReportTargetType))
 }
 
+// ---- Répondre au signalant d'un rapport de bug (le signalement garde son statut) ----
+const pendingReplyId = ref<string | null>(null)
+const replyReport = computed(() => r.findReport(pendingReplyId.value))
+const lastReply = ref<{ ticketId: string; text: string } | null>(null)
+function openReply(id: string) {
+  lastReply.value = null
+  pendingReplyId.value = id
+}
+function onReplySent(response: ReportReplyResponse) {
+  const report = replyReport.value
+  if (report) {
+    r.markReplied(report.id, response.ticketId)
+    const firstName = reporterFirstName(report.reporterName, response.ticket?.userDisplayName)
+    lastReply.value = { ticketId: response.ticketId, text: replySentMessage(firstName, response.created !== false) }
+  }
+  pendingReplyId.value = null
+}
+
+// ---- Lien profond ?open=<id> (depuis une conversation support issue d'un signalement) ----
+const route = useRoute()
+const router = useRouter()
+function openParam(): string | null {
+  const v = route.query?.open
+  return typeof v === 'string' && v ? v : null
+}
+async function focusFromLink(id: string) {
+  await r.openReport(id)
+  if (!r.focusedReport.value) return
+  await nextTick()
+  document.querySelector(`[data-test="report-row-${CSS.escape(id)}"]`)?.scrollIntoView?.({ block: 'center' })
+}
+/** Fermer retire ?open= : un nouveau clic sur le même lien rouvrira le signalement. */
+function closeFocus() {
+  r.closeFocus()
+  if (!openParam()) return
+  const query = { ...(route.query ?? {}) }
+  delete query.open
+  void router.replace({ query })
+}
+watch(() => route.query?.open, (v) => {
+  if (typeof v === 'string' && v && v !== r.focusedReport.value?.id) void focusFromLink(v)
+})
+
 function openResolve(id: string) {
+  lastReply.value = null
   r.clearResolveFeedback()
   pendingReportId.value = id
 }
@@ -181,7 +227,11 @@ function switchTab(t: 'reports' | 'ratings') {
   if (t === 'ratings' && rt.ratings.value.length === 0) rt.fetchRatings()
 }
 
-onMounted(r.fetchReports)
+onMounted(async () => {
+  await r.fetchReports()
+  const id = openParam()
+  if (id) await focusFromLink(id)
+})
 </script>
 
 <template>
@@ -258,6 +308,27 @@ onMounted(r.fetchReports)
         v-if="r.closedNotice.value" data-test="reports-already-closed" role="status"
         class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
       >{{ r.closedNotice.value }}</p>
+      <p
+        v-if="lastReply" data-test="reports-reply-sent" role="status"
+        class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success text-pretty"
+      >
+        <span>{{ lastReply.text }}</span>
+        <NuxtLink
+          v-if="auth.can('SUPPORT_TICKET_VIEW')" :to="supportConversationLink(lastReply.ticketId)"
+          data-test="reports-reply-open" class="font-medium underline underline-offset-2"
+        >Ouvrir la conversation</NuxtLink>
+      </p>
+      <p
+        v-if="r.focusedReport.value" data-test="reports-focus" role="status"
+        class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-btn border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-text text-pretty"
+      >
+        <span>Signalement ouvert depuis une conversation support : il est affiché en tête de liste.</span>
+        <button type="button" data-test="reports-focus-close" class="text-primary underline-offset-2 hover:underline" @click="closeFocus">Retirer</button>
+      </p>
+      <p
+        v-if="r.focusError.value" data-test="reports-focus-error" role="alert"
+        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+      >{{ r.focusError.value }}</p>
       <p v-if="lastDeleted !== null" data-test="reports-deleted" class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted">
         {{ lastDeleted }} signalement{{ lastDeleted > 1 ? 's' : '' }} supprimé{{ lastDeleted > 1 ? 's' : '' }}.
       </p>
@@ -294,10 +365,11 @@ onMounted(r.fetchReports)
       </div>
 
       <ReportsTable
-        :reports="r.reports.value" :loading="r.isLoading.value" :selected="r.selectedIds.value"
+        :reports="r.displayedReports.value" :loading="r.isLoading.value" :selected="r.selectedIds.value"
+        :highlight-id="r.focusedReport.value?.id ?? null"
         :restore-unavailable="r.restoreUnavailable.value"
         @restore="(id) => { lastRestored = null; pendingRestoreId = id }"
-        @resolve="openResolve" @view-photos="(urls) => viewerUrls = urls"
+        @resolve="openResolve" @reply="openReply" @view-photos="(urls) => viewerUrls = urls"
         @toggle="r.toggleSelect" @toggle-page="r.togglePage" @delete="(id) => pendingDeleteId = id"
       />
 
@@ -362,6 +434,9 @@ onMounted(r.fetchReports)
       :report="pendingReport" :busy="resolveBusy" :error="r.resolveError.value"
       @confirm="confirmResolve" @cancel="cancelResolve"
     />
+
+    <!-- Répondre au signalant d'un rapport de bug -->
+    <ReportReplyDialog :report="replyReport" @close="pendingReplyId = null" @sent="onReplySent" />
 
     <!-- Supprimer un ou plusieurs signalements -->
     <ConfirmActionDialog
