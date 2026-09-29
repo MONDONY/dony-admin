@@ -1,3 +1,5 @@
+import type { AdminSupportTicket } from '@/features/support/types/index'
+
 // ----- Signalements (reports) -----
 export type ReportStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
 export type ReportStatusFilter = 'ALL' | ReportStatus
@@ -52,6 +54,29 @@ export interface AdminReport {
    */
   availableActions?: string[] | null
   targetAuthor?: ReportTargetAuthor | null
+  /**
+   * Conversation support ouverte avec le signalant depuis ce rapport de bug (réponse de
+   * l'admin), sinon null. Absent sur un ancien back : aucun badge.
+   */
+  supportTicketId?: string | null
+  /**
+   * Le back autorise CET admin à répondre au signalant (rapport de bug APP, signalant
+   * joignable, SUPPORT_TICKET_MANAGE). Absent sur un ancien back : règle locale.
+   */
+  canReply?: boolean | null
+}
+
+/** Corps de POST /admin/reports/{id}/reply : message obligatoire (1 à 4000 caractères). */
+export interface ReportReplyPayload {
+  message: string
+  attachmentKeys?: string[]
+}
+
+/** Réponse de POST /admin/reports/{id}/reply : `created` = nouvelle conversation. */
+export interface ReportReplyResponse {
+  ticketId: string
+  created: boolean
+  ticket: AdminSupportTicket
 }
 
 export interface AdminReportPage {

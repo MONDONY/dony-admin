@@ -1,5 +1,7 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminReport, AdminReportPage, BulkRestoreResult, ReportAction, ReportsFilterState } from '@/features/signalements/types/index'
+import type {
+  AdminReport, AdminReportPage, BulkRestoreResult, ReportAction, ReportReplyPayload, ReportReplyResponse, ReportsFilterState,
+} from '@/features/signalements/types/index'
 
 function buildQuery(f: ReportsFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
@@ -17,6 +19,18 @@ export type BulkDeleteInput = { ids: string[] } | { all: true; filters: ReportsF
 export const reportsService = {
   list(filters: ReportsFilterState, page: number, size: number): Promise<AdminReportPage> {
     return useApi()<AdminReportPage>('/admin/reports', { query: buildQuery(filters, page, size) })
+  },
+  /** Un signalement par son identifiant (lien profond `?open=`). */
+  get(id: string): Promise<AdminReport> {
+    return useApi()<AdminReport>(`/admin/reports/${id}`)
+  },
+  /**
+   * Répondre au signalant d'un rapport de bug : le back crée (ou réutilise) la conversation
+   * support avec lui. Le signalement garde son statut. 403, 404, 422 `report-not-app-bug`,
+   * `reporter-unavailable`, 422 de validation ; 404/405 sans code sur un ancien back.
+   */
+  reply(id: string, payload: ReportReplyPayload): Promise<ReportReplyResponse> {
+    return useApi()<ReportReplyResponse>(`/admin/reports/${encodeURIComponent(id)}/reply`, { method: 'POST', body: payload })
   },
   /** `action` peut être une valeur de `availableActions` que ce front ne connaît pas encore. */
   resolve(id: string, action: ReportAction | string, note: string): Promise<AdminReport> {

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import SupportAttachmentGrid from '@/features/support/components/SupportAttachmentGrid.vue'
 import SupportAttachmentUploader from '@/features/support/components/SupportAttachmentUploader.vue'
+import { reportLink } from '@/features/signalements/reportReply'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { STATUS_LABELS, categoryLabel, formatDate, statusTone } from '@/features/support/utils/format'
@@ -75,6 +76,14 @@ function onUploaderBusy(value: boolean) {
           ✕
         </button>
       </div>
+      <p v-if="ticket.sourceReportId" data-test="ticket-source-report" class="mt-1 text-xs text-text-muted">
+        Issu du signalement
+        <NuxtLink
+          v-if="auth.can('REPORT_VIEW')" :to="reportLink(ticket.sourceReportId)"
+          class="text-primary underline-offset-2 hover:underline"
+        >Voir le signalement</NuxtLink>
+        <span v-else>d’un rapport de bug</span>
+      </p>
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <StatusBadge :label="STATUS_LABELS[ticket.status]" :tone="statusTone(ticket.status)" />
         <StatusBadge
