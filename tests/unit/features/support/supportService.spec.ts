@@ -78,4 +78,41 @@ describe('supportService', () => {
     await supportService.resolve('t1')
     expect(apiMock).toHaveBeenCalledWith('/admin/support/tickets/t1/resolve', { method: 'POST' })
   })
+
+  it('list transmet le filtre utilisateur quand il est fourni', async () => {
+    apiMock.mockResolvedValue(emptyPage)
+    await supportService.list('all', 'TOUS', 0, 20, 'user-1')
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ scope: 'all', userId: 'user-1' })
+  })
+
+  it('list omet userId sans filtre', async () => {
+    apiMock.mockResolvedValue(emptyPage)
+    await supportService.list('all', 'TOUS', 0, 20)
+    expect(apiMock.mock.calls[0][1].query.userId).toBeUndefined()
+  })
+
+  it('startTicket POSTe la conversation initiée par l’admin', async () => {
+    apiMock.mockResolvedValue({ id: 't9' })
+    const payload = {
+      userId: 'user-1', category: 'PAYMENT' as const, subject: 'Votre paiement',
+      message: 'Bonjour, pouvez-vous nous confirmer…', attachmentKeys: ['support/admin/a1/1.jpg'],
+    }
+    const result = await supportService.startTicket(payload)
+    expect(result).toEqual({ id: 't9' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/support/tickets', { method: 'POST', body: payload })
+  })
+
+  it('listByUser lit les tickets d’un utilisateur, tous périmètres confondus', async () => {
+    apiMock.mockResolvedValue(emptyPage)
+    await supportService.listByUser('user-1', 5)
+    expect(apiMock).toHaveBeenCalledWith('/admin/support/tickets', {
+      query: { scope: 'all', userId: 'user-1', page: 0, size: 5 },
+    })
+  })
+
+  it('listByUser lit 5 tickets par défaut', async () => {
+    apiMock.mockResolvedValue(emptyPage)
+    await supportService.listByUser('user-1')
+    expect(apiMock.mock.calls[0][1].query.size).toBe(5)
+  })
 })

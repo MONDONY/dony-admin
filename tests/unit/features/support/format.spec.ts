@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { STATUS_LABELS, statusTone, formatDate } from '@/features/support/utils/format'
+import { CATEGORY_LABELS, STATUS_LABELS, categoryLabel, statusTone, formatDate } from '@/features/support/utils/format'
 import type { SupportTicketStatus } from '@/features/support/types/index'
 
 describe('STATUS_LABELS', () => {
@@ -51,5 +51,16 @@ describe('formatDate', () => {
     // Heure UTC fixe : le formatage depend du fuseau du runner, on verifie donc
     // la forme (JJ/MM HH:MM) et non une valeur horaire absolue.
     expect(formatDate('2026-09-05T14:30:00Z')).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2}$/)
+  })
+})
+
+describe('catégories', () => {
+  it('libellé FR des sept catégories du back, « Autre » compris', () => {
+    expect(Object.keys(CATEGORY_LABELS)).toEqual(['ACCOUNT', 'KYC', 'PAYMENT', 'TRIP', 'PACKAGE', 'DELIVERY', 'OTHER'])
+    expect(categoryLabel('PAYMENT')).toBe('Paiement')
+    expect(categoryLabel('OTHER')).toBe('Autre')
+  })
+  it('valeur inconnue affichée telle quelle', () => {
+    expect(categoryLabel('PAIEMENT')).toBe('PAIEMENT')
   })
 })

@@ -1,6 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
-  AdminSupportTicket, AdminSupportTicketPage, SupportMessage, SupportStatusFilter, SupportTicketScope,
+  AdminSupportTicket, AdminSupportTicketPage, StartSupportTicketPayload, SupportMessage, SupportStatusFilter,
+  SupportTicketScope,
 } from '@/features/support/types/index'
 
 function buildQuery(
@@ -8,9 +9,11 @@ function buildQuery(
   status: SupportStatusFilter,
   page: number,
   size: number,
+  userId?: string | null,
 ): Record<string, string | number> {
   const q: Record<string, string | number> = { scope, page, size }
   if (status !== 'TOUS') q.status = status
+  if (userId) q.userId = userId
   return q
 }
 
@@ -20,10 +23,25 @@ export const supportService = {
     status: SupportStatusFilter,
     page: number,
     size: number,
+    /** Tickets d'un seul utilisateur. Un ancien back ignore ce paramètre. */
+    userId?: string | null,
   ): Promise<AdminSupportTicketPage> {
     return useApi()<AdminSupportTicketPage>('/admin/support/tickets', {
-      query: buildQuery(scope, status, page, size),
+      query: buildQuery(scope, status, page, size, userId),
     })
+  },
+  /** Les dernières conversations d'un utilisateur (fiche utilisateur). Avec userId, le back ignore scope. */
+  listByUser(userId: string, size = 5): Promise<AdminSupportTicketPage> {
+    return useApi()<AdminSupportTicketPage>('/admin/support/tickets', {
+      query: { scope: 'all', userId, page: 0, size },
+    })
+  },
+  /**
+   * Ouvrir une conversation avec un utilisateur (premier message de l'admin, qui en devient
+   * l'assigné). 404 `user-not-found`, 422 validation ; 404/405 sans code sur un ancien back.
+   */
+  startTicket(payload: StartSupportTicketPayload): Promise<AdminSupportTicket> {
+    return useApi()<AdminSupportTicket>('/admin/support/tickets', { method: 'POST', body: payload })
   },
   get(id: string): Promise<AdminSupportTicket> {
     return useApi()<AdminSupportTicket>(`/admin/support/tickets/${id}`)

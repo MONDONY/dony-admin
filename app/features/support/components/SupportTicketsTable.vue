@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminSupportTicket } from '@/features/support/types/index'
-import { STATUS_LABELS, formatDate, statusTone } from '@/features/support/utils/format'
+import { STATUS_LABELS, categoryLabel, formatDate, statusTone } from '@/features/support/utils/format'
 
 defineProps<{ tickets: AdminSupportTicket[]; loading: boolean }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -30,7 +30,7 @@ const emit = defineEmits<{ select: [id: string] }>()
           <td class="px-4 py-3">
             <StatusBadge :label="STATUS_LABELS[t.status]" :tone="statusTone(t.status)" />
           </td>
-          <td class="px-4 py-3 text-sm">{{ t.category }}</td>
+          <td class="px-4 py-3 text-sm">{{ categoryLabel(t.category) }}</td>
           <td class="max-w-[280px] truncate px-4 py-3 text-sm font-medium">{{ t.subject }}</td>
           <td class="px-4 py-3 text-sm">{{ t.userDisplayName }}</td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ t.assignedAdminEmail ?? '—' }}</td>

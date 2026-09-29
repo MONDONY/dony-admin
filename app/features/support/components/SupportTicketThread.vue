@@ -5,7 +5,7 @@ import SupportAttachmentGrid from '@/features/support/components/SupportAttachme
 import SupportAttachmentUploader from '@/features/support/components/SupportAttachmentUploader.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminSupportTicket } from '@/features/support/types/index'
-import { STATUS_LABELS, formatDate, statusTone } from '@/features/support/utils/format'
+import { STATUS_LABELS, categoryLabel, formatDate, statusTone } from '@/features/support/utils/format'
 
 const props = defineProps<{
   ticket: AdminSupportTicket
@@ -62,7 +62,7 @@ function onUploaderBusy(value: boolean) {
         <div>
           <h2 class="text-base font-semibold">{{ ticket.subject }}</h2>
           <p class="mt-1 text-sm text-text-muted">
-            {{ ticket.userDisplayName }} · {{ ticket.category }} ·
+            {{ ticket.userDisplayName }} · {{ categoryLabel(ticket.category) }} ·
             ouvert le {{ formatDate(ticket.createdAt) }}
           </p>
         </div>
