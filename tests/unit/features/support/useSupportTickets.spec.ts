@@ -115,4 +115,43 @@ describe('useSupportTickets', () => {
     expect(s.isActing.value).toBe(false)
     expect(getMock).not.toHaveBeenCalled()
   })
+
+  it('setUserFilter bascule sur « Tous », page 0, et transmet userId', async () => {
+    listMock.mockResolvedValue({ ...page, content: [{ ...ticket, userId: 'u1' }] })
+    const s = useSupportTickets()
+    await s.goToPage(2)
+    await s.setUserFilter('u1')
+    expect(s.scope.value).toBe('all')
+    expect(s.currentPage.value).toBe(0)
+    expect(s.userId.value).toBe('u1')
+    expect(listMock).toHaveBeenLastCalledWith('all', 'TOUS', 0, 20, 'u1')
+  })
+
+  it('ancien back qui ignore userId : les tickets d’autres utilisateurs sont écartés', async () => {
+    listMock.mockResolvedValue({
+      ...page,
+      content: [{ ...ticket, id: 'a', userId: 'u1' }, { ...ticket, id: 'b', userId: 'u2' }],
+      totalElements: 2,
+    })
+    const s = useSupportTickets()
+    await s.setUserFilter('u1')
+    expect(s.tickets.value.map((t) => t.id)).toEqual(['a'])
+    expect(s.userFilterIgnored.value).toBe(true)
+  })
+
+  it('nouveau back : rien n’est écarté, le filtre est honoré', async () => {
+    listMock.mockResolvedValue({ ...page, content: [{ ...ticket, userId: 'u1' }] })
+    const s = useSupportTickets()
+    await s.setUserFilter('u1')
+    expect(s.userFilterIgnored.value).toBe(false)
+  })
+
+  it('retirer le filtre utilisateur recharge sans userId', async () => {
+    listMock.mockResolvedValue(page)
+    const s = useSupportTickets()
+    await s.setUserFilter('u1')
+    await s.setUserFilter(null)
+    expect(s.userId.value).toBeNull()
+    expect(listMock).toHaveBeenLastCalledWith('all', 'TOUS', 0, 20)
+  })
 })

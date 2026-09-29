@@ -8,6 +8,19 @@ export type SupportTicketStatus =
 
 export type SupportTicketScope = 'unassigned' | 'mine' | 'all'
 
+/** Miroir de l'enum backend SupportCategory. */
+export type SupportCategory = 'ACCOUNT' | 'KYC' | 'PAYMENT' | 'TRIP' | 'PACKAGE' | 'DELIVERY' | 'OTHER'
+
+/** Corps de POST /admin/support/tickets : conversation ouverte par l'admin. */
+export interface StartSupportTicketPayload {
+  userId: string
+  category: SupportCategory
+  subject: string
+  /** Facultatif si au moins une image est jointe (le back exige texte OU pièce jointe). */
+  message: string | null
+  attachmentKeys: string[]
+}
+
 export type SupportStatusFilter = SupportTicketStatus | 'TOUS'
 
 export interface AdminSupportAttachment {

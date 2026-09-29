@@ -21,6 +21,10 @@ export function useSupportTickets() {
   const pageSize = ref(20)
   const scope = ref<SupportTicketScope>('unassigned')
   const statusFilter = ref<SupportStatusFilter>('TOUS')
+  /** Filtre ?userId= : les conversations d'un seul utilisateur. */
+  const userId = ref<string | null>(null)
+  /** L'ancien back ignore ?userId= : des tickets d'autres comptes ont dû être écartés ici. */
+  const userFilterIgnored = ref(false)
 
   const selected = ref<AdminSupportTicket | null>(null)
   const isDetailLoading = ref(false)
@@ -31,10 +35,13 @@ export function useSupportTickets() {
     isLoading.value = true
     error.value = null
     try {
-      const page = await supportService.list(
-        scope.value, statusFilter.value, currentPage.value, pageSize.value,
-      )
-      tickets.value = page.content
+      const filter = userId.value
+      const args = [scope.value, statusFilter.value, currentPage.value, pageSize.value] as const
+      const page = filter ? await supportService.list(...args, filter) : await supportService.list(...args)
+      // Une ligne sans userId ne peut pas être vérifiée : elle reste affichée.
+      const kept = filter ? page.content.filter((t) => !t.userId || t.userId === filter) : page.content
+      userFilterIgnored.value = kept.length < page.content.length
+      tickets.value = kept
       totalElements.value = page.totalElements
       totalPages.value = page.totalPages
     } catch (e) {
@@ -52,6 +59,14 @@ export function useSupportTickets() {
 
   async function setStatusFilter(s: SupportStatusFilter) {
     statusFilter.value = s
+    currentPage.value = 0
+    await fetchTickets()
+  }
+
+  /** Poser ou retirer le filtre utilisateur ; avec userId le back ignore le périmètre (tout l'historique). */
+  async function setUserFilter(id: string | null) {
+    userId.value = id
+    if (id) scope.value = 'all'
     currentPage.value = 0
     await fetchTickets()
   }
@@ -108,8 +123,8 @@ export function useSupportTickets() {
 
   return {
     tickets, isLoading, error, totalElements, totalPages, currentPage, pageSize,
-    scope, statusFilter, selected, isDetailLoading, isActing, actionError,
-    fetchTickets, setScope, setStatusFilter, goToPage,
+    scope, statusFilter, userId, userFilterIgnored, selected, isDetailLoading, isActing, actionError,
+    fetchTickets, setScope, setStatusFilter, setUserFilter, goToPage,
     openTicket, closeTicket, assign, reassign, reply, resolve,
   }
 }
