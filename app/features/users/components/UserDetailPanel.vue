@@ -6,6 +6,9 @@ import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { userStatusMeta } from './userStatus'
 import UserKycTab from './UserKycTab.vue'
 import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
+import StartSupportConversationDialog from '@/features/support/components/StartSupportConversationDialog.vue'
+import UserSupportConversations from '@/features/support/components/UserSupportConversations.vue'
+import { userDisplayName } from '@/features/broadcast/composables/useUserSearch'
 import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { heldPaymentsReminder, holdReasonsLabel } from '@/features/payments/types/index'
@@ -83,6 +86,11 @@ watch(
     if (status !== 'PENDING_DELETION' || error || unavailable) cancelDeletionOpen.value = false
   },
 )
+// Conversation support ouverte par l'admin : pas vers un compte dont la suppression est
+// engagée, il sera anonymisé et le fil perdu.
+const canWriteSupport = computed(() => auth.can('SUPPORT_TICKET_MANAGE') && props.user.status !== 'PENDING_DELETION')
+const writeSupportOpen = ref(false)
+const supportRecipient = computed(() => ({ id: props.user.id, name: userDisplayName(props.user) }))
 const notifyLink = computed(() => `/communications?target=USER&userId=${encodeURIComponent(props.user.id)}`)
 
 // Constat 4 — copie de l'UUID en un clic avec retour visuel
@@ -420,6 +428,11 @@ const dialogConfig = computed<DialogConfig>(() => {
           class="rounded-btn px-4 py-2 text-sm border border-border transition-colors hover:bg-surface-elevated"
         >Envoyer une notification</NuxtLink>
         <button
+          v-if="canWriteSupport" type="button" data-test="action-write-support"
+          class="rounded-btn px-4 py-2 text-sm border border-border transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96]"
+          @click="writeSupportOpen = true"
+        >Écrire à cet utilisateur</button>
+        <button
           v-if="user.status === 'ACTIVE' && auth.can('USER_SUSPEND')" type="button" data-test="action-suspend"
           class="rounded-btn px-4 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30"
           @click="pending = 'suspend'"
@@ -472,6 +485,8 @@ const dialogConfig = computed<DialogConfig>(() => {
           @click="pending = 'muteMessaging'"
         >Couper la messagerie</button>
       </div>
+
+      <UserSupportConversations v-if="auth.can('SUPPORT_TICKET_VIEW')" :user-id="user.id" />
 
       <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">
         <p class="text-text-muted">Commission
@@ -557,6 +572,11 @@ const dialogConfig = computed<DialogConfig>(() => {
         :require-reason="dialogConfig.requireReason"
         @confirm="confirmReason"
         @cancel="pending = null"
+      />
+
+      <StartSupportConversationDialog
+        :open="writeSupportOpen" :recipient="supportRecipient"
+        @close="writeSupportOpen = false" @sent="writeSupportOpen = false"
       />
 
       <RestoreReasonDialog

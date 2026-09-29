@@ -3,6 +3,12 @@ import { mount, flushPromises } from '@vue/test-utils'
 import UserDetailPanel from '@/features/users/components/UserDetailPanel.vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
+// La section « Conversations support » lit les tickets de l'utilisateur au montage.
+const supportListByUser = vi.hoisted(() => vi.fn())
+vi.mock('@/features/support/services/supportService', () => ({
+  supportService: { listByUser: (...a: unknown[]) => supportListByUser(...a) },
+}))
+
 const baseUser = {
   id: 'u1', firstName: 'Jean', lastName: 'Dupont', phoneNumber: '+33600', email: 'j@x.fr',
   city: 'Paris', country: 'FR', status: 'ACTIVE', kycStatus: 'VERIFIED', isProAccount: false,
@@ -561,5 +567,75 @@ describe('UserDetailPanel : lever le bannissement', () => {
     seedAuth('ADMIN', { USER_SUSPEND: false })
     const w2 = mount(UserDetailPanel, { props: { user: { ...baseUser, status: 'BANNED' }, open: true } })
     expect(w2.find('[data-test="action-unban"]').exists()).toBe(false)
+  })
+})
+
+describe('UserDetailPanel : conversation support', () => {
+  const DialogStub = {
+    name: 'StartSupportConversationDialog',
+    props: ['open', 'recipient'],
+    emits: ['close', 'sent'],
+    template: '<div v-if="open" data-test="start-dialog-stub">{{ recipient?.name }}|{{ recipient?.id }}<button data-test="stub-close" @click="$emit(\'close\')" /><button data-test="stub-sent" @click="$emit(\'sent\', { id: \'t9\' })" /></div>',
+  }
+  const SectionStub = { name: 'UserSupportConversations', props: ['userId'], template: '<div data-test="support-section-stub">{{ userId }}</div>' }
+  const stubs = { StartSupportConversationDialog: DialogStub, UserSupportConversations: SectionStub }
+  const mountPanel = (user: Record<string, unknown> = baseUser) =>
+    mount(UserDetailPanel, { props: { user, open: true }, global: { stubs } })
+
+  beforeEach(() => {
+    seedAuth('ADMIN')
+    supportListByUser.mockReset()
+    supportListByUser.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 5 })
+  })
+
+  it('bouton « Écrire à cet utilisateur » : ouvre la fenêtre avec le destinataire', async () => {
+    const w = mountPanel()
+    const btn = w.find('[data-test="action-write-support"]')
+    expect(btn.text()).toBe('Écrire à cet utilisateur')
+    expect(w.find('[data-test="start-dialog-stub"]').exists()).toBe(false)
+    await btn.trigger('click')
+    expect(w.find('[data-test="start-dialog-stub"]').text()).toContain('Jean Dupont|u1')
+    await w.find('[data-test="stub-close"]').trigger('click')
+    expect(w.find('[data-test="start-dialog-stub"]').exists()).toBe(false)
+  })
+
+  it('conversation envoyée : la fenêtre se ferme', async () => {
+    const w = mountPanel()
+    await w.find('[data-test="action-write-support"]').trigger('click')
+    await w.find('[data-test="stub-sent"]').trigger('click')
+    expect(w.find('[data-test="start-dialog-stub"]').exists()).toBe(false)
+  })
+
+  it('destinataire sans nom : repli sur l’email', async () => {
+    const w = mountPanel({ ...baseUser, firstName: null, lastName: null })
+    await w.find('[data-test="action-write-support"]').trigger('click')
+    expect(w.find('[data-test="start-dialog-stub"]').text()).toContain('j@x.fr|u1')
+  })
+
+  it('sans SUPPORT_TICKET_MANAGE : bouton absent', () => {
+    seedAuth('ADMIN', { SUPPORT_TICKET_MANAGE: false })
+    const w = mountPanel()
+    expect(w.find('[data-test="action-write-support"]').exists()).toBe(false)
+  })
+
+  it('compte en suppression : bouton absent', () => {
+    const w = mountPanel({ ...baseUser, status: 'PENDING_DELETION' })
+    expect(w.find('[data-test="action-write-support"]').exists()).toBe(false)
+  })
+
+  it('compte suspendu : on peut toujours lui écrire', () => {
+    const w = mountPanel({ ...baseUser, status: 'SUSPENDED' })
+    expect(w.find('[data-test="action-write-support"]').exists()).toBe(true)
+  })
+
+  it('section « Conversations support » visible avec SUPPORT_TICKET_VIEW', () => {
+    const w = mountPanel()
+    expect(w.find('[data-test="support-section-stub"]').text()).toBe('u1')
+  })
+
+  it('section masquée sans SUPPORT_TICKET_VIEW', () => {
+    seedAuth('ADMIN', { SUPPORT_TICKET_VIEW: false })
+    const w = mountPanel()
+    expect(w.find('[data-test="support-section-stub"]').exists()).toBe(false)
   })
 })
