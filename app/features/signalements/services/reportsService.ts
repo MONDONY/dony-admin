@@ -1,7 +1,15 @@
 import { useApi } from '@/composables/useApi'
+import { reportKindQuery } from '@/features/signalements/reportKind'
 import type {
   AdminReport, AdminReportPage, BulkRestoreResult, ReportAction, ReportReplyPayload, ReportReplyResponse, ReportsFilterState,
 } from '@/features/signalements/types/index'
+
+/** Recherche envoyée au back : le texte libre, sinon le préfixe du type de retour. */
+function searchText(f: ReportsFilterState): string | undefined {
+  const text = f.q?.trim()
+  if (text) return text
+  return f.kind ? reportKindQuery(f.kind) : undefined
+}
 
 function buildQuery(f: ReportsFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
@@ -9,7 +17,8 @@ function buildQuery(f: ReportsFilterState, page: number, size: number): Record<s
   if (f.deleted) q.deleted = true
   else if (f.status !== 'ALL') q.status = f.status
   if (f.targetType) q.targetType = f.targetType
-  if (f.q && f.q.trim()) q.q = f.q.trim()
+  const search = searchText(f)
+  if (search) q.q = search
   return q
 }
 
@@ -48,7 +57,7 @@ export const reportsService = {
           all: true,
           status: input.filters.status === 'ALL' ? undefined : input.filters.status,
           targetType: input.filters.targetType ?? undefined,
-          q: input.filters.q?.trim() || undefined,
+          q: searchText(input.filters),
         }
     return useApi()<{ deleted: number }>('/admin/reports/bulk-delete', { method: 'POST', body })
   },

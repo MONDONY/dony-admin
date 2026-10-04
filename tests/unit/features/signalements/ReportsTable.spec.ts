@@ -78,6 +78,22 @@ describe('ReportsTable', () => {
       expect(w.text()).toContain('Application')
     })
 
+    it.each([
+      ['[BUG] Écran figé', 'Bug', 'Bug signalé depuis un écran'],
+      ['[AVIS] Parcours clair', 'Avis', 'Retour depuis un écran'],
+      ['[SUGGESTION] Ajouter un filtre', 'Suggestion', 'Retour depuis un écran'],
+    ])('« %s » : badge %s, préfixe retiré du texte', (description, badge, reasonLabel) => {
+      const w = mount(ReportsTable, { props: { reports: [{ ...screenReport[0], description }], loading: false } })
+      expect(w.find('[data-test="report-kind-r2"]').text()).toBe(badge)
+      expect(w.text()).toContain(reasonLabel)
+      expect(w.text()).not.toContain(description.split(' ')[0])
+    })
+
+    it('sans préfixe (ancienne app), aucun badge de type', () => {
+      const w = mount(ReportsTable, { props: { reports: screenReport, loading: false } })
+      expect(w.find('[data-test="report-kind-r2"]').exists()).toBe(false)
+    })
+
     it('sans route (ancien rapport), pas de ligne Écran', () => {
       const w = mount(ReportsTable, { props: { reports: [{ ...screenReport[0], screenRoute: null }], loading: false } })
       expect(w.find('[data-test="report-screen-r2"]').exists()).toBe(false)

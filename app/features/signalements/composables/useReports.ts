@@ -1,6 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import { reportsService } from '@/features/signalements/services/reportsService'
-import type { AdminReport, BulkRestoreResult, ReportAction, ReportsFilterState, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
+import type { AdminReport, BulkRestoreResult, ReportAction, ReportKind, ReportsFilterState, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { reasonViolationMessage } from '@/lib/restoreReason'
@@ -46,7 +46,7 @@ export function useReports() {
   const totalElements = ref(0)
   const currentPage = ref(0)
   const pageSize = ref(20)
-  const filters = reactive<ReportsFilterState>({ status: 'OPEN', targetType: null, q: '', deleted: false })
+  const filters = reactive<ReportsFilterState>({ status: 'OPEN', targetType: null, q: '', kind: null, deleted: false })
   /**
    * Un ancien back ignore `deleted=true` et renvoie les signalements ACTIFS, sans `deletedAt` :
    * les montrer sous « Supprimés » ferait croire qu'ils le sont. On vide alors la liste.
@@ -128,6 +128,15 @@ export function useReports() {
     const next = q.trim()
     if (next === filters.q) return
     filters.q = next
+    // Le texte libre et le type se partagent `q` côté back : saisir un texte remet le type à zéro.
+    if (next) filters.kind = null
+    currentPage.value = 0
+    clearSelection()
+    await fetchReports()
+  }
+  async function setKindFilter(k: ReportKind | null) {
+    filters.kind = k
+    if (k) filters.q = ''
     currentPage.value = 0
     clearSelection()
     await fetchReports()
@@ -286,7 +295,7 @@ export function useReports() {
     deletedFilterUnsupported, restoreUnavailable, reasonError, setDeletedFilter, restoreOne, restoreSelected,
     reports, isLoading, error, totalPages, totalElements, currentPage, pageSize, filters,
     selectedIds, allResultsSelected, selectedCount, pageFullySelected, canSelectAllResults,
-    fetchReports, goToPage, setStatusFilter, setTargetTypeFilter, setQuery, resolve,
+    fetchReports, goToPage, setStatusFilter, setTargetTypeFilter, setKindFilter, setQuery, resolve,
     resolveError, lastResolved, closedNotice, clearResolveFeedback,
     toggleSelect, togglePage, selectAllResults, clearSelection, deleteOne, deleteSelected,
     focusedReport, focusError, displayedReports, openReport, closeFocus, findReport, markReplied,
