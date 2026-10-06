@@ -30,6 +30,15 @@ describe('reportsService', () => {
     })
   })
 
+  it('list envoie le préfixe du type comme q, le texte libre l’emportant', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await reportsService.list({ status: 'OPEN', targetType: 'APP', q: '', kind: 'AVIS' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ q: '[AVIS]' })
+    apiMock.mockClear()
+    await reportsService.list({ status: 'OPEN', targetType: 'APP', q: 'badge', kind: 'AVIS' }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ q: 'badge' })
+  })
+
   it('list passe q nettoyé et l’omet quand vide', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     await reportsService.list({ status: 'OPEN', targetType: null, q: '  badge ' }, 0, 20)

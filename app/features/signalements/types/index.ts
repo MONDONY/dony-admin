@@ -3,6 +3,8 @@ import type { AdminSupportTicket } from '@/features/support/types/index'
 // ----- Signalements (reports) -----
 export type ReportStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
 export type ReportStatusFilter = 'ALL' | ReportStatus
+/** Type de retour d'un rapport du scarabée : Bug, Avis ou Suggestion. */
+export type ReportKind = 'BUG' | 'AVIS' | 'SUGGESTION'
 export type ReportTargetType = 'USER' | 'ANNOUNCEMENT' | 'BID' | 'MESSAGE' | 'RATING' | 'APP' | 'PACKAGE_REQUEST'
 /**
  * Miroir de `com.yadony.api.signalements.ReportAction`. RESOLVE (« Marquer comme traité »)
@@ -92,6 +94,8 @@ export interface ReportsFilterState {
   targetType: ReportTargetType | null
   /** Recherche libre (description, route d’écran, signalant, motif) ; vide = pas de filtre. */
   q?: string
+  /** Type de retour du scarabée ; sert de recherche `[TYPE]`, donc ignoré quand `q` est rempli. */
+  kind?: ReportKind | null
   /** « Supprimés » : envoyé en `deleted=true`, jamais quand il est faux ; le statut est alors ignoré. */
   deleted?: boolean
 }

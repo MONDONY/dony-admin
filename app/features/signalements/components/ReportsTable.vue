@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
+import { reportDescriptionText, reportKind, reportKindLabel } from '@/features/signalements/reportKind'
 import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
 import { canReplyToReport, hasSupportConversation, supportConversationLink } from '@/features/signalements/reportReply'
 import type { AdminReport } from '@/features/signalements/types/index'
@@ -42,6 +43,11 @@ function deletedInfo(r: AdminReport): string {
 function requestLink(r: AdminReport): string | null {
   if (r.targetType !== 'PACKAGE_REQUEST' || !r.targetId || !auth.can('BID_VIEW')) return null
   return `/colis?tab=demandes&open=${encodeURIComponent(r.targetId)}`
+}
+/** Un avis ou une suggestion du scarabée n'est pas un « bug » : libellé neutre. */
+function reasonTitle(r: AdminReport): string {
+  const kind = reportKind(r)
+  return kind === 'AVIS' || kind === 'SUGGESTION' ? 'Retour depuis un écran' : reportReasonLabel(r.reason)
 }
 /** Cible APP : ni libellé ni identifiant côté back, on nomme l’application. */
 function targetLabel(r: AdminReport) {
@@ -112,8 +118,14 @@ function actionTaken(r: AdminReport): string | null {
             >Écran {{ r.screenRoute }}</div>
           </td>
           <td class="px-4 py-3 text-sm">
-            <div class="font-medium">{{ reportReasonLabel(r.reason) }}</div>
-            <div v-if="r.description" class="text-xs text-text-muted">{{ r.description }}</div>
+            <div class="font-medium">
+              <StatusBadge
+                v-if="reportKind(r)" :data-test="`report-kind-${r.id}`" class="mr-1.5 align-middle"
+                :label="reportKindLabel(reportKind(r)!)"
+                :tone="reportKind(r) === 'BUG' ? 'danger' : reportKind(r) === 'AVIS' ? 'info' : 'success'"
+              />{{ reasonTitle(r) }}
+            </div>
+            <div v-if="reportDescriptionText(r)" class="text-xs text-text-muted">{{ reportDescriptionText(r) }}</div>
             <div v-if="r.photoUrls?.length" class="mt-1.5 flex gap-1.5">
               <button
                 v-for="(url, i) in r.photoUrls" :key="i" type="button"

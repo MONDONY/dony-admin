@@ -13,7 +13,8 @@ import ReportResolveDialog from '@/features/signalements/components/ReportResolv
 import ReportReplyDialog from '@/features/signalements/components/ReportReplyDialog.vue'
 import { replySentMessage, reporterFirstName, supportConversationLink } from '@/features/signalements/reportReply'
 import { REPORT_TARGET_TYPE_LABELS, reportActionTakenLabel } from '@/features/signalements/reportActionLabels'
-import type { BulkRestoreResult, ReportReplyResponse, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
+import { REPORT_KINDS } from '@/features/signalements/reportKind'
+import type { BulkRestoreResult, ReportKind, ReportReplyResponse, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
 
@@ -36,6 +37,10 @@ const targetTypeFilters: { value: ReportTargetType | null; label: string }[] = [
   ...(Object.entries(REPORT_TARGET_TYPE_LABELS) as [ReportTargetType, string][])
     .map(([value, label]) => ({ value, label })),
 ]
+const kindFilters: { value: ReportKind | null; label: string }[] = [
+  { value: null, label: 'Tous retours' },
+  ...REPORT_KINDS,
+]
 const pendingReportId = ref<string | null>(null)
 const resolveBusy = ref(false)
 const viewerUrls = ref<string[] | null>(null)
@@ -51,6 +56,11 @@ function onSearchInput(e: Event) {
   searchInput.value = (e.target as HTMLInputElement).value
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => r.setQuery(searchInput.value), 300)
+}
+function onKindFilter(k: ReportKind | null) {
+  if (searchTimer) clearTimeout(searchTimer)
+  if (k) searchInput.value = ''
+  r.setKindFilter(k)
 }
 function submitSearch() {
   if (searchTimer) clearTimeout(searchTimer)
@@ -277,6 +287,16 @@ onMounted(async () => {
           class="min-w-64 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm"
           @input="onSearchInput" @keydown.enter.prevent="submitSearch"
         >
+        <!-- Type de retour du scarabée (préfixe [BUG] / [AVIS] / [SUGGESTION] de la description) -->
+        <div class="flex gap-1" role="group" aria-label="Type de retour">
+          <button
+            v-for="k in kindFilters" :key="k.value ?? 'all'" type="button" :data-test="`report-kind-filter-${k.value ?? 'ALL'}`"
+            :aria-pressed="(r.filters.kind ?? null) === k.value ? 'true' : 'false'"
+            :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
+              (r.filters.kind ?? null) === k.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+            @click="onKindFilter(k.value)"
+          >{{ k.label }}</button>
+        </div>
         <select
           data-test="report-target-type-filter"
           :value="r.filters.targetType ?? ''"
