@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import type { PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter } from '@/features/payments/types/index'
 
-defineProps<{
+const props = defineProps<{
   modelStatus: PaymentStatusFilter; modelMethod: PaymentMethodFilter; modelCurrency: PaymentCurrencyFilter; modelDateFrom: string | null; modelDateTo: string | null
   modelHeld?: boolean
+  modelQuery?: string
+  modelHideAbandoned?: boolean
 }>()
 const emit = defineEmits<{
   'update:held': [boolean]
+  'update:query': [string]
+  'update:hideAbandoned': [boolean]
   'update:status': [PaymentStatusFilter]
   'update:method': [PaymentMethodFilter]
   'update:currency': [PaymentCurrencyFilter]
@@ -43,6 +47,19 @@ const currencyChips: { value: PaymentCurrencyFilter; label: string }[] = [
   { value: 'XAF', label: 'XAF (F CFA central)' },
 ]
 
+// Recherche envoyée 300 ms après la dernière frappe, ou tout de suite sur Entrée.
+const search = ref(props.modelQuery ?? '')
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function flushSearch() {
+  if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
+  emit('update:query', search.value.trim())
+}
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(flushSearch, 300)
+})
+onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer) })
+
 const dateFrom = ref('')
 const dateTo = ref('')
 
@@ -58,6 +75,16 @@ function clearDates() {
 
 <template>
   <div class="space-y-3 mb-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs text-text-muted font-medium w-16 shrink-0">Recherche</span>
+      <input
+        v-model="search" type="search" data-test="payment-search" autocomplete="off"
+        placeholder="ID paiement / colis / négociation, pi_…, nom ou @pseudo"
+        class="w-full max-w-md rounded-btn border border-border bg-surface px-3 py-1.5 text-sm"
+        @keydown.enter.prevent="flushSearch"
+      >
+    </div>
+
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-xs text-text-muted font-medium w-16 shrink-0">Statut</span>
       <div class="flex flex-wrap gap-1">
@@ -102,6 +129,13 @@ function clearDates() {
           modelHeld ? 'bg-danger text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
         @click="emit('update:held', !modelHeld)"
       >Versements retenus</button>
+      <button
+        type="button" data-test="chip-abandoned" :aria-pressed="modelHideAbandoned ? 'false' : 'true'"
+        title="Paiements restés en attente plus de 24 h : le client n’a jamais terminé le paiement"
+        :class="['rounded-full px-3 py-1 text-xs transition-colors',
+          !modelHideAbandoned ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+        @click="emit('update:hideAbandoned', !modelHideAbandoned)"
+      >{{ modelHideAbandoned ? 'Afficher les checkouts abandonnés' : 'Checkouts abandonnés affichés' }}</button>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
