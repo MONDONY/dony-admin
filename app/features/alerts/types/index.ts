@@ -5,6 +5,8 @@ export interface AdminAlert {
   id: string
   type: string
   severity: AlertSeverity
+  /** Phrase de l'incident, absente des alertes levées avant le back V290. */
+  detail?: string | null
   payload: Record<string, unknown>
   resolved: boolean
   resolvedAt: string | null
@@ -23,4 +25,13 @@ export interface AlertsFilterState {
   type: string | null
   severity: AlertSeverity | null
   resolved: ResolvedFilter
+}
+
+/** Lignes actuellement en faute d'une règle de cohérence de l'argent (MONEY_INVARIANT_*). */
+export interface AlertViolations {
+  invariant: string
+  title: string
+  severity: string
+  total: number
+  rows: Record<string, unknown>[]
 }

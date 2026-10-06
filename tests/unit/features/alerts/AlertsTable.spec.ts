@@ -21,6 +21,20 @@ describe('AlertsTable', () => {
     expect(w.find('[data-test="resolve-a2"]').exists()).toBe(false)
     await w.find('[data-test="resolve-a1"]').trigger('click')
     expect(w.emitted('resolve')![0]).toEqual(['a1'])
+    expect(w.emitted('open')).toBeUndefined()
+  })
+  it('affiche le titre en clair et le résumé, et ouvre le détail', async () => {
+    const w = mount(AlertsTable, { props: { alerts: [{ ...alerts[0], detail: 'Paiement p1 en séquestre' }], loading: false } })
+    expect(w.text()).toContain('Paiement en séquestre depuis plus de 48 h')
+    expect(w.text()).toContain('Paiement p1 en séquestre')
+    await w.find('[data-test="details-a1"]').trigger('click')
+    expect(w.emitted('open')![0][0]).toMatchObject({ id: 'a1' })
+    expect(w.emitted('resolve')).toBeUndefined()
+  })
+  it('un clic sur la ligne ouvre le détail', async () => {
+    const w = mount(AlertsTable, { props: { alerts, loading: false } })
+    await w.find('[data-test="alert-row-a2"]').trigger('click')
+    expect(w.emitted('open')![0][0]).toMatchObject({ id: 'a2' })
   })
   it('shows empty state', () => {
     const w = mount(AlertsTable, { props: { alerts: [], loading: false } })

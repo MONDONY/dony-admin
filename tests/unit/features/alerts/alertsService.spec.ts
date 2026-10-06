@@ -25,4 +25,10 @@ describe('alertsService', () => {
     await alertsService.resolve('a1', 'traité')
     expect(apiMock).toHaveBeenCalledWith('/admin/alerts/a1/resolve', { method: 'POST', body: { note: 'traité' } })
   })
+
+  it('violations() GETs the live rows', async () => {
+    apiMock.mockResolvedValue({ invariant: 'INV-01', total: 0, rows: [] })
+    await alertsService.violations('a1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/alerts/a1/violations')
+  })
 })

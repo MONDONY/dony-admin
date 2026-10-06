@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminAlert, AdminAlertPage, AlertsFilterState } from '@/features/alerts/types/index'
+import type { AdminAlert, AdminAlertPage, AlertsFilterState, AlertViolations } from '@/features/alerts/types/index'
 
 function buildQuery(f: AlertsFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
@@ -13,6 +13,9 @@ function buildQuery(f: AlertsFilterState, page: number, size: number): Record<st
 export const alertsService = {
   list(filters: AlertsFilterState, page: number, size: number): Promise<AdminAlertPage> {
     return useApi()<AdminAlertPage>('/admin/alerts', { query: buildQuery(filters, page, size) })
+  },
+  violations(id: string): Promise<AlertViolations> {
+    return useApi()<AlertViolations>(`/admin/alerts/${id}/violations`)
   },
   resolve(id: string, note: string): Promise<AdminAlert> {
     return useApi()<AdminAlert>(`/admin/alerts/${id}/resolve`, { method: 'POST', body: { note } })
