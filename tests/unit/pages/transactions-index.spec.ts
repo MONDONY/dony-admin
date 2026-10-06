@@ -13,10 +13,11 @@ vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApiKey: '' } }))
 
 const listMock = vi.fn()
+const getMock = vi.fn()
 vi.mock('@/features/payments/services/paymentsService', () => ({
   paymentsService: {
     list: (...a: unknown[]) => listMock(...a),
-    get: vi.fn(), forceRelease: vi.fn(), refund: vi.fn(), retryMobileMoneyPayout: vi.fn(), retryMobileMoneyRefund: vi.fn(),
+    get: (...a: unknown[]) => getMock(...a), forceRelease: vi.fn(), refund: vi.fn(), retryMobileMoneyPayout: vi.fn(), retryMobileMoneyRefund: vi.fn(),
     listChargebacks: vi.fn(),
   },
 }))
@@ -42,6 +43,12 @@ describe('pages/transactions', () => {
     listMock.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     replaceMock.mockReset().mockResolvedValue(undefined)
     finance.listWalletRefundRequests.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+  })
+
+  it('?open=<paymentId> (lien depuis une alerte) : ouvre la fiche du paiement', async () => {
+    getMock.mockReset().mockResolvedValue({ id: 'p1', status: 'ESCROW' })
+    await mountPage({ open: 'p1' })
+    expect(getMock).toHaveBeenCalledWith('p1')
   })
 
   it('sans paramètre : liste sans filtre de retenue', async () => {

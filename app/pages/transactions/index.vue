@@ -193,6 +193,9 @@ onMounted(async () => {
   if (route.query?.held === 'true') filters.held = true
   const wanted = route.query?.tab
   await Promise.all([fetchPayments(), isTab(wanted) && wanted !== 'payments' ? switchTab(wanted, true) : Promise.resolve()])
+  // ?open=<paymentId> (lien « Ouvrir le paiement » d'une alerte) : ouvre la fiche.
+  const openId = route.query?.open
+  if (typeof openId === 'string' && openId) await detail.open(openId)
 })
 // Page déjà ouverte : un clic sur une notification change seulement la query.
 watch(() => route.query?.tab, (v) => {
