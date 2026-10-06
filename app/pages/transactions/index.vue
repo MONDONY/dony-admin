@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import PaymentsTable from '@/features/payments/components/PaymentsTable.vue'
 import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
+import PaymentTotalsBar from '@/features/payments/components/PaymentTotalsBar.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import ChargebacksTable from '@/features/payments/components/ChargebacksTable.vue'
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
@@ -16,6 +17,7 @@ import { usePaymentDetail } from '@/features/payments/composables/usePaymentDeta
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback } from '@/features/payments/types/index'
 import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest } from '@/features/finance/types/index'
 
@@ -28,7 +30,8 @@ const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TABS as readon
 const tab = ref<Tab>('payments')
 const route = useRoute()
 const router = useRouter()
-const { payments, isLoading, totalPages, currentPage, filters, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, heldFilterUnsupported } = usePayments()
+const { payments, isLoading, error: paymentsError, totalPages, currentPage, filters, totals, exporting, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, setQuery, setHideAbandoned, exportCsv, heldFilterUnsupported } = usePayments()
+const auth = useAuthStore()
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
@@ -228,7 +231,11 @@ watch(() => route.query?.tab, (v) => {
         :model-date-from="filters.dateFrom"
         :model-date-to="filters.dateTo"
         :model-held="filters.held"
+        :model-query="filters.query"
+        :model-hide-abandoned="filters.hideAbandoned"
         @update:held="onHeldFilter"
+        @update:query="setQuery"
+        @update:hide-abandoned="setHideAbandoned"
         @update:status="setStatusFilter"
         @update:method="setMethodFilter"
         @update:currency="setCurrencyFilter"
@@ -238,6 +245,19 @@ watch(() => route.query?.tab, (v) => {
         v-if="heldFilterUnsupported" data-test="held-filter-unsupported"
         class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
       >Le serveur ne sait pas encore isoler les versements retenus : ce filtre sera disponible après sa mise à jour.</p>
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-text-muted">Cliquez sur un paiement pour voir les personnes, les montants, les références Stripe et la chronologie.</p>
+        <button
+          v-if="auth.can('EXPORT_RUN')" type="button" data-test="payments-export" :disabled="exporting"
+          class="rounded-btn border border-border px-3 py-1.5 text-sm hover:bg-surface-elevated disabled:opacity-40"
+          @click="exportCsv"
+        >{{ exporting ? 'Export…' : 'Exporter en CSV' }}</button>
+      </div>
+      <p
+        v-if="paymentsError" data-test="payments-error"
+        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >{{ paymentsError }}</p>
+      <PaymentTotalsBar v-if="totals" :totals="totals" />
       <PaymentsTable :payments="payments" :loading="isLoading" @select="detail.open" />
       <div class="mt-4"><PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" /></div>
       <PaymentDetailPanel

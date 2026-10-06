@@ -31,6 +31,7 @@ describe('alertGuide', () => {
     expect(alertGuide('PAWAPAY_BALANCE_LOW_XOF').title).toBe('Solde pawaPay bas')
     expect(alertGuide('ESCROW_J48_TIMEOUT').title).toBe('Paiement en séquestre depuis plus de 48 h')
     expect(alertGuide('RETURN_DEADLINE_EXPIRED').actions.length).toBeGreaterThan(1)
+    expect(alertGuide(`DELIVERY_PAYMENT_NOT_IN_ESCROW_${P}`).title).toBe('Colis livré sans séquestre')
   })
 
   it('le préfixe le plus long l’emporte', () => {

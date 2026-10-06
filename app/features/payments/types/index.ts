@@ -29,7 +29,48 @@ export interface PayoutHoldFields {
   travelerId?: string | null
 }
 
-export interface AdminPaymentListItem extends PayoutHoldFields { id: string; bidId: string | null; status: PaymentStatus; method: PaymentMethod; amountCents: number; commissionCents: number; currency: string; createdAt: string }
+/** Une partie au paiement (expéditeur ou voyageur) ; `name` absent si le compte n'a ni nom ni pseudo. */
+export interface PaymentParty { id: string; name: string | null }
+
+/**
+ * Contexte calculé par le back : colis classique (`BID`) ou négociation (`NEGOTIATION`), parties,
+ * trajet, références Stripe. Un paiement de négociation garde `bidId` vide sur la ligne même
+ * après la création du colis : `insight.bidId` est le colis résolu. Absent d'un ancien back.
+ */
+export interface PaymentInsight {
+  kind: 'BID' | 'NEGOTIATION'
+  bidId: string | null
+  negotiationThreadId: string | null
+  sender: PaymentParty | null
+  traveler: PaymentParty | null
+  departureCity: string | null
+  arrivalCity: string | null
+  bidStatus: string | null
+  /** Checkout jamais terminé : en attente depuis plus de 24 h. */
+  abandoned: boolean
+  netTravelerCents: number
+  capturedAt: string | null
+  fxExchangeRate: number | null
+  stripeChargeId: string | null
+  stripeDashboardUrl: string | null
+}
+
+export interface AdminPaymentListItem extends PayoutHoldFields {
+  id: string; bidId: string | null; status: PaymentStatus; method: PaymentMethod; amountCents: number; commissionCents: number; currency: string; createdAt: string
+  insight?: PaymentInsight | null
+}
+
+/** Totaux d'une devise sur le périmètre filtré (centimes). */
+export interface PaymentTotals {
+  currency: string; count: number; escrowCents: number; releasedCents: number; refundedCents: number; commissionCents: number; pendingCount: number
+}
+
+/** Étape de la chronologie : date portée par le paiement (`PAYMENT`) ou entrée du journal (`AUDIT`). */
+export interface PaymentTimelineEntry {
+  at: string; action: string; source: 'PAYMENT' | 'AUDIT'
+  actorId: string | null; actorKind: 'ADMIN' | 'USER' | null; actorLabel: string | null
+  payload: Record<string, unknown>
+}
 /**
  * Les trois identifiants pawaPay sont la DERNIÈRE opération connue de chaque type (null sur le
  * rail Stripe ou tant qu'aucune opération n'a eu lieu). Optionnels : un ancien back ne les
@@ -46,6 +87,10 @@ export interface PaymentsFilterState {
   status: PaymentStatusFilter; method: PaymentMethodFilter; currency: PaymentCurrencyFilter; dateFrom: string | null; dateTo: string | null
   /** « Versements retenus » : envoyé en `held=true`, jamais quand il est faux. */
   held?: boolean
+  /** Recherche libre : identifiant, référence Stripe (pi_…), nom ou pseudo d'une partie. */
+  query?: string
+  /** Masque les checkouts abandonnés (en attente depuis plus de 24 h). */
+  hideAbandoned?: boolean
 }
 
 /** Corps d'une dérogation : payer le voyageur malgré le blocage, motif journalisé côté back. */

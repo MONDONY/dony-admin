@@ -14,11 +14,14 @@ vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApi
 
 const listMock = vi.fn()
 const getMock = vi.fn()
+const summaryMock = vi.fn()
+const exportMock = vi.fn()
 vi.mock('@/features/payments/services/paymentsService', () => ({
   paymentsService: {
     list: (...a: unknown[]) => listMock(...a),
     get: (...a: unknown[]) => getMock(...a), forceRelease: vi.fn(), refund: vi.fn(), retryMobileMoneyPayout: vi.fn(), retryMobileMoneyRefund: vi.fn(),
     listChargebacks: vi.fn(),
+    summary: (...a: unknown[]) => summaryMock(...a), exportCsv: (...a: unknown[]) => exportMock(...a),
   },
 }))
 
@@ -43,6 +46,26 @@ describe('pages/transactions', () => {
     listMock.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     replaceMock.mockReset().mockResolvedValue(undefined)
     finance.listWalletRefundRequests.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+  })
+
+  it('totaux par devise et export CSV de la liste filtrée', async () => {
+    summaryMock.mockReset().mockResolvedValue([{ currency: 'EUR', count: 2, escrowCents: 100, releasedCents: 0, refundedCents: 0, commissionCents: 10, pendingCount: 0 }])
+    exportMock.mockReset().mockResolvedValue(new Blob(['x']))
+    const createObjectURL = vi.fn(() => 'blob:x')
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() })
+    const w = await mountPage()
+    expect(summaryMock.mock.calls[0][0]).toMatchObject({ hideAbandoned: true })
+    expect(w.find('[data-test="payment-totals-EUR"]').exists()).toBe(true)
+    await w.find('[data-test="payments-export"]').trigger('click')
+    await flushPromises()
+    expect(exportMock).toHaveBeenCalledTimes(1)
+    expect(createObjectURL).toHaveBeenCalled()
+  })
+
+  it('sans droit d’export : pas de bouton', async () => {
+    seedAuth('ADMIN', { EXPORT_RUN: false })
+    const w = await mountPage()
+    expect(w.find('[data-test="payments-export"]').exists()).toBe(false)
   })
 
   it('?open=<paymentId> (lien depuis une alerte) : ouvre la fiche du paiement', async () => {
