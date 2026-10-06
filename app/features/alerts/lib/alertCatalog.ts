@@ -232,6 +232,18 @@ const PREFIX_GUIDES: PrefixGuide[] = [
     ],
   },
   {
+    prefix: 'DELIVERY_PAYMENT_NOT_IN_ESCROW_',
+    title: 'Colis livré sans séquestre',
+    category: ESCROW,
+    explanation: 'Le colis est livré mais son paiement n’est jamais passé en séquestre (resté « en attente ») : le voyageur ne sera pas payé automatiquement, et l’autorisation carte expire 7 jours après le paiement.',
+    actions: [
+      'Ouvrez le paiement et le colis.',
+      'Dans le dashboard Stripe, vérifiez l’état du PaymentIntent : l’expéditeur a-t-il bien été autorisé ou débité ? Agissez avant J+7.',
+      'Fonds autorisés ou débités : capturez-les si besoin puis payez le voyageur (« Débloquer (force-release) » avec une dérogation motivée), ou faites-le faire par l’équipe technique.',
+      'Aucun fonds : contactez l’expéditeur pour régulariser le paiement, ou remboursez ce qui a été encaissé.',
+    ],
+  },
+  {
     prefix: 'PARTIAL_REFUND_HOLD_',
     title: 'Versement bloqué : paiement déjà partiellement remboursé',
     category: PAYOUT,
