@@ -18,6 +18,10 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   reimbursement_cap_eur: { label: 'Plafond de remboursement', unit: '€' },
   sms_enabled: { label: 'SMS activés (authentification par code)', unit: '' },
   pro_enabled: { label: 'Offre PRO ouverte (visible dans l’application)', unit: '' },
+  critical_sms_fallback_enabled: {
+    label: 'SMS de repli (notifications critiques sans accusé de réception, facturé par envoi)',
+    unit: '',
+  },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
