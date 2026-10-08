@@ -118,9 +118,12 @@ watch(() => [route.query?.tab, route.query?.open] as const, async ([t, open]) =>
       <DisputeDetailPanel
         v-if="detail.dispute.value"
         :dispute="detail.dispute.value" :open="detail.dispute.value !== null"
+        :split-options="detail.splitOptions.value"
         @close="closeDispute"
         @resolve="async (r, n) => { await detail.resolve(r, n); await afterAction() }"
         @guarantee="async (c, b, r) => { await detail.payGuarantee(c, b, r, detail.dispute.value?.bidCurrency); await afterAction() }"
+        @split="async (s, t, n) => { await detail.resolveWithSplit(s, t, n); await afterAction() }"
+        @retry-split="async () => { await detail.retrySplit(); await afterAction() }"
       />
     </template>
 

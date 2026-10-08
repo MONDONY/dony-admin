@@ -1,5 +1,5 @@
 export type DisputeStatus = 'OPEN' | 'RESOLVED'
-export type DisputeResolution = 'RESOLVED_FOR_SENDER' | 'RESOLVED_FOR_TRAVELER' | 'GUARANTEE_PAID' | 'DISMISSED'
+export type DisputeResolution = 'RESOLVED_FOR_SENDER' | 'RESOLVED_FOR_TRAVELER' | 'GUARANTEE_PAID' | 'DISMISSED' | 'SPLIT'
 export type DisputeStatusFilter = 'TOUS' | DisputeStatus
 
 export interface AdminDisputeListItem {
@@ -15,6 +15,46 @@ export interface AdminDisputeDetail extends AdminDisputeListItem {
   bidCurrency?: string | null
   /** Versement fonds de garantie déjà fait, sinon null. */
   guaranteeAmountCents?: number | null; guaranteeCurrency?: string | null
+  /** Partage chiffré décidé (FLUTTER-E2), en unité principale de la devise. Absent sur un back antérieur. */
+  senderRefundAmount?: number | null; travelerPayoutAmount?: number | null; splitCurrency?: string | null
+  /** Exécution du partage chez Stripe, null sans partage. */
+  split?: AdminDisputeSplit | null
+}
+
+export type DisputeSplitStatus = 'CLAIMED' | 'SENDER_REFUNDED' | 'COMPLETED'
+export interface AdminDisputeSplit {
+  id: string; senderRefundAmount: number; travelerPayoutAmount: number; currency: string
+  mode: 'REFUND_TRANSFER' | 'PARTIAL_CAPTURE'; status: DisputeSplitStatus; attempts: number
+  lastError: string | null; stripeRefundId: string | null; stripeTransferId: string | null; completedAt: string | null
+}
+
+/** `GET /admin/disputes/{id}/split-options` : ce qui peut être réparti sur le colis du litige. */
+export interface AdminDisputeSplitOptions {
+  splittable: boolean
+  /** Code de refus RFC 7807 quand `splittable` est faux (espèces, mobile money, hors séquestre…). */
+  reasonCode: string | null
+  currency: string | null; amount: number | null; commission: number | null
+  refunded: number | null; netAvailable: number | null; rail: string | null; paymentStatus: string | null
+}
+
+/** Raison lisible d'un partage impossible. */
+export const SPLIT_REFUSAL_LABELS: Record<string, string> = {
+  'split-not-applicable-cash': 'Envoi payé en espèces : Yadony ne détient pas le prix du transport.',
+  'split-mobile-money-unsupported': 'Paiement mobile money : partage non pris en charge, utilisez le remboursement ou la libération intégrale.',
+  'split-legacy-unsupported': 'Paiement carte ancien modèle : partage non pris en charge.',
+  'payment-not-in-escrow': "Le paiement n'est plus en séquestre.",
+  'payment-disputed': 'Chargeback en cours sur ce paiement.',
+  'split-already-exists': 'Un partage existe déjà pour ce paiement.',
+  'split-nothing-available': 'Aucun net restant à répartir.',
+  'split-no-payment': 'Aucun paiement rattaché à ce colis.',
+  'split-no-bid': 'Litige sans colis.',
+  'dispute-already-resolved': 'Litige déjà résolu.',
+}
+
+/** Unités décimales de la devise (franc CFA sans centimes). */
+export function currencyDecimals(currency?: string | null): number {
+  const c = (currency ?? 'EUR').toUpperCase()
+  return c === 'XOF' || c === 'XAF' ? 0 : 2
 }
 export interface AdminDisputePage { content: AdminDisputeListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export const GUARANTEE_FUND_MAX_CENTS = 20000

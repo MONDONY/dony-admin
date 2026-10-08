@@ -1,6 +1,6 @@
 import { useApi } from '@/composables/useApi'
 import type {
-  AdminDisputeDetail, AdminDisputePage, DisputeStatusFilter, DisputeResolution,
+  AdminDisputeDetail, AdminDisputePage, DisputeStatusFilter, DisputeResolution, AdminDisputeSplitOptions,
   AdminNoShow, AdminNoShowPage, AdminNoShowPageRaw, AdminNoShowRaw, NoShowFilters, NoShowParty, NoShowStatus,
 } from '@/features/incidents/types/index'
 
@@ -50,6 +50,19 @@ export const incidentsService = {
   },
   resolveDispute(id: string, resolution: DisputeResolution, note: string): Promise<AdminDisputeDetail> {
     return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/resolve`, { method: 'POST', body: { resolution, note } })
+  },
+  /** Résolution avec partage chiffré du séquestre (FLUTTER-E2), montants en unité principale. */
+  resolveDisputeWithSplit(id: string, senderRefundAmount: number, travelerPayoutAmount: number, note: string): Promise<AdminDisputeDetail> {
+    return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/resolve`, {
+      method: 'POST', body: { resolution: 'SPLIT', note, senderRefundAmount, travelerPayoutAmount },
+    })
+  },
+  getSplitOptions(id: string): Promise<AdminDisputeSplitOptions> {
+    return useApi()<AdminDisputeSplitOptions>(`/admin/disputes/${id}/split-options`)
+  },
+  /** Reprend un partage interrompu entre le remboursement et le transfert. */
+  retrySplit(id: string): Promise<AdminDisputeDetail> {
+    return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/split/retry`, { method: 'POST' })
   },
   payGuaranteeFund(id: string, amountCents: number, beneficiaryUserId: string, reason: string, currency?: string | null): Promise<AdminDisputeDetail> {
     // La devise n'est envoyée que lorsqu'elle est connue : le backend la vérifie contre celle

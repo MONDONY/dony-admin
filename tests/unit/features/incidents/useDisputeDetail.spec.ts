@@ -4,7 +4,8 @@ vi.mock('@/features/incidents/services/incidentsService', () => {
   const getDisputeMock = vi.fn()
   const resolveDisputeMock = vi.fn()
   const payGuaranteeFundMock = vi.fn()
-  return { incidentsService: { getDispute: getDisputeMock, resolveDispute: resolveDisputeMock, payGuaranteeFund: payGuaranteeFundMock } }
+  return { incidentsService: { getDispute: getDisputeMock, resolveDispute: resolveDisputeMock, payGuaranteeFund: payGuaranteeFundMock,
+    getSplitOptions: vi.fn(), resolveDisputeWithSplit: vi.fn(), retrySplit: vi.fn() } }
 }, { spy: false })
 
 import { useDisputeDetail } from '@/features/incidents/composables/useDisputeDetail'
@@ -49,5 +50,37 @@ describe('useDisputeDetail', () => {
     vi.mocked(incidentsService.payGuaranteeFund).mockRejectedValueOnce(Object.assign(new Error('500 Internal Server Error'), { data: { detail: 'Détail lisible du back' } }))
     const d = useDisputeDetail(); await d.open('d1'); await d.payGuarantee(99999, 'u1', 'x')
     expect(d.error.value).toBe('Détail lisible du back')
+  })
+
+  it('open charge les options de partage d un litige ouvert, pas d un litige résolu', async () => {
+    vi.mocked(incidentsService.getDispute).mockResolvedValueOnce({ id: 'd1', status: 'OPEN' })
+    vi.mocked(incidentsService.getSplitOptions).mockResolvedValueOnce({ splittable: true, netAvailable: 100 })
+    const d = useDisputeDetail(); await d.open('d1')
+    expect(d.splitOptions.value?.netAvailable).toBe(100)
+    vi.mocked(incidentsService.getDispute).mockResolvedValueOnce({ id: 'd2', status: 'RESOLVED' })
+    await d.open('d2')
+    expect(d.splitOptions.value).toBeNull()
+    expect(vi.mocked(incidentsService.getSplitOptions)).toHaveBeenCalledTimes(1)
+  })
+
+  it('options indisponibles (back antérieur) : formulaire masqué sans erreur', async () => {
+    vi.mocked(incidentsService.getDispute).mockResolvedValueOnce({ id: 'd1', status: 'OPEN' })
+    vi.mocked(incidentsService.getSplitOptions).mockRejectedValueOnce(new Error('404'))
+    const d = useDisputeDetail(); await d.open('d1')
+    expect(d.splitOptions.value).toBeNull()
+    expect(d.error.value).toBeNull()
+  })
+
+  it('resolveWithSplit et retrySplit relaient au service', async () => {
+    vi.mocked(incidentsService.getDispute).mockResolvedValueOnce({ id: 'd1', status: 'OPEN' })
+    vi.mocked(incidentsService.resolveDisputeWithSplit).mockResolvedValueOnce({ id: 'd1', status: 'RESOLVED', split: { status: 'SENDER_REFUNDED' } })
+    vi.mocked(incidentsService.retrySplit).mockResolvedValueOnce({ id: 'd1', status: 'RESOLVED', split: { status: 'COMPLETED' } })
+    const d = useDisputeDetail(); await d.open('d1')
+    await d.resolveWithSplit(30, 70, 'motif')
+    expect(vi.mocked(incidentsService.resolveDisputeWithSplit)).toHaveBeenCalledWith('d1', 30, 70, 'motif')
+    await d.retrySplit()
+    expect(d.dispute.value?.split?.status).toBe('COMPLETED')
+    d.close()
+    expect(d.dispute.value).toBeNull()
   })
 })

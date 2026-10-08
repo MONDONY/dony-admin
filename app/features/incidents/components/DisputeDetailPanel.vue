@@ -3,16 +3,27 @@ import { ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import GuaranteeFundForm from './GuaranteeFundForm.vue'
+import SplitResolutionForm from './SplitResolutionForm.vue'
 import { disputeStatusMeta } from './disputeStatus'
 import { formatAmount } from '@/features/finance/types/index'
-import type { AdminDisputeDetail, DisputeResolution } from '@/features/incidents/types/index'
+import type { AdminDisputeDetail, AdminDisputeSplitOptions, DisputeResolution } from '@/features/incidents/types/index'
 import { useAuthStore } from '@/stores/auth'
 
-defineProps<{ dispute: AdminDisputeDetail; open: boolean }>()
-const emit = defineEmits<{ close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, beneficiaryUserId: string, reason: string] }>()
+withDefaults(defineProps<{ dispute: AdminDisputeDetail; open: boolean; splitOptions?: AdminDisputeSplitOptions | null }>(), { splitOptions: null })
+const emit = defineEmits<{
+  close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, beneficiaryUserId: string, reason: string]
+  split: [senderRefund: number, travelerPayout: number, note: string]; 'retry-split': []
+}>()
 
 const auth = useAuthStore()
 const pending = ref<DisputeResolution | null>(null)
+/** Partager déplace de l'argent dans les deux sens : mêmes droits que la libération et le remboursement. */
+const canSplit = () => auth.can('PAYMENT_RELEASE') && auth.can('PAYMENT_REFUND')
+const splitStatusLabel: Record<string, string> = {
+  CLAIMED: 'Décidé, rien encore exécuté chez Stripe',
+  SENDER_REFUNDED: 'Expéditeur remboursé, versement voyageur à reprendre',
+  COMPLETED: 'Exécuté',
+}
 
 function confirmResolve(note: string) {
   if (pending.value) emit('resolve', pending.value, note)
@@ -41,12 +52,30 @@ function confirmResolve(note: string) {
         </div>
       </dl>
 
+      <section v-if="dispute.split" class="rounded-card border border-border p-4 mb-6 space-y-1 text-sm" data-test="split-result">
+        <p class="font-semibold">Partage du séquestre</p>
+        <p class="tabular-nums">Expéditeur : {{ dispute.split.senderRefundAmount }} {{ dispute.split.currency }} · Voyageur : {{ dispute.split.travelerPayoutAmount }} {{ dispute.split.currency }}</p>
+        <p data-test="split-status">{{ splitStatusLabel[dispute.split.status] ?? dispute.split.status }}</p>
+        <p v-if="dispute.split.lastError && dispute.split.status !== 'COMPLETED'" class="text-xs text-danger" data-test="split-error">
+          {{ dispute.split.lastError }} ({{ dispute.split.attempts }} tentative(s))
+        </p>
+        <button
+v-if="dispute.split.status !== 'COMPLETED' && auth.can('DISPUTE_RESOLVE') && canSplit()" type="button" data-test="split-retry"
+          class="mt-2 rounded-btn px-3 py-2 text-sm bg-warning/20 text-warning hover:bg-warning/30" @click="emit('retry-split')">Reprendre le partage</button>
+      </section>
+
       <template v-if="dispute.status === 'OPEN' && auth.can('DISPUTE_RESOLVE')">
         <div class="flex flex-wrap gap-2 mb-4">
           <button type="button" data-test="resolve-sender" class="rounded-btn px-3 py-2 text-sm bg-primary/15 text-primary" @click="pending = 'RESOLVED_FOR_SENDER'">Trancher pour l'expéditeur</button>
           <button type="button" data-test="resolve-traveler" class="rounded-btn px-3 py-2 text-sm bg-primary/15 text-primary" @click="pending = 'RESOLVED_FOR_TRAVELER'">Trancher pour le voyageur</button>
           <button type="button" data-test="resolve-dismiss" class="rounded-btn px-3 py-2 text-sm border border-border" @click="pending = 'DISMISSED'">Classer sans suite</button>
         </div>
+        <SplitResolutionForm
+          v-if="splitOptions && canSplit()"
+          class="mb-4"
+          :options="splitOptions"
+          @submit="(s, t, n) => emit('split', s, t, n)"
+        />
         <GuaranteeFundForm
           :currency="dispute.bidCurrency"
           :sender-id="dispute.senderId"
