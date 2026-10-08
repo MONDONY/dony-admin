@@ -28,6 +28,15 @@ describe('incidentsService', () => {
     await incidentsService.payGuaranteeFund('d1', 500000, 'u1', 'colis perdu', 'XOF')
     expect(apiMock).toHaveBeenCalledWith('/admin/disputes/d1/guarantee-fund', { method: 'POST', body: { amountCents: 500000, beneficiaryUserId: 'u1', reason: 'colis perdu', currency: 'XOF' } })
   })
+  it('partage : resolve avec montants, options et reprise (FLUTTER-E2)', async () => {
+    apiMock.mockResolvedValue({ id: 'd1' })
+    await incidentsService.resolveDisputeWithSplit('d1', 30, 70, 'motif')
+    expect(apiMock).toHaveBeenCalledWith('/admin/disputes/d1/resolve', { method: 'POST', body: { resolution: 'SPLIT', note: 'motif', senderRefundAmount: 30, travelerPayoutAmount: 70 } })
+    await incidentsService.getSplitOptions('d1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/disputes/d1/split-options')
+    await incidentsService.retrySplit('d1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/disputes/d1/split/retry', { method: 'POST' })
+  })
   describe('no-shows', () => {
     const raw = {
       id: 'c1', bidId: 'b1', scope: 'HANDOVER', reason: 'SENDER_NO_SHOW', status: 'PENDING_CONFIRMATION',
