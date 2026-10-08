@@ -69,7 +69,15 @@ function confirmRemove(internalNote: string, publicReason?: string) {
           :data-test="`ann-row-${a.id}`"
           class="border-b border-border"
         >
-          <td class="px-4 py-3 text-sm font-medium">{{ a.corridor }}</td>
+          <td class="px-4 py-3 text-sm font-medium">
+            {{ a.corridor }}
+            <span
+              v-if="a.tripGroupId && a.tripLegIndex && a.tripLegCount"
+              :data-test="`ann-trip-${a.id}`"
+              :title="`Voyage ${a.tripGroupId}`"
+              class="ml-2 inline-flex items-center rounded-btn bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary tabular-nums"
+            >Étape {{ a.tripLegIndex }}/{{ a.tripLegCount }} · voyage {{ a.tripGroupId.slice(0, 8) }}</span>
+          </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ a.travelerName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(a.departureDate) }}</td>
           <td class="px-4 py-3 text-sm tabular-nums">{{ a.availableKg }} kg</td>

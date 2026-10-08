@@ -306,4 +306,14 @@ describe('AnnouncementsTable', () => {
     })
     expect(w.find('[data-test="ann-price-x1"]').text()).toBe(formatMajorAmount(2000, 'XOF') + '/kg')
   })
+
+  it('affiche l\'étape et le voyage d\'une annonce groupée (FLUTTER-4D)', () => {
+    const leg = { ...anns[0], id: 'g1', tripGroupId: '0f8e7d6c-aaaa-bbbb-cccc-000000000001', tripLegIndex: 2, tripLegCount: 3 }
+    const w = mount(AnnouncementsTable, { props: { announcements: [leg, anns[1]], loading: false } })
+    const badge = w.find('[data-test="ann-trip-g1"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('Étape 2/3 · voyage 0f8e7d6c')
+    expect(badge.attributes('title')).toBe('Voyage 0f8e7d6c-aaaa-bbbb-cccc-000000000001')
+    expect(w.find('[data-test="ann-trip-a2"]').exists()).toBe(false)
+  })
 })
