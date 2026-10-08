@@ -8,6 +8,7 @@ import UserKycTab from './UserKycTab.vue'
 import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
 import StartSupportConversationDialog from '@/features/support/components/StartSupportConversationDialog.vue'
 import UserSupportConversations from '@/features/support/components/UserSupportConversations.vue'
+import UserRecetteTesterSection from './UserRecetteTesterSection.vue'
 import { userDisplayName } from '@/features/broadcast/composables/useUserSearch'
 import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -536,6 +537,8 @@ const dialogConfig = computed<DialogConfig>(() => {
           </p>
         </div>
       </div>
+      <!-- Mode recette (yadony-back#449) : super-admin seulement, le back l'exige aussi. -->
+      <UserRecetteTesterSection v-if="auth.can('ADMIN_MANAGE')" :key="user.id" :user-id="user.id" />
       <!-- Séparé des actions réversibles au-dessus : bannir et supprimer ne doivent ni se
            ressembler ni se toucher. Un geste irréversible mérite sa propre zone. -->
       <div
