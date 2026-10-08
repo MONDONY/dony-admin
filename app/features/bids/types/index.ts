@@ -23,6 +23,12 @@ export interface AdminAnnouncementListItem {
   corridor: string; departureDate: string; availableKg: number; pricePerKg: number
   /** Devise du prix au kilo (code ISO). */
   currency: string | null
+  /** Voyage à plusieurs étapes (FLUTTER-4D) : identifiant commun aux étapes. Absent (ancien back) ou null hors voyage. */
+  tripGroupId?: string | null
+  /** Rang de l'étape dans son voyage, à partir de 1. */
+  tripLegIndex?: number | null
+  /** Nombre d'étapes encore présentes dans le voyage. */
+  tripLegCount?: number | null
 }
 export interface AdminBidPage { content: AdminBidListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminAnnouncementPage { content: AdminAnnouncementListItem[]; totalElements: number; totalPages: number; number: number; size: number }
