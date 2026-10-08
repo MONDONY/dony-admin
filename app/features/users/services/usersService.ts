@@ -1,7 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
   AdminDeletionReasonCode, AdminGdprRequestPage, AdminKycDetail, AdminUserDetail, AdminUserPage,
-  DeletionImpact, UsersFilterState,
+  DeletionImpact, RecetteTesterStatus, UsersFilterState,
 } from '@/features/users/types/index'
 
 function buildQuery(f: UsersFilterState, page: number, size: number): Record<string, string | number | boolean> {
@@ -100,5 +100,13 @@ export const usersService = {
       method: 'POST',
       body: { reasonCode, reason },
     })
+  },
+  /** Mode recette (staging) : réservé au super-admin (ADMIN_MANAGE) côté back. */
+  getRecetteTester(id: string): Promise<RecetteTesterStatus> {
+    return useApi()<RecetteTesterStatus>(`/admin/users/${id}/recette-tester`)
+  },
+  /** 409 `recette-disabled` hors staging, 404 `user-not-found`, 422 corps invalide. */
+  setRecetteTester(id: string, enabled: boolean): Promise<RecetteTesterStatus> {
+    return useApi()<RecetteTesterStatus>(`/admin/users/${id}/recette-tester`, { method: 'PUT', body: { enabled } })
   },
 }

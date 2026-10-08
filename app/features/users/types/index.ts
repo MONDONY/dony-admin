@@ -173,3 +173,14 @@ export interface DeletionImpact {
 
 export type AdminDeletionReasonCode =
   | 'FRAUD' | 'ABUSE' | 'TEST_ACCOUNT' | 'DUPLICATE' | 'USER_REQUEST_OFFLINE' | 'OTHER'
+
+/**
+ * Compte testeur du mode recette (yadony-back#449, FLUTTER-FA / FLUTTER-FB).
+ * `recetteModeActive` = mode ouvert dans l'environnement ET compte testeur : il est donc faux
+ * pour un compte non testeur même en staging, et ne suffit pas seul à reconnaître la prod.
+ */
+export interface RecetteTesterStatus {
+  userId: string
+  recetteTester: boolean
+  recetteModeActive: boolean
+}

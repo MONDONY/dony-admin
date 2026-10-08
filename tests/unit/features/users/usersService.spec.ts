@@ -206,4 +206,16 @@ describe('usersService', () => {
     await usersService.list({ status: 'TOUS', role: null, kyc: null, pro: null, city: 'Paris', query: '' }, 0, 20)
     expect(apiMock.mock.calls[0][1].query.city).toBe('Paris')
   })
+
+  it('getRecetteTester() lit le drapeau testeur du compte', async () => {
+    apiMock.mockResolvedValue({ userId: 'u1', recetteTester: false, recetteModeActive: false })
+    await usersService.getRecetteTester('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/recette-tester')
+  })
+
+  it('setRecetteTester() envoie un PUT { enabled }', async () => {
+    apiMock.mockResolvedValue({ userId: 'u1', recetteTester: true, recetteModeActive: true })
+    await usersService.setRecetteTester('u1', true)
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/recette-tester', { method: 'PUT', body: { enabled: true } })
+  })
 })

@@ -639,3 +639,20 @@ describe('UserDetailPanel : conversation support', () => {
     expect(w.find('[data-test="support-section-stub"]').exists()).toBe(false)
   })
 })
+
+describe('UserDetailPanel — mode recette', () => {
+  const SectionStub = { name: 'UserRecetteTesterSection', props: ['userId'], template: '<div data-test="recette-stub">{{ userId }}</div>' }
+  const stubs = { UserRecetteTesterSection: SectionStub }
+
+  it('visible pour un super-admin (ADMIN_MANAGE)', () => {
+    seedAuth('SUPER_ADMIN')
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+    expect(w.find('[data-test="recette-stub"]').text()).toBe('u1')
+  })
+
+  it('absente pour un ADMIN sans ADMIN_MANAGE', () => {
+    seedAuth('ADMIN')
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+    expect(w.find('[data-test="recette-stub"]').exists()).toBe(false)
+  })
+})
