@@ -19,9 +19,11 @@ vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApi
 
 // Mock du service — on veut observer quels filtres sont transmis
 const listMock = vi.fn()
+const recetteStatusMock = vi.fn()
 vi.mock('@/features/users/services/usersService', () => ({
   usersService: {
     list: (...a: unknown[]) => listMock(...a),
+    getRecetteStatus: (...a: unknown[]) => recetteStatusMock(...a),
     getUserDetail: vi.fn().mockResolvedValue(null),
     getDeletionImpact: vi.fn().mockResolvedValue(null),
     deleteUser: vi.fn().mockResolvedValue(undefined),
@@ -217,5 +219,39 @@ describe("users/index.vue — garde null sur open-kyc et reset-kyc (Constat 2)",
     await wrapper.find('[data-test="btn-reset-kyc"]').trigger('click')
     await flushPromises()
     expect(kycResetMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('users/index.vue — mode recette en masse', () => {
+  beforeEach(() => {
+    listMock.mockReset()
+    listMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    recetteStatusMock.mockReset()
+    userRef.value = null
+    vi.resetModules()
+  })
+
+  it('admin sans ADMIN_MANAGE : statut jamais demandé, ni sélection ni filtre', async () => {
+    seedAuth('ADMIN')
+    const w = await mountUsersPage()
+    expect(recetteStatusMock).not.toHaveBeenCalled()
+    expect(w.findComponent({ name: 'UserTable' }).props('selectable')).toBe(false)
+  })
+
+  it('super-admin en staging : sélection et filtre proposés', async () => {
+    seedAuth('SUPER_ADMIN')
+    recetteStatusMock.mockResolvedValue({ enabled: true })
+    const w = await mountUsersPage()
+    expect(recetteStatusMock).toHaveBeenCalled()
+    expect(w.findComponent({ name: 'UserTable' }).props('selectable')).toBe(true)
+    expect(w.findComponent({ name: 'UserFilters' }).props('showRecette')).toBe(true)
+    expect(w.find('[data-test="recette-bulk-bar"]').exists()).toBe(false)
+  })
+
+  it('super-admin hors staging : rien', async () => {
+    seedAuth('SUPER_ADMIN')
+    recetteStatusMock.mockResolvedValue({ enabled: false })
+    const w = await mountUsersPage()
+    expect(w.findComponent({ name: 'UserTable' }).props('selectable')).toBe(false)
   })
 })

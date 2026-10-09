@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { UserStatusFilter } from '@/features/users/types/index'
-defineProps<{ modelStatus: UserStatusFilter; modelQuery: string }>()
-const emit = defineEmits<{ 'update:status': [UserStatusFilter]; 'update:query': [string] }>()
+/** `showRecette` : filtre « Testeurs recette », réservé au super-admin en staging. */
+withDefaults(defineProps<{ modelStatus: UserStatusFilter; modelQuery: string; showRecette?: boolean; modelRecette?: boolean }>(),
+  { showRecette: false, modelRecette: false })
+const emit = defineEmits<{ 'update:status': [UserStatusFilter]; 'update:query': [string]; 'update:recette': [boolean] }>()
 const chips: { value: UserStatusFilter; label: string }[] = [
   { value: 'TOUS', label: 'Tous' },
   { value: 'ACTIVE', label: 'Actifs' },
@@ -22,6 +24,12 @@ const q = ref('')
           modelStatus === c.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
         @click="emit('update:status', c.value)"
       >{{ c.label }}</button>
+      <button
+        v-if="showRecette" type="button" data-test="chip-recette" :aria-pressed="modelRecette"
+        :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
+          modelRecette ? 'bg-warning text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+        @click="emit('update:recette', !modelRecette)"
+      >Testeurs recette</button>
     </div>
     <input
       v-model="q" data-test="search" type="search"
