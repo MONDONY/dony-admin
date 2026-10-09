@@ -39,6 +39,29 @@ describe('usersService', () => {
     expect(apiMock.mock.calls[0][1].query.status).toBeUndefined()
   })
 
+  it('list() transmet le filtre recetteTester seulement quand il est posé', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    const base = { status: 'TOUS' as const, role: null, kyc: null, pro: null, city: null, query: '' }
+    await usersService.list({ ...base, recetteTester: true }, 0, 20)
+    await usersService.list({ ...base, recetteTester: null }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query.recetteTester).toBe(true)
+    expect(apiMock.mock.calls[1][1].query.recetteTester).toBeUndefined()
+  })
+
+  it('getRecetteStatus() lit le statut du mode recette', async () => {
+    apiMock.mockResolvedValue({ enabled: true })
+    expect(await usersService.getRecetteStatus()).toEqual({ enabled: true })
+    expect(apiMock).toHaveBeenCalledWith('/admin/recette/status')
+  })
+
+  it('setRecetteTesterBulk() PUT les identifiants et la valeur', async () => {
+    apiMock.mockResolvedValue({ updated: 2, unchanged: 0, notFound: [] })
+    await usersService.setRecetteTesterBulk(['a', 'b'], false)
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/recette-tester', {
+      method: 'PUT', body: { userIds: ['a', 'b'], enabled: false },
+    })
+  })
+
   it('suspend() POSTs reason', async () => {
     apiMock.mockResolvedValue({ id: 'u1', status: 'SUSPENDED' })
     const r = await usersService.suspend('u1', 'fraude')

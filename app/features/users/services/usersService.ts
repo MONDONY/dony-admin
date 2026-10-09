@@ -1,7 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
   AdminDeletionReasonCode, AdminGdprRequestPage, AdminKycDetail, AdminUserDetail, AdminUserPage,
-  DeletionImpact, RecetteTesterStatus, UsersFilterState,
+  DeletionImpact, RecetteBulkResult, RecetteModeStatus, RecetteTesterStatus, UsersFilterState,
 } from '@/features/users/types/index'
 
 function buildQuery(f: UsersFilterState, page: number, size: number): Record<string, string | number | boolean> {
@@ -12,6 +12,7 @@ function buildQuery(f: UsersFilterState, page: number, size: number): Record<str
   if (f.pro !== null) q.pro = f.pro
   if (f.city) q.city = f.city
   if (f.query.trim()) q.query = f.query.trim()
+  if (f.recetteTester === true || f.recetteTester === false) q.recetteTester = f.recetteTester
   return q
 }
 
@@ -108,5 +109,16 @@ export const usersService = {
   /** 409 `recette-disabled` hors staging, 404 `user-not-found`, 422 corps invalide. */
   setRecetteTester(id: string, enabled: boolean): Promise<RecetteTesterStatus> {
     return useApi()<RecetteTesterStatus>(`/admin/users/${id}/recette-tester`, { method: 'PUT', body: { enabled } })
+  },
+  /** Mode recette ouvert dans cet environnement (staging) ? 404 sur un back plus ancien. */
+  getRecetteStatus(): Promise<RecetteModeStatus> {
+    return useApi()<RecetteModeStatus>('/admin/recette/status')
+  },
+  /**
+   * Désignation en masse (1 à 200 comptes, ADMIN_MANAGE). 409 `recette-disabled` hors staging,
+   * 422 sélection vide ou trop grande.
+   */
+  setRecetteTesterBulk(userIds: string[], enabled: boolean): Promise<RecetteBulkResult> {
+    return useApi()<RecetteBulkResult>('/admin/users/recette-tester', { method: 'PUT', body: { userIds, enabled } })
   },
 }

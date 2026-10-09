@@ -19,6 +19,8 @@ export interface AdminUserListItem {
   totalTrips: number
   totalShipments: number
   createdAt: string
+  /** Compte testeur du mode recette (yadony-back#465) : absent d'un back plus ancien. */
+  recetteTester?: boolean
 }
 
 /**
@@ -95,6 +97,8 @@ export interface UsersFilterState {
   pro: boolean | null
   city: string | null
   query: string
+  /** Filtre « testeurs recette » (yadony-back#465) ; null ou absent = tous. */
+  recetteTester?: boolean | null
 }
 
 /** Miroir de com.yadony.api.kyc.KycVerificationStatus (table kyc_schema.kyc_verifications). */
@@ -179,6 +183,18 @@ export type AdminDeletionReasonCode =
  * `recetteModeActive` = mode ouvert dans l'environnement ET compte testeur : il est donc faux
  * pour un compte non testeur même en staging, et ne suffit pas seul à reconnaître la prod.
  */
+/** `GET /admin/recette/status` : le mode recette est-il ouvert dans cet environnement ? */
+export interface RecetteModeStatus {
+  enabled: boolean
+}
+
+/** Réponse de `PUT /admin/users/recette-tester` (en masse). */
+export interface RecetteBulkResult {
+  updated: number
+  unchanged: number
+  notFound: string[]
+}
+
 export interface RecetteTesterStatus {
   userId: string
   recetteTester: boolean

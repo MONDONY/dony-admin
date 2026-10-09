@@ -32,3 +32,21 @@ describe('UserFilters', () => {
     expect(wrapper.emitted('update:query')?.[0]).toEqual(['aB3xYz9QkLmN0pRsTuVwXyZ12345'])
   })
 })
+
+describe('UserFilters — filtre testeurs recette', () => {
+  it('caché par défaut', () => {
+    const w = mount(UserFilters, { props: { modelStatus: 'TOUS', modelQuery: '' } })
+    expect(w.find('[data-test="chip-recette"]').exists()).toBe(false)
+  })
+
+  it('bascule le filtre', async () => {
+    const w = mount(UserFilters, { props: { modelStatus: 'TOUS', modelQuery: '', showRecette: true } })
+    const chip = w.get('[data-test="chip-recette"]')
+    expect(chip.attributes('aria-pressed')).toBe('false')
+    await chip.trigger('click')
+    expect(w.emitted('update:recette')?.[0]).toEqual([true])
+    await w.setProps({ modelRecette: true })
+    await w.get('[data-test="chip-recette"]').trigger('click')
+    expect(w.emitted('update:recette')?.[1]).toEqual([false])
+  })
+})

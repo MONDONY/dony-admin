@@ -12,7 +12,7 @@ export function useUsers() {
   const currentPage = ref(0)
   const pageSize = ref(20)
   const filters = reactive<UsersFilterState>({
-    status: 'TOUS', role: null, kyc: null, pro: null, city: null, query: '',
+    status: 'TOUS', role: null, kyc: null, pro: null, city: null, query: '', recetteTester: null,
   })
 
   async function fetchUsers() {
@@ -33,6 +33,8 @@ export function useUsers() {
   async function goToPage(p: number) { currentPage.value = p; await fetchUsers() }
   async function setStatusFilter(s: UserStatusFilter) { filters.status = s; currentPage.value = 0; await fetchUsers() }
   async function setSearch(q: string) { filters.query = q; currentPage.value = 0; await fetchUsers() }
+  /** `true` : seuls les testeurs du mode recette ; `null` : tous. */
+  async function setRecetteFilter(v: boolean | null) { filters.recetteTester = v; currentPage.value = 0; await fetchUsers() }
 
-  return { users, isLoading, error, totalElements, totalPages, currentPage, pageSize, filters, fetchUsers, goToPage, setStatusFilter, setSearch }
+  return { users, isLoading, error, totalElements, totalPages, currentPage, pageSize, filters, fetchUsers, goToPage, setStatusFilter, setSearch, setRecetteFilter }
 }
