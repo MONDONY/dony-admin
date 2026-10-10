@@ -7,6 +7,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { useConversations } from '@/features/moderation/composables/useConversations'
 import { useConversationThread } from '@/features/moderation/composables/useConversationThread'
+import { firestoreIdParam } from '@/lib/safeInput'
 
 definePageMeta({ middleware: 'admin-only', permission: 'MODERATION_VIEW', pageTitle: 'Modération', pageSubtitle: 'Conversations et messages' })
 
@@ -31,7 +32,16 @@ async function confirmRestore(reason: string) {
   pendingRestoreId.value = null
 }
 
-onMounted(fetchConversations)
+const route = useRoute()
+// ?open=<conversationId Firestore> (« Voir la conversation » d'une fiche colis) : ouvre le fil.
+onMounted(async () => {
+  // Identifiant validé : une valeur arbitraire de l'URL ne devient jamais un segment d'API.
+  const openId = firestoreIdParam(route.query?.open)
+  await Promise.all([
+    fetchConversations(),
+    openId ? thread.open(openId) : Promise.resolve(),
+  ])
+})
 </script>
 
 <template>

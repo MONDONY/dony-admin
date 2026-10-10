@@ -15,7 +15,7 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
   <div class="rounded-card border border-border bg-surface overflow-hidden">
     <table class="w-full">
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
-        <tr><th class="px-4 py-2 font-medium">Bid</th><th class="px-4 py-2 font-medium">Montant</th><th class="px-4 py-2 font-medium">Commission</th><th class="px-4 py-2 font-medium">Statut</th><th class="px-4 py-2 font-medium">Canal</th><th class="px-4 py-2 font-medium">Tentatives</th><th class="px-4 py-2 font-medium">Créé</th></tr>
+        <tr><th class="px-4 py-2 font-medium">Colis</th><th class="px-4 py-2 font-medium">Montant</th><th class="px-4 py-2 font-medium">Commission</th><th class="px-4 py-2 font-medium">Statut</th><th class="px-4 py-2 font-medium">Canal</th><th class="px-4 py-2 font-medium">Tentatives</th><th class="px-4 py-2 font-medium">Créé</th></tr>
       </thead>
       <tbody>
         <tr v-for="c in commissions" :key="c.bidId" :data-test="`cash-commission-row-${c.bidId}`" class="border-b border-border">

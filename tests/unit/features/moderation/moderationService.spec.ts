@@ -21,6 +21,14 @@ describe('moderationService', () => {
     expect(apiMock.mock.calls[0][0]).toBe('/admin/conversations')
   })
 
+  it('encode les identifiants : pas de traversée de chemin', async () => {
+    apiMock.mockResolvedValue([])
+    await moderationService.getMessages('../../admin/x')
+    expect(apiMock.mock.calls[0][0]).toBe('/admin/conversations/..%2F..%2Fadmin%2Fx/messages')
+    await moderationService.deleteMessage('c/1', 'm/2')
+    expect(apiMock.mock.calls[1][0]).toBe('/admin/conversations/c%2F1/messages/m%2F2')
+  })
+
   it('getMessages GETs the thread', async () => {
     apiMock.mockResolvedValue([])
     await moderationService.getMessages('c1')

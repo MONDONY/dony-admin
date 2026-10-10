@@ -42,7 +42,7 @@ function confirmResolve(note: string) {
         <StatusBadge v-bind="disputeStatusMeta(dispute.status)" />
       </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
-        <div><dt class="text-text-muted">Bid</dt><dd>{{ dispute.bidId }}</dd></div>
+        <div><dt class="text-text-muted">Colis</dt><dd>{{ dispute.bidId }}</dd></div>
         <div><dt class="text-text-muted">Devise du colis</dt><dd data-test="dispute-currency">{{ dispute.bidCurrency ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Remboursement gelé</dt><dd>{{ dispute.refundFrozen ? 'Oui' : 'Non' }}</dd></div>
         <div v-if="dispute.resolution"><dt class="text-text-muted">Résolution</dt><dd>{{ dispute.resolution }}</dd></div>

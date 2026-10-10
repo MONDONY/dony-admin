@@ -16,13 +16,16 @@ export const bidsAdminService = {
     return useApi()<AdminBidPage>('/admin/bids', { query: buildQuery(filters, page, size) })
   },
   getBid(id: string): Promise<AdminBidDetail> {
-    return useApi()<AdminBidDetail>(`/admin/bids/${id}`)
+    return useApi()<AdminBidDetail>(`/admin/bids/${encodeURIComponent(id)}`)
   },
   getTimeline(id: string): Promise<AdminBidTimeline> {
-    return useApi()<AdminBidTimeline>(`/admin/bids/${id}/timeline`)
+    return useApi()<AdminBidTimeline>(`/admin/bids/${encodeURIComponent(id)}/timeline`)
   },
-  listAnnouncements(page: number, size: number): Promise<AdminAnnouncementPage> {
-    return useApi()<AdminAnnouncementPage>('/admin/announcements', { query: { page, size } })
+  /** `id` : l'annonce d'un colis seule (un ancien back l'ignore et renvoie la page entière). */
+  listAnnouncements(page: number, size: number, id?: string | null): Promise<AdminAnnouncementPage> {
+    const query: Record<string, string | number> = { page, size }
+    if (id) query.id = id
+    return useApi()<AdminAnnouncementPage>('/admin/announcements', { query })
   },
   removeAnnouncement(id: string, publicReason: string, internalNote: string): Promise<AdminAnnouncementListItem> {
     return useApi()<AdminAnnouncementListItem>(`/admin/announcements/${id}/remove`, { method: 'POST', body: { publicReason, internalNote } })

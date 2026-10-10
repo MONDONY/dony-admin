@@ -28,10 +28,21 @@ describe('bidsAdminService', () => {
     await bidsAdminService.getTimeline('b1')
     expect(apiMock).toHaveBeenCalledWith('/admin/bids/b1/timeline')
   })
+  it('getBid et getTimeline encodent l’identifiant : pas de traversée de chemin', async () => {
+    await bidsAdminService.getBid('../../admin/x')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/bids/..%2F..%2Fadmin%2Fx')
+    await bidsAdminService.getTimeline('a/b')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/bids/a%2Fb/timeline')
+  })
   it('listAnnouncements GETs paged announcements', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     await bidsAdminService.listAnnouncements(0, 20)
     expect(apiMock).toHaveBeenCalledWith('/admin/announcements', { query: { page: 0, size: 20 } })
+  })
+  it('listAnnouncements avec un identifiant : l’annonce du colis seule', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await bidsAdminService.listAnnouncements(0, 20, 'an1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/announcements', { query: { page: 0, size: 20, id: 'an1' } })
   })
   it('removeAnnouncement POSTs le motif catalogué ET la note interne, séparément', async () => {
     apiMock.mockResolvedValue({ id: 'a1', status: 'REMOVED_BY_ADMIN' })

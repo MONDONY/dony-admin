@@ -91,6 +91,7 @@ export interface AdminPaymentDetail extends AdminPaymentListItem {
 /** Ce que la resynchronisation Stripe a fait (`POST /admin/payments/{id}/resync-stripe`). */
 export type StripeResyncAction =
   | 'ALREADY_IN_SYNC' | 'ESCROW_ACTIVATED' | 'ESCROW_CAPTURED' | 'CAPTURE_RECORDED' | 'MARKED_FAILED' | 'MARKED_CANCELLED'
+  | 'ESCROW_RELEASED'
 
 /** État base + Stripe d'un paiement, avant ou après la resynchronisation. */
 export interface StripeResyncState {
@@ -115,6 +116,8 @@ export interface StripeResyncResult {
   openAlertIds: string[]
   /** Vrai s'il reste des alertes que l'admin peut clore lui-même maintenant que la base est alignée. */
   alertResolvable: boolean
+  /** Back #488 : le versement au voyageur est parti pendant la resynchronisation (colis déjà livré). Absent sur l'ancien back. */
+  released?: boolean
 }
 export interface AdminChargeback { id: string; bidId: string | null; amountCents: number; currency?: string | null; reason: string | null; status: ChargebackStatus; openedAt: string }
 export interface AdminPaymentPage { content: AdminPaymentListItem[]; totalElements: number; totalPages: number; number: number; size: number }

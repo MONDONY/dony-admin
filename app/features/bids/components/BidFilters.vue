@@ -13,14 +13,14 @@ const statusChips: { value: BidStatusFilter; label: string }[] = [
   { value: 'TOUS', label: 'Tous' },
   { value: 'AWAITING_PAYMENT', label: 'Att. paiement' },
   { value: 'PENDING', label: 'En attente' },
-  { value: 'PAYMENT_ESCROWED', label: 'Escrow' },
+  { value: 'PAYMENT_ESCROWED', label: 'Séquestre' },
   { value: 'ACCEPTED', label: 'Accepté' },
   { value: 'HANDED_OVER', label: 'Remis' },
   { value: 'IN_TRANSIT', label: 'En transit' },
   { value: 'COMPLETED', label: 'Livré' },
   { value: 'REJECTED', label: 'Refusé' },
   { value: 'CANCELLED', label: 'Annulé' },
-  { value: 'NO_SHOW', label: 'No-show' },
+  { value: 'NO_SHOW', label: 'Absence' },
   { value: 'EXPIRED', label: 'Expiré' },
 ]
 

@@ -252,6 +252,16 @@ const PREFIX_GUIDES: PrefixGuide[] = [
     ],
   },
   {
+    prefix: 'DELIVERY_NOT_ESCROW_',
+    title: 'Colis livré, paiement pas en séquestre',
+    category: ESCROW,
+    explanation: 'Le colis a été livré, mais le paiement carte n’était pas en séquestre chez Yadony à ce moment-là : le versement au voyageur n’a pas pu partir.',
+    actions: [
+      'Resynchronisez avec Stripe (section « Corriger ») : si le paiement passe en séquestre, le versement au voyageur part automatiquement.',
+      'Sinon, vérifiez le paiement dans Stripe (PaymentIntent indiqué ci-dessous) et transmettez à l’équipe technique.',
+    ],
+  },
+  {
     prefix: 'RETURN_DEADLINE_EXPIRED',
     title: 'Colis non rendu après annulation',
     category: PARCEL,
@@ -320,6 +330,17 @@ const PREFIX_GUIDES: PrefixGuide[] = [
   },
   {
     prefix: 'COMMISSION_3DS_UNCONFIRMED_',
+    title: 'Commission payée mais acceptation non finalisée',
+    category: 'Commission',
+    explanation: 'L’expéditeur a validé le paiement de la commission (3D Secure) mais l’app n’a jamais confirmé l’acceptation du colis : il a été débité pour un colis qui n’avance pas.',
+    actions: [
+      'Ouvrez le colis et contactez l’expéditeur.',
+      'Si le colis doit avoir lieu, faites finaliser l’acceptation dans l’app.',
+      'Sinon, remboursez la commission dans Stripe (PaymentIntent indiqué ci-dessous).',
+    ],
+  },
+  {
+    prefix: 'COMMISSION_3DS_UNCONF_',
     title: 'Commission payée mais acceptation non finalisée',
     category: 'Commission',
     explanation: 'L’expéditeur a validé le paiement de la commission (3D Secure) mais l’app n’a jamais confirmé l’acceptation du colis : il a été débité pour un colis qui n’avance pas.',

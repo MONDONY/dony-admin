@@ -18,15 +18,21 @@ export function useAdminAnnouncements() {
   const currentPage = ref(0)
   const totalPages = ref(0)
   const pageSize = 20
+  /** Annonce d'un colis (« Voir l'annonce » de la fiche) : la liste se réduit à elle. */
+  const focusId = ref<string | null>(null)
 
   /** La page courante ne change qu'une fois la nouvelle page reçue : un échec laisse l'ancienne affichée. */
   async function load(page = currentPage.value) {
     isLoading.value = true
     error.value = null
     try {
-      const res = await bidsAdminService.listAnnouncements(page, pageSize)
-      announcements.value = res.content
-      totalPages.value = res.totalPages
+      const id = focusId.value
+      const res = id
+        ? await bidsAdminService.listAnnouncements(0, pageSize, id)
+        : await bidsAdminService.listAnnouncements(page, pageSize)
+      // Ancien back : `id` ignoré, la page entière revient ; on ne garde que l'annonce visée.
+      announcements.value = id ? res.content.filter((a) => a.id === id) : res.content
+      totalPages.value = id ? 1 : res.totalPages
       currentPage.value = page
     } catch (e) {
       error.value = extractProblemMessage(e, 'Impossible de charger les annonces')
@@ -35,6 +41,10 @@ export function useAdminAnnouncements() {
     }
   }
   const goToPage = (page: number) => load(page)
+  async function focus(id: string | null) {
+    focusId.value = id
+    await load(0)
+  }
 
   function replace(updated: AdminAnnouncementListItem) {
     const idx = announcements.value.findIndex((a) => a.id === updated.id)
@@ -57,5 +67,5 @@ export function useAdminAnnouncements() {
     run(() => bidsAdminService.removeAnnouncement(id, publicReason, internalNote))
   const restore = (id: string) => run(() => bidsAdminService.restoreAnnouncement(id))
 
-  return { announcements, isLoading, error, busy, currentPage, totalPages, load, goToPage, remove, restore }
+  return { announcements, isLoading, error, busy, currentPage, totalPages, focusId, load, goToPage, focus, remove, restore }
 }

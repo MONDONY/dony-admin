@@ -14,8 +14,9 @@ import PackageRequestDetailPanel from '@/features/package-requests/components/Pa
 import { usePackageRequests } from '@/features/package-requests/composables/usePackageRequests'
 import { usePackageRequestDetail, PACKAGE_REQUESTS_UNAVAILABLE } from '@/features/package-requests/composables/usePackageRequestDetail'
 import { useAuthStore } from '@/stores/auth'
+import { uuidParam } from '@/lib/safeInput'
 
-definePageMeta({ middleware: 'admin-only', permission: 'BID_VIEW', pageTitle: 'Colis', pageSubtitle: 'Bids, annonces & demandes d’envoi' })
+definePageMeta({ middleware: 'admin-only', permission: 'BID_VIEW', pageTitle: 'Colis', pageSubtitle: 'Colis, annonces & demandes d’envoi' })
 
 type Tab = 'bids' | 'announcements' | 'demandes'
 const TABS: readonly Tab[] = ['bids', 'announcements', 'demandes']
@@ -27,12 +28,13 @@ const tab = ref<Tab>('bids')
 // Évalué au montage : la session n'existe pas au rendu serveur, un `v-if` direct sur
 // `auth.can()` ferait diverger l'hydratation.
 const canSeeRequests = ref(false)
-const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange } = useAdminBids()
+const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter } = useAdminBids()
 const detail = useBidTimeline()
 const {
   announcements: anns, isLoading: annLoading, error: annError, busy: annBusy,
   currentPage: annPage, totalPages: annTotalPages,
-  load: loadAnns, goToPage: goToAnnPage, remove: removeAnnouncement, restore: restoreAnnouncement,
+  focusId: annFocusId,
+  load: loadAnns, goToPage: goToAnnPage, focus: focusAnnouncement, remove: removeAnnouncement, restore: restoreAnnouncement,
 } = useAdminAnnouncements()
 
 // ---- Demandes d'envoi ----
@@ -46,20 +48,60 @@ async function loadBidsOnce() {
   await fetchBids()
 }
 
-/** L'onglet et la fiche ouverte vivent dans l'URL (?tab=demandes&open=<id>) : liens profonds. */
+/**
+ * L'onglet, la fiche ouverte et les filtres « trajet » vivent dans l'URL : liens profonds
+ * (?tab=demandes&open=<id>, ?open=<colisId>, ?announcementId=<annonce> pour les colis d'un
+ * trajet, ?tab=announcements&announcement=<annonce> pour l'annonce d'un colis).
+ */
+const OWN_KEYS = ['tab', 'open', 'announcementId', 'announcement']
 function syncQuery(next: { tab: Tab; open?: string | null }) {
   const query: Record<string, string> = {}
   for (const [k, v] of Object.entries(route.query ?? {})) {
-    if (k !== 'tab' && k !== 'open' && typeof v === 'string') query[k] = v
+    if (!OWN_KEYS.includes(k) && typeof v === 'string') query[k] = v
   }
   if (next.tab !== 'bids') query.tab = next.tab
   if (next.open) query.open = next.open
+  if (next.tab === 'bids' && filters.announcementId) query.announcementId = filters.announcementId
+  if (next.tab === 'announcements' && annFocusId.value) query.announcement = annFocusId.value
   router.replace({ query })
+}
+
+// ---- Fiche colis ----
+async function openBid(id: string) {
+  syncQuery({ tab: 'bids', open: id })
+  await detail.open(id)
+}
+function closeBid() {
+  detail.close()
+  syncQuery({ tab: 'bids' })
+}
+/** « Voir l'annonce » : onglet Annonces réduit à l'annonce du colis. */
+async function showAnnouncement(id: string) {
+  detail.close()
+  tab.value = 'announcements'
+  await focusAnnouncement(id)
+  syncQuery({ tab: 'announcements' })
+}
+async function clearAnnouncementFocus() {
+  await focusAnnouncement(null)
+  syncQuery({ tab: 'announcements' })
+}
+/** « Autres colis sur ce trajet » : liste des colis filtrée sur l'annonce. */
+async function showTripBids(id: string) {
+  detail.close()
+  bidsLoaded = true
+  await setAnnouncementFilter(id)
+  syncQuery({ tab: 'bids' })
+}
+async function clearTripFilter() {
+  await setAnnouncementFilter(null)
+  syncQuery({ tab: 'bids' })
 }
 
 async function switchTab(t: Tab) {
   tab.value = t
   if (t !== 'demandes') prDetail.close()
+  if (t !== 'bids') detail.close()
   syncQuery({ tab: t })
   if (t === 'bids') await loadBidsOnce()
   if (t === 'announcements' && anns.value.length === 0) {
@@ -99,23 +141,29 @@ onMounted(async () => {
   if (initial === 'demandes' && canSeeRequests.value) {
     tab.value = 'demandes'
     prLoaded = true
-    const openId = route.query?.open
+    const openId = uuidParam(route.query?.open)
     await Promise.all([
       pr.load(),
-      typeof openId === 'string' && openId ? prDetail.open(openId) : Promise.resolve(),
+      openId ? prDetail.open(openId) : Promise.resolve(),
     ])
     return
   }
   if (initial === 'announcements') {
     tab.value = 'announcements'
-    await loadAnns()
+    const focused = uuidParam(route.query?.announcement)
+    if (focused) await focusAnnouncement(focused)
+    else await loadAnns()
     return
   }
-  // ?open=<bidId> sur l'onglet Bids (lien « Ouvrir le colis » d'un no-show) : ouvre la fiche.
-  const openBid = route.query?.open
+  // ?announcementId=<annonce> : colis d'un même trajet.
+  // Identifiants de l'URL validés (UUID) avant tout appel : `?open=../../x` est ignoré.
+  const tripId = uuidParam(route.query?.announcementId)
+  if (tripId) filters.announcementId = tripId
+  // ?open=<colisId> sur l'onglet Colis (lien « Ouvrir le colis » d'un no-show, d'un paiement) : ouvre la fiche.
+  const openParam = uuidParam(route.query?.open)
   await Promise.all([
     loadBidsOnce(),
-    typeof openBid === 'string' && openBid ? detail.open(openBid) : Promise.resolve(),
+    openParam ? detail.open(openParam) : Promise.resolve(),
   ])
 })
 </script>
@@ -127,7 +175,7 @@ onMounted(async () => {
         type="button" data-test="tab-bids"
         :class="['rounded-full px-3 py-1.5 text-sm', tab === 'bids' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
         @click="switchTab('bids')"
-      >Bids</button>
+      >Colis</button>
       <button
         type="button" data-test="tab-announcements"
         :class="['rounded-full px-3 py-1.5 text-sm', tab === 'announcements' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
@@ -151,7 +199,18 @@ onMounted(async () => {
         @update:query="setSearch"
         @update:date-range="(from, to) => setDateRange(from, to)"
       />
-      <BidsTable :bids="bids" :loading="isLoading" @select="detail.open" />
+      <div
+        v-if="filters.announcementId" data-test="trip-filter" role="status"
+        class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-primary/30 bg-primary/5 px-4 py-2 text-sm"
+      >
+        <span>Colis d’un même trajet (annonce <span class="font-mono text-xs">{{ filters.announcementId.slice(0, 8) }}</span>)</span>
+        <button
+          type="button" data-test="trip-filter-clear"
+          class="inline-flex min-h-10 items-center rounded-btn px-3 text-sm text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96]"
+          @click="clearTripFilter"
+        >Voir tous les colis</button>
+      </div>
+      <BidsTable :bids="bids" :loading="isLoading" @select="openBid" />
       <div class="mt-4">
         <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />
       </div>
@@ -159,9 +218,32 @@ onMounted(async () => {
         v-if="detail.bid.value"
         :bid="detail.bid.value"
         :timeline="detail.timeline.value"
+        :timeline-loading="detail.timelineLoading.value"
+        :timeline-error="detail.timelineError.value"
         :open="detail.bid.value !== null"
-        @close="detail.close"
+        @close="closeBid"
+        @show-announcement="showAnnouncement"
+        @show-trip-bids="showTripBids"
+        @resynced="detail.reload"
       />
+      <div
+        v-else-if="detail.openId.value && (detail.isLoading.value || detail.error.value)"
+        class="fixed inset-0 z-40 flex justify-end bg-black/30" data-test="bid-detail-pending"
+        @click.self="closeBid"
+      >
+        <aside class="h-full w-full max-w-2xl bg-surface border-l border-border p-6">
+          <p v-if="detail.isLoading.value" class="text-sm text-text-muted">Chargement du colis…</p>
+          <p
+            v-else data-test="bid-detail-error" role="alert"
+            class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >{{ detail.error.value }}</p>
+          <button
+            type="button" data-test="bid-detail-pending-close"
+            class="mt-6 inline-flex min-h-10 items-center rounded-btn px-4 text-sm border border-border hover:bg-surface-elevated"
+            @click="closeBid"
+          >Fermer</button>
+        </aside>
+      </div>
     </template>
 
     <template v-else-if="tab === 'demandes'">
@@ -216,6 +298,17 @@ onMounted(async () => {
     </template>
 
     <template v-else>
+      <div
+        v-if="annFocusId" data-test="announcement-focus" role="status"
+        class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-primary/30 bg-primary/5 px-4 py-2 text-sm"
+      >
+        <span>Annonce du colis (<span class="font-mono text-xs">{{ annFocusId.slice(0, 8) }}</span>)</span>
+        <button
+          type="button" data-test="announcement-focus-clear"
+          class="inline-flex min-h-10 items-center rounded-btn px-3 text-sm text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96]"
+          @click="clearAnnouncementFocus"
+        >Voir toutes les annonces</button>
+      </div>
       <AnnouncementsTable
         :announcements="anns" :loading="annLoading" :error="annError" :busy="annBusy"
         @remove="removeAnnouncement" @restore="restoreAnnouncement"
