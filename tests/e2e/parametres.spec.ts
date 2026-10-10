@@ -120,3 +120,63 @@ test('synchroniser avec la BCE recharge les taux et annonce le nombre de devises
   await expect.poll(() => syncCalls).toBe(1)
   await expect(page.locator('[data-test="rates-sync-result"]')).toHaveText('1 devise mise à jour par la BCE')
 })
+
+const PURGE_STATUS = {
+  purgeEnabled: false,
+  retentionDays: 7,
+  running: false,
+  lastPurges: [{
+    kind: 'PURGE', dryRun: true, triggerSource: 'SCHEDULE', startedAt: '2026-10-10T04:10:00',
+    finishedAt: '2026-10-10T04:11:00', eligible: 1234, deleted: 0, failed: 0, error: null,
+  }],
+  lastReconciles: [],
+  uploads24h: 12,
+  bytes24h: 1536,
+  uploads7d: 80,
+  bytes7d: 5242880,
+}
+
+test('la carte Stockage photos affiche le décompte à blanc et lance une purge', async ({ page }) => {
+  await seed(page, ADMIN)
+  let runCalls = 0
+  await page.route('**/api/v1/admin/settings**', (route) => route.fulfill({ json: SETTINGS }))
+  await page.route('**/api/v1/admin/exchange-rates**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/v1/admin/storage/photo-purge/status', (route) => route.fulfill({ json: PURGE_STATUS }))
+  await page.route('**/api/v1/admin/storage/photo-purge/run', (route) => {
+    runCalls++
+    return route.fulfill({ status: 202, json: { started: true } })
+  })
+
+  await page.goto('/parametres')
+  await expect(page.locator('[data-test="last-purge"]')).toContainText('1234 photos seraient supprimées')
+
+  await page.getByRole('button', { name: 'Lancer la purge maintenant' }).click()
+  await expect.poll(() => runCalls).toBe(1)
+  await expect(page.locator('[data-test="photo-storage-notice"]')).toContainText('Passage lancé')
+})
+
+test('activer la suppression des photos sans la phrase n’envoie aucun PUT', async ({ page }) => {
+  await seed(page, ADMIN)
+  const putCalls: string[] = []
+  const settings = [...SETTINGS, { key: 'photo_purge_enabled', value: 'false', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null }]
+  await page.route('**/api/v1/admin/settings**', (route) => {
+    const req = route.request()
+    if (req.method() === 'PUT') {
+      putCalls.push(req.url())
+      return route.fulfill({ json: settings[4] })
+    }
+    return route.fulfill({ json: settings })
+  })
+  await page.route('**/api/v1/admin/exchange-rates**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/v1/admin/storage/photo-purge/status', (route) => route.fulfill({ json: PURGE_STATUS }))
+
+  await page.goto('/parametres')
+  await expect(page.locator('[data-test="setting-row-photo_purge_enabled"]')).toBeVisible()
+  await page.locator('[data-test="setting-value-photo_purge_enabled"]').selectOption('true')
+  await page.locator('[data-test="setting-save-photo_purge_enabled"]').click()
+
+  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
+  await page.locator('[data-test="confirmation-input"]').fill('ACTIVER')
+  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
+  expect(putCalls.length).toBe(0)
+})
