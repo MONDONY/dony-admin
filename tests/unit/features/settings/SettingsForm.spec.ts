@@ -27,6 +27,23 @@ const pro: PlatformSetting = {
   updatedAt: null, updatedByEmail: null,
 }
 
+const retention: PlatformSetting = {
+  key: 'photo_retention_days_after_delivery', value: '7', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+const quota: PlatformSetting = {
+  key: 'photo_upload_daily_quota', value: '60', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+const maxTracking: PlatformSetting = {
+  key: 'tracking_photos_max_per_bid', value: '12', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+const purge: PlatformSetting = {
+  key: 'photo_purge_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
+
 function mountForm(props: Partial<InstanceType<typeof SettingsForm>['$props']> = {}) {
   return mount(SettingsForm, {
     props: { settings: [commission, urgency, cap, sms, pro], busy: false, ...props },
@@ -225,6 +242,81 @@ describe('SettingsForm', () => {
 
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('update')![0]).toEqual(['pro_enabled', 'false'])
+  })
+
+  it('affiche les libellés et unités des réglages photos', () => {
+    const w = mountForm({ settings: [retention, quota, maxTracking, purge] })
+    expect(w.text()).toContain('Délai de suppression des photos après livraison')
+    expect(w.find('[data-test="setting-unit-photo_retention_days_after_delivery"]').text()).toBe('jours')
+    expect(w.text()).toContain('Photos envoyées par utilisateur et par jour')
+    expect(w.text()).toContain('Photos de suivi par colis')
+    expect(w.text()).toContain('Suppression des photos activée')
+    expect(w.find('[data-test="setting-hint-photo_upload_daily_quota"]').text()).toBe('Entre 5 et 1000')
+  })
+
+  it.each([
+    ['photo_retention_days_after_delivery', '0'], ['photo_retention_days_after_delivery', '366'],
+    ['photo_upload_daily_quota', '4'], ['photo_upload_daily_quota', '1001'],
+    ['tracking_photos_max_per_bid', '0'], ['tracking_photos_max_per_bid', '21'],
+    ['photo_retention_days_after_delivery', '7.5'],
+    ['photo_upload_daily_quota', ''],
+  ])('refuse %s = "%s" hors bornes', async (key, value) => {
+    const w = mountForm({ settings: [retention, quota, maxTracking] })
+    await w.find(`[data-test="setting-value-${key}"]`).setValue(value)
+    expect(w.find(`[data-test="setting-error-${key}"]`).exists()).toBe(true)
+    expect(w.find(`[data-test="setting-save-${key}"]`).attributes('disabled')).toBeDefined()
+    await w.find(`[data-test="setting-save-${key}"]`).trigger('click')
+    expect(w.emitted('update')).toBeUndefined()
+  })
+
+  it('accepte les bornes incluses des réglages photos', async () => {
+    const w = mountForm({ settings: [retention, quota, maxTracking] })
+    await w.find('[data-test="setting-value-photo_upload_daily_quota"]').setValue('1000')
+    expect(w.find('[data-test="setting-error-photo_upload_daily_quota"]').exists()).toBe(false)
+    await w.find('[data-test="setting-value-tracking_photos_max_per_bid"]').setValue('1')
+    expect(w.find('[data-test="setting-error-tracking_photos_max_per_bid"]').exists()).toBe(false)
+  })
+
+  it('activer la purge exige la phrase ACTIVER PURGE', async () => {
+    const w = mountForm({ settings: [purge] })
+    await w.find('[data-test="setting-value-photo_purge_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-photo_purge_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(true)
+    expect(w.text()).toContain('ACTIVER PURGE')
+    expect(w.text()).toContain('Cloudflare R2')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    await w.find('[data-test="confirmation-input"]').setValue('DESACTIVER SMS')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.emitted('update')).toBeUndefined()
+
+    await w.find('[data-test="confirmation-input"]').setValue('ACTIVER PURGE')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['photo_purge_enabled', 'true'])
+  })
+
+  it('repasser la purge à blanc : confirmation simple', async () => {
+    const on: PlatformSetting = { ...purge, value: 'true' }
+    const w = mountForm({ settings: [on] })
+    await w.find('[data-test="setting-value-photo_purge_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-photo_purge_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.text()).toContain('repasse à blanc')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['photo_purge_enabled', 'false'])
+  })
+
+  it('le délai prévient qu’il s’applique aussi au chat', async () => {
+    const w = mountForm({ settings: [retention] })
+    await w.find('[data-test="setting-value-photo_retention_days_after_delivery"]').setValue('3')
+    await w.find('[data-test="setting-save-photo_retention_days_after_delivery"]').trigger('click')
+
+    expect(w.text()).toContain('photos du chat')
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['photo_retention_days_after_delivery', '3'])
   })
 
   it('les commandes sont désactivées pendant l’appel (busy)', () => {
