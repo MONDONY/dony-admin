@@ -35,6 +35,13 @@ const WALLET = 'Portefeuille'
 
 const CLOSE_MONEY_ALERT =
   'Une fois corrigé, rouvrez cette alerte : « Lignes en faute actuellement » doit être vide. Résolvez-la alors avec une note décrivant la correction.'
+const STRIPE_RECON = 'Rapprochement Stripe'
+
+/** Étapes communes aux alertes de séquestre carte, corrigées depuis la section « Corriger ». */
+const RESYNC_STEP = 'Cliquez sur « Resynchroniser avec Stripe » ci-dessous : Yadony relit le paiement chez Stripe et se met à jour (passage en séquestre, encaissement de la carte).'
+const RELEASE_STEP = 'Si le colis est livré et que le paiement est en séquestre : « Forcer le versement au voyageur ».'
+const EXPIRED_STEP = 'Si la resynchronisation répond « Autorisation carte expirée » : il n’y a plus rien à encaisser. Remboursez l’expéditeur ou recontactez-le pour qu’il paie à nouveau.'
+
 const ASK_TECH = 'Si la cause n’est pas évidente, transmettez l’alerte (capture + identifiants) à l’équipe technique : ne corrigez pas la base à la main.'
 
 /** Une fiche par règle de cohérence (MoneyInvariants côté back). */
@@ -213,10 +220,35 @@ const PREFIX_GUIDES: PrefixGuide[] = [
     category: ESCROW,
     explanation: 'L’argent de l’expéditeur est bloqué chez Yadony depuis plus de 48 h sans avoir été versé au voyageur. C’est normal si le colis est encore en route, anormal s’il est livré, annulé ou abandonné.',
     actions: [
-      'Ouvrez le colis et regardez son statut.',
-      'Colis livré mais non confirmé : demandez à l’expéditeur de confirmer, ou utilisez « Débloquer (force-release) » sur la fiche paiement.',
-      'Colis annulé, refusé ou no-show : remboursez l’expéditeur depuis la fiche paiement.',
+      RESYNC_STEP,
+      RELEASE_STEP,
+      EXPIRED_STEP,
+      'Colis annulé, refusé ou no-show : remboursez l’expéditeur depuis la fiche paiement (« Voir le paiement »).',
       'Colis encore en route : rien à faire, résolvez l’alerte avec la note « colis en cours ».',
+    ],
+  },
+  {
+    prefix: 'RECON_STRIPE_',
+    title: 'Écart de rapprochement Stripe',
+    category: STRIPE_RECON,
+    explanation: 'Le contrôle quotidien a trouvé un paiement carte dont l’état chez Yadony ne correspond pas à Stripe. AUTORISE_NON_ENREGISTRE : la carte est autorisée chez Stripe mais le paiement est resté « en attente » chez Yadony (notification Stripe manquée). SEQUESTRE_NON_CAPTURE : le paiement est en séquestre mais la carte n’a jamais été encaissée ; l’autorisation expire environ 7 jours après le paiement, et le voyageur ne pourra pas être payé.',
+    actions: [
+      RESYNC_STEP + ' L’alerte se résout seule si l’écart a disparu.',
+      RELEASE_STEP,
+      EXPIRED_STEP,
+      'Autre écart (montant différent, paiement inconnu de Stripe) : transmettez l’alerte à l’équipe technique.',
+    ],
+  },
+  {
+    prefix: 'ESCROW_CAPTURE_FAILED_',
+    title: 'Encaissement du séquestre impossible',
+    category: ESCROW,
+    explanation: 'Au moment de payer le voyageur, Yadony n’a pas pu encaisser la carte de l’expéditeur (autorisation expirée, montant différent ou Stripe indisponible). Aucun versement n’est parti : le paiement reste en séquestre.',
+    actions: [
+      RESYNC_STEP + ' Si Stripe était seulement indisponible, cela suffit : l’alerte se résout seule une fois la carte encaissée.',
+      RELEASE_STEP,
+      EXPIRED_STEP,
+      'Montant différent (« Le montant ou la devise autorisés… ») : transmettez l’alerte à l’équipe technique.',
     ],
   },
   {
@@ -453,6 +485,10 @@ const LABELS: Record<string, string> = {
   lignesEnFaute: 'Lignes en faute (à la levée)',
   passagePrecedent: 'Lignes au contrôle précédent',
   error: 'Erreur',
+  prestataire: 'Prestataire',
+  reference: 'Référence',
+  ecart: 'Écart constaté',
+  detail: 'Détail',
 }
 
 /** Clés rendues ailleurs que dans la liste des données. */

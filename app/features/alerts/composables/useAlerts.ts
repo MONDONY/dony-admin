@@ -31,5 +31,13 @@ export function useAlerts() {
   async function setSeverityFilter(s: AlertSeverity | null) { filters.severity = s; currentPage.value = 0; await fetchAlerts() }
   async function resolve(id: string, note: string) { await alertsService.resolve(id, note); await fetchAlerts() }
 
-  return { alerts, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve }
+  /**
+   * Alertes résolues par le back pendant une resynchronisation Stripe : marquées dans la liste
+   * sans recharger (elle resterait sinon « Ouverte » jusqu'au prochain chargement).
+   */
+  function markResolvedLocally(ids: string[], at: string = new Date().toISOString()) {
+    alerts.value = alerts.value.map(a => (ids.includes(a.id) && !a.resolved ? { ...a, resolved: true, resolvedAt: at } : a))
+  }
+
+  return { markResolvedLocally, alerts, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve }
 }

@@ -34,6 +34,24 @@ describe('alertGuide', () => {
     expect(alertGuide(`DELIVERY_PAYMENT_NOT_IN_ESCROW_${P}`).title).toBe('Colis livré sans séquestre')
   })
 
+  it('alertes de séquestre carte : fiches avec étapes concrètes de correction', () => {
+    const id = '11111111-2222-3333-4444-555555555555'
+    for (const type of ['ESCROW_J48_TIMEOUT', `RECON_STRIPE_${id}`, `ESCROW_CAPTURE_FAILED_${id}`]) {
+      const g = alertGuide(type)
+      expect(g.actions[0]).toContain('« Resynchroniser avec Stripe »')
+      expect(g.actions[1]).toContain('« Forcer le versement au voyageur »')
+      expect(g.actions[2]).toContain('Autorisation carte expirée')
+    }
+    expect(alertGuide(`RECON_STRIPE_${id}`).title).toBe('Écart de rapprochement Stripe')
+    expect(alertGuide(`RECON_STRIPE_${id}`).explanation).toContain('SEQUESTRE_NON_CAPTURE')
+    expect(alertGuide(`ESCROW_CAPTURE_FAILED_${id}`).title).toBe('Encaissement du séquestre impossible')
+  })
+
+  it('libelle les données du rapprochement', () => {
+    const facts = alertFacts(alert('RECON_STRIPE_x', { prestataire: 'STRIPE', reference: 'r', ecart: 'AUTORISE_NON_ENREGISTRE', detail: 'd' }))
+    expect(facts.map(f => f.label)).toEqual(['Prestataire', 'Référence', 'Écart constaté', 'Détail'])
+  })
+
   it('le préfixe le plus long l’emporte', () => {
     expect(alertGuide('PAYOUT_HOLD_LIFTED').title).toBe('Retenue de versement levée')
   })

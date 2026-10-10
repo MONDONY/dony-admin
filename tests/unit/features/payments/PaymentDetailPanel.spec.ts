@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import { seedAuth } from '~/tests/helpers/auth'
@@ -244,5 +244,51 @@ describe('PaymentDetailPanel : relances mobile money', () => {
     seedAuth('ADMIN', { PAYMENT_RELEASE: false })
     const w = mount(PaymentDetailPanel, { props: { payment: { ...mm, status: 'REFUNDED' }, open: true } })
     expect(w.find('[data-test="action-retry-refund"]').exists()).toBe(false)
+  })
+})
+
+describe('PaymentDetailPanel : encaissement, fil de négociation et resynchronisation Stripe', () => {
+  beforeEach(() => seedAuth('ADMIN'))
+  const insight = { kind: 'NEGOTIATION', bidId: null, negotiationThreadId: 'thr_ctx', sender: null, traveler: null, departureCity: null, arrivalCity: null, bidStatus: null, abandoned: false, netTravelerCents: 8800, capturedAt: null, fxExchangeRate: null, stripeChargeId: null, stripeDashboardUrl: null }
+
+  it('« Encaissé le … » quand capturedAt est connu', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, capturedAt: '2026-10-10T08:00:00Z' }, open: true } })
+    expect(w.find('[data-test="payment-captured"]').text()).toMatch(/Encaissé le .*2026/)
+  })
+
+  it('« Non encaissé » quand le back dit null', () => {
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, capturedAt: null }, open: true } })
+    expect(w.find('[data-test="payment-captured"]').text()).toContain('Non encaissé')
+  })
+
+  it('ancien back sans capturedAt : repli sur le contexte, sinon rien', () => {
+    const withInsight = mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, insight: { ...insight, capturedAt: '2026-10-09T08:00:00Z' } }, open: true } })
+    expect(withInsight.find('[data-test="payment-captured"]').text()).toContain('Encaissé le')
+    const bare = mount(PaymentDetailPanel, { props: { payment: mockPayment, open: true } })
+    expect(bare.find('[data-test="payment-captured"]').exists()).toBe(false)
+  })
+
+  it('fil de négociation du détail, à défaut du contexte, copiable', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const w = mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, negotiationThreadId: 'thr_1', insight }, open: true } })
+    expect(w.find('[data-test="payment-thread"]').text()).toContain('thr_1')
+    await w.find('[data-test="payment-copy-thread"]').trigger('click')
+    expect(writeText).toHaveBeenCalledWith('thr_1')
+    const fallback = mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, insight }, open: true } })
+    expect(fallback.find('[data-test="payment-thread"]').text()).toContain('thr_ctx')
+  })
+
+  it('bouton « Resynchroniser avec Stripe » pour un paiement carte seulement', () => {
+    expect(mount(PaymentDetailPanel, { props: { payment: mockPayment, open: true } }).find('[data-test="payment-resync"]').exists()).toBe(true)
+    expect(mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, method: 'PAWAPAY' }, open: true } }).find('[data-test="payment-resync"]').exists()).toBe(false)
+    expect(mount(PaymentDetailPanel, { props: { payment: { ...mockPayment, stripePaymentIntentId: null }, open: true } }).find('[data-test="payment-resync"]').exists()).toBe(false)
+  })
+
+  it('resynchronisation terminée : émet resynced pour recharger la fiche', async () => {
+    seedAuth('SUPER_ADMIN')
+    const w = mount(PaymentDetailPanel, { props: { payment: mockPayment, open: true } })
+    w.findComponent({ name: 'StripeResyncPanel' }).vm.$emit('done', {})
+    expect(w.emitted('resynced')).toHaveLength(1)
   })
 })

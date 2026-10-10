@@ -11,6 +11,11 @@ export interface AdminAlert {
   resolved: boolean
   resolvedAt: string | null
   createdAt: string
+  /**
+   * Paiement visé par l'alerte (back #487) : `payload.paymentId`, sinon l'identifiant en suffixe
+   * du type. Absent d'un ancien back, null si l'alerte ne vise pas un paiement.
+   */
+  paymentId?: string | null
 }
 
 export interface AdminAlertPage {

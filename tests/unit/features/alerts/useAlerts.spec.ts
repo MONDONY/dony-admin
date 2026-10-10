@@ -19,6 +19,19 @@ describe('useAlerts', () => {
     expect(a.isLoading.value).toBe(false)
   })
 
+  it('markResolvedLocally marque résolues les alertes citées, sans recharger', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'a1', resolved: false, resolvedAt: null }, { id: 'a2', resolved: false, resolvedAt: null }, { id: 'a3', resolved: true, resolvedAt: 'old' }], totalElements: 3, totalPages: 1, number: 0, size: 20 })
+    const a = useAlerts()
+    await a.fetchAlerts()
+    a.markResolvedLocally(['a1', 'a3'], '2026-10-10T08:00:00Z')
+    expect(a.alerts.value.map(x => [x.id, x.resolved, x.resolvedAt])).toEqual([
+      ['a1', true, '2026-10-10T08:00:00Z'], ['a2', false, null], ['a3', true, 'old'],
+    ])
+    a.markResolvedLocally(['a2'])
+    expect(a.alerts.value[1]!.resolvedAt).toEqual(expect.any(String))
+    expect(svc.list).toHaveBeenCalledTimes(1)
+  })
+
   it('setResolvedFilter resets page and refetches', async () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     const a = useAlerts()

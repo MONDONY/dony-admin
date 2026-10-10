@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { alertSeverityMeta } from './alertSeverity'
 import AlertRowsTable from './AlertRowsTable.vue'
+import AlertStripeFix from './AlertStripeFix.vue'
+import { alertPaymentId } from '@/features/payments/lib/stripeResync'
 import { alertFacts, alertGuide, alertLinks, alertSampleRows, alertSummary, entityLink, isMoneyInvariant } from '@/features/alerts/lib/alertCatalog'
 import { alertsService } from '@/features/alerts/services/alertsService'
 import type { AdminAlert, AlertViolations } from '@/features/alerts/types/index'
@@ -11,13 +13,15 @@ import { formatAlertDate } from '@/features/alerts/lib/alertDate'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ alert: AdminAlert | null }>()
-const emit = defineEmits<{ close: []; resolve: [id: string] }>()
+const emit = defineEmits<{ close: []; resolve: [id: string]; 'auto-resolved': [ids: string[]]; changed: [] }>()
 const auth = useAuthStore()
 
 const guide = computed(() => props.alert ? alertGuide(props.alert.type) : null)
 const facts = computed(() => props.alert ? alertFacts(props.alert) : [])
 const links = computed(() => props.alert ? alertLinks(props.alert) : [])
 const samples = computed(() => props.alert ? alertSampleRows(props.alert) : [])
+/** Paiement visé : la section « Corriger » n'apparaît que s'il est identifié. */
+const fixPaymentId = computed(() => props.alert ? alertPaymentId(props.alert) : null)
 const moneyInvariant = computed(() => !!props.alert && isMoneyInvariant(props.alert.type))
 
 const violations = ref<AlertViolations | null>(null)
@@ -83,6 +87,11 @@ watch(() => props.alert?.id, (id) => {
           >{{ link.label }}</NuxtLink>
         </div>
       </section>
+
+      <AlertStripeFix
+        v-if="fixPaymentId" :key="`${alert.id}:${fixPaymentId}`" :alert="alert" :payment-id="fixPaymentId"
+        @auto-resolved="(ids) => emit('auto-resolved', ids)" @resolve="(id) => emit('resolve', id)" @changed="emit('changed')"
+      />
 
       <section v-if="moneyInvariant" class="mb-5" data-test="alert-detail-violations">
         <div class="flex items-center justify-between mb-2">

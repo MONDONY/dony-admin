@@ -59,3 +59,53 @@ test('admin opens an alert and sees what to do and the faulty rows', async ({ pa
   await expect(page.locator('[data-test="alert-rows"] a').first()).toHaveAttribute('href', /\/transactions\?open=11111111-2222-3333-4444-555555555555$/)
   if (process.env.ALERT_SCREENSHOT) await page.screenshot({ path: process.env.ALERT_SCREENSHOT, fullPage: true })
 })
+
+const PAY = '11111111-2222-3333-4444-555555555555'
+const RECON_ALERT = {
+  id: 'al3', type: `RECON_STRIPE_${PAY}`, severity: 'CRITICAL', detail: 'Écart Stripe SEQUESTRE_NON_CAPTURE', paymentId: PAY,
+  payload: { prestataire: 'STRIPE', reference: PAY, ecart: 'SEQUESTRE_NON_CAPTURE', detail: 'base : ESCROW' },
+  resolved: false, resolvedAt: null, createdAt: '2026-10-10T04:30:00',
+}
+const PAYMENT = {
+  id: PAY, bidId: null, status: 'ESCROW', method: 'STRIPE', amountCents: 6450, commissionCents: 774, currency: 'EUR',
+  createdAt: '2026-10-07T10:00:00', refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false, capturedAt: null,
+}
+const RESYNC = {
+  paymentId: PAY, paymentIntentId: 'pi_1', action: 'ESCROW_CAPTURED', changed: true,
+  before: { status: 'ESCROW', capturedAt: null, stripeStatus: 'requires_capture', amountCapturable: 6450 },
+  after: { status: 'ESCROW', capturedAt: '2026-10-10T08:00:00Z', stripeStatus: 'succeeded', amountCapturable: 0 },
+  message: 'Séquestre capturé sur le solde plateforme', resolvedAlertIds: ['al3'], openAlertIds: [], alertResolvable: false,
+}
+
+test.describe('section « Corriger » (super-admin)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, { ...ADMIN, role: 'SUPER_ADMIN' })
+    await page.route('**/api/v1/admin/alerts**', route => route.fulfill({ json: { ...OPEN_PAGE, content: [RECON_ALERT] } }))
+  })
+
+  test('resynchronise un écart Stripe et marque l’alerte résolue', async ({ page }) => {
+    let calls = 0
+    await page.route(`**/api/v1/admin/payments/${PAY}/resync-stripe`, (route) => { calls++; return route.fulfill({ json: RESYNC }) })
+    await page.route(`**/api/v1/admin/payments/${PAY}`, route => route.fulfill({ json: PAYMENT }))
+    await page.goto('/alertes')
+    await page.locator('[data-test="details-al3"]').click()
+    await expect(page.locator('[data-test="alert-detail-title"]')).toHaveText('Écart de rapprochement Stripe')
+    await expect(page.locator('[data-test="alert-detail-actions"] li').first()).toContainText('Resynchroniser avec Stripe')
+    await page.locator('[data-test="resync-stripe"]').click()
+    await expect(page.locator('[data-test="resync-action"]')).toHaveText('Séquestre encaissé : le voyageur pourra être payé')
+    await expect(page.locator('[data-test="alert-fix-auto-resolved"]')).toBeVisible()
+    await expect(page.locator('[data-test="alert-row-al3"]')).toContainText('Résolue')
+    await expect(page.locator('[data-test="alert-fix-release"]')).toBeVisible()
+    expect(calls).toBe(1)
+  })
+
+  test('ancien back (404) : action indisponible sur cet environnement', async ({ page }) => {
+    await page.route(`**/api/v1/admin/payments/${PAY}/resync-stripe`, route => route.fulfill({ status: 404, json: { status: 404, detail: 'No endpoint' } }))
+    await page.route(`**/api/v1/admin/payments/${PAY}`, route => route.fulfill({ json: PAYMENT }))
+    await page.goto('/alertes')
+    await page.locator('[data-test="details-al3"]').click()
+    await page.locator('[data-test="resync-stripe"]').click()
+    await expect(page.locator('[data-test="resync-unavailable"]')).toContainText('Action indisponible sur cet environnement')
+    await expect(page.locator('[data-test="resync-stripe"]')).toHaveCount(0)
+  })
+})

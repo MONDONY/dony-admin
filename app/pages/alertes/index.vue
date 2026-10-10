@@ -10,7 +10,7 @@ import type { AdminAlert, AlertSeverity, ResolvedFilter } from '@/features/alert
 
 definePageMeta({ middleware: 'admin-only', permission: 'ALERT_VIEW', pageTitle: 'Alertes', pageSubtitle: 'Alertes opérationnelles' })
 
-const { alerts, isLoading, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve } = useAlerts()
+const { alerts, isLoading, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, markResolvedLocally } = useAlerts()
 const pendingId = ref<string | null>(null)
 const selected = ref<AdminAlert | null>(null)
 
@@ -39,6 +39,22 @@ async function confirmResolve(note: string) {
     if (selected.value?.id === id) selected.value = null
   }
   pendingId.value = null
+}
+
+/** Résolution automatique par la resynchronisation Stripe : liste et fiche ouverte à jour. */
+function onAutoResolved(ids: string[]) {
+  const at = new Date().toISOString()
+  markResolvedLocally(ids, at)
+  if (selected.value && ids.includes(selected.value.id) && !selected.value.resolved) {
+    selected.value = { ...selected.value, resolved: true, resolvedAt: at }
+  }
+}
+
+/** Versement forcé : le back a pu résoudre d'autres alertes du paiement, on recharge. */
+async function onChanged() {
+  await fetchAlerts()
+  const fresh = alerts.value.find(a => a.id === selected.value?.id)
+  if (fresh) selected.value = fresh
 }
 
 onMounted(fetchAlerts)
@@ -74,7 +90,10 @@ onMounted(fetchAlerts)
       <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />
     </div>
 
-    <AlertDetailPanel :alert="selected" @close="selected = null" @resolve="(id) => pendingId = id" />
+    <AlertDetailPanel
+      :alert="selected" @close="selected = null" @resolve="(id) => pendingId = id"
+      @auto-resolved="onAutoResolved" @changed="onChanged"
+    />
 
     <ConfirmActionDialog
       :open="pendingId !== null"

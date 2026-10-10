@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminPaymentDetail, AdminPaymentPage, AdminChargebackPage, PaymentsFilterState, PaymentTimelineEntry, PaymentTotals, PayoutOverride } from '@/features/payments/types/index'
+import type { AdminPaymentDetail, AdminPaymentPage, AdminChargebackPage, PaymentsFilterState, PaymentTimelineEntry, PaymentTotals, PayoutOverride, StripeResyncResult } from '@/features/payments/types/index'
 
 function payoutOptions(override?: PayoutOverride): { method: 'POST'; body?: PayoutOverride } {
   return override ? { method: 'POST', body: override } : { method: 'POST' }
@@ -36,6 +36,10 @@ export const paymentsService = {
   /** Sans dérogation, aucun corps : le contrat historique reste intact pour un paiement normal. */
   forceRelease(id: string, override?: PayoutOverride): Promise<AdminPaymentDetail> {
     return useApi()<AdminPaymentDetail>(`/admin/payments/${id}/force-release`, payoutOptions(override))
+  },
+  /** Réaligne un paiement carte sur Stripe (super-admin, back #487). Corps vide. */
+  resyncStripe(id: string): Promise<StripeResyncResult> {
+    return useApi()<StripeResyncResult>(`/admin/payments/${id}/resync-stripe`, { method: 'POST' })
   },
   refund(id: string): Promise<AdminPaymentDetail> { return useApi()<AdminPaymentDetail>(`/admin/payments/${id}/refund`, { method: 'POST' }) },
   /** Relance un versement mobile money dont la dernière tentative est morte (paiement RELEASED). */
