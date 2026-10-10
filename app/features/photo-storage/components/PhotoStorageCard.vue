@@ -14,6 +14,7 @@ const BULK_PHRASE = 'SUPPRESSION MASSIVE'
 
 const historyOpen = ref(false)
 const dialogOpen = ref(false)
+const purgeDialogOpen = ref(false)
 const allowBulk = ref(false)
 
 const disabled = computed(() => loading.value || launching.value || !!status.value?.running)
@@ -35,6 +36,22 @@ function summary(r: PhotoPurgeRun): string {
 function describe(r: PhotoPurgeRun): string {
   return [formatUtc(r.startedAt), r.dryRun ? 'à blanc' : 'réel', formatDuration(r.startedAt, r.finishedAt), summary(r)]
     .join(' · ')
+}
+
+// Purge réelle seulement si le statut le dit explicitement ; à blanc ou inconnu, rien ne part.
+const realPurge = computed(() => status.value?.purgeEnabled === true)
+const purgeMessage = computed(() => (realPurge.value
+  ? 'Les photos arrivées à échéance seront supprimées définitivement.'
+  : 'Passage à blanc : rien ne sera supprimé, seul le décompte sera mis à jour.'))
+
+function openPurge() {
+  purgeDialogOpen.value = true
+  void load()
+}
+
+function confirmPurge() {
+  purgeDialogOpen.value = false
+  void runPurge()
 }
 
 function openReconcile() {
@@ -138,7 +155,7 @@ defineExpose({ refresh: load })
         <button
           type="button" data-test="run-purge" :disabled="disabled"
           class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
-          @click="runPurge"
+          @click="openPurge"
         >
           <Play :size="14" aria-hidden="true" />
           Lancer la purge maintenant
@@ -164,6 +181,16 @@ defineExpose({ refresh: load })
           class="self-center text-sm text-text-muted"
         >Passage en cours…</span>
       </div>
+
+      <ConfirmActionDialog
+        :open="purgeDialogOpen"
+        title="Lancer la purge maintenant"
+        :message="purgeMessage"
+        confirm-label="Lancer la purge"
+        :confirm-tone="realPurge ? 'danger' : 'primary'"
+        @confirm="confirmPurge"
+        @cancel="purgeDialogOpen = false"
+      />
 
       <ConfirmActionDialog
         :open="dialogOpen"

@@ -140,10 +140,41 @@ describe('PhotoStorageCard', () => {
     expect(w.find('[data-test="run-purge"]').attributes('disabled')).toBeDefined()
   })
 
-  it('lancer la purge appelle runPurge', async () => {
+  it('lancer la purge ouvre une confirmation simple, relit le statut, puis un seul runPurge', async () => {
     const w = mountCard()
     await w.find('[data-test="run-purge"]').trigger('click')
+    expect(state.runPurge).not.toHaveBeenCalled()
+    expect(state.load).toHaveBeenCalledTimes(2)
+    const dialog = w.find('[data-test="overlay"]')
+    expect(dialog.text()).toContain('Passage à blanc : rien ne sera supprimé, seul le décompte sera mis à jour.')
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.find('[data-test="confirm"]').classes()).toContain('bg-primary')
+    await w.find('[data-test="confirm"]').trigger('click')
     expect(state.runPurge).toHaveBeenCalledTimes(1)
+    expect(w.find('[data-test="overlay"]').exists()).toBe(false)
+  })
+
+  it('annuler la purge ne lance rien', async () => {
+    const w = mountCard()
+    await w.find('[data-test="run-purge"]').trigger('click')
+    await w.find('[data-test="cancel"]').trigger('click')
+    expect(w.find('[data-test="overlay"]').exists()).toBe(false)
+    expect(state.runPurge).not.toHaveBeenCalled()
+  })
+
+  it('purge réelle : avertissement de suppression définitive, ton danger', async () => {
+    state.status.value = baseStatus({ purgeEnabled: true })
+    const w = mountCard()
+    await w.find('[data-test="run-purge"]').trigger('click')
+    expect(w.find('[data-test="overlay"]').text()).toContain('Les photos arrivées à échéance seront supprimées définitivement.')
+    expect(w.find('[data-test="confirm"]').classes()).toContain('bg-danger')
+  })
+
+  it('statut inconnu : la purge est présentée à blanc', async () => {
+    state.status.value = null
+    const w = mountCard()
+    await w.find('[data-test="run-purge"]').trigger('click')
+    expect(w.find('[data-test="overlay"]').text()).toContain('Passage à blanc')
   })
 
   it('contrôle complet sans case cochée : confirmation simple puis reconcile(false)', async () => {
