@@ -143,6 +143,7 @@ test('la carte Stockage photos affiche le décompte à blanc et lance une purge'
   await page.route('**/api/v1/admin/exchange-rates**', (route) => route.fulfill({ json: [] }))
   await page.route('**/api/v1/admin/storage/photo-purge/status', (route) => route.fulfill({ json: PURGE_STATUS }))
   await page.route('**/api/v1/admin/storage/photo-purge/run', (route) => {
+    if (route.request().method() !== 'POST') return route.fulfill({ status: 405 })
     runCalls++
     return route.fulfill({ status: 202, json: { started: true } })
   })
@@ -151,6 +152,10 @@ test('la carte Stockage photos affiche le décompte à blanc et lance une purge'
   await expect(page.locator('[data-test="last-purge"]')).toContainText('1234 photos seraient supprimées')
 
   await page.getByRole('button', { name: 'Lancer la purge maintenant' }).click()
+  // Confirmation simple, message « à blanc » : rien ne part avant le clic de confirmation.
+  await expect(page.locator('[data-test="overlay"]')).toContainText('Passage à blanc : rien ne sera supprimé')
+  expect(runCalls).toBe(0)
+  await page.locator('[data-test="confirm"]').click()
   await expect.poll(() => runCalls).toBe(1)
   await expect(page.locator('[data-test="photo-storage-notice"]')).toContainText('Passage lancé')
 })
@@ -163,7 +168,7 @@ test('activer la suppression des photos sans la phrase n’envoie aucun PUT', as
     const req = route.request()
     if (req.method() === 'PUT') {
       putCalls.push(req.url())
-      return route.fulfill({ json: settings[4] })
+      return route.fulfill({ json: { ...settings.at(-1)!, value: 'true' } })
     }
     return route.fulfill({ json: settings })
   })
@@ -179,4 +184,66 @@ test('activer la suppression des photos sans la phrase n’envoie aucun PUT', as
   await page.locator('[data-test="confirmation-input"]').fill('ACTIVER')
   await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
   expect(putCalls.length).toBe(0)
+
+  await page.locator('[data-test="confirmation-input"]').fill('ACTIVER PURGE')
+  await page.locator('[data-test="confirm"]').click()
+  await expect.poll(() => putCalls.length).toBe(1)
+})
+
+test('activer la purge recharge la carte Stockage photos (statut à jour)', async ({ page }) => {
+  await seed(page, ADMIN)
+  let purgeOn = false
+  let statusCalls = 0
+  const settings = [...SETTINGS, { key: 'photo_purge_enabled', value: 'false', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null }]
+  await page.route('**/api/v1/admin/settings**', (route) => {
+    if (route.request().method() === 'PUT') {
+      purgeOn = true
+      return route.fulfill({ json: { ...settings.at(-1)!, value: 'true' } })
+    }
+    return route.fulfill({ json: settings })
+  })
+  await page.route('**/api/v1/admin/exchange-rates**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/v1/admin/storage/photo-purge/status', (route) => {
+    statusCalls++
+    return route.fulfill({ json: { ...PURGE_STATUS, purgeEnabled: purgeOn } })
+  })
+
+  await page.goto('/parametres')
+  await expect(page.locator('[data-test="photo-storage-card"]')).toContainText('À blanc')
+  const before = statusCalls
+  await page.locator('[data-test="setting-value-photo_purge_enabled"]').selectOption('true')
+  await page.locator('[data-test="setting-save-photo_purge_enabled"]').click()
+  await page.locator('[data-test="confirmation-input"]').fill('ACTIVER PURGE')
+  await page.locator('[data-test="confirm"]').click()
+
+  await expect.poll(() => statusCalls).toBeGreaterThan(before)
+  await expect(page.locator('[data-test="photo-storage-card"]')).toContainText('Purge active')
+})
+
+test('suppression massive : case cochée, purge à blanc, la phrase est exigée avant un seul POST', async ({ page }) => {
+  await seed(page, ADMIN)
+  const reconcileUrls: string[] = []
+  await page.route('**/api/v1/admin/settings**', (route) => route.fulfill({ json: SETTINGS }))
+  await page.route('**/api/v1/admin/exchange-rates**', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/v1/admin/storage/photo-purge/status', (route) => route.fulfill({ json: PURGE_STATUS }))
+  await page.route('**/api/v1/admin/storage/photo-purge/reconcile**', (route) => {
+    if (route.request().method() !== 'POST') return route.fulfill({ status: 405 })
+    reconcileUrls.push(route.request().url())
+    return route.fulfill({ status: 202, json: { started: true } })
+  })
+
+  await page.goto('/parametres')
+  await expect(page.locator('[data-test="photo-storage-card"]')).toContainText('À blanc')
+  await page.getByRole('button', { name: 'Lancer le contrôle complet' }).click()
+  await page.locator('[data-test="allow-bulk"]').check()
+
+  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
+  await page.locator('[data-test="confirmation-input"]').fill('SUPPRESSION')
+  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
+  expect(reconcileUrls).toHaveLength(0)
+
+  await page.locator('[data-test="confirmation-input"]').fill('SUPPRESSION MASSIVE')
+  await page.locator('[data-test="confirm"]').click()
+  await expect.poll(() => reconcileUrls.length).toBe(1)
+  expect(new URL(reconcileUrls[0]).searchParams.get('allowBulk')).toBe('true')
 })
