@@ -21,8 +21,9 @@ const lastPurge = computed(() => status.value?.lastPurges[0] ?? null)
 const lastReconcile = computed(() => status.value?.lastReconciles[0] ?? null)
 const purgeHistory = computed(() => status.value?.lastPurges.slice(0, HISTORY_SIZE) ?? [])
 const reconcileHistory = computed(() => status.value?.lastReconciles.slice(0, HISTORY_SIZE) ?? [])
-// Phrase exigée seulement si la case est cochée ET que la purge supprime vraiment.
-const bulkPhrase = computed(() => (allowBulk.value && status.value?.purgeEnabled ? BULK_PHRASE : undefined))
+// Fermé par défaut : la phrase est exigée dès que la case est cochée, sauf si la purge
+// est connue comme éteinte (statut non chargé = on exige la phrase).
+const bulkPhrase = computed(() => (allowBulk.value && status.value?.purgeEnabled !== false ? BULK_PHRASE : undefined))
 
 function summary(r: PhotoPurgeRun): string {
   return r.dryRun
@@ -63,11 +64,11 @@ onMounted(() => { void load() })
       </div>
 
       <p
-v-if="notice" data-test="photo-storage-notice" role="status"
+        v-if="notice" data-test="photo-storage-notice" role="status"
         class="mt-3 rounded-btn border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary text-pretty"
       >{{ notice }}</p>
       <p
-v-if="error" data-test="photo-storage-error"
+        v-if="error" data-test="photo-storage-error"
         class="mt-3 text-sm text-danger text-pretty"
       >{{ error }}</p>
 
@@ -97,7 +98,7 @@ v-if="error" data-test="photo-storage-error"
         </dl>
 
         <button
-type="button" data-test="history-toggle"
+          type="button" data-test="history-toggle"
           class="mt-3 text-xs text-primary transition-colors hover:underline"
           :aria-expanded="historyOpen"
           @click="historyOpen = !historyOpen"
@@ -125,7 +126,7 @@ type="button" data-test="history-toggle"
 
       <div class="mt-4 flex flex-wrap gap-2">
         <button
-type="button" data-test="run-purge" :disabled="disabled"
+          type="button" data-test="run-purge" :disabled="disabled"
           class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
           @click="runPurge"
         >
@@ -133,13 +134,17 @@ type="button" data-test="run-purge" :disabled="disabled"
           Lancer la purge maintenant
         </button>
         <button
-type="button" data-test="run-reconcile" :disabled="disabled"
+          type="button" data-test="run-reconcile" :disabled="disabled"
           class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
           @click="openReconcile"
         >
           <RefreshCw :size="14" aria-hidden="true" />
           Lancer le contrôle complet
         </button>
+        <span
+          v-if="status?.running" data-test="running" role="status"
+          class="self-center text-sm text-text-muted"
+        >Passage en cours…</span>
       </div>
 
       <ConfirmActionDialog

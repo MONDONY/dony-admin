@@ -146,6 +146,28 @@ describe('PhotoStorageCard', () => {
     expect(state.reconcile).toHaveBeenCalledWith(true)
   })
 
+  it('statut inconnu + case cochée : la phrase est exigée, aucun reconcile sans elle', async () => {
+    state.status.value = null
+    const w = mountCard()
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    await w.find('[data-test="allow-bulk"]').setValue(true)
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(true)
+    expect(w.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).not.toHaveBeenCalled()
+    await w.find('[data-test="confirmation-input"]').setValue('SUPPRESSION MASSIVE')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).toHaveBeenCalledWith(true)
+  })
+
+  it('affiche « Passage en cours… » quand un passage tourne', () => {
+    expect(mountCard().find('[data-test="running"]').exists()).toBe(false)
+    state.status.value = baseStatus({ running: true })
+    const el = mountCard().find('[data-test="running"]')
+    expect(el.text()).toBe('Passage en cours…')
+    expect(el.attributes('role')).toBe('status')
+  })
+
   it('annuler ferme le dialogue sans lancer', async () => {
     const w = mountCard()
     await w.find('[data-test="run-reconcile"]').trigger('click')
