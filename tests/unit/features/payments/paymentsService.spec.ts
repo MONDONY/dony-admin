@@ -21,6 +21,11 @@ describe('paymentsService', () => {
     await paymentsService.forceRelease('p1')
     expect(apiMock).toHaveBeenCalledWith('/admin/payments/p1/force-release', { method: 'POST' })
   })
+  it('resyncStripe POSTs sans corps', async () => {
+    apiMock.mockResolvedValue({ action: 'ALREADY_IN_SYNC' })
+    await paymentsService.resyncStripe('p1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/payments/p1/resync-stripe', { method: 'POST' })
+  })
   it('refund POSTs', async () => {
     apiMock.mockResolvedValue({ id: 'p1', status: 'REFUNDED' })
     await paymentsService.refund('p1')

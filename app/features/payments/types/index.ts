@@ -79,6 +79,42 @@ export interface PaymentTimelineEntry {
 export interface AdminPaymentDetail extends AdminPaymentListItem {
   refundedCents: number; stripePaymentIntentId: string | null; escrowReleasedAt: string | null; disputed: boolean
   pawapayDepositId?: string | null; pawapayPayoutId?: string | null; pawapayRefundId?: string | null
+  /**
+   * Capture carte enregistrée en base (back #487) ; null si jamais encaissé. Absent d'un ancien
+   * back : rien ne s'affiche alors, plutôt qu'un « Non encaissé » faux.
+   */
+  capturedAt?: string | null
+  /** Fil de négociation du paiement (back #487) ; absent d'un ancien back. */
+  negotiationThreadId?: string | null
+}
+
+/** Ce que la resynchronisation Stripe a fait (`POST /admin/payments/{id}/resync-stripe`). */
+export type StripeResyncAction =
+  | 'ALREADY_IN_SYNC' | 'ESCROW_ACTIVATED' | 'ESCROW_CAPTURED' | 'CAPTURE_RECORDED' | 'MARKED_FAILED' | 'MARKED_CANCELLED'
+
+/** État base + Stripe d'un paiement, avant ou après la resynchronisation. */
+export interface StripeResyncState {
+  status: string | null
+  capturedAt: string | null
+  stripeStatus: string | null
+  /** Unités mineures de la devise du paiement. */
+  amountCapturable: number | null
+}
+
+export interface StripeResyncResult {
+  paymentId: string
+  paymentIntentId: string | null
+  action: StripeResyncAction | string
+  changed: boolean
+  before: StripeResyncState
+  after: StripeResyncState
+  message: string | null
+  /** Alertes du paiement résolues automatiquement par cette resynchronisation. */
+  resolvedAlertIds: string[]
+  /** Alertes du paiement encore ouvertes (écart d'une autre nature). */
+  openAlertIds: string[]
+  /** Vrai s'il reste des alertes que l'admin peut clore lui-même maintenant que la base est alignée. */
+  alertResolvable: boolean
 }
 export interface AdminChargeback { id: string; bidId: string | null; amountCents: number; currency?: string | null; reason: string | null; status: ChargebackStatus; openedAt: string }
 export interface AdminPaymentPage { content: AdminPaymentListItem[]; totalElements: number; totalPages: number; number: number; size: number }

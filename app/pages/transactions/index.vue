@@ -272,6 +272,7 @@ watch(() => route.query?.tab, (v) => {
         @retry-payout="(o) => onAction(() => detail.retryPayout(o))"
         @override-dismiss="detail.dismissOverride"
         @retry-refund="onAction(detail.retryRefund)"
+        @resynced="detail.open(detail.payment.value!.id)"
       />
     </template>
     <template v-else-if="tab === 'chargebacks'">

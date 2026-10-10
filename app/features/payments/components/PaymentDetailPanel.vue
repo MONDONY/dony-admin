@@ -4,6 +4,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import PayoutOverrideDialog from './PayoutOverrideDialog.vue'
 import PaymentTimeline from './PaymentTimeline.vue'
+import StripeResyncPanel from './StripeResyncPanel.vue'
 import { bidStatusLabel, paymentKindLabel, routeLabel, shortId } from '@/features/payments/lib/paymentLabels'
 import { parseServerDate } from '@/lib/serverDate'
 import { paymentStatusMeta } from './paymentStatus'
@@ -23,6 +24,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []; 'force-release': [override?: PayoutOverride]; refund: []; 'retry-payout': [override?: PayoutOverride]; 'retry-refund': []
   'override-dismiss': []
+  /** Resynchronisation Stripe effectuée : la fiche est à recharger. */
+  resynced: []
 }>()
 
 type PendingAction = 'release' | 'refund' | 'retry-payout' | 'retry-refund'
@@ -122,6 +125,14 @@ const heldSince = computed(() => props.payment.payoutHeldAt
   : null)
 
 const insight = computed(() => props.payment.insight ?? null)
+/** Fil de négociation : champ du détail (back #487), sinon celui du contexte. */
+const threadId = computed(() => props.payment.negotiationThreadId ?? insight.value?.negotiationThreadId ?? null)
+/**
+ * Encaissement carte : `capturedAt` du détail (back #487), sinon celui du contexte. Ni l'un ni
+ * l'autre connus (ancien back sans contexte) : rien ne s'affiche, plutôt qu'un « Non encaissé » faux.
+ */
+const captureKnown = computed(() => props.payment.method === 'STRIPE' && (props.payment.capturedAt !== undefined || insight.value !== null))
+const capturedAt = computed(() => props.payment.capturedAt ?? insight.value?.capturedAt ?? null)
 const net = computed(() => insight.value?.netTravelerCents
   ?? props.payment.amountCents - props.payment.commissionCents)
 function fmtDate(d: string | null | undefined) {
@@ -187,9 +198,12 @@ function confirm() {
               <span v-if="!(insight?.bidId ?? payment.bidId)" class="text-text-muted">{{ insight?.kind === 'NEGOTIATION' ? 'Pas encore créé (négociation)' : '—' }}</span>
             </dd>
           </div>
-          <div v-if="insight?.negotiationThreadId" class="col-span-2">
-            <dt class="text-text-muted">Négociation</dt>
-            <dd class="font-mono text-xs break-all">{{ insight.negotiationThreadId }}</dd>
+          <div v-if="threadId" class="col-span-2" data-test="payment-thread">
+            <dt class="text-text-muted">Fil de négociation</dt>
+            <dd class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-xs break-all">{{ threadId }}</span>
+              <button type="button" data-test="payment-copy-thread" class="text-xs text-primary hover:underline" @click="copy(threadId)">{{ copied === threadId ? 'Copié' : 'Copier' }}</button>
+            </dd>
           </div>
         </dl>
       </section>
@@ -204,7 +218,10 @@ function confirm() {
           <div><dt class="text-text-muted">Méthode</dt><dd>{{ paymentMethodLabel(payment.method) }}</dd></div>
           <div v-if="insight?.fxExchangeRate"><dt class="text-text-muted">Taux de change</dt><dd class="tabular-nums">{{ insight.fxExchangeRate }}</dd></div>
           <div><dt class="text-text-muted">Créé le</dt><dd class="tabular-nums">{{ fmtDate(payment.createdAt) ?? '—' }}</dd></div>
-          <div v-if="insight?.capturedAt"><dt class="text-text-muted">Débité le</dt><dd class="tabular-nums">{{ fmtDate(insight.capturedAt) }}</dd></div>
+          <div v-if="captureKnown" data-test="payment-captured">
+            <dt class="text-text-muted">Encaissement carte</dt>
+            <dd class="tabular-nums">{{ capturedAt && fmtDate(capturedAt) ? `Encaissé le ${fmtDate(capturedAt)}` : 'Non encaissé' }}</dd>
+          </div>
           <div v-if="payment.escrowReleasedAt"><dt class="text-text-muted">Libéré le</dt><dd class="tabular-nums">{{ fmtDate(payment.escrowReleasedAt) }}</dd></div>
         </dl>
       </section>
@@ -246,6 +263,9 @@ function confirm() {
           :to="`/users?query=${payment.travelerId}&open=${payment.travelerId}`"
           class="mt-2 inline-block font-medium text-primary underline-offset-2 hover:underline"
         >Voir la fiche du voyageur</NuxtLink>
+      </section>
+      <section v-if="payment.method === 'STRIPE' && payment.stripePaymentIntentId" class="mb-4" data-test="payment-resync">
+        <StripeResyncPanel :payment-id="payment.id" :currency="payment.currency" @done="emit('resynced')" />
       </section>
       <p v-if="error" data-test="payment-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
       <div v-if="payment.status === 'ESCROW'" class="flex flex-wrap gap-2">
