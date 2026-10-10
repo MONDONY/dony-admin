@@ -262,6 +262,17 @@ const PREFIX_GUIDES: PrefixGuide[] = [
     ],
   },
   {
+    prefix: 'LATE_RELEASE_FAILED_',
+    title: 'Colis livré, versement automatique impossible',
+    category: PAYOUT,
+    explanation: 'Le colis est livré et le paiement est en séquestre chez Yadony, mais le versement automatique au voyageur a échoué : l’argent reste en séquestre. La raison (« Motif ») et le chemin qui a tenté le versement (« Origine » : webhook tardif, resynchronisation admin ou automatique) figurent dans les données de l’alerte.',
+    actions: [
+      'Lisez le motif : voyageur gelé, compte Stripe du voyageur inutilisable, encaissement de la carte refusé ou virement refusé par Stripe.',
+      'Corrigez la cause (par exemple : le voyageur termine son compte Stripe, le gel est levé).',
+      'Cliquez sur « Resynchroniser avec Stripe » ci-dessous, ou « Forcer le versement au voyageur ». L’alerte se ferme d’elle-même quand le versement part.',
+    ],
+  },
+  {
     prefix: 'RETURN_DEADLINE_EXPIRED',
     title: 'Colis non rendu après annulation',
     category: PARCEL,
@@ -578,6 +589,9 @@ export function alertLinks(alert: AdminAlert): AlertLink[] {
 export function alertSummary(alert: AdminAlert): string {
   if (alert.detail) return alert.detail
   const p = alert.payload ?? {}
+  if (alert.type.startsWith('LATE_RELEASE_FAILED_') && typeof p.reason === 'string' && p.reason) {
+    return `Versement automatique impossible : ${p.reason}`
+  }
   if (isMoneyInvariant(alert.type) && p.lignesEnFaute !== undefined) {
     return `${display(p.lignesEnFaute)} ligne(s) en faute au moment de l’alerte`
   }
