@@ -14,6 +14,7 @@ import PackageRequestDetailPanel from '@/features/package-requests/components/Pa
 import { usePackageRequests } from '@/features/package-requests/composables/usePackageRequests'
 import { usePackageRequestDetail, PACKAGE_REQUESTS_UNAVAILABLE } from '@/features/package-requests/composables/usePackageRequestDetail'
 import { useAuthStore } from '@/stores/auth'
+import { uuidParam } from '@/lib/safeInput'
 
 definePageMeta({ middleware: 'admin-only', permission: 'BID_VIEW', pageTitle: 'Colis', pageSubtitle: 'Colis, annonces & demandes d’envoi' })
 
@@ -140,28 +141,29 @@ onMounted(async () => {
   if (initial === 'demandes' && canSeeRequests.value) {
     tab.value = 'demandes'
     prLoaded = true
-    const openId = route.query?.open
+    const openId = uuidParam(route.query?.open)
     await Promise.all([
       pr.load(),
-      typeof openId === 'string' && openId ? prDetail.open(openId) : Promise.resolve(),
+      openId ? prDetail.open(openId) : Promise.resolve(),
     ])
     return
   }
   if (initial === 'announcements') {
     tab.value = 'announcements'
-    const focused = route.query?.announcement
-    if (typeof focused === 'string' && focused) await focusAnnouncement(focused)
+    const focused = uuidParam(route.query?.announcement)
+    if (focused) await focusAnnouncement(focused)
     else await loadAnns()
     return
   }
   // ?announcementId=<annonce> : colis d'un même trajet.
-  const tripId = route.query?.announcementId
-  if (typeof tripId === 'string' && tripId) filters.announcementId = tripId
+  // Identifiants de l'URL validés (UUID) avant tout appel : `?open=../../x` est ignoré.
+  const tripId = uuidParam(route.query?.announcementId)
+  if (tripId) filters.announcementId = tripId
   // ?open=<colisId> sur l'onglet Colis (lien « Ouvrir le colis » d'un no-show, d'un paiement) : ouvre la fiche.
-  const openParam = route.query?.open
+  const openParam = uuidParam(route.query?.open)
   await Promise.all([
     loadBidsOnce(),
-    typeof openParam === 'string' && openParam ? detail.open(openParam) : Promise.resolve(),
+    openParam ? detail.open(openParam) : Promise.resolve(),
   ])
 })
 </script>

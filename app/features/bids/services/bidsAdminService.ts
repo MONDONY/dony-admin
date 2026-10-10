@@ -16,10 +16,10 @@ export const bidsAdminService = {
     return useApi()<AdminBidPage>('/admin/bids', { query: buildQuery(filters, page, size) })
   },
   getBid(id: string): Promise<AdminBidDetail> {
-    return useApi()<AdminBidDetail>(`/admin/bids/${id}`)
+    return useApi()<AdminBidDetail>(`/admin/bids/${encodeURIComponent(id)}`)
   },
   getTimeline(id: string): Promise<AdminBidTimeline> {
-    return useApi()<AdminBidTimeline>(`/admin/bids/${id}/timeline`)
+    return useApi()<AdminBidTimeline>(`/admin/bids/${encodeURIComponent(id)}/timeline`)
   },
   /** `id` : l'annonce d'un colis seule (un ancien back l'ignore et renvoie la page entière). */
   listAnnouncements(page: number, size: number, id?: string | null): Promise<AdminAnnouncementPage> {

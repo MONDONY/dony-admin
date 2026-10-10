@@ -8,7 +8,7 @@ const BIDS_PAGE = { content: [
 const BID_DETAIL = { ...BIDS_PAGE.content[0], contentCategory: 'Vêtements', recipientName: 'Fatou', trackingNumber: 'YADONY12345678', commissionRate: 0.12, refusalReason: null }
 // Back « fiche colis » : trajet, personnes, argent, liens.
 const BID_FULL = {
-  ...BID_DETAIL, id: 'b2', status: 'ACCEPTED', trackingNumber: 'DON-8ANH6EZR', description: 'Pagnes',
+  ...BID_DETAIL, id: '1c1a0000-0000-4000-8000-0000000000b2', status: 'ACCEPTED', trackingNumber: 'DON-8ANH6EZR', description: 'Pagnes',
   trip: { announcementId: 'an1', status: 'ACTIVE', departureCity: 'Paris', arrivalCity: 'Dakar', departureCountryCode: 'FR', arrivalCountryCode: 'SN',
     departureDate: '2026-10-12', departureTime: '09:30:00', departureAt: null, arrivalDate: '2026-10-13', arrivalTime: null, timezone: 'Europe/Paris',
     pickupAddressLabel: 'Aéroport CDG', deliveryAddressLabel: null, transportMode: 'PLANE', totalKg: 23, availableKg: 15, reservedKg: 0,
@@ -42,13 +42,13 @@ test.beforeEach(async ({ page }) => {
     if (url.match(/\/bids\/b1(\?|$)/)) {
       return route.fulfill({ json: BID_DETAIL })
     }
-    if (url.includes('/b2/timeline')) {
-      return route.fulfill({ json: { bidId: 'b2', entries: [
+    if (url.includes('/1c1a0000-0000-4000-8000-0000000000b2/timeline')) {
+      return route.fulfill({ json: { bidId: '1c1a0000-0000-4000-8000-0000000000b2', entries: [
         { at: '2026-10-06T18:53:36', kind: 'EVENT', label: 'CREATED_FROM_THREAD', source: 'AUDIT' },
         { at: '2026-10-06T18:54:01', kind: 'EVENT', label: 'PRESENCE_CONFIRMED', source: 'AUDIT', actorKind: 'USER', actorLabel: 'Awa' },
       ] } })
     }
-    if (url.match(/\/bids\/b2(\?|$)/)) {
+    if (url.match(new RegExp('/bids/1c1a0000-0000-4000-8000-0000000000b2(\\?|$)'))) {
       return route.fulfill({ json: BID_FULL })
     }
     return route.fulfill({ json: BIDS_PAGE })
@@ -66,7 +66,7 @@ test('admin sees the bids list', async ({ page }) => {
 test('admin opens a bid detail with transaction timeline', async ({ page }) => {
   await page.goto('/colis')
   await page.locator('[data-test="bid-row-b1"]').click()
-  await expect(page.getByText('YADONY12345678')).toBeVisible()
+  await expect(page.locator('[data-test="bid-tracking"]')).toHaveText('YADONY12345678')
   await expect(page.locator('[data-test="timeline-entry"]')).toHaveCount(2)
   await expect(page.getByText('Scan de départ')).toBeVisible()
   // Ancien back : sections présentes, détail annoncé comme non disponible.
@@ -75,7 +75,7 @@ test('admin opens a bid detail with transaction timeline', async ({ page }) => {
 })
 
 test('fiche colis complète : trajet, personnes, argent, chronologie, actions', async ({ page }) => {
-  await page.goto('/colis?open=b2')
+  await page.goto('/colis?open=1c1a0000-0000-4000-8000-0000000000b2')
   await expect(page.locator('[data-test="bid-tracking"]')).toHaveText('DON-8ANH6EZR')
   await expect(page.locator('[data-test="bid-phrase"]')).toHaveText('Accepté par le voyageur, en attente de la remise du colis.')
   await expect(page.locator('[data-test="trip-departure"]')).toHaveText('lundi 12 octobre 2026 à 09:30')

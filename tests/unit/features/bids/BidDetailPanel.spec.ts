@@ -384,4 +384,27 @@ describe('BidDetailPanel', () => {
       expect(w.emitted('close')).toHaveLength(2)
     })
   })
+
+  describe('valeurs malveillantes', () => {
+    it('noms, contenu et motifs en texte brut ; photos non https écartées', () => {
+      const payload = '<img src=x onerror="alert(1)">'
+      const w = mountPanel({ ...fullBid, description: payload, contentCategory: payload, refusalReason: payload, status: 'REJECTED',
+        sender: { ...fullBid.sender!, name: payload, username: payload },
+        recipient: { name: payload, phoneMasked: null },
+        photoUrls: ['javascript:alert(1)', 'data:image/svg+xml,<svg onload=alert(1)>', 'http://r2.test/p.jpg', 'https://r2.test/ok.jpg'] })
+      expect(w.find('img[onerror]').exists()).toBe(false)
+      expect(w.find('[data-test="parcel-description"]').text()).toBe(payload)
+      expect(w.find('[data-test="party-sender"]').text()).toContain(payload)
+      const imgs = w.findAll('[data-test="parcel-photos"] img')
+      expect(imgs).toHaveLength(1)
+      expect(imgs[0].attributes('src')).toBe('https://r2.test/ok.jpg')
+      expect(w.find('[data-test="parcel-photos"] a').attributes('rel')).toBe('noopener noreferrer')
+      expect(w.html()).not.toContain('javascript:')
+    })
+    it('aucune photo sûre : « Aucune photo du colis »', () => {
+      const w = mountPanel({ ...fullBid, photoUrls: ['javascript:alert(1)'] })
+      expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
+      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(true)
+    })
+  })
 })

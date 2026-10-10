@@ -12,10 +12,10 @@ export const moderationService = {
     return useApi()<AdminConversationPage>('/admin/conversations', { query: buildQuery(filters, page, size) })
   },
   getMessages(conversationId: string): Promise<AdminMessage[]> {
-    return useApi()<AdminMessage[]>(`/admin/conversations/${conversationId}/messages`)
+    return useApi()<AdminMessage[]>(`/admin/conversations/${encodeURIComponent(conversationId)}/messages`)
   },
   deleteMessage(conversationId: string, messageId: string): Promise<void> {
-    return useApi()<void>(`/admin/conversations/${conversationId}/messages/${messageId}`, { method: 'DELETE' })
+    return useApi()<void>(`/admin/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' })
   },
   /**
    * Restaure un message supprimé par un admin (MESSAGE_DELETE). Peut ne pas exister : le back
@@ -23,7 +23,7 @@ export const moderationService = {
    * sans corps : la conversation se relit ensuite.
    */
   restoreMessage(conversationId: string, messageId: string, reason: string): Promise<void> {
-    return useApi()<void>(`/admin/conversations/${conversationId}/messages/${messageId}/restore`, {
+    return useApi()<void>(`/admin/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/restore`, {
       method: 'POST',
       body: { reason },
     })

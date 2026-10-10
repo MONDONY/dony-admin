@@ -21,7 +21,7 @@ const bids = vi.hoisted(() => ({
 vi.mock('@/features/bids/services/bidsAdminService', () => ({ bidsAdminService: bids }))
 
 const EMPTY = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
-const row = { id: 'pr1', senderId: 's1', senderName: 'Awa', departureCity: 'Paris', arrivalCity: 'Dakar', desiredDate: null,
+const row = { id: '0b5e2c3a-1111-4222-8333-444455556666', senderId: 's1', senderName: 'Awa', departureCity: 'Paris', arrivalCity: 'Dakar', desiredDate: null,
   weightKg: 3, parcelSize: 'SMALL', transportMode: null, status: 'OPEN', currency: 'EUR', targetPrice: 30,
   createdAt: '2026-09-20T10:00:00Z', reportCount: 2, openNegotiationCount: 1 }
 const detail = { ...row, description: null, contentCategory: null, pickupNeighborhood: null, deliveryNeighborhood: null,
@@ -47,23 +47,23 @@ describe('/colis, onglet Demandes', () => {
   })
 
   it('lien profond : ouvre l’onglet et la fiche, sans charger les bids', async () => {
-    query = { tab: 'demandes', open: 'pr1' }
+    query = { tab: 'demandes', open: '0b5e2c3a-1111-4222-8333-444455556666' }
     const w = await mountPage()
     expect(svc.list).toHaveBeenCalledTimes(1)
-    expect(svc.get).toHaveBeenCalledWith('pr1')
+    expect(svc.get).toHaveBeenCalledWith('0b5e2c3a-1111-4222-8333-444455556666')
     expect(bids.listBids).not.toHaveBeenCalled()
-    expect(w.find('[data-test="pr-row-pr1"]').exists()).toBe(true)
+    expect(w.find('[data-test="pr-row-0b5e2c3a-1111-4222-8333-444455556666"]').exists()).toBe(true)
     expect(w.find('[data-test="pr-detail"]').exists()).toBe(true)
   })
 
   it('?open=<bidId> sans onglet : ouvre la fiche du colis (lien depuis un no-show)', async () => {
-    query = { open: 'b1' }
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1' }
     bids.getBid.mockResolvedValue({ id: 'b1' })
     bids.getTimeline.mockResolvedValue({ bidId: 'b1', entries: [] })
     await mountPage()
     expect(bids.listBids).toHaveBeenCalledTimes(1)
-    expect(bids.getBid).toHaveBeenCalledWith('b1')
-    expect(bids.getTimeline).toHaveBeenCalledWith('b1')
+    expect(bids.getBid).toHaveBeenCalledWith('1c1a0000-0000-4000-8000-0000000000b1')
+    expect(bids.getTimeline).toHaveBeenCalledWith('1c1a0000-0000-4000-8000-0000000000b1')
   })
 
   it('bascule d’onglet mémorisée dans l’URL, clic sur une ligne ajoute open', async () => {
@@ -72,9 +72,9 @@ describe('/colis, onglet Demandes', () => {
     await w.find('[data-test="tab-demandes"]').trigger('click')
     await flushPromises()
     expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'demandes' } })
-    await w.find('[data-test="pr-row-pr1"]').trigger('click')
+    await w.find('[data-test="pr-row-0b5e2c3a-1111-4222-8333-444455556666"]').trigger('click')
     await flushPromises()
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'demandes', open: 'pr1' } })
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'demandes', open: '0b5e2c3a-1111-4222-8333-444455556666' } })
     await w.find('[data-test="pr-close"]').trigger('click')
     expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'demandes' } })
     await w.find('[data-test="tab-bids"]').trigger('click')
@@ -101,7 +101,7 @@ describe('/colis, onglet Demandes', () => {
   })
 
   it('fiche introuvable : erreur dans le panneau, refermable', async () => {
-    query = { tab: 'demandes', open: 'zz' }
+    query = { tab: 'demandes', open: '0b5e2c3a-9999-4999-8999-999999999999' }
     svc.get.mockRejectedValue(Object.assign(new Error('404'), { statusCode: 404, data: { code: 'package-request-not-found', detail: 'Demande introuvable' } }))
     const w = await mountPage()
     expect(w.find('[data-test="pr-detail-error"]').text()).toBe('Demande introuvable')
@@ -110,7 +110,7 @@ describe('/colis, onglet Demandes', () => {
   })
 
   it('un retrait réussi met à jour la ligne de la liste', async () => {
-    query = { tab: 'demandes', open: 'pr1' }
+    query = { tab: 'demandes', open: '0b5e2c3a-1111-4222-8333-444455556666' }
     svc.remove.mockResolvedValue({ ...detail, status: 'REMOVED_BY_ADMIN', canRemove: false, canRestore: true, openNegotiationCount: 0 })
     svc.restore.mockResolvedValue({ ...detail })
     const w = await mountPage()
@@ -118,11 +118,11 @@ describe('/colis, onglet Demandes', () => {
     await w.find('[data-test="reason-choice"]').setValue('OTHER')
     await w.find('[data-test="confirm"]').trigger('click')
     await flushPromises()
-    expect(svc.remove).toHaveBeenCalledWith('pr1', 'OTHER', '')
-    expect(w.find('[data-test="pr-row-pr1"]').text()).toContain('Retirée')
+    expect(svc.remove).toHaveBeenCalledWith('0b5e2c3a-1111-4222-8333-444455556666', 'OTHER', '')
+    expect(w.find('[data-test="pr-row-0b5e2c3a-1111-4222-8333-444455556666"]').text()).toContain('Retirée')
     await w.find('[data-test="pr-restore"]').trigger('click')
     await w.find('[data-test="confirm"]').trigger('click')
     await flushPromises()
-    expect(w.find('[data-test="pr-row-pr1"]').text()).toContain('Ouverte')
+    expect(w.find('[data-test="pr-row-0b5e2c3a-1111-4222-8333-444455556666"]').text()).toContain('Ouverte')
   })
 })

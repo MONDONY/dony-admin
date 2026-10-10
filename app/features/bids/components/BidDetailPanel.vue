@@ -16,6 +16,7 @@ import {
   formatTime, placeLabel, transportModeLabel,
 } from '@/features/bids/lib/bidLabels'
 import { useAuthStore } from '@/stores/auth'
+import { safeHttpsUrl } from '@/lib/safeInput'
 
 const props = defineProps<{
   bid: AdminBidDetail
@@ -74,6 +75,10 @@ const capacity = computed(() => {
   if (left && total) return `${left} restants sur ${total}`
   return left ? `${left} restants` : total
 })
+/** Photos présignées : seules les URL `https:` deviennent un lien ou une image. */
+const photos = computed<string[] | null>(() => props.bid.photoUrls
+  ? props.bid.photoUrls.map(safeHttpsUrl).filter((u): u is string => u !== null)
+  : null)
 const annStatus = computed(() => announcementStatusMeta(trip.value?.status))
 
 // ---- Argent ----
@@ -217,8 +222,8 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
           <div v-if="bid.milestones?.deliveredAt"><dt class="text-text-muted">Livré le</dt><dd class="tabular-nums">{{ formatDateTime(bid.milestones.deliveredAt) }}</dd></div>
           <div v-if="bid.milestones?.returnedAt"><dt class="text-text-muted">Rendu le</dt><dd class="tabular-nums">{{ formatDateTime(bid.milestones.returnedAt) }}</dd></div>
         </dl>
-        <ul v-if="bid.photoUrls && bid.photoUrls.length" class="mt-3 flex flex-wrap gap-2" data-test="parcel-photos">
-          <li v-for="(url, i) in bid.photoUrls" :key="url">
+        <ul v-if="photos && photos.length" class="mt-3 flex flex-wrap gap-2" data-test="parcel-photos">
+          <li v-for="(url, i) in photos" :key="url">
             <a :href="url" target="_blank" rel="noopener noreferrer" class="block">
               <img
                 :src="url" :alt="`Photo du colis ${i + 1}`"
@@ -227,7 +232,7 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
             </a>
           </li>
         </ul>
-        <p v-else-if="bid.photoUrls" class="mt-2 text-xs text-text-muted" data-test="parcel-no-photos">Aucune photo du colis.</p>
+        <p v-else-if="photos" class="mt-2 text-xs text-text-muted" data-test="parcel-no-photos">Aucune photo du colis.</p>
       </section>
 
       <!-- Argent -->

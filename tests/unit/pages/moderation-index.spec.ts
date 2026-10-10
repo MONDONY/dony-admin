@@ -39,4 +39,10 @@ describe('/moderation', () => {
     expect(svc.getMessages).not.toHaveBeenCalled()
     expect(w.find('[data-test="thread-overlay"]').exists()).toBe(false)
   })
+  it('?open= malveillant : ignoré, aucun appel', async () => {
+    query = { open: '../../admin/x' }
+    const w = await mountPage()
+    expect(svc.getMessages).not.toHaveBeenCalled()
+    expect(w.find('[data-test="thread-overlay"]').exists()).toBe(false)
+  })
 })

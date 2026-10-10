@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { AdminBidTimeline, BidTimelineEntry } from '@/features/bids/types/index'
 import { bidTimelineLabel, bidTimelineTone, formatDateTime } from '@/features/bids/lib/bidLabels'
+import { safeHttpsUrl } from '@/lib/safeInput'
 
 /**
  * Chronologie du colis : scans, journal d'audit, paiement. `error` : chargement échoué (la fiche
@@ -21,6 +22,8 @@ function actor(e: BidTimelineEntry): string | null {
   if (e.source === 'AUDIT' || e.source === 'PAYMENT' || e.source === 'BID') return 'automatique'
   return null
 }
+/** Photo de scan : URL présignée `https:` seulement, jamais `javascript:` ni `data:`. */
+function photo(e: BidTimelineEntry): string | null { return safeHttpsUrl(e.photoUrl) }
 function detail(e: BidTimelineEntry): string | null {
   if (!e.detail) return null
   // Les notations arrivent en « 5/5 » : en clair pour l'admin.
@@ -51,9 +54,9 @@ function detail(e: BidTimelineEntry): string | null {
         </p>
         <p v-if="detail(e)" class="text-xs text-text-muted break-words">{{ detail(e) }}</p>
         <p v-if="e.gpsLat != null && e.gpsLon != null" class="text-xs text-text-muted tabular-nums">GPS {{ e.gpsLat }}, {{ e.gpsLon }}</p>
-        <a v-if="e.photoUrl" :href="e.photoUrl" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block">
+        <a v-if="photo(e)" :href="photo(e)!" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block">
           <img
-            :src="e.photoUrl" alt="Photo du scan"
+            :src="photo(e)!" alt="Photo du scan"
             class="h-20 rounded-xs object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
           >
         </a>

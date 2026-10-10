@@ -51,4 +51,15 @@ describe('BidTimeline', () => {
     expect(mount(BidTimeline, { props: { timeline: null, loading: true } }).find('[data-test="timeline-loading"]').exists()).toBe(true)
     expect(mount(BidTimeline, { props: { timeline: null, error: 'Boom' } }).find('[data-test="timeline-error"]').text()).toBe('Boom')
   })
+  it('valeurs malveillantes : texte brut, photo javascript:/data: écartée', () => {
+    const payload = '<img src=x onerror="alert(1)">'
+    const w = mount(BidTimeline, { props: { timeline: { bidId: 'b1', entries: [
+      { at: '2026-06-01T10:00:00', kind: 'SCAN' as const, label: payload, detail: payload, photoUrl: 'javascript:alert(1)', actorLabel: payload },
+      { at: '2026-06-01T11:00:00', kind: 'SCAN' as const, label: 'DEPART', photoUrl: 'data:image/png;base64,AAAA' },
+    ] } } })
+    expect(w.find('img').exists()).toBe(false)
+    expect(w.find('a').exists()).toBe(false)
+    expect(w.text()).toContain(payload)
+    expect(w.html()).not.toContain('javascript:')
+  })
 })

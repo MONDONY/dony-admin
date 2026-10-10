@@ -21,15 +21,15 @@ const bids = vi.hoisted(() => ({
 vi.mock('@/features/bids/services/bidsAdminService', () => ({ bidsAdminService: bids }))
 
 const EMPTY = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
-const row = { id: 'b1', status: 'ACCEPTED', announcementId: 'an1', senderName: 'Awa', travelerName: 'Moussa',
+const row = { id: 'b1', status: 'ACCEPTED', announcementId: '2a2a0000-0000-4000-8000-0000000000a1', senderName: 'Awa', travelerName: 'Moussa',
   corridor: 'Paris → Bamako', weightKg: 5, netEur: 40, currency: 'EUR', paymentMethod: 'STRIPE', createdAt: '2026-10-06T18:53:35' }
 const detail = { ...row, contentCategory: null, recipientName: null, trackingNumber: 'DON-8ANH6EZR', commissionRate: 0.12,
-  refusalReason: null, trip: { announcementId: 'an1', status: 'ACTIVE', departureCity: 'Paris', arrivalCity: 'Bamako',
+  refusalReason: null, trip: { announcementId: '2a2a0000-0000-4000-8000-0000000000a1', status: 'ACTIVE', departureCity: 'Paris', arrivalCity: 'Bamako',
     departureCountryCode: 'FR', arrivalCountryCode: 'ML', departureDate: '2026-10-12', departureTime: null, departureAt: null,
     arrivalDate: null, arrivalTime: null, timezone: null, pickupAddressLabel: null, deliveryAddressLabel: null, transportMode: 'PLANE',
     totalKg: 23, availableKg: 15, reservedKg: 0, capacityUnit: 'KG', pricePerKg: 8, tripGroupId: null, tripLegIndex: null,
     handoverDeadline: null, otherBidsCount: 2 }, money: null, links: null }
-const ann = { id: 'an1', status: 'ACTIVE', travelerName: 'Moussa', corridor: 'Paris → Bamako', departureDate: '2026-10-12', availableKg: 15, pricePerKg: 8, currency: 'EUR' }
+const ann = { id: '2a2a0000-0000-4000-8000-0000000000a1', status: 'ACTIVE', travelerName: 'Moussa', corridor: 'Paris → Bamako', departureDate: '2026-10-12', availableKg: 15, pricePerKg: 8, currency: 'EUR' }
 
 async function mountPage() {
   const mod = await import('@/pages/colis/index.vue')
@@ -70,12 +70,12 @@ describe('/colis, fiche colis', () => {
   })
 
   it('« autres colis sur ce trajet » filtre la liste et l’URL, « Voir tous les colis » l’enlève', async () => {
-    query = { open: 'b1' }
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1' }
     const w = await mountPage()
     await w.find('[data-test="trip-other-bids"]').trigger('click')
     await flushPromises()
-    expect(bids.listBids).toHaveBeenLastCalledWith(expect.objectContaining({ announcementId: 'an1' }), 0, 20)
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { announcementId: 'an1' } })
+    expect(bids.listBids).toHaveBeenLastCalledWith(expect.objectContaining({ announcementId: '2a2a0000-0000-4000-8000-0000000000a1' }), 0, 20)
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { announcementId: '2a2a0000-0000-4000-8000-0000000000a1' } })
     expect(w.find('[data-test="trip-filter"]').exists()).toBe(true)
     await w.find('[data-test="trip-filter-clear"]').trigger('click')
     await flushPromises()
@@ -84,13 +84,13 @@ describe('/colis, fiche colis', () => {
   })
 
   it('« Voir l’annonce » ouvre l’onglet Annonces réduit à l’annonce du colis', async () => {
-    query = { open: 'b1' }
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1' }
     const w = await mountPage()
     await w.find('[data-test="trip-open-announcement"]').trigger('click')
     await flushPromises()
-    expect(bids.listAnnouncements).toHaveBeenLastCalledWith(0, 20, 'an1')
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'announcements', announcement: 'an1' } })
-    expect(w.find('[data-test="ann-row-an1"]').exists()).toBe(true)
+    expect(bids.listAnnouncements).toHaveBeenLastCalledWith(0, 20, '2a2a0000-0000-4000-8000-0000000000a1')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'announcements', announcement: '2a2a0000-0000-4000-8000-0000000000a1' } })
+    expect(w.find('[data-test="ann-row-2a2a0000-0000-4000-8000-0000000000a1"]').exists()).toBe(true)
     await w.find('[data-test="announcement-focus-clear"]').trigger('click')
     await flushPromises()
     expect(bids.listAnnouncements).toHaveBeenLastCalledWith(0, 20)
@@ -98,19 +98,19 @@ describe('/colis, fiche colis', () => {
   })
 
   it('liens profonds : ?announcementId= et ?tab=announcements&announcement=', async () => {
-    query = { announcementId: 'an1' }
+    query = { announcementId: '2a2a0000-0000-4000-8000-0000000000a1' }
     await mountPage()
-    expect(bids.listBids).toHaveBeenCalledWith(expect.objectContaining({ announcementId: 'an1' }), 0, 20)
+    expect(bids.listBids).toHaveBeenCalledWith(expect.objectContaining({ announcementId: '2a2a0000-0000-4000-8000-0000000000a1' }), 0, 20)
     vi.clearAllMocks()
     bids.listAnnouncements.mockResolvedValue({ ...EMPTY, content: [ann] })
-    query = { tab: 'announcements', announcement: 'an1' }
+    query = { tab: 'announcements', announcement: '2a2a0000-0000-4000-8000-0000000000a1' }
     const w = await mountPage()
-    expect(bids.listAnnouncements).toHaveBeenCalledWith(0, 20, 'an1')
+    expect(bids.listAnnouncements).toHaveBeenCalledWith(0, 20, '2a2a0000-0000-4000-8000-0000000000a1')
     expect(w.find('[data-test="announcement-focus"]').exists()).toBe(true)
   })
 
   it('colis introuvable : erreur dans le panneau, refermable', async () => {
-    query = { open: 'zz' }
+    query = { open: '1c1a0000-0000-4000-8000-0000000000ff' }
     bids.getBid.mockRejectedValue(Object.assign(new Error('404'), { data: { detail: 'Colis introuvable' } }))
     const w = await mountPage()
     expect(w.find('[data-test="bid-detail-error"]').text()).toBe('Colis introuvable')
@@ -119,12 +119,30 @@ describe('/colis, fiche colis', () => {
   })
 
   it('changer d’onglet ferme la fiche', async () => {
-    query = { open: 'b1' }
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1' }
     const w = await mountPage()
     await w.find('[data-test="tab-announcements"]').trigger('click')
     await flushPromises()
     await w.find('[data-test="tab-bids"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="bid-detail"]').exists()).toBe(false)
+  })
+  it('?open=, ?announcementId= ou ?announcement= malveillants : ignorés, aucun appel', async () => {
+    query = { open: '../../admin/x', announcementId: '../x' }
+    await mountPage()
+    expect(bids.getBid).not.toHaveBeenCalled()
+    expect(bids.getTimeline).not.toHaveBeenCalled()
+    expect(bids.listBids).toHaveBeenCalledWith(expect.objectContaining({ announcementId: null }), 0, 20)
+    vi.clearAllMocks()
+    bids.listAnnouncements.mockResolvedValue({ ...EMPTY, content: [ann] })
+    query = { tab: 'announcements', announcement: 'javascript:alert(1)' }
+    await mountPage()
+    expect(bids.listAnnouncements).toHaveBeenCalledWith(0, 20)
+  })
+  it('?tab=demandes&open= malveillant : la fiche ne s’ouvre pas', async () => {
+    svc.list.mockResolvedValue(EMPTY)
+    query = { tab: 'demandes', open: '../../admin/x' }
+    await mountPage()
+    expect(svc.get).not.toHaveBeenCalled()
   })
 })
