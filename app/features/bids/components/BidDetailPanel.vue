@@ -5,6 +5,14 @@ import BidTimeline from './BidTimeline.vue'
 import BidPartyCard from './BidPartyCard.vue'
 import StripeResyncPanel from '@/features/payments/components/StripeResyncPanel.vue'
 import StartSupportConversationDialog from '@/features/support/components/StartSupportConversationDialog.vue'
+import BidCancelDialog from './BidCancelDialog.vue'
+import BidDisputeDialog from './BidDisputeDialog.vue'
+import { useBidAdminActions } from '@/features/bids/composables/useBidAdminActions'
+import {
+  BID_ACTION_FORBIDDEN, BID_ACTION_PERMISSION, BID_ACTION_UNAVAILABLE, cancelBlockedReason, cancelMoneyEffect,
+  disputeBlockedReason, disputeMoneyEffect, parcelWithTraveler,
+} from '@/features/bids/lib/bidActions'
+import type { AdminBidCancelReason, AdminDisputeReason, DisputeParty } from '@/features/bids/lib/bidActions'
 import { bidStatusMeta, bidStatusPhrase } from './bidStatus'
 import { paymentStatusMeta } from '@/features/payments/components/paymentStatus'
 import { formatMajorAmount } from '@/features/finance/types/index'
@@ -33,6 +41,8 @@ const emit = defineEmits<{
   'show-trip-bids': [announcementId: string]
   /** Resynchronisation Stripe faite : la fiche est à relire. */
   resynced: []
+  /** Colis annulé ou litige ouvert : la fiche est à relire. */
+  changed: []
 }>()
 const auth = useAuthStore()
 
@@ -106,8 +116,31 @@ const canSeeConversation = computed(() => !!links.value?.conversationId && auth.
 
 const supportRecipient = ref<{ id: string; name: string } | null>(null)
 
+// ---- Annuler le colis / Ouvrir un litige (super-admin) ----
+const actions = useBidAdminActions()
+const canAct = computed(() => auth.can(BID_ACTION_PERMISSION))
+const cancelBlocked = computed(() => cancelBlockedReason(props.bid))
+const disputeBlocked = computed(() => disputeBlockedReason(props.bid))
+const cancelDisabledReason = computed(() => (!canAct.value ? BID_ACTION_FORBIDDEN : cancelBlocked.value))
+const disputeDisabledReason = computed(() => (!canAct.value ? BID_ACTION_FORBIDDEN : disputeBlocked.value))
+const dialog = ref<'cancel' | 'dispute' | null>(null)
+
+function openDialog(kind: 'cancel' | 'dispute') {
+  actions.reset()
+  dialog.value = kind
+}
+function closeDialog() {
+  if (!actions.busy.value) dialog.value = null
+}
+async function confirmCancel(reason: AdminBidCancelReason, note: string) {
+  if (await actions.cancel(props.bid.id, reason, note)) { dialog.value = null; emit('changed') }
+}
+async function confirmDispute(party: DisputeParty, reason: AdminDisputeReason, description: string) {
+  if (await actions.openDispute(props.bid.id, party, reason, description)) { dialog.value = null; emit('changed') }
+}
+
 const copied = ref<string | null>(null)
-watch(() => props.bid.id, () => { copied.value = null; supportRecipient.value = null })
+watch(() => props.bid.id, () => { copied.value = null; supportRecipient.value = null; dialog.value = null; actions.reset() })
 async function copy(key: string, value: string) {
   try { await navigator.clipboard.writeText(value); copied.value = key } catch { copied.value = null }
 }
@@ -213,7 +246,6 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
           <div><dt class="text-text-muted">Poids</dt><dd class="tabular-nums" data-test="parcel-weight">{{ formatKg(bid.weightKg) ?? '—' }}</dd></div>
           <div><dt class="text-text-muted">Contenu</dt><dd>{{ bid.contentCategory ?? '—' }}</dd></div>
           <div v-if="bid.description" class="sm:col-span-2"><dt class="text-text-muted">Description</dt><dd class="text-pretty break-words" data-test="parcel-description">{{ bid.description }}</dd></div>
-          <div><dt class="text-text-muted">Valeur déclarée</dt><dd class="text-text-muted" data-test="parcel-declared">Non enregistrée par la plateforme</dd></div>
           <div v-if="bid.confirmationCodePresent !== undefined && bid.confirmationCodePresent !== null" data-test="parcel-code">
             <dt class="text-text-muted">Code de remise</dt>
             <dd>{{ bid.confirmationCodePresent ? 'Généré (visible seulement par l’expéditeur)' : 'Pas encore généré' }}</dd>
@@ -308,17 +340,34 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
           <StripeResyncPanel :payment-id="money.paymentId" :currency="money.currency" @done="emit('resynced')" />
         </div>
 
-        <ul class="mt-4 space-y-1.5 text-xs text-text-muted text-pretty" data-test="actions-unavailable">
-          <li v-if="!links?.disputeId" data-test="unavailable-dispute">
-            Ouvrir un litige : impossible depuis le back-office, l’expéditeur ou le voyageur l’ouvre depuis l’application. Il apparaîtra ici et dans Incidents.
-          </li>
-          <li data-test="unavailable-cancel">
-            Annuler le colis : le back-office n’a pas ce geste. L’annulation se fait dans l’application ; écrivez à l’expéditeur ou au voyageur via le support si besoin.
-          </li>
-          <li v-if="!auth.can('SUPPORT_TICKET_MANAGE')" data-test="unavailable-support">
-            Écrire aux personnes : réservé aux admins qui gèrent le support.
-          </li>
-        </ul>
+        <div class="mt-4 rounded-card border border-border p-3" data-test="admin-bid-actions">
+          <p class="mb-2 text-xs font-medium text-text-muted">Gestes super-admin</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-if="!actions.cancelUnavailable.value" type="button" data-test="action-cancel"
+              :disabled="!!cancelDisabledReason || actions.busy.value" :title="cancelDisabledReason ?? undefined"
+              class="inline-flex min-h-10 items-center rounded-btn bg-danger px-4 text-sm font-medium text-white transition-[background-color,transform] hover:bg-danger/90 active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100"
+              @click="openDialog('cancel')"
+            >Annuler le colis</button>
+            <button
+              v-if="!actions.disputeUnavailable.value" type="button" data-test="action-open-dispute"
+              :disabled="!!disputeDisabledReason || actions.busy.value" :title="disputeDisabledReason ?? undefined"
+              class="inline-flex min-h-10 items-center rounded-btn bg-danger/10 px-4 text-sm font-medium text-danger transition-[background-color,transform] hover:bg-danger/20 active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100"
+              @click="openDialog('dispute')"
+            >Ouvrir un litige</button>
+          </div>
+          <ul class="mt-2 space-y-1 text-xs text-text-muted text-pretty" data-test="actions-unavailable">
+            <li v-if="actions.cancelUnavailable.value" data-test="unavailable-cancel">Annuler le colis : {{ BID_ACTION_UNAVAILABLE }}</li>
+            <li v-else-if="cancelDisabledReason" data-test="cancel-disabled-reason">Annuler le colis : {{ cancelDisabledReason }}</li>
+            <li v-if="actions.disputeUnavailable.value" data-test="unavailable-dispute">Ouvrir un litige : {{ BID_ACTION_UNAVAILABLE }}</li>
+            <li v-else-if="disputeDisabledReason" data-test="dispute-disabled-reason">Ouvrir un litige : {{ disputeDisabledReason }}</li>
+            <li v-if="!auth.can('SUPPORT_TICKET_MANAGE')" data-test="unavailable-support">
+              Écrire aux personnes : réservé aux admins qui gèrent le support.
+            </li>
+          </ul>
+          <p v-if="actions.success.value" role="status" data-test="action-success" class="mt-2 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-pretty">{{ actions.success.value }}</p>
+          <p v-if="actions.error.value && !dialog" role="alert" data-test="action-error" class="mt-2 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty">{{ actions.error.value }}</p>
+        </div>
       </section>
 
       <!-- Identifiants -->
@@ -343,6 +392,17 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
         @click="emit('close')"
       >Fermer</button>
 
+      <BidCancelDialog
+        :open="dialog === 'cancel'" :money-effect="cancelMoneyEffect(bid)" :with-traveler="parcelWithTraveler(bid)"
+        :busy="actions.busy.value" :error="actions.error.value"
+        @confirm="confirmCancel" @cancel="closeDialog"
+      />
+      <BidDisputeDialog
+        :open="dialog === 'dispute'" :money-effect="disputeMoneyEffect(bid)"
+        :sender-name="bid.sender?.name ?? bid.senderName" :traveler-name="bid.traveler?.name ?? bid.travelerName"
+        :busy="actions.busy.value" :error="actions.error.value"
+        @confirm="confirmDispute" @cancel="closeDialog"
+      />
       <StartSupportConversationDialog
         :open="supportRecipient !== null" :recipient="supportRecipient"
         @close="supportRecipient = null" @sent="supportRecipient = null"

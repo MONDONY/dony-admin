@@ -83,10 +83,42 @@ test('fiche colis complète : trajet, personnes, argent, chronologie, actions', 
   await expect(page.locator('[data-test="money-status"]')).toHaveText('Sous séquestre')
   await expect(page.getByText('Présence confirmée par le voyageur')).toBeVisible()
   await expect(page.locator('[data-test="action-payment"]')).toBeVisible()
-  await expect(page.locator('[data-test="unavailable-cancel"]')).toBeVisible()
+  // Rôle ADMIN (sans ADMIN_MANAGE) : gestes super-admin visibles mais désactivés, avec la raison.
+  await expect(page.locator('[data-test="action-cancel"]')).toBeDisabled()
+  await expect(page.locator('[data-test="cancel-disabled-reason"]')).toContainText('Réservé aux super-administrateurs')
   await page.locator('[data-test="trip-open-announcement"]').click()
   await expect(page.locator('[data-test="announcement-focus"]')).toBeVisible()
   await expect(page.locator('[data-test="ann-row-an1"]')).toBeVisible()
+})
+
+test('super-admin annule un colis : effet argent confirmé, fiche relue', async ({ page }) => {
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, { ...ADMIN, role: 'SUPER_ADMIN' })
+  const calls: unknown[] = []
+  let cancelled = false
+  await page.route('**/api/v1/admin/bids/1c1a0000-0000-4000-8000-0000000000b2**', (route) => {
+    const req = route.request()
+    if (req.method() === 'POST' && req.url().endsWith('/cancel')) {
+      calls.push(req.postDataJSON())
+      cancelled = true
+      return route.fulfill({ json: { bidId: BID_FULL.id, status: 'CANCELLED', previousStatus: 'ACCEPTED', alreadyCancelled: false,
+        refundRequested: true, paymentStatus: 'ESCROW', refundAmount: 34, currency: 'EUR', parcelWithTraveler: false } })
+    }
+    if (req.url().includes('/timeline')) return route.fulfill({ json: { bidId: BID_FULL.id, entries: [] } })
+    return route.fulfill({ json: cancelled
+      ? { ...BID_FULL, status: 'CANCELLED', money: { ...BID_FULL.money, status: 'REFUNDED', refundedCents: 3400 } }
+      : BID_FULL })
+  })
+  await page.goto('/colis?open=1c1a0000-0000-4000-8000-0000000000b2')
+  await page.locator('[data-test="action-cancel"]').click()
+  await expect(page.locator('[data-test="cancel-money-effect"]')).toContainText('L’expéditeur sera remboursé de 34,00 EUR ; aucun versement au voyageur.')
+  await page.locator('[data-test="cancel-reason"]').selectOption('SENDER_REQUEST')
+  await expect(page.locator('[data-test="cancel-confirm"]')).toBeDisabled()
+  await page.locator('[data-test="cancel-ack"]').check()
+  await page.locator('[data-test="cancel-confirm"]').click()
+  await expect(page.locator('[data-test="action-success"]')).toContainText('Remboursement de 34,00 EUR lancé')
+  await expect(page.locator('[data-test="bid-status"]')).toHaveText('Annulé')
+  await expect(page.locator('[data-test="cancel-disabled-reason"]')).toContainText('Colis déjà annulé.')
+  expect(calls).toEqual([{ reason: 'SENDER_REQUEST', note: null }])
 })
 
 test('admin switches to announcements tab', async ({ page }) => {

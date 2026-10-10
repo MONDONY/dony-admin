@@ -25,6 +25,8 @@ const ACTIONS: Record<string, string> = {
   PAYOUT_HOLD_OVERRIDDEN_BY_ADMIN: 'Retenue levée par dérogation admin',
   PAYOUT_BLOCKED_STRIPE_ACCOUNT_UNUSABLE: 'Versement bloqué : compte Stripe du voyageur inutilisable',
   DELIVERY_TRANSFER_BLOCKED_CHARGEBACK: 'Versement bloqué : litige bancaire',
+  DELIVERY_TRANSFER_BLOCKED_DISPUTE: 'Versement gelé : litige ouvert par un admin',
+  TRANSFER_ALREADY_EXISTS_REALIGNED: 'Versement déjà parti chez Stripe : aucun second virement',
   DELIVERY_TRANSFER_BLOCKED_PARTIAL_REFUND: 'Versement bloqué : déjà remboursé en partie',
   DELIVERY_PAYMENT_NOT_IN_ESCROW: 'Colis livré sans séquestre',
   COMMISSION_CHARGED_WALLET: 'Commission prélevée sur le portefeuille',
