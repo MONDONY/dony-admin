@@ -9,6 +9,7 @@ const state = {
   loading: ref(false),
   error: ref<string | null>(null),
   notice: ref<string | null>(null),
+  launching: ref(false),
   load: vi.fn(),
   runPurge: vi.fn(),
   reconcile: vi.fn(),
@@ -40,6 +41,7 @@ describe('PhotoStorageCard', () => {
     state.loading.value = false
     state.error.value = null
     state.notice.value = null
+    state.launching.value = false
   })
 
   it('charge le statut au montage', () => {
@@ -59,10 +61,37 @@ describe('PhotoStorageCard', () => {
   })
 
   it('affiche les volumes 24 h et 7 j', () => {
-    const t = mountCard().text()
-    expect(t).toContain('12 photos')
-    expect(t).toContain('1.5 Ko')
-    expect(t).toContain('5.0 Mo')
+    const t = mountCard().find('[data-test="volumes"]').text()
+    expect(t).toContain('Envoyées sur 24 h : 12 photos, 1,5 Ko')
+    expect(t).toContain('Envoyées sur 7 j : 80 photos, 5 Mo')
+  })
+
+  it('affiche la durée du dernier passage, ou « en cours » sans fin', async () => {
+    state.status.value = baseStatus({
+      lastPurges: [run()],
+      lastReconciles: [run({ kind: 'RECONCILE', finishedAt: null })],
+    })
+    const w = mountCard()
+    expect(w.find('[data-test="last-purge"]').text()).toContain('durée 1 min')
+    expect(w.find('[data-test="last-reconcile"]').text()).toContain('en cours')
+  })
+
+  it('désactive les boutons pendant un lancement', () => {
+    state.launching.value = true
+    const w = mountCard()
+    expect(w.find('[data-test="run-purge"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-test="run-reconcile"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('le bouton Actualiser recharge le statut, désactivé pendant un chargement', async () => {
+    const w = mountCard()
+    const btn = w.find('[data-test="refresh"]')
+    expect(btn.text()).toContain('Actualiser')
+    await btn.trigger('click')
+    expect(state.load).toHaveBeenCalledTimes(2)
+    state.loading.value = true
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="refresh"]').attributes('disabled')).toBeDefined()
   })
 
   it('un passage à blanc affiche « seraient supprimées »', () => {

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { HardDrive, RefreshCw } from 'lucide-vue-next'
+import { HardDrive, Play, RefreshCw } from 'lucide-vue-next'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { usePhotoStorage } from '@/features/photo-storage/composables/usePhotoStorage'
-import { formatBytes, formatUtc } from '@/features/photo-storage/utils/format'
+import { formatBytes, formatDuration, formatUtc } from '@/features/photo-storage/utils/format'
 import type { PhotoPurgeRun } from '@/features/photo-storage/types/index'
 
-const { status, unavailable, loading, error, notice, load, runPurge, reconcile } = usePhotoStorage()
+const { status, unavailable, loading, error, notice, launching, load, runPurge, reconcile } = usePhotoStorage()
 
 const HISTORY_SIZE = 5
 const BULK_PHRASE = 'SUPPRESSION MASSIVE'
@@ -16,7 +16,7 @@ const historyOpen = ref(false)
 const dialogOpen = ref(false)
 const allowBulk = ref(false)
 
-const disabled = computed(() => loading.value || !!status.value?.running)
+const disabled = computed(() => loading.value || launching.value || !!status.value?.running)
 const lastPurge = computed(() => status.value?.lastPurges[0] ?? null)
 const lastReconcile = computed(() => status.value?.lastReconciles[0] ?? null)
 const purgeHistory = computed(() => status.value?.lastPurges.slice(0, HISTORY_SIZE) ?? [])
@@ -29,6 +29,12 @@ function summary(r: PhotoPurgeRun): string {
   return r.dryRun
     ? `${r.eligible} photos seraient supprimées`
     : `${r.deleted} supprimées, ${r.failed} échecs`
+}
+
+/** Ligne d'un passage : début, mode, durée, résultat. */
+function describe(r: PhotoPurgeRun): string {
+  return [formatUtc(r.startedAt), r.dryRun ? 'à blanc' : 'réel', formatDuration(r.startedAt, r.finishedAt), summary(r)]
+    .join(' · ')
 }
 
 function openReconcile() {
@@ -78,15 +84,15 @@ defineExpose({ refresh: load })
 
       <template v-if="status">
         <p data-test="volumes" class="mt-3 text-sm text-text-muted tabular-nums">
-          24 h : {{ status.uploads24h }} photos, {{ formatBytes(status.bytes24h) }}
-          · 7 j : {{ status.uploads7d }} photos, {{ formatBytes(status.bytes7d) }}
+          Envoyées sur 24 h : {{ status.uploads24h }} photos, {{ formatBytes(status.bytes24h) }}
+          · Envoyées sur 7 j : {{ status.uploads7d }} photos, {{ formatBytes(status.bytes7d) }}
         </p>
 
         <dl class="mt-4 space-y-3 text-sm">
           <div data-test="last-purge">
             <dt class="text-xs font-medium text-text-muted uppercase tracking-wider">Dernière purge</dt>
             <dd v-if="lastPurge" class="tabular-nums">
-              {{ formatUtc(lastPurge.startedAt) }} · {{ lastPurge.dryRun ? 'à blanc' : 'réel' }} · {{ summary(lastPurge) }}
+              {{ describe(lastPurge) }}
               <span v-if="lastPurge.error" class="block text-danger">{{ lastPurge.error }}</span>
             </dd>
             <dd v-else class="text-text-muted">Aucune</dd>
@@ -94,7 +100,7 @@ defineExpose({ refresh: load })
           <div data-test="last-reconcile">
             <dt class="text-xs font-medium text-text-muted uppercase tracking-wider">Dernier rapprochement</dt>
             <dd v-if="lastReconcile" class="tabular-nums">
-              {{ formatUtc(lastReconcile.startedAt) }} · {{ lastReconcile.dryRun ? 'à blanc' : 'réel' }} · {{ summary(lastReconcile) }}
+              {{ describe(lastReconcile) }}
               <span v-if="lastReconcile.error" class="block text-danger">{{ lastReconcile.error }}</span>
             </dd>
             <dd v-else class="text-text-muted">Aucun</dd>
@@ -112,7 +118,7 @@ defineExpose({ refresh: load })
           <ul class="space-y-1">
             <li class="font-medium text-text-muted">Purges</li>
             <li v-for="(r, i) in purgeHistory" :key="`p${i}`" data-test="history-purge" class="tabular-nums">
-              {{ formatUtc(r.startedAt) }} · {{ r.dryRun ? 'à blanc' : 'réel' }} · {{ summary(r) }}
+              {{ describe(r) }}
               <span v-if="r.error" class="text-danger"> · {{ r.error }}</span>
             </li>
             <li v-if="!purgeHistory.length" class="text-text-muted">Aucune</li>
@@ -120,7 +126,7 @@ defineExpose({ refresh: load })
           <ul class="space-y-1">
             <li class="font-medium text-text-muted">Rapprochements</li>
             <li v-for="(r, i) in reconcileHistory" :key="`r${i}`" data-test="history-reconcile" class="tabular-nums">
-              {{ formatUtc(r.startedAt) }} · {{ r.dryRun ? 'à blanc' : 'réel' }} · {{ summary(r) }}
+              {{ describe(r) }}
               <span v-if="r.error" class="text-danger"> · {{ r.error }}</span>
             </li>
             <li v-if="!reconcileHistory.length" class="text-text-muted">Aucun</li>
@@ -134,7 +140,7 @@ defineExpose({ refresh: load })
           class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
           @click="runPurge"
         >
-          <RefreshCw :size="14" aria-hidden="true" />
+          <Play :size="14" aria-hidden="true" />
           Lancer la purge maintenant
         </button>
         <button
@@ -142,8 +148,16 @@ defineExpose({ refresh: load })
           class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
           @click="openReconcile"
         >
-          <RefreshCw :size="14" aria-hidden="true" />
+          <Play :size="14" aria-hidden="true" />
           Lancer le contrôle complet
+        </button>
+        <button
+          type="button" data-test="refresh" :disabled="loading"
+          class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
+          @click="load"
+        >
+          <RefreshCw :size="14" aria-hidden="true" />
+          Actualiser
         </button>
         <span
           v-if="status?.running" data-test="running" role="status"

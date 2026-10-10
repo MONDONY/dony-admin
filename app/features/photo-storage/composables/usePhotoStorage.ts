@@ -3,7 +3,9 @@ import { photoStorageService } from '@/features/photo-storage/services/photoStor
 import { extractProblemMessage } from '@/lib/problemDetail'
 import type { PhotoStorageStatus } from '@/features/photo-storage/types/index'
 
-const RELOAD_DELAY_MS = 3000
+/** Après un lancement : un rechargement toutes les 5 s tant qu'un passage tourne, 2 min au plus. */
+const POLL_INTERVAL_MS = 5000
+const POLL_MAX = 24
 const NOTICE_STARTED = 'Passage lancé, actualisez dans un instant.'
 const NOTICE_RUNNING = 'Une purge est déjà en cours, réessayez dans quelques minutes.'
 
@@ -17,6 +19,7 @@ function httpStatus(e: unknown): number | undefined {
  * État + actions de l'écran « Stockage photos » : statut de la purge, lancement manuel
  * d'une purge ou d'un rapprochement. Un 404 au chargement (back sans l'endpoint) rend
  * l'écran « indisponible » sans erreur ; un 409 signale qu'un passage est déjà en cours.
+ * Un seul lancement à la fois (`launching`) : un double clic n'envoie qu'un POST.
  */
 export function usePhotoStorage() {
   const status = ref<PhotoStorageStatus | null>(null)
@@ -24,17 +27,35 @@ export function usePhotoStorage() {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const notice = ref<string | null>(null)
+  const launching = ref(false)
 
-  let reloadTimer: ReturnType<typeof setTimeout> | null = null
+  let pollTimer: ReturnType<typeof setTimeout> | null = null
+  let polls = 0
+  let disposed = false
 
-  function clearReload() {
-    if (reloadTimer !== null) {
-      clearTimeout(reloadTimer)
-      reloadTimer = null
+  function stopPolling() {
+    if (pollTimer !== null) {
+      clearTimeout(pollTimer)
+      pollTimer = null
     }
   }
 
-  if (getCurrentScope()) onScopeDispose(clearReload)
+  function schedulePoll() {
+    pollTimer = setTimeout(async () => {
+      pollTimer = null
+      polls++
+      await load()
+      // `disposed` : un rechargement encore en vol au démontage ne doit pas relancer le suivi.
+      if (!disposed && status.value?.running && polls < POLL_MAX) schedulePoll()
+    }, POLL_INTERVAL_MS)
+  }
+
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      disposed = true
+      stopPolling()
+    })
+  }
 
   async function load() {
     loading.value = true
@@ -54,27 +75,29 @@ export function usePhotoStorage() {
   }
 
   async function launch(call: () => Promise<{ started: boolean }>) {
+    if (launching.value) return
+    launching.value = true
     error.value = null
     notice.value = null
     try {
       await call()
       notice.value = NOTICE_STARTED
-      clearReload()
-      reloadTimer = setTimeout(() => {
-        reloadTimer = null
-        void load()
-      }, RELOAD_DELAY_MS)
+      stopPolling()
+      polls = 0
+      schedulePoll()
     } catch (e) {
       if (httpStatus(e) === 409) {
         notice.value = NOTICE_RUNNING
       } else {
         error.value = extractProblemMessage(e, 'Lancement impossible')
       }
+    } finally {
+      launching.value = false
     }
   }
 
   const runPurge = () => launch(() => photoStorageService.runPurge())
   const reconcile = (allowBulk: boolean) => launch(() => photoStorageService.reconcile(allowBulk))
 
-  return { status, unavailable, loading, error, notice, load, runPurge, reconcile }
+  return { status, unavailable, loading, error, notice, launching, load, runPurge, reconcile }
 }
