@@ -31,7 +31,15 @@ async function confirmRestore(reason: string) {
   pendingRestoreId.value = null
 }
 
-onMounted(fetchConversations)
+const route = useRoute()
+// ?open=<conversationId Firestore> (« Voir la conversation » d'une fiche colis) : ouvre le fil.
+onMounted(async () => {
+  const openId = route.query?.open
+  await Promise.all([
+    fetchConversations(),
+    typeof openId === 'string' && openId ? thread.open(openId) : Promise.resolve(),
+  ])
+})
 </script>
 
 <template>

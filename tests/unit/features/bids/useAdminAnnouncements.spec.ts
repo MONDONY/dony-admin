@@ -173,3 +173,29 @@ describe('useAdminAnnouncements', () => {
   })
 })
 
+
+describe('useAdminAnnouncements — annonce d’un colis', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    svc.listAnnouncements = vi.fn()
+  })
+  it('focus demande l’annonce seule, puis toutes', async () => {
+    svc.listAnnouncements.mockResolvedValue({ content: [a2], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    const s = seeded()
+    await s.focus('a2')
+    expect(svc.listAnnouncements).toHaveBeenLastCalledWith(0, 20, 'a2')
+    expect(s.announcements.value).toEqual([a2])
+    expect(s.focusId.value).toBe('a2')
+    svc.listAnnouncements.mockResolvedValue({ content: [a1, a2], totalElements: 2, totalPages: 3, number: 0, size: 20 })
+    await s.focus(null)
+    expect(svc.listAnnouncements).toHaveBeenLastCalledWith(0, 20)
+    expect(s.totalPages.value).toBe(3)
+  })
+  it('ancien back qui ignore ?id= : seule l’annonce visée reste', async () => {
+    svc.listAnnouncements.mockResolvedValue({ content: [a1, a2, a3], totalElements: 3, totalPages: 4, number: 0, size: 20 })
+    const s = seeded()
+    await s.focus('a3')
+    expect(s.announcements.value).toEqual([a3])
+    expect(s.totalPages.value).toBe(1)
+  })
+})
