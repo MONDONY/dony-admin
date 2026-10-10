@@ -88,7 +88,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const uuidOrNull = (v: unknown): string | null => (typeof v === 'string' && UUID.test(v) ? v : null)
 
 /** Types d'alerte dont le suffixe est l'identifiant du paiement visé. */
-const PAYMENT_SUFFIXED = ['RECON_STRIPE_', 'ESCROW_CAPTURE_FAILED_', 'DELIVERY_NOT_ESCROW_'] as const
+const PAYMENT_SUFFIXED = ['RECON_STRIPE_', 'ESCROW_CAPTURE_FAILED_', 'DELIVERY_NOT_ESCROW_', 'LATE_RELEASE_FAILED_'] as const
 
 /** Alertes de séquestre carte que la section « Corriger » sait traiter. */
 export function isStripeFixAlert(type: string): boolean {
@@ -98,7 +98,7 @@ export function isStripeFixAlert(type: string): boolean {
 /**
  * Paiement visé par une alerte : `paymentId` du nouveau back, sinon `payload.paymentId`, sinon
  * (ancien back) `payload.reference` ou le suffixe du type pour `RECON_STRIPE_` et
- * `ESCROW_CAPTURE_FAILED_`. Un écart de commission (`COMMISSION_*`) vise un colis, pas un paiement.
+ * `ESCROW_CAPTURE_FAILED_`, `DELIVERY_NOT_ESCROW_` et `LATE_RELEASE_FAILED_`. Un écart de commission (`COMMISSION_*`) vise un colis, pas un paiement.
  */
 export function alertPaymentId(alert: { type: string; payload?: Record<string, unknown> | null; paymentId?: string | null }): string | null {
   const direct = uuidOrNull(alert.paymentId) ?? uuidOrNull(alert.payload?.paymentId)
