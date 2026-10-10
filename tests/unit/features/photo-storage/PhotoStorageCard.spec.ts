@@ -129,6 +129,33 @@ describe('PhotoStorageCard', () => {
     expect(w.findAll('[data-test="history-purge"]')).toHaveLength(5)
   })
 
+  it('l\'historique affiche les erreurs des passages et « Aucune » sans purge', async () => {
+    state.status.value = baseStatus({
+      lastPurges: [],
+      lastReconciles: [run({ kind: 'RECONCILE', error: 'R2 injoignable' }), run({ kind: 'RECONCILE' })],
+    })
+    const w = mountCard()
+    expect(w.find('[data-test="last-purge"]').text()).toContain('Aucune')
+    await w.find('[data-test="history-toggle"]').trigger('click')
+    expect(w.find('[data-test="history-toggle"]').text()).toBe('Masquer l’historique')
+    expect(w.findAll('[data-test="history-purge"]')).toHaveLength(0)
+    expect(w.find('[data-test="history"]').text()).toContain('Aucune')
+    const rec = w.findAll('[data-test="history-reconcile"]')
+    expect(rec).toHaveLength(2)
+    expect(rec[0].text()).toContain('R2 injoignable')
+    expect(rec[1].text()).not.toContain('R2')
+  })
+
+  it('l\'historique affiche l\'erreur d\'une purge et « Aucun » sans rapprochement', async () => {
+    state.status.value = baseStatus({ lastPurges: [run({ error: 'Délai dépassé' })] })
+    const w = mountCard()
+    expect(w.find('[data-test="last-purge"]').text()).toContain('Délai dépassé')
+    expect(w.find('[data-test="last-reconcile"]').text()).toContain('Aucun')
+    await w.find('[data-test="history-toggle"]').trigger('click')
+    expect(w.find('[data-test="history-purge"]').text()).toContain('Délai dépassé')
+    expect(w.find('[data-test="history"]').text()).toContain('Aucun')
+  })
+
   it('désactive les boutons quand un passage est en cours ou en chargement', async () => {
     state.status.value = baseStatus({ running: true })
     const w = mountCard()

@@ -42,6 +42,16 @@ describe('usePhotoStorage', () => {
     expect(p.error.value).toBeNull()
   })
 
+  it('lit aussi le statut HTTP depuis statusCode ou response.status', async () => {
+    svc.status.mockRejectedValue({ response: { status: 404 } })
+    svc.runPurge.mockRejectedValue({ statusCode: 409 })
+    const p = usePhotoStorage()
+    await p.load()
+    expect(p.unavailable.value).toBe(true)
+    await p.runPurge()
+    expect(p.notice.value).toContain('déjà en cours')
+  })
+
   it('load en 500 expose le detail du ProblemDetail', async () => {
     svc.status.mockRejectedValue(fetchError(500, { detail: 'Boum serveur' }))
     const p = usePhotoStorage()
