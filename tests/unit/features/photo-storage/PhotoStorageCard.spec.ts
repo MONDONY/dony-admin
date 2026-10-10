@@ -1,0 +1,163 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { ref } from 'vue'
+import type { PhotoPurgeRun, PhotoStorageStatus } from '@/features/photo-storage/types/index'
+
+const state = {
+  status: ref<PhotoStorageStatus | null>(null),
+  unavailable: ref(false),
+  loading: ref(false),
+  error: ref<string | null>(null),
+  notice: ref<string | null>(null),
+  load: vi.fn(),
+  runPurge: vi.fn(),
+  reconcile: vi.fn(),
+}
+vi.mock('@/features/photo-storage/composables/usePhotoStorage', () => ({ usePhotoStorage: () => state }))
+import PhotoStorageCard from '@/features/photo-storage/components/PhotoStorageCard.vue'
+
+const run = (over: Partial<PhotoPurgeRun> = {}): PhotoPurgeRun => ({
+  kind: 'PURGE', dryRun: false, triggerSource: 'SCHEDULE',
+  startedAt: '2026-10-10T04:10:00', finishedAt: '2026-10-10T04:11:00',
+  eligible: 10, deleted: 8, failed: 2, error: null, ...over,
+})
+const baseStatus = (over: Partial<PhotoStorageStatus> = {}): PhotoStorageStatus => ({
+  purgeEnabled: false, retentionDays: 7, running: false,
+  lastPurges: [], lastReconciles: [],
+  uploads24h: 12, bytes24h: 1536, uploads7d: 80, bytes7d: 5 * 1024 ** 2,
+  ...over,
+})
+
+function mountCard() {
+  return mount(PhotoStorageCard)
+}
+
+describe('PhotoStorageCard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.status.value = baseStatus()
+    state.unavailable.value = false
+    state.loading.value = false
+    state.error.value = null
+    state.notice.value = null
+  })
+
+  it('charge le statut au montage', () => {
+    mountCard()
+    expect(state.load).toHaveBeenCalledTimes(1)
+  })
+
+  it('affiche le badge À blanc quand la purge est inactive, Purge active sinon', () => {
+    const w = mountCard()
+    expect(w.text()).toContain('À blanc')
+    expect(w.text()).not.toContain('Purge active')
+    state.status.value = baseStatus({ purgeEnabled: true })
+    return w.vm.$nextTick().then(() => {
+      expect(w.text()).toContain('Purge active')
+      expect(w.text()).toContain('Délai : 7 jours')
+    })
+  })
+
+  it('affiche les volumes 24 h et 7 j', () => {
+    const t = mountCard().text()
+    expect(t).toContain('12 photos')
+    expect(t).toContain('1.5 Ko')
+    expect(t).toContain('5.0 Mo')
+  })
+
+  it('un passage à blanc affiche « seraient supprimées »', () => {
+    state.status.value = baseStatus({ lastPurges: [run({ dryRun: true, eligible: 42, deleted: 0, failed: 0 })] })
+    const t = mountCard().find('[data-test="last-purge"]').text()
+    expect(t).toContain('42 photos seraient supprimées')
+    expect(t).toContain('à blanc')
+  })
+
+  it('un passage réel affiche supprimées et échecs', () => {
+    state.status.value = baseStatus({ lastPurges: [run()] })
+    const t = mountCard().find('[data-test="last-purge"]').text()
+    expect(t).toContain('8 supprimées, 2 échecs')
+    expect(t).toContain('réel')
+  })
+
+  it('affiche l\'erreur d\'un passage et l\'erreur du composable', () => {
+    state.status.value = baseStatus({ lastReconciles: [run({ kind: 'RECONCILE', error: 'R2 injoignable' })] })
+    state.error.value = 'Lancement impossible'
+    const w = mountCard()
+    expect(w.find('[data-test="last-reconcile"]').text()).toContain('R2 injoignable')
+    expect(w.find('[data-test="photo-storage-error"]').text()).toContain('Lancement impossible')
+  })
+
+  it('affiche la notice', () => {
+    state.notice.value = 'Passage lancé, actualisez dans un instant.'
+    expect(mountCard().find('[data-test="photo-storage-notice"]').text()).toContain('Passage lancé')
+  })
+
+  it('l\'historique se replie et se déplie avec 5 passages au plus', async () => {
+    state.status.value = baseStatus({ lastPurges: Array.from({ length: 7 }, () => run()) })
+    const w = mountCard()
+    expect(w.find('[data-test="history"]').exists()).toBe(false)
+    await w.find('[data-test="history-toggle"]').trigger('click')
+    expect(w.findAll('[data-test="history-purge"]')).toHaveLength(5)
+  })
+
+  it('désactive les boutons quand un passage est en cours ou en chargement', async () => {
+    state.status.value = baseStatus({ running: true })
+    const w = mountCard()
+    expect(w.find('[data-test="run-purge"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-test="run-reconcile"]').attributes('disabled')).toBeDefined()
+    state.status.value = baseStatus()
+    state.loading.value = true
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="run-purge"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('lancer la purge appelle runPurge', async () => {
+    const w = mountCard()
+    await w.find('[data-test="run-purge"]').trigger('click')
+    expect(state.runPurge).toHaveBeenCalledTimes(1)
+  })
+
+  it('contrôle complet sans case cochée : confirmation simple puis reconcile(false)', async () => {
+    state.status.value = baseStatus({ purgeEnabled: true })
+    const w = mountCard()
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).toHaveBeenCalledWith(false)
+  })
+
+  it('case cochée sans purge active : confirmation simple, reconcile(true)', async () => {
+    const w = mountCard()
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    await w.find('[data-test="allow-bulk"]').setValue(true)
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).toHaveBeenCalledWith(true)
+  })
+
+  it('case cochée ET purge active : exige SUPPRESSION MASSIVE puis reconcile(true)', async () => {
+    state.status.value = baseStatus({ purgeEnabled: true })
+    const w = mountCard()
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    await w.find('[data-test="allow-bulk"]').setValue(true)
+    expect(w.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-test="confirmation-input"]').setValue('SUPPRESSION MASSIVE')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).toHaveBeenCalledWith(true)
+  })
+
+  it('annuler ferme le dialogue sans lancer', async () => {
+    const w = mountCard()
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    await w.find('[data-test="cancel"]').trigger('click')
+    expect(w.find('[data-test="overlay"]').exists()).toBe(false)
+    expect(state.reconcile).not.toHaveBeenCalled()
+  })
+
+  it('indisponible : seul le message est affiché', () => {
+    state.unavailable.value = true
+    const w = mountCard()
+    expect(w.text()).toContain('Indisponible sur cette version du serveur')
+    expect(w.find('[data-test="run-purge"]').exists()).toBe(false)
+  })
+})

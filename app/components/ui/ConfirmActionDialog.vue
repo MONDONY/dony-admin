@@ -57,6 +57,7 @@ function onConfirm() {
     <div class="w-full max-w-sm rounded-card border border-border bg-surface p-6 shadow-xl">
       <h2 class="font-display text-lg font-semibold mb-1">{{ title }}</h2>
       <p class="text-sm text-text-muted mb-4">{{ message }}</p>
+      <slot />
       <div v-if="reasonOptions?.length" class="mb-4">
         <label class="mb-1 block text-xs text-text-muted">Motif communiqué à l’utilisateur</label>
         <select

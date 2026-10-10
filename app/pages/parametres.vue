@@ -4,6 +4,7 @@ import SettingsForm from '@/features/settings/components/SettingsForm.vue'
 import { usePlatformSettings } from '@/features/settings/composables/usePlatformSettings'
 import ExchangeRatesTable from '@/features/exchange-rates/components/ExchangeRatesTable.vue'
 import { useExchangeRates } from '@/features/exchange-rates/composables/useExchangeRates'
+import PhotoStorageCard from '@/features/photo-storage/components/PhotoStorageCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
 definePageMeta({
@@ -37,6 +38,7 @@ onMounted(() => {
 
       <p v-if="isLoading" class="text-sm text-text-muted">Chargement…</p>
       <SettingsForm v-else :settings="settings" :busy="busy" @update="update" />
+      <PhotoStorageCard class="mt-6" />
     </div>
 
     <div>
