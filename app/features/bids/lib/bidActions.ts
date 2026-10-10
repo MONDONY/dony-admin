@@ -167,7 +167,12 @@ export function disputeErrorMessage(e: unknown): string {
 
 /** Message de succès, affiché sur la fiche rechargée. */
 export function cancelSuccessMessage(r: AdminBidCancelResult): string {
-  if (r.alreadyCancelled) return 'Ce colis était déjà annulé : rien n’a été refait.'
+  if (r.alreadyCancelled) {
+    // Le back relance un remboursement resté en séquestre (idempotent) : le dire.
+    return r.refundRequested
+      ? 'Ce colis était déjà annulé : le remboursement de l’expéditeur a été relancé.'
+      : 'Ce colis était déjà annulé : rien n’a été refait.'
+  }
   const parts = ['Colis annulé.']
   if (r.refundRequested && r.refundAmount > 0) {
     parts.push(`Remboursement de ${formatMoney(Math.round(r.refundAmount * 100), r.currency ?? undefined)} lancé pour l’expéditeur.`)

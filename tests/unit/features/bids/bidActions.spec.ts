@@ -87,7 +87,8 @@ describe('bidActions', () => {
     expect(cancelSuccessMessage({ ...r, refundAmount: 0 })).toContain('Autorisation de la carte levée.')
     expect(cancelSuccessMessage({ ...r, refundRequested: false, parcelWithTraveler: true })).toContain('organisez son retour')
     expect(cancelSuccessMessage({ ...r, currency: null })).toContain('48,00 lancé')
-    expect(cancelSuccessMessage({ ...r, alreadyCancelled: true })).toContain('déjà annulé')
+    expect(cancelSuccessMessage({ ...r, alreadyCancelled: true, refundRequested: false })).toBe('Ce colis était déjà annulé : rien n’a été refait.')
+    expect(cancelSuccessMessage({ ...r, alreadyCancelled: true })).toBe('Ce colis était déjà annulé : le remboursement de l’expéditeur a été relancé.')
     const d = { disputeId: 'd', bidId: 'b', type: 'ADMIN_PARCEL_LOST', status: 'OPEN', openedOnBehalfOf: 'SENDER' as const, payoutFrozen: true, paymentStatus: 'ESCROW' }
     expect(disputeSuccessMessage(d)).toContain('gelé')
     expect(disputeSuccessMessage({ ...d, payoutFrozen: false })).toBe('Litige ouvert. Les deux parties sont prévenues.')
