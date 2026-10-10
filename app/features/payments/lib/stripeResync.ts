@@ -15,6 +15,7 @@ const ACTIONS: Record<string, string> = {
   CAPTURE_RECORDED: 'Encaissement Stripe enregistré chez Yadony',
   MARKED_FAILED: 'Paiement marqué échoué (la carte a été refusée chez Stripe)',
   MARKED_CANCELLED: 'Paiement marqué annulé (annulé chez Stripe)',
+  ESCROW_RELEASED: 'Colis déjà livré : versement envoyé au voyageur',
 }
 
 export function resyncActionLabel(action: string): string {
@@ -87,7 +88,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const uuidOrNull = (v: unknown): string | null => (typeof v === 'string' && UUID.test(v) ? v : null)
 
 /** Types d'alerte dont le suffixe est l'identifiant du paiement visé. */
-const PAYMENT_SUFFIXED = ['RECON_STRIPE_', 'ESCROW_CAPTURE_FAILED_'] as const
+const PAYMENT_SUFFIXED = ['RECON_STRIPE_', 'ESCROW_CAPTURE_FAILED_', 'DELIVERY_NOT_ESCROW_'] as const
 
 /** Alertes de séquestre carte que la section « Corriger » sait traiter. */
 export function isStripeFixAlert(type: string): boolean {

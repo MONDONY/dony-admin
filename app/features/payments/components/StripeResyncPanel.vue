@@ -64,6 +64,7 @@ const rows = computed(() => {
     <p v-if="error" data-test="resync-error" class="mt-2 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty">{{ error }}</p>
     <div v-if="result" data-test="resync-result" class="mt-3 rounded-card border border-border bg-surface p-3 text-sm">
       <p class="font-medium" :class="result.changed ? 'text-success' : 'text-text'" data-test="resync-action">{{ resyncActionLabel(result.action) }}</p>
+      <p v-if="result.released" class="mt-1 font-medium text-success" data-test="resync-released">Versé au voyageur</p>
       <p v-if="result.message" class="mt-1 text-text-muted text-pretty" data-test="resync-message">{{ result.message }}</p>
       <table class="mt-2 w-full text-xs" data-test="resync-table">
         <thead class="text-left text-text-muted">

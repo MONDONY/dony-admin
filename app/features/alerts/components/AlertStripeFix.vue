@@ -37,7 +37,7 @@ async function loadPayment() {
 onMounted(loadPayment)
 
 /** Statut le plus frais : celui de la resynchronisation, sinon celui de la fiche paiement. */
-const status = computed(() => (released.value ? 'RELEASED' : resync.value?.after.status ?? payment.value?.status ?? null))
+const status = computed(() => (released.value || resync.value?.released ? 'RELEASED' : resync.value?.after.status ?? payment.value?.status ?? null))
 const autoResolved = computed(() => !!resync.value?.resolvedAlertIds.includes(props.alert.id))
 const canOfferResolve = computed(() =>
   !!resync.value?.alertResolvable && !autoResolved.value && !props.alert.resolved && auth.can('ALERT_RESOLVE'))
@@ -105,7 +105,7 @@ async function confirmRelease() {
       >{{ releaseBusy ? 'Versement en cours…' : 'Forcer le versement au voyageur' }}</button>
       <p v-if="!canRelease" data-test="alert-fix-release-forbidden" class="mt-1 text-xs text-text-muted">Réservé aux super-administrateurs.</p>
     </div>
-    <p v-if="released" data-test="alert-fix-released" class="mt-3 text-sm text-success">Versement envoyé au voyageur : le paiement est libéré.</p>
+    <p v-if="released || resync?.released" data-test="alert-fix-released" class="mt-3 text-sm text-success">Versement envoyé au voyageur : le paiement est libéré.</p>
     <p v-if="releaseError" data-test="alert-fix-release-error" class="mt-2 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty">{{ releaseError }}</p>
 
     <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
