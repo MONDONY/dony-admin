@@ -260,6 +260,8 @@ describe('SettingsForm', () => {
     ['tracking_photos_max_per_bid', '0'], ['tracking_photos_max_per_bid', '21'],
     ['photo_retention_days_after_delivery', '7.5'],
     ['photo_upload_daily_quota', ''],
+    ['photo_upload_daily_quota', '1e1'],
+    ['tracking_photos_max_per_bid', '1e1'],
   ])('refuse %s = "%s" hors bornes', async (key, value) => {
     const w = mountForm({ settings: [retention, quota, maxTracking] })
     await w.find(`[data-test="setting-value-${key}"]`).setValue(value)
@@ -275,6 +277,32 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="setting-error-photo_upload_daily_quota"]').exists()).toBe(false)
     await w.find('[data-test="setting-value-tracking_photos_max_per_bid"]').setValue('1')
     expect(w.find('[data-test="setting-error-tracking_photos_max_per_bid"]').exists()).toBe(false)
+  })
+
+  it('l’aide « Entre X et Y » n’est pas doublée quand l’erreur hors bornes s’affiche', async () => {
+    const w = mountForm({ settings: [retention] })
+    const key = 'photo_retention_days_after_delivery'
+    expect(w.find(`[data-test="setting-hint-${key}"]`).exists()).toBe(true)
+    await w.find(`[data-test="setting-value-${key}"]`).setValue('0')
+    expect(w.find(`[data-test="setting-error-${key}"]`).text()).toBe('Entre 1 et 365')
+    expect(w.find(`[data-test="setting-hint-${key}"]`).exists()).toBe(false)
+    expect(w.text().split('Entre 1 et 365')).toHaveLength(2)
+  })
+
+  it('l’avertissement d’activation de la purge est affiché en rouge', async () => {
+    const w = mountForm({ settings: [purge] })
+    await w.find('[data-test="setting-value-photo_purge_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-photo_purge_enabled"]').trigger('click')
+    const alert = w.find('[data-test="confirm-alert"]')
+    expect(alert.classes()).toContain('text-danger')
+    expect(alert.text()).toContain('supprimées définitivement de Cloudflare R2')
+  })
+
+  it('repasser à blanc n’affiche pas d’avertissement rouge', async () => {
+    const w = mountForm({ settings: [{ ...purge, value: 'true' }] })
+    await w.find('[data-test="setting-value-photo_purge_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-photo_purge_enabled"]').trigger('click')
+    expect(w.find('[data-test="confirm-alert"]').exists()).toBe(false)
   })
 
   it('activer la purge exige la phrase ACTIVER PURGE', async () => {

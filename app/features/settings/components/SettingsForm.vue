@@ -79,10 +79,12 @@ function hintFor(key: string): string | null {
 // Brouillon local par clé, initialisé depuis la valeur courante du réglage la première fois
 // qu'elle est vue. On ne réécrase jamais une saisie en cours si le parent republie la même
 // liste (ex. après une mise à jour d'un autre réglage).
-// Type `string | number` : Vue caste automatiquement le v-model d'un <input type="number">
-// en Number dès que l'utilisateur saisit — la valeur initiale (venue du back) reste, elle,
-// une string. On normalise via String(...) partout où la valeur ressort du composant.
-const drafts = reactive<Record<string, string | number>>({})
+// Brouillons toujours en texte brut : le champ numérique est lu via `@input` et non `v-model`,
+// que Vue caste en Number (« 1e1 » deviendrait 10 et passerait la validation des entiers).
+const drafts = reactive<Record<string, string>>({})
+function onNumberInput(key: string, e: Event) {
+  drafts[key] = (e.target as HTMLInputElement).value
+}
 watch(
   () => props.settings,
   (list) => {
@@ -99,7 +101,7 @@ function fmt(d: string) {
 
 /** Bornes documentées du lot : commission entre 0 et 30 %, plafond ≤ 500 €. Le backend reste
  * l'autorité — ce contrôle évite juste l'aller-retour réseau pour une valeur déjà invalide. */
-function errorFor(key: string, raw: string | number | undefined): string | null {
+function errorFor(key: string, raw: string | undefined): string | null {
   if (raw === undefined) return null
   const str = String(raw)
   const n = Number(raw)
@@ -113,7 +115,8 @@ function errorFor(key: string, raw: string | number | undefined): string | null 
   }
   const b = INT_BOUNDS[key]
   if (b) {
-    if (str.trim() === '' || !Number.isInteger(n) || n < b[0] || n > b[1]) return `Entre ${b[0]} et ${b[1]}`
+    // Chiffres seulement : `Number('1e1')` vaut 10, un entier, mais n'est pas une saisie d'entier.
+    if (!/^\d+$/.test(str.trim()) || n < b[0] || n > b[1]) return `Entre ${b[0]} et ${b[1]}`
   }
   return null
 }
@@ -127,6 +130,8 @@ interface PendingChange {
   doubleConfirm: boolean
   /** Phrase à saisir quand `doubleConfirm` est vrai (par défaut celle des SMS). */
   phrase?: string
+  /** Avertissement affiché en rouge sous le message (conséquence irréversible). */
+  alert?: string
 }
 const pending = ref<PendingChange | null>(null)
 
@@ -186,9 +191,12 @@ function requestSave(key: string) {
       phrase: PURGE_ENABLE_PHRASE,
       title: turningOn ? 'Activer la suppression des photos' : 'Repasser la purge à blanc',
       message: turningOn
-        ? 'Les photos éligibles (colis livrés depuis le délai, orphelins, historique) seront supprimées '
-          + 'définitivement de Cloudflare R2. Consultez d’abord le décompte à blanc de la carte Stockage photos.'
+        ? 'Consultez d’abord le décompte à blanc de la carte Stockage photos.'
         : 'La purge repasse à blanc : plus rien n’est supprimé (sauf le chat, qui garde sa purge).',
+      alert: turningOn
+        ? 'Les photos éligibles (colis livrés depuis le délai, orphelins, historique) seront supprimées '
+          + 'définitivement de Cloudflare R2.'
+        : undefined,
       confirmLabel: turningOn ? 'Activer' : 'Repasser à blanc',
     }
     return
@@ -252,9 +260,10 @@ function cancelPending() {
         </select>
         <template v-else>
           <input
-            v-model="drafts[s.key]" :data-test="`setting-value-${s.key}`" type="number"
+            :value="drafts[s.key]" :data-test="`setting-value-${s.key}`" type="number"
             :step="s.type === 'DECIMAL' ? '0.1' : '1'" :disabled="busy"
             class="w-32 rounded-btn border border-border bg-bg p-2 text-sm tabular-nums disabled:opacity-40"
+            @input="onNumberInput(s.key, $event)"
           >
           <span class="text-sm text-text-muted" :data-test="`setting-unit-${s.key}`">{{ metaFor(s.key).unit }}</span>
         </template>
@@ -267,7 +276,7 @@ function cancelPending() {
         >Enregistrer</button>
       </div>
 
-      <p v-if="hintFor(s.key)" class="text-xs text-text-muted" :data-test="`setting-hint-${s.key}`">
+      <p v-if="hintFor(s.key) && !errorFor(s.key, drafts[s.key])" class="text-xs text-text-muted" :data-test="`setting-hint-${s.key}`">
         {{ hintFor(s.key) }}
       </p>
       <p v-if="errorFor(s.key, drafts[s.key])" class="text-xs text-danger" :data-test="`setting-error-${s.key}`">
@@ -284,6 +293,10 @@ function cancelPending() {
       :confirmation-label="pending?.doubleConfirm ? `Saisissez « ${pending.phrase ?? SMS_DISABLE_PHRASE} » pour confirmer` : undefined"
       @confirm="confirmPending"
       @cancel="cancelPending"
-    />
+    >
+      <p v-if="pending?.alert" data-test="confirm-alert" role="alert" class="mb-4 text-sm font-medium text-danger text-pretty">
+        {{ pending.alert }}
+      </p>
+    </ConfirmActionDialog>
   </div>
 </template>
