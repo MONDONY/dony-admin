@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import SettingsForm from '@/features/settings/components/SettingsForm.vue'
 import { usePlatformSettings } from '@/features/settings/composables/usePlatformSettings'
 import ExchangeRatesTable from '@/features/exchange-rates/components/ExchangeRatesTable.vue'
@@ -22,6 +22,14 @@ const {
 } = useExchangeRates()
 const auth = useAuthStore()
 
+// La carte Stockage photos garde son propre statut : on la recharge dès que la purge change
+// d'état ici, sinon elle afficherait « À blanc » alors que la suppression réelle est active.
+const photoCard = ref<{ refresh: () => Promise<void> } | null>(null)
+async function onUpdate(key: string, value: string) {
+  const saved = await update(key, value)
+  if (saved && key === 'photo_purge_enabled') void photoCard.value?.refresh()
+}
+
 onMounted(() => {
   load()
   loadRates()
@@ -37,8 +45,8 @@ onMounted(() => {
       >{{ error }}</p>
 
       <p v-if="isLoading" class="text-sm text-text-muted">Chargement…</p>
-      <SettingsForm v-else :settings="settings" :busy="busy" @update="update" />
-      <PhotoStorageCard class="mt-6" />
+      <SettingsForm v-else :settings="settings" :busy="busy" @update="onUpdate" />
+      <PhotoStorageCard ref="photoCard" class="mt-6" />
     </div>
 
     <div>

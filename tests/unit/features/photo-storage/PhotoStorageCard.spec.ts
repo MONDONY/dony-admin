@@ -126,13 +126,42 @@ describe('PhotoStorageCard', () => {
     expect(state.reconcile).toHaveBeenCalledWith(false)
   })
 
-  it('case cochée sans purge active : confirmation simple, reconcile(true)', async () => {
+  it('case cochée, purge à blanc : la phrase est quand même exigée (statut possiblement périmé)', async () => {
     const w = mountCard()
     await w.find('[data-test="run-reconcile"]').trigger('click')
     await w.find('[data-test="allow-bulk"]').setValue(true)
-    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(true)
+    expect(w.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).not.toHaveBeenCalled()
+    await w.find('[data-test="confirmation-input"]').setValue('SUPPRESSION')
+    expect(w.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-test="confirmation-input"]').setValue('SUPPRESSION MASSIVE')
     await w.find('[data-test="confirm"]').trigger('click')
     expect(state.reconcile).toHaveBeenCalledWith(true)
+  })
+
+  it('décocher la case retire l\'exigence de phrase', async () => {
+    const w = mountCard()
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    await w.find('[data-test="allow-bulk"]').setValue(true)
+    await w.find('[data-test="allow-bulk"]').setValue(false)
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(state.reconcile).toHaveBeenCalledWith(false)
+  })
+
+  it('ouvrir le contrôle complet recharge le statut', async () => {
+    const w = mountCard()
+    expect(state.load).toHaveBeenCalledTimes(1)
+    await w.find('[data-test="run-reconcile"]').trigger('click')
+    expect(state.load).toHaveBeenCalledTimes(2)
+  })
+
+  it('expose refresh, qui recharge le statut', async () => {
+    const w = mountCard()
+    await (w.vm as unknown as { refresh: () => Promise<void> }).refresh()
+    expect(state.load).toHaveBeenCalledTimes(2)
   })
 
   it('case cochée ET purge active : exige SUPPRESSION MASSIVE puis reconcile(true)', async () => {

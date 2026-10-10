@@ -36,13 +36,16 @@ export function usePlatformSettings() {
     if (idx !== -1) settings.value[idx] = updated
   }
 
-  async function update(key: string, value: string) {
+  /** Vrai si le back a accepté la valeur (la page s'en sert pour recharger ce qui en dépend). */
+  async function update(key: string, value: string): Promise<boolean> {
     error.value = null
     busy.value = true
     try {
       replace(await settingsService.update(key, value))
+      return true
     } catch (e) {
       error.value = extractProblemMessage(e, 'Mise à jour impossible')
+      return false
     } finally {
       busy.value = false
     }

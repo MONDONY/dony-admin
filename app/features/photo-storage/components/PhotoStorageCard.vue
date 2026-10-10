@@ -21,9 +21,9 @@ const lastPurge = computed(() => status.value?.lastPurges[0] ?? null)
 const lastReconcile = computed(() => status.value?.lastReconciles[0] ?? null)
 const purgeHistory = computed(() => status.value?.lastPurges.slice(0, HISTORY_SIZE) ?? [])
 const reconcileHistory = computed(() => status.value?.lastReconciles.slice(0, HISTORY_SIZE) ?? [])
-// Fermé par défaut : la phrase est exigée dès que la case est cochée, sauf si la purge
-// est connue comme éteinte (statut non chargé = on exige la phrase).
-const bulkPhrase = computed(() => (allowBulk.value && status.value?.purgeEnabled !== false ? BULK_PHRASE : undefined))
+// Fermé quel que soit l'état connu de la purge : le statut affiché peut être périmé (le
+// formulaire des réglages, sur la même page, peut activer la purge sans que la carte le sache).
+const bulkPhrase = computed(() => (allowBulk.value ? BULK_PHRASE : undefined))
 
 function summary(r: PhotoPurgeRun): string {
   return r.dryRun
@@ -34,6 +34,7 @@ function summary(r: PhotoPurgeRun): string {
 function openReconcile() {
   allowBulk.value = false
   dialogOpen.value = true
+  void load()
 }
 
 function confirmReconcile() {
@@ -42,6 +43,9 @@ function confirmReconcile() {
 }
 
 onMounted(() => { void load() })
+
+// La page recharge la carte après l'enregistrement de `photo_purge_enabled`.
+defineExpose({ refresh: load })
 </script>
 
 <template>
