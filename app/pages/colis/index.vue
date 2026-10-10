@@ -121,6 +121,10 @@ function closeRequest() {
   prDetail.close()
   syncQuery({ tab: 'demandes' })
 }
+/** Colis annulé ou litige ouvert depuis la fiche : fiche, chronologie et liste relues. */
+async function onBidChanged() {
+  await Promise.all([detail.reload(), fetchBids()])
+}
 function afterAction() {
   // Succès comme conflit resynchronisé : la ligne reflète la fiche relue.
   if (prDetail.request.value) pr.replace(prDetail.request.value)
@@ -225,6 +229,7 @@ onMounted(async () => {
         @show-announcement="showAnnouncement"
         @show-trip-bids="showTripBids"
         @resynced="detail.reload"
+        @changed="onBidChanged"
       />
       <div
         v-else-if="detail.openId.value && (detail.isLoading.value || detail.error.value)"

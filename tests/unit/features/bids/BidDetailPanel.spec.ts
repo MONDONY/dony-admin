@@ -196,7 +196,9 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="parcel-weight"]').text()).toBe('5 kg')
       expect(w.find('[data-test="parcel-description"]').text()).toBe('Deux pagnes et des chaussures')
       expect(w.find('[data-test="parcel-code"]').text()).toContain('Généré')
-      expect(w.find('[data-test="parcel-declared"]').text()).toBe('Non enregistrée par la plateforme')
+      // Valeur déclarée : non enregistrée (décision propriétaire), la ligne n'existe plus.
+      expect(w.find('[data-test="parcel-declared"]').exists()).toBe(false)
+      expect(w.text()).not.toContain('Valeur déclarée')
       expect(w.find('[data-test="parcel-photos"] img').attributes('src')).toBe('https://r2.test/p1?sig=1')
       expect(w.text()).toContain('Gare de Lyon')
     })
@@ -278,7 +280,7 @@ describe('BidDetailPanel', () => {
   })
 
   describe('actions selon les droits', () => {
-    it('super-admin : paiement, resync Stripe, conversation, copier ; ouvrir un litige et annuler expliqués', async () => {
+    it('super-admin : paiement, resync Stripe, conversation, copier ; annuler et ouvrir un litige proposés', async () => {
       const writeText = vi.fn().mockResolvedValue(undefined)
       Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
       const w = mountPanel()
@@ -286,8 +288,11 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="resync-stub"]').text()).toBe('pay-1')
       expect(w.find('[data-test="action-conversation"]').attributes('data-to')).toContain('"open":"fs-42"')
       expect(w.find('[data-test="action-dispute"]').exists()).toBe(false)
-      expect(w.find('[data-test="unavailable-dispute"]').exists()).toBe(true)
-      expect(w.find('[data-test="unavailable-cancel"]').exists()).toBe(true)
+      expect(w.find('[data-test="action-cancel"]').attributes('disabled')).toBeUndefined()
+      expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeUndefined()
+      expect(w.find('[data-test="unavailable-dispute"]').exists()).toBe(false)
+      expect(w.find('[data-test="unavailable-cancel"]').exists()).toBe(false)
+      expect(w.text()).not.toContain('pas d’endpoint')
       expect(w.find('[data-test="unavailable-support"]').exists()).toBe(false)
       await w.find('[data-test="action-copy-ids"]').trigger('click')
       await Promise.resolve()
@@ -314,7 +319,8 @@ describe('BidDetailPanel', () => {
       const w = mountPanel({ ...fullBid, links: { ...fullBid.links!, disputeId: 'dsp-1', disputeStatus: 'OPEN' } })
       expect(w.find('[data-test="action-dispute"]').text()).toBe('Voir le litige (ouvert)')
       expect(w.find('[data-test="action-dispute"]').attributes('data-to')).toContain('"open":"dsp-1"')
-      expect(w.find('[data-test="unavailable-dispute"]').exists()).toBe(false)
+      expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeDefined()
+      expect(w.find('[data-test="dispute-disabled-reason"]').text()).toContain('déjà ouvert')
     })
 
     it('absence signalée : lien vers le no-show', () => {

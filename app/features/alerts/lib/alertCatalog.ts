@@ -308,6 +308,16 @@ const PREFIX_GUIDES: PrefixGuide[] = [
     ],
   },
   {
+    prefix: 'DISPUTE_PAYOUT_HOLD_',
+    title: 'Versement gelé : litige ouvert par un admin',
+    category: PAYOUT,
+    explanation: 'Le colis est livré mais un litige ouvert depuis la fiche colis est en cours. Le versement au voyageur attend la décision : l’argent reste en séquestre.',
+    actions: [
+      'Ouvrez le litige dans Incidents et tranchez-le (pour l’expéditeur, pour le voyageur ou partage).',
+      'Une fois le litige résolu, versez le voyageur (« Forcer le versement ») ou remboursez l’expéditeur selon la décision.',
+    ],
+  },
+  {
     prefix: 'PAYOUT_HELD_',
     title: 'Versement retenu : voyageur gelé',
     category: PAYOUT,

@@ -66,6 +66,8 @@ const TIMELINE: Record<string, string> = {
   RESOLVE: 'Litige résolu par un admin',
   CANCELLATION_CREATED: 'Annulation enregistrée',
   DELIVERY_NOSHOW_CONTESTED: 'Absence contestée',
+  ADMIN_BID_CANCELLED: 'Colis annulé par un admin',
+  ADMIN_DISPUTE_OPENED: 'Litige ouvert par un admin',
   NOSHOW_CONFIRMED_BY_ADMIN: 'Absence confirmée par un admin',
   NOSHOW_REJECTED_BY_ADMIN: 'Absence rejetée par un admin',
   RATING_CREATED: 'Notation laissée',
