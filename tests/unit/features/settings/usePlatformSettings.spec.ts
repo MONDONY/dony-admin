@@ -137,4 +137,14 @@ describe('usePlatformSettings', () => {
     await p.update('urgency_threshold_days', '9')
     expect(p.settings.value).toEqual([s1])
   })
+
+  it('update renvoie vrai en cas de succès, faux en cas d’échec', async () => {
+    svc.list.mockResolvedValue([s1])
+    svc.update.mockResolvedValueOnce({ ...s1, value: '15' })
+    const p = usePlatformSettings()
+    await p.load()
+    expect(await p.update('commission_rate', '15')).toBe(true)
+    svc.update.mockRejectedValueOnce(new Error('boom'))
+    expect(await p.update('commission_rate', '16')).toBe(false)
+  })
 })
