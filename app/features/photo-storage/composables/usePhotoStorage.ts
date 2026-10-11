@@ -41,6 +41,8 @@ export function usePhotoStorage() {
   }
 
   function schedulePoll() {
+    // Un rechargement en vol pendant un nouveau lancement ne doit pas créer une seconde boucle.
+    stopPolling()
     pollTimer = setTimeout(async () => {
       pollTimer = null
       polls++
