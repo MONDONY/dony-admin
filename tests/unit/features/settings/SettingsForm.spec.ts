@@ -39,6 +39,11 @@ const maxTracking: PlatformSetting = {
   key: 'tracking_photos_max_per_bid', value: '12', type: 'INTEGER',
   updatedAt: null, updatedByEmail: null,
 }
+// Feature flag des billets d'avion : éteint par défaut, allumé depuis cet écran.
+const flights: PlatformSetting = {
+  key: 'flights_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
 const purge: PlatformSetting = {
   key: 'photo_purge_enabled', value: 'false', type: 'BOOLEAN',
   updatedAt: null, updatedByEmail: null,
@@ -242,6 +247,40 @@ describe('SettingsForm', () => {
 
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('update')![0]).toEqual(['pro_enabled', 'false'])
+  })
+
+  it('flights_enabled porte un libellé lisible et un sélecteur Activé / Désactivé', () => {
+    const w = mountForm({ settings: [flights] })
+    const row = w.find('[data-test="setting-row-flights_enabled"]')
+    expect(row.text()).toContain('Billets d’avion')
+    expect(row.text()).not.toContain('flights_enabled')
+    expect((w.find('[data-test="setting-value-flights_enabled"]').element as HTMLSelectElement).value).toBe('false')
+  })
+
+  it('activer les billets d’avion : confirmation simple qui annonce l’onglet et les six onglets', async () => {
+    const w = mountForm({ settings: [flights] })
+    await w.find('[data-test="setting-value-flights_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-flights_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.text()).toContain('Activer les billets d’avion')
+    expect(w.text()).toMatch(/six onglets/)
+
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['flights_enabled', 'true'])
+  })
+
+  it('désactiver les billets d’avion : rien n’est supprimé, la barre d’avant revient', async () => {
+    const on: PlatformSetting = { ...flights, value: 'true' }
+    const w = mountForm({ settings: [on] })
+    await w.find('[data-test="setting-value-flights_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-flights_enabled"]').trigger('click')
+
+    expect(w.text()).toContain('Désactiver les billets d’avion')
+    expect(w.text()).toMatch(/rien n’est supprimé/)
+
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['flights_enabled', 'false'])
   })
 
   it('affiche les libellés et unités des réglages photos', () => {

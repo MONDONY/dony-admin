@@ -26,6 +26,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   photo_upload_daily_quota: { label: 'Photos envoyées par utilisateur et par jour', unit: 'photos' },
   tracking_photos_max_per_bid: { label: 'Photos de suivi par colis (sur 24 h)', unit: 'photos' },
   photo_purge_enabled: { label: 'Suppression des photos activée (sinon à blanc)', unit: '' },
+  flights_enabled: { label: 'Billets d’avion (onglet Billets visible dans l’application)', unit: '' },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
@@ -178,6 +179,29 @@ function requestSave(key: string) {
           + 'appliqués : tout le monde bénéficie des plafonds PRO tant que l’offre reste fermée. '
           + 'Effet au prochain démarrage de l’application chez chaque utilisateur.',
       confirmLabel: opening ? 'Ouvrir' : 'Fermer',
+    }
+    return
+  }
+
+  if (key === 'flights_enabled') {
+    // Ni l'un ni l'autre sens ne bloque personne ni ne supprime rien : confirmation simple,
+    // qui dit ce que l'utilisateur verra (ou ne verra plus) au prochain démarrage.
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: false,
+      title: opening ? 'Activer les billets d’avion' : 'Désactiver les billets d’avion',
+      message: opening
+        ? 'L’application affichera l’onglet Billets (recherche, bons plans, alertes prix) et la barre '
+          + 'du bas passera à six onglets en icônes seules. Les réservations se font chez le partenaire '
+          + '(Travelpayouts) : vérifiez que son compte est configuré. '
+          + 'Effet au prochain démarrage de l’application chez chaque utilisateur.'
+        : 'L’application masquera l’onglet Billets et retrouvera sa barre du bas d’avant (cinq onglets). '
+          + 'Les routes des billets répondront « indisponible » et les alertes prix ne seront plus '
+          + 'vérifiées ; rien n’est supprimé, elles reprendront si vous réactivez. '
+          + 'Effet au prochain démarrage de l’application chez chaque utilisateur.',
+      confirmLabel: opening ? 'Activer' : 'Désactiver',
     }
     return
   }
