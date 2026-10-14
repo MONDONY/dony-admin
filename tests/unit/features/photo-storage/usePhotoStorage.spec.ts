@@ -183,6 +183,45 @@ describe('usePhotoStorage', () => {
     expect(svc.status).not.toHaveBeenCalled()
   })
 
+  it('le suivi remplace « Passage lancé » par « Passage terminé à HH:MM » à la fin du passage', async () => {
+    vi.useFakeTimers()
+    svc.runPurge.mockResolvedValue({ started: true })
+    svc.status.mockResolvedValueOnce({ ...status, running: true }).mockResolvedValue(status)
+    const p = usePhotoStorage()
+    await p.runPurge()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(p.notice.value).toBe('Passage lancé, actualisez dans un instant.')
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(p.notice.value).toMatch(/^Passage terminé à \d{2}:\d{2}, résultat ci-dessous\.$/)
+  })
+
+  it('refreshedAt date le dernier rechargement réussi, pas un échec', async () => {
+    svc.status.mockResolvedValueOnce(status).mockRejectedValueOnce(fetchError(500))
+    const p = usePhotoStorage()
+    expect(p.refreshedAt.value).toBeNull()
+    await p.load()
+    const first = p.refreshedAt.value
+    expect(first).toBeInstanceOf(Date)
+    await p.load()
+    expect(p.refreshedAt.value).toBe(first)
+  })
+
+  it('refresh efface un avis terminé ou « déjà en cours », pas celui d\'un passage suivi', async () => {
+    svc.status.mockResolvedValue(status)
+    svc.runPurge.mockRejectedValueOnce(fetchError(409)).mockResolvedValue({ started: true })
+    const p = usePhotoStorage()
+    await p.runPurge()
+    expect(p.notice.value).toContain('déjà en cours')
+    await p.refresh()
+    expect(p.notice.value).toBeNull()
+    expect(svc.status).toHaveBeenCalledTimes(1)
+
+    svc.status.mockResolvedValue({ ...status, running: true })
+    await p.runPurge()
+    await p.refresh()
+    expect(p.notice.value).toBe('Passage lancé, actualisez dans un instant.')
+  })
+
   it('un rechargement en vol à la destruction ne relance pas le suivi', async () => {
     vi.useFakeTimers()
     let resolve!: (_v: typeof status) => void

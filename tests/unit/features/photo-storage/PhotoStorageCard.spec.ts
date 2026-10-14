@@ -10,7 +10,9 @@ const state = {
   error: ref<string | null>(null),
   notice: ref<string | null>(null),
   launching: ref(false),
+  refreshedAt: ref<Date | null>(null),
   load: vi.fn(),
+  refresh: vi.fn(),
   runPurge: vi.fn(),
   reconcile: vi.fn(),
 }
@@ -42,6 +44,7 @@ describe('PhotoStorageCard', () => {
     state.error.value = null
     state.notice.value = null
     state.launching.value = false
+    state.refreshedAt.value = null
   })
 
   it('charge le statut au montage', () => {
@@ -88,10 +91,24 @@ describe('PhotoStorageCard', () => {
     const btn = w.find('[data-test="refresh"]')
     expect(btn.text()).toContain('Actualiser')
     await btn.trigger('click')
-    expect(state.load).toHaveBeenCalledTimes(2)
+    // « Actualiser » passe par refresh (qui efface l'avis précédent), le montage par load.
+    expect(state.refresh).toHaveBeenCalledTimes(1)
+    expect(state.load).toHaveBeenCalledTimes(1)
     state.loading.value = true
     await w.vm.$nextTick()
     expect(w.find('[data-test="refresh"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('affiche l\'heure du dernier rechargement, masquée pendant un passage', async () => {
+    const w = mountCard()
+    expect(w.find('[data-test="refreshed-at"]').exists()).toBe(false)
+    state.refreshedAt.value = new Date(2026, 9, 14, 11, 52, 7)
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="refreshed-at"]').text()).toBe('Actualisé à 11:52:07')
+    state.status.value = baseStatus({ running: true })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="refreshed-at"]').exists()).toBe(false)
+    expect(w.find('[data-test="running"]').exists()).toBe(true)
   })
 
   it('un passage à blanc affiche « seraient supprimées »', () => {

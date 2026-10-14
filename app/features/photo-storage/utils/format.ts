@@ -33,3 +33,10 @@ export function formatDuration(startedAt: string, finishedAt: string | null): st
   if (!(seconds >= 0)) return 'durée inconnue'
   return seconds < 60 ? `durée ${Math.round(seconds)} s` : `durée ${fr(seconds / 60)} min`
 }
+
+/** Heure locale « 14:05 » (« 14:05:09 » avec les secondes). */
+export function formatClock(d: Date, withSeconds = false): string {
+  return d.toLocaleTimeString('fr-FR', {
+    hour: '2-digit', minute: '2-digit', ...(withSeconds ? { second: '2-digit' } : {}),
+  })
+}
