@@ -1,6 +1,7 @@
 import { getCurrentScope, onScopeDispose, ref } from 'vue'
 import { photoStorageService } from '@/features/photo-storage/services/photoStorageService'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { formatClock } from '@/features/photo-storage/utils/format'
 import type { PhotoStorageStatus } from '@/features/photo-storage/types/index'
 
 /** Après un lancement : un rechargement toutes les 5 s tant qu'un passage tourne, 2 min au plus. */
@@ -20,6 +21,9 @@ function httpStatus(e: unknown): number | undefined {
  * d'une purge ou d'un rapprochement. Un 404 au chargement (back sans l'endpoint) rend
  * l'écran « indisponible » sans erreur ; un 409 signale qu'un passage est déjà en cours.
  * Un seul lancement à la fois (`launching`) : un double clic n'envoie qu'un POST.
+ * Le suivi remplace « Passage lancé » par « Passage terminé à HH:MM » dès qu'il voit la fin
+ * du passage, et `refreshedAt` date le dernier rechargement réussi : sans ces deux repères,
+ * « Actualiser » semblait sans effet (un passage à blanc ne change pas les chiffres).
  */
 export function usePhotoStorage() {
   const status = ref<PhotoStorageStatus | null>(null)
@@ -28,6 +32,7 @@ export function usePhotoStorage() {
   const error = ref<string | null>(null)
   const notice = ref<string | null>(null)
   const launching = ref(false)
+  const refreshedAt = ref<Date | null>(null)
 
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let polls = 0
@@ -65,6 +70,10 @@ export function usePhotoStorage() {
     try {
       status.value = await photoStorageService.status()
       unavailable.value = false
+      refreshedAt.value = new Date()
+      if (notice.value === NOTICE_STARTED && !status.value?.running) {
+        notice.value = `Passage terminé à ${formatClock(refreshedAt.value)}, résultat ci-dessous.`
+      }
     } catch (e) {
       if (httpStatus(e) === 404) {
         unavailable.value = true
@@ -74,6 +83,12 @@ export function usePhotoStorage() {
     } finally {
       loading.value = false
     }
+  }
+
+  /** « Actualiser » : efface l'avis précédent, sauf celui d'un passage encore suivi. */
+  function refresh() {
+    if (notice.value !== NOTICE_STARTED) notice.value = null
+    return load()
   }
 
   async function launch(call: () => Promise<{ started: boolean }>) {
@@ -101,5 +116,5 @@ export function usePhotoStorage() {
   const runPurge = () => launch(() => photoStorageService.runPurge())
   const reconcile = (allowBulk: boolean) => launch(() => photoStorageService.reconcile(allowBulk))
 
-  return { status, unavailable, loading, error, notice, launching, load, runPurge, reconcile }
+  return { status, unavailable, loading, error, notice, launching, refreshedAt, load, refresh, runPurge, reconcile }
 }

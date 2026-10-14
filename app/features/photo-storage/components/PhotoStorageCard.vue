@@ -4,10 +4,12 @@ import { HardDrive, Play, RefreshCw } from 'lucide-vue-next'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { usePhotoStorage } from '@/features/photo-storage/composables/usePhotoStorage'
-import { formatBytes, formatDuration, formatUtc } from '@/features/photo-storage/utils/format'
+import { formatBytes, formatClock, formatDuration, formatUtc } from '@/features/photo-storage/utils/format'
 import type { PhotoPurgeRun } from '@/features/photo-storage/types/index'
 
-const { status, unavailable, loading, error, notice, launching, load, runPurge, reconcile } = usePhotoStorage()
+const {
+  status, unavailable, loading, error, notice, launching, refreshedAt, load, refresh, runPurge, reconcile,
+} = usePhotoStorage()
 
 const HISTORY_SIZE = 5
 const BULK_PHRASE = 'SUPPRESSION MASSIVE'
@@ -171,15 +173,19 @@ defineExpose({ refresh: load })
         <button
           type="button" data-test="refresh" :disabled="loading"
           class="inline-flex items-center gap-2 rounded-btn border border-border px-3 py-1.5 text-sm transition-colors hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
-          @click="load"
+          @click="refresh"
         >
-          <RefreshCw :size="14" aria-hidden="true" />
+          <RefreshCw :size="14" aria-hidden="true" :class="{ 'animate-spin motion-reduce:animate-none': loading }" />
           Actualiser
         </button>
         <span
           v-if="status?.running" data-test="running" role="status"
           class="self-center text-sm text-text-muted"
         >Passage en cours…</span>
+        <span
+          v-else-if="refreshedAt" data-test="refreshed-at"
+          class="self-center text-xs text-text-muted tabular-nums"
+        >Actualisé à {{ formatClock(refreshedAt, true) }}</span>
       </div>
 
       <ConfirmActionDialog
