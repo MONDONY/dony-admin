@@ -23,6 +23,19 @@ export type ReportAction =
   | 'WARN_AUTHOR'
   | 'SUSPEND_AUTHOR'
 
+/**
+ * Avis signalé (cible RATING retrouvée), pour le lire avant de l'exclure ou de le supprimer.
+ * L'auteur de l'avis est `targetAuthor` ; le compte noté peut avoir été supprimé (champs nuls).
+ */
+export interface ReportRatingPreview {
+  stars: number
+  comment: string | null
+  createdAt: string
+  excludedFromAverage: boolean
+  ratedUserId: string | null
+  ratedUserName: string | null
+}
+
 /** Auteur de la cible (message, avis, candidature) quand le back sait le résoudre. */
 export interface ReportTargetAuthor {
   userId: string
@@ -66,6 +79,8 @@ export interface AdminReport {
    * joignable, SUPPORT_TICKET_MANAGE). Absent sur un ancien back : règle locale.
    */
   canReply?: boolean | null
+  /** Aperçu de l'avis signalé (cible RATING). Absent sur un ancien back ou une autre cible. */
+  ratingPreview?: ReportRatingPreview | null
 }
 
 /** Corps de POST /admin/reports/{id}/reply : message obligatoire (1 à 4000 caractères). */
