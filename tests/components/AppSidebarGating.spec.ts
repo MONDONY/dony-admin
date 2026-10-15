@@ -27,6 +27,7 @@ function mountSidebar() {
  */
 const FORBIDDEN_TO_SUPPORT = [
   ['Codes promo', 'PROMO_MANAGE'],
+  ['Codes de recharge', 'TOPUP_CODE_MANAGE'],
   ['Audit', 'AUDIT_VIEW'],
   ['Exports', 'EXPORT_RUN'],
   ['Communications', 'NOTIFICATION_SEND'],
