@@ -143,8 +143,9 @@ describe('useAuthStore (admin)', () => {
   // 34 avec REPORT_DELETE (suppression des signalements, yadony-back #318).
   // 35 avec WALLET_ADJUST (correction manuelle de solde, PR dony-back feature/admin-wallet-ajustement).
   // 36 avec KYC_DECIDE (décisions manuelles KYC, PR dony-back feature/admin-kyc-file-decisions).
-  it('exposes 36 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(36)
+  // 37 avec TOPUP_CODE_MANAGE (codes de recharge du solde, PR yadony-back feature/codes-recharge-solde).
+  it('exposes 37 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(37)
   })
 
   it('KYC_DECIDE : ADMIN et SUPER_ADMIN, pas SUPPORT (qui garde USER_KYC)', () => {
@@ -152,6 +153,12 @@ describe('useAuthStore (admin)', () => {
     expect(effectivePermissions('SUPER_ADMIN', {}).has('KYC_DECIDE')).toBe(true)
     expect(effectivePermissions('SUPPORT', {}).has('KYC_DECIDE')).toBe(false)
     expect(effectivePermissions('SUPPORT', {}).has('USER_KYC')).toBe(true)
+  })
+
+  it('TOPUP_CODE_MANAGE : ADMIN et SUPER_ADMIN, pas SUPPORT', () => {
+    expect(effectivePermissions('ADMIN', {}).has('TOPUP_CODE_MANAGE')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('TOPUP_CODE_MANAGE')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('TOPUP_CODE_MANAGE')).toBe(false)
   })
 
   it('WALLET_ADJUST : ADMIN et SUPER_ADMIN, pas SUPPORT', () => {

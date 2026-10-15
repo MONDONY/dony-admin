@@ -42,6 +42,7 @@ test('admin navigates across the 11 modules', async ({ page }) => {
     ['Alertes', /Alertes/, /\/alertes$/],
     ['Modération', /Modération/, /\/moderation$/],
     ['Codes promo', /Codes promo/, /\/promo$/],
+    ['Codes de recharge', /Codes de recharge/, /\/topup-codes$/],
     ['Audit', /Audit/, /\/audit$/],
     ['Exports', /Exports/, /\/exports$/],
     ['Signalements', /Signalements/, /\/signalements$/],
