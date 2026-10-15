@@ -113,6 +113,20 @@ describe('pages/transactions', () => {
       expect(replaceMock).not.toHaveBeenCalled()
     })
 
+    it('onglet Remboursements wallet : toutes les demandes par défaut, puis filtre par vue', async () => {
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      expect(finance.listWalletRefundRequests).toHaveBeenLastCalledWith(0, 20, ['PENDING', 'PROCESSING', 'FAILED', 'REFUNDED', 'RESOLVED'])
+      expect(w.find('[data-test="wrr-view-all"]').attributes('aria-pressed')).toBe('true')
+      await w.find('[data-test="wrr-view-failed"]').trigger('click')
+      await flushPromises()
+      expect(finance.listWalletRefundRequests).toHaveBeenLastCalledWith(0, 20, ['FAILED'])
+      expect(w.find('[data-test="wrr-view-failed"]').attributes('aria-pressed')).toBe('true')
+      expect(w.text()).toContain('Aucun remboursement en échec')
+      await w.find('[data-test="wrr-view-failed"]').trigger('click')
+      await flushPromises()
+      expect(finance.listWalletRefundRequests).toHaveBeenCalledTimes(2)
+    })
+
     it('?tab= se combine avec ?held=true sans le perdre', async () => {
       const w = await mountPage({ tab: 'wallet-refunds', held: 'true' })
       expect(listMock.mock.calls[0][0].held).toBe(true)
