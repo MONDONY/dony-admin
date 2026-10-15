@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import ReportRatingPreview from './ReportRatingPreview.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import { reportDescriptionText, reportKind, reportKindLabel } from '@/features/signalements/reportKind'
@@ -49,8 +50,14 @@ function reasonTitle(r: AdminReport): string {
   const kind = reportKind(r)
   return kind === 'AVIS' || kind === 'SUGGESTION' ? 'Retour depuis un écran' : reportReasonLabel(r.reason)
 }
-/** Cible APP : ni libellé ni identifiant côté back, on nomme l’application. */
+/**
+ * Cible APP : ni libellé ni identifiant côté back, on nomme l’application. Un avis résolu se
+ * lit dans son aperçu : l’identifiant brut n’apprendrait rien à l’admin.
+ */
 function targetLabel(r: AdminReport) {
+  if (r.ratingPreview) {
+    return r.ratingPreview.ratedUserName ? `Avis sur ${r.ratingPreview.ratedUserName}` : 'Avis sur un compte supprimé'
+  }
   return r.targetLabel ?? r.targetId ?? (r.targetType === 'APP' ? 'Application' : 'Cible inconnue')
 }
 /**
@@ -111,6 +118,9 @@ function actionTaken(r: AdminReport): string | null {
               v-if="requestLink(r)" :to="requestLink(r)!" :data-test="`report-open-request-${r.id}`"
               class="mt-1 inline-block text-xs text-primary underline-offset-2 hover:underline"
             >Voir la demande</NuxtLink>
+            <ReportRatingPreview
+              v-if="r.ratingPreview" :report-id="r.id" :preview="r.ratingPreview" :author="r.targetAuthor"
+            />
             <!-- Rapport du scarabée : la route de l’écran dit où regarder -->
             <div
               v-if="r.screenRoute" :data-test="`report-screen-${r.id}`"

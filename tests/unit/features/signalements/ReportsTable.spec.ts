@@ -233,4 +233,62 @@ describe('ReportsTable', () => {
       expect(w.find('[data-test="report-row-r1"]').text()).not.toContain('—')
     })
   })
+
+  describe('signalement d’avis : l’avis se lit dans la table', () => {
+    const ratingReport = {
+      ...reports[0], id: 'r7', targetType: 'RATING', targetId: 'rating-1', reason: 'INAPPROPRIATE_CONTENT',
+      targetAuthor: { userId: 'u-auteur', name: 'Awa D.' },
+      ratingPreview: {
+        stars: 1, comment: 'Voyageur malhonnête', createdAt: '2026-10-14T09:00:00Z',
+        excludedFromAverage: false, ratedUserId: 'u-note', ratedUserName: 'Moussa T.',
+      },
+    }
+
+    it('affiche les étoiles, le commentaire et la personne notée au lieu de l’identifiant', () => {
+      const w = mount(ReportsTable, { props: { reports: [ratingReport], loading: false }, global: { stubs: { NuxtLink } } })
+      expect(w.text()).toContain('Avis sur Moussa T.')
+      expect(w.text()).not.toContain('rating-1')
+      expect(w.find('[data-test="report-rating-comment-r7"]').text()).toContain('Voyageur malhonnête')
+      expect(w.find('[data-test="report-rating-stars-r7"]').attributes('aria-label')).toBe('1 étoile sur 5')
+      expect(w.find('[data-test="report-rating-excluded-r7"]').exists()).toBe(false)
+    })
+
+    it('ouvre la fiche de la personne notée et celle de l’auteur', () => {
+      const w = mount(ReportsTable, { props: { reports: [ratingReport], loading: false }, global: { stubs: { NuxtLink } } })
+      expect(w.find('[data-test="report-rating-rated-r7"]').text()).toContain('Moussa T.')
+      expect(w.find('[data-test="report-rating-rated-r7"]').attributes('href')).toBeDefined()
+      expect(w.find('[data-test="report-rating-author-r7"]').text()).toBe('Awa D.')
+    })
+
+    it('signale un avis déjà exclu de la moyenne', () => {
+      const excluded = [{ ...ratingReport, ratingPreview: { ...ratingReport.ratingPreview, excludedFromAverage: true } }]
+      const w = mount(ReportsTable, { props: { reports: excluded, loading: false }, global: { stubs: { NuxtLink } } })
+      expect(w.find('[data-test="report-rating-excluded-r7"]').text()).toBe('Exclu de la moyenne')
+    })
+
+    it('avis sans commentaire et compte noté supprimé', () => {
+      const bare = [{
+        ...ratingReport,
+        ratingPreview: { ...ratingReport.ratingPreview, comment: null, ratedUserId: null, ratedUserName: null },
+      }]
+      const w = mount(ReportsTable, { props: { reports: bare, loading: false }, global: { stubs: { NuxtLink } } })
+      expect(w.text()).toContain('Sans commentaire')
+      expect(w.text()).toContain('Avis sur un compte supprimé')
+      expect(w.find('[data-test="report-rating-rated-r7"]').exists()).toBe(false)
+    })
+
+    it('sans USER_VIEW, les noms restent lisibles sans lien', () => {
+      seedAuth('ADMIN', { USER_VIEW: false })
+      const w = mount(ReportsTable, { props: { reports: [ratingReport], loading: false }, global: { stubs: { NuxtLink } } })
+      expect(w.find('[data-test="report-rating-author-r7"]').exists()).toBe(false)
+      expect(w.text()).toContain('Awa D.')
+    })
+
+    it('ancien back sans aperçu : l’identifiant reste affiché', () => {
+      const legacy = [{ ...ratingReport, ratingPreview: undefined }]
+      const w = mount(ReportsTable, { props: { reports: legacy, loading: false } })
+      expect(w.text()).toContain('rating-1')
+      expect(w.find('[data-test="report-rating-r7"]').exists()).toBe(false)
+    })
+  })
 })
