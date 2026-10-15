@@ -1,8 +1,8 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage } from '@/features/finance/types/index'
+import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage, WalletRefundRequestStatus } from '@/features/finance/types/index'
 
 /**
- * Onglets financiers. Seule écriture : la résolution d'une demande de
+ * Onglets financiers. Seule écriture : la résolution d'un ticket manuel de
  * remboursement wallet, une fois le virement fait hors plateforme.
  */
 export const financeService = {
@@ -29,9 +29,13 @@ export const financeService = {
       dateTo ? `${dateTo}T23:59:59` : undefined,
     )
   },
-  /** Demandes de remboursement wallet en attente (suppression de compte). */
-  listWalletRefundRequests(page: number, size: number): Promise<AdminWalletRefundRequestPage> {
-    return useApi()<AdminWalletRefundRequestPage>('/admin/wallet-refund-requests', { query: { page, size } })
+  /**
+   * Demandes de remboursement wallet. Sans statut : file « à traiter » (tickets manuels en
+   * attente). Avec statuts : suivi des remboursements automatiques, échecs et historique.
+   */
+  listWalletRefundRequests(page: number, size: number, statuses?: WalletRefundRequestStatus[]): Promise<AdminWalletRefundRequestPage> {
+    const query = statuses?.length ? { page, size, status: statuses.join(',') } : { page, size }
+    return useApi()<AdminWalletRefundRequestPage>('/admin/wallet-refund-requests', { query })
   },
   /** Marque une demande résolue après le virement manuel ; le backend vide alors le portefeuille. */
   resolveWalletRefundRequest(id: string): Promise<AdminWalletRefundRequest> {

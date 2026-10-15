@@ -19,7 +19,8 @@ import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback } from '@/features/payments/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest } from '@/features/finance/types/index'
+import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, WalletRefundView } from '@/features/finance/types/index'
+import { WALLET_REFUND_VIEWS } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
 
@@ -64,6 +65,18 @@ const walletRefundsPage = ref(0)
 const walletRefundsTotalPages = ref(0)
 const walletRefundsLoaded = ref(false)
 const walletRefundBusyId = ref<string | null>(null)
+/**
+ * Vue de l'onglet. « Toutes » par défaut : les remboursements à la suppression de compte sont
+ * automatiques et n'apparaîtraient jamais dans la seule file « À traiter ».
+ */
+const walletRefundView = ref<WalletRefundView>('all')
+const walletRefundEmptyLabels: Record<WalletRefundView, string> = {
+  all: 'Aucune demande de remboursement',
+  pending: 'Rien à traiter : aucun ticket manuel en attente',
+  processing: 'Aucun remboursement en cours',
+  failed: 'Aucun remboursement en échec',
+  done: 'Aucun remboursement effectué',
+}
 
 // Sur un écran financier, un appel en échec ne doit JAMAIS ressembler à une absence de
 // données : sans ce message, un 403 ou un 500 rend un tableau vide, indiscernable d'un
@@ -133,12 +146,18 @@ async function loadWalletRefunds(page = walletRefundsPage.value) {
   walletRefundsLoading.value = true
   tabError.value = null
   try {
-    const res = await financeService.listWalletRefundRequests(page, 20)
+    const view = WALLET_REFUND_VIEWS.find(v => v.key === walletRefundView.value)
+    const res = await financeService.listWalletRefundRequests(page, 20, view?.statuses)
     walletRefunds.value = res.content; walletRefundsTotalPages.value = res.totalPages; walletRefundsPage.value = res.number
     walletRefundsLoaded.value = true
   }
   catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les demandes de remboursement wallet') }
   finally { walletRefundsLoading.value = false }
+}
+async function setWalletRefundView(view: WalletRefundView) {
+  if (walletRefundView.value === view) return
+  walletRefundView.value = view
+  await loadWalletRefunds(0)
 }
 async function resolveWalletRefund(id: string) {
   walletRefundBusyId.value = id
@@ -299,7 +318,24 @@ watch(() => route.query?.tab, (v) => {
       <div class="mt-4"><PaginationControls :page="cashPage" :total-pages="cashTotalPages" @change="loadCashCommissions" /></div>
     </template>
     <template v-else>
-      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" @resolve="resolveWalletRefund" />
+      <p class="mb-3 max-w-3xl text-sm text-text-muted text-pretty">
+        Un compte supprimé avec un solde est remboursé automatiquement sur sa carte ou son mobile money :
+        rien à exécuter, la ligne passe de « En cours » à « Remboursée ». Seuls les tickets manuels
+        (échec du remboursement automatique, ou solde payé par carte et mobile money à la fois)
+        se remboursent hors plateforme puis se marquent remboursés.
+      </p>
+      <div class="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filtrer les remboursements">
+        <button
+          v-for="v in WALLET_REFUND_VIEWS"
+          :key="v.key"
+          type="button"
+          :data-test="`wrr-view-${v.key}`"
+          :aria-pressed="walletRefundView === v.key"
+          :class="['rounded-full px-3 py-1 text-xs font-medium', walletRefundView === v.key ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
+          @click="setWalletRefundView(v.key)"
+        >{{ v.label }}</button>
+      </div>
+      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" :empty-label="walletRefundEmptyLabels[walletRefundView]" @resolve="resolveWalletRefund" />
       <div class="mt-4"><PaginationControls :page="walletRefundsPage" :total-pages="walletRefundsTotalPages" @change="loadWalletRefunds" /></div>
     </template>
   </div>

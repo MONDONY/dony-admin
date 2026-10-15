@@ -105,13 +105,20 @@ export interface AdminCashCommission {
 }
 export interface AdminCashCommissionPage { content: AdminCashCommission[]; totalElements: number; totalPages: number; number: number; size: number }
 
-/** Statuts d'une demande de remboursement wallet (suppression de compte), miroir du backend. */
+/** Statuts d'une demande de remboursement wallet, miroir du backend. */
 export type WalletRefundRequestStatus = 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REFUNDED' | 'FAILED'
 
+/** Canal d'une demande : automatique (rien à faire) ou ticket manuel à rembourser hors plateforme. */
+export type WalletRefundChannel = 'AUTOMATIC_STRIPE' | 'AUTOMATIC_PAWAPAY' | 'MANUAL_ADMIN'
+/** Origine déduite par le backend : suppression du compte, ou demande depuis l'écran portefeuille. */
+export type WalletRefundOrigin = 'ACCOUNT_DELETION' | 'WALLET'
+
 /**
- * Demande de remboursement du solde wallet à la suppression d'un compte : le
- * virement se fait hors plateforme, l'admin marque ensuite la demande résolue
- * (le backend vide alors le portefeuille).
+ * Demande de remboursement du solde wallet. Le cas courant (suppression de compte) est un
+ * remboursement AUTOMATIQUE sur la carte (Stripe) ou le mobile money (pawaPay) : à suivre,
+ * rien à exécuter. Seul un ticket MANUAL_ADMIN en attente se rembourse hors plateforme puis
+ * se marque résolu (le backend vide alors le portefeuille). Les champs facultatifs manquent
+ * sur un ancien backend.
  */
 export interface AdminWalletRefundRequest {
   id: string
@@ -121,8 +128,34 @@ export interface AdminWalletRefundRequest {
   amount: number
   status: WalletRefundRequestStatus
   requestedAt: string
+  channel?: WalletRefundChannel | null
+  parentRequestId?: string | null
+  resolvedAt?: string | null
+  userName?: string | null
+  origin?: WalletRefundOrigin | null
 }
 export interface AdminWalletRefundRequestPage { content: AdminWalletRefundRequest[]; totalElements: number; totalPages: number; number: number; size: number }
+
+export const WALLET_REFUND_CHANNEL_LABELS: Record<WalletRefundChannel, string> = {
+  AUTOMATIC_STRIPE: 'Carte, automatique',
+  AUTOMATIC_PAWAPAY: 'Mobile money, automatique',
+  MANUAL_ADMIN: 'Manuel',
+}
+
+export const WALLET_REFUND_ORIGIN_LABELS: Record<WalletRefundOrigin, string> = {
+  ACCOUNT_DELETION: 'Suppression du compte',
+  WALLET: 'Demande depuis le portefeuille',
+}
+
+/** Filtres de l'onglet : chaque vue correspond à une liste de statuts côté backend. */
+export type WalletRefundView = 'all' | 'pending' | 'processing' | 'failed' | 'done'
+export const WALLET_REFUND_VIEWS: readonly { key: WalletRefundView; label: string; statuses: WalletRefundRequestStatus[] }[] = [
+  { key: 'all', label: 'Toutes', statuses: ['PENDING', 'PROCESSING', 'FAILED', 'REFUNDED', 'RESOLVED'] },
+  { key: 'pending', label: 'À traiter', statuses: ['PENDING'] },
+  { key: 'processing', label: 'En cours', statuses: ['PROCESSING'] },
+  { key: 'failed', label: 'Échecs', statuses: ['FAILED'] },
+  { key: 'done', label: 'Remboursées', statuses: ['REFUNDED', 'RESOLVED'] },
+]
 
 export const WALLET_REFUND_STATUS_LABELS: Record<WalletRefundRequestStatus, string> = {
   PENDING: 'En attente',

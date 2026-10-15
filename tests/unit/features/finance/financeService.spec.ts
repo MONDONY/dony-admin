@@ -72,6 +72,14 @@ describe('financeService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests', { query: { page: 0, size: 20 } })
   })
 
+  it('listWalletRefundRequests passe les statuts filtrés en CSV', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await financeService.listWalletRefundRequests(1, 20, ['REFUNDED', 'RESOLVED'])
+    expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests', { query: { page: 1, size: 20, status: 'REFUNDED,RESOLVED' } })
+    await financeService.listWalletRefundRequests(0, 20, [])
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/wallet-refund-requests', { query: { page: 0, size: 20 } })
+  })
+
   it('resolveWalletRefundRequest POSTe la résolution de la demande', async () => {
     apiMock.mockResolvedValue({ id: 'r1', status: 'RESOLVED' })
     const res = await financeService.resolveWalletRefundRequest('r1')
