@@ -8,7 +8,11 @@ import type { AdminUserListItem } from '@/features/users/types/index'
  * (droit USER_VIEW), ou identifiant collé tel quel. `modelValue` est l'identifiant retenu,
  * vide tant qu'aucun compte n'est choisi.
  */
-const props = defineProps<{ modelValue: string; canSearch?: boolean; disabled?: boolean }>()
+const props = defineProps<{
+  modelValue: string; canSearch?: boolean; disabled?: boolean
+  /** Libellé du champ ; « Destinataire » par défaut (notification ciblée). */
+  label?: string
+}>()
 const emit = defineEmits<{ 'update:modelValue': [id: string] }>()
 
 const inputId = useId()
@@ -59,7 +63,7 @@ watch(() => props.modelValue, async (id) => {
 
 <template>
   <div class="text-sm text-text-muted">
-    <label :for="inputId" class="block">Destinataire</label>
+    <label :for="inputId" class="block">{{ label ?? 'Destinataire' }}</label>
     <div
       v-if="modelValue" data-test="broadcast-user-selected"
       class="mt-1 flex items-center justify-between gap-3 rounded-btn border border-primary/30 bg-primary/5 px-3 py-2"
