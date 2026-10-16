@@ -5,6 +5,7 @@ import { usePlatformSettings } from '@/features/settings/composables/usePlatform
 import ExchangeRatesTable from '@/features/exchange-rates/components/ExchangeRatesTable.vue'
 import { useExchangeRates } from '@/features/exchange-rates/composables/useExchangeRates'
 import PhotoStorageCard from '@/features/photo-storage/components/PhotoStorageCard.vue'
+import MaintenanceCard from '@/features/maintenance/components/MaintenanceCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
 definePageMeta({
@@ -38,6 +39,8 @@ onMounted(() => {
 
 <template>
   <div class="space-y-8">
+    <MaintenanceCard />
+
     <div>
       <p
         v-if="error" data-test="settings-error"
