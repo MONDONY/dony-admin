@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ProvidersTable from '@/features/assistant/components/ProvidersTable.vue'
 import type { AdminProvider } from '@/features/assistant/types'
@@ -10,7 +10,7 @@ const p = (slug: string, extra: Partial<AdminProvider> = {}): AdminProvider => (
 })
 
 function mountTable(providers: AdminProvider[], extra = {}) {
-  return mount(ProvidersTable, { props: { providers, testResults: {}, testingId: null, ...extra } })
+  return mount(ProvidersTable, { props: { providers, testResults: {}, testingIds: new Set<string>(), ...extra } })
 }
 
 describe('ProvidersTable', () => {
@@ -86,8 +86,33 @@ describe('ProvidersTable', () => {
     expect(mountTable([p('a', { baseUrl: 'pas une url' })]).text()).toContain('pas une url')
   })
 
-  it('test en cours désactive le bouton', () => {
-    expect(mountTable([p('a')], { testingId: 'a' }).find('[data-test="provider-test-a"]').attributes('disabled')).toBeDefined()
+  it('test en cours : seul le bouton de CETTE ligne est désactivé', () => {
+    const w = mountTable([p('a'), p('b'), p('c')], { testingIds: new Set(['a', 'c']) })
+    expect(w.find('[data-test="provider-test-a"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-test="provider-test-a"]').text()).toBe('Test…')
+    expect(w.find('[data-test="provider-test-b"]').attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-test="provider-test-b"]').text()).toBe('Tester')
+    expect(w.find('[data-test="provider-test-c"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('affiche aussi les requêtes réussies du jour', () => {
+    const w = mountTable([
+      p('a'),
+      p('b', { dailyRequestLimit: null }),
+      p('c', { stats: { requestsToday: 3, successesToday: 1, lastStatus: null, lastError: null, cooldownUntil: null } }),
+    ])
+    const text = (slug: string) => w.find(`[data-test="provider-row-${slug}"]`).text().replace(/\s/g, ' ')
+    expect(text('a')).toContain('12 / 1 000 · 10 réussies')
+    expect(text('b')).toContain('12 · sans limite · 10 réussies')
+    expect(text('c')).toContain('3 / 1 000 · 1 réussie')
+    expect(text('c')).not.toContain('1 réussies')
+  })
+
+  it('glisser : renseigne dataTransfer (Firefox ne démarre pas le glisser sans)', async () => {
+    const setData = vi.fn()
+    const w = mountTable([p('a'), p('b')])
+    await w.find('[data-test="provider-row-b"]').trigger('dragstart', { dataTransfer: { setData } })
+    expect(setData).toHaveBeenCalledWith('text/plain', 'b')
   })
 
   it('envoi de l’ordre en cours : flèches et glisser désactivés', async () => {

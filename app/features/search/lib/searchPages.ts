@@ -36,6 +36,7 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { key: 'support', label: 'Support', keywords: 'tickets aide', to: '/support', permission: 'SUPPORT_TICKET_VIEW' },
   { key: 'promo', label: 'Codes promo', keywords: 'reduction coupon', to: '/promo', permission: 'PROMO_MANAGE' },
   { key: 'topup-codes', label: 'Codes de recharge', keywords: 'recharge solde', to: '/topup-codes', permission: 'TOPUP_CODE_MANAGE' },
+  { key: 'assistant', label: 'Assistant IA', keywords: 'ia llm fournisseurs groq gemini mistral openrouter cles', to: '/assistant', permission: 'ASSISTANT_MANAGE' },
   { key: 'audit', label: 'Audit', keywords: 'journal historique', to: '/audit', permission: 'AUDIT_VIEW' },
   { key: 'exports', label: 'Exports', keywords: 'csv telecharger', to: '/exports', permission: 'EXPORT_RUN' },
   { key: 'reports', label: 'Signalements', keywords: 'scarabee bugs reports', to: '/signalements', permission: 'REPORT_VIEW' },

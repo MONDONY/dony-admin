@@ -63,8 +63,15 @@ watch(template, (label) => {
 })
 
 function close() {
-  if (!sending.value) emit('close')
+  if (sending.value) return
+  apiKey.value = ''
+  emit('close')
 }
+
+watch(limit, () => {
+  if (!fieldErrors.value.dailyRequestLimit) return
+  fieldErrors.value = Object.fromEntries(Object.entries(fieldErrors.value).filter(([key]) => key !== 'dailyRequestLimit'))
+})
 
 // Une sélection de texte commencée dans un champ et relâchée sur le fond produit un click sur le fond :
 // on ne ferme que si l'appui ET le relâchement ont eu lieu sur le fond.
@@ -98,6 +105,7 @@ async function send() {
     const saved = props.provider
       ? await assistantProviderService.update(props.provider.id, payload)
       : await assistantProviderService.create(payload)
+    apiKey.value = ''
     emit('saved', saved)
   } catch (e) {
     const fields = violationsByField(e)
@@ -139,7 +147,8 @@ async function send() {
       <div class="space-y-3">
         <div v-if="!isEdit">
           <label :for="`${baseId}-template`" class="block text-xs text-text-muted">Partir d'un modèle</label>
-          <select :id="`${baseId}-template`" v-model="template" data-test="provider-template" :disabled="sending"
+          <select
+:id="`${baseId}-template`" v-model="template" data-test="provider-template" :disabled="sending"
             class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text">
             <option value="">Aucun</option>
             <option v-for="t in PROVIDER_TEMPLATES" :key="t.label" :value="t.label">{{ t.label }}</option>
@@ -148,21 +157,24 @@ async function send() {
 
         <div>
           <label :for="`${baseId}-name`" class="block text-xs text-text-muted">Nom</label>
-          <input :id="`${baseId}-name`" v-model="name" data-test="provider-name" v-bind="a11y('name')" type="text" maxlength="60" :disabled="sending"
+          <input
+:id="`${baseId}-name`" v-model="name" data-test="provider-name" v-bind="a11y('name')" type="text" maxlength="60" :disabled="sending"
             class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text disabled:opacity-60">
           <p v-if="fieldErrors.name" :id="`${baseId}-err-name`" data-test="provider-field-error-name" class="mt-1 text-xs text-danger">{{ fieldErrors.name }}</p>
         </div>
 
         <div>
           <label :for="`${baseId}-url`" class="block text-xs text-text-muted">Adresse de l'API</label>
-          <input :id="`${baseId}-url`" v-model="baseUrl" data-test="provider-base-url" v-bind="a11y('baseUrl')" type="url" placeholder="https://…" :disabled="sending"
+          <input
+:id="`${baseId}-url`" v-model="baseUrl" data-test="provider-base-url" v-bind="a11y('baseUrl')" type="url" placeholder="https://…" :disabled="sending"
             class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text disabled:opacity-60">
           <p v-if="fieldErrors.baseUrl" :id="`${baseId}-err-baseUrl`" data-test="provider-field-error-baseUrl" class="mt-1 text-xs text-danger">{{ fieldErrors.baseUrl }}</p>
         </div>
 
         <div>
           <label :for="`${baseId}-model`" class="block text-xs text-text-muted">Modèle</label>
-          <input :id="`${baseId}-model`" v-model="model" data-test="provider-model" v-bind="a11y('model')" type="text" maxlength="120" :disabled="sending"
+          <input
+:id="`${baseId}-model`" v-model="model" data-test="provider-model" v-bind="a11y('model')" type="text" maxlength="120" :disabled="sending"
             class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text disabled:opacity-60">
           <p v-if="fieldErrors.model" :id="`${baseId}-err-model`" data-test="provider-field-error-model" class="mt-1 text-xs text-danger">{{ fieldErrors.model }}</p>
         </div>
@@ -171,7 +183,9 @@ async function send() {
           <label :for="`${baseId}-key`" class="block text-xs text-text-muted">
             Clé d'API<span v-if="isEdit"> (actuelle : ••••{{ provider?.apiKeyLast4 }})</span>
           </label>
-          <input :id="`${baseId}-key`" v-model="apiKey" data-test="provider-api-key" v-bind="a11y('apiKey')" type="password" autocomplete="off" :disabled="sending"
+          <input
+:id="`${baseId}-key`" v-model="apiKey" data-test="provider-api-key" v-bind="a11y('apiKey')" type="password"
+            autocomplete="new-password" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" :disabled="sending"
             class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text disabled:opacity-60">
           <p v-if="isEdit" class="mt-1 text-xs text-text-muted">Laisser vide pour garder la clé actuelle. Changer l'adresse demande de ressaisir la clé.</p>
           <p v-if="fieldErrors.apiKey" :id="`${baseId}-err-apiKey`" data-test="provider-field-error-apiKey" class="mt-1 text-xs text-danger">{{ fieldErrors.apiKey }}</p>
@@ -179,7 +193,8 @@ async function send() {
 
         <div>
           <label :for="`${baseId}-limit`" class="block text-xs text-text-muted">Limite de requêtes par jour (facultatif)</label>
-          <input :id="`${baseId}-limit`" v-model="limit" data-test="provider-limit" v-bind="a11y('dailyRequestLimit')" type="text" inputmode="numeric" placeholder="Sans limite" :disabled="sending"
+          <input
+:id="`${baseId}-limit`" v-model="limit" data-test="provider-limit" v-bind="a11y('dailyRequestLimit')" type="text" inputmode="numeric" placeholder="Sans limite" :disabled="sending"
             class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm text-text tabular-nums disabled:opacity-60">
           <p v-if="fieldErrors.dailyRequestLimit" :id="`${baseId}-err-dailyRequestLimit`" data-test="provider-field-error-dailyRequestLimit" class="mt-1 text-xs text-danger">{{ fieldErrors.dailyRequestLimit }}</p>
         </div>
@@ -193,9 +208,11 @@ async function send() {
       </div>
 
       <div class="mt-5 flex justify-end gap-2">
-        <button type="button" data-test="provider-cancel" :disabled="sending"
+        <button
+type="button" data-test="provider-cancel" :disabled="sending"
           class="rounded-btn border border-border px-4 py-2 text-sm transition-colors hover:bg-surface-elevated disabled:opacity-40" @click="close">Annuler</button>
-        <button type="button" data-test="provider-submit" :disabled="!canSend"
+        <button
+type="button" data-test="provider-submit" :disabled="!canSend"
           class="rounded-btn bg-primary px-4 py-2 text-sm text-white transition-[background-color,scale] hover:bg-primary/90 active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100"
           @click="send">{{ sending ? 'Enregistrement…' : (isEdit ? 'Enregistrer' : 'Ajouter') }}</button>
       </div>

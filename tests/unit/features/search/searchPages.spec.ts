@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { matchPages, SEARCH_PAGES } from '@/features/search/lib/searchPages'
 import { maskPhone, normalizeSearch } from '@/features/search/lib/normalize'
 import type { AdminPermission } from '@/stores/auth'
@@ -23,6 +25,26 @@ describe('matchPages', () => {
     expect(matchPages('transactions', all).length).toBeGreaterThan(1)
     expect(matchPages('kyc', only('USER_VIEW'))).toEqual([])
     expect(matchPages('zzzz', all)).toEqual([])
+  })
+
+  it('trouve l’Assistant IA, seulement avec ASSISTANT_MANAGE', () => {
+    expect(matchPages('assistant', all).map(p => p.key)).toContain('assistant')
+    expect(matchPages('groq', all).map(p => p.key)).toContain('assistant')
+    expect(matchPages('assistant', only('USER_VIEW')).map(p => p.key)).not.toContain('assistant')
+    expect(matchPages('assistant', only('ASSISTANT_MANAGE')).map(p => p.key)).toEqual(['assistant'])
+  })
+
+  it('chaque entrée du menu latéral a sa page de recherche, avec la même permission', () => {
+    const sidebar = readFileSync(resolve(process.cwd(), 'app/components/layout/AppSidebar.vue'), 'utf8')
+    const entries = [...sidebar.matchAll(/<NavItem v-if="can\('(\w+)'\)"\s+to="([^"]+)"/g)].map(m => ({ permission: m[1], path: m[2] }))
+    expect(entries.length).toBeGreaterThan(15)
+    for (const e of entries) {
+      const found = SEARCH_PAGES.some((p) => {
+        const path = typeof p.to === 'string' ? p.to : (p.to as { path?: string }).path
+        return path === e.path && p.permission === e.permission
+      })
+      expect(found, `${e.path} (${e.permission}) absent de la recherche ⌘K`).toBe(true)
+    }
   })
 
   it('chaque page a une route et une permission', () => {

@@ -24,7 +24,12 @@ onMounted(() => s.fetch())
 
 function openAdd() { editing.value = null; dialogOpen.value = true }
 function openEdit(p: AdminProvider) { editing.value = p; dialogOpen.value = true }
-function onSaved(p: AdminProvider) { s.replace(p); dialogOpen.value = false }
+function onSaved(p: AdminProvider) {
+  // L'adresse ou le modèle ont pu changer : le dernier résultat de test ne vaut plus pour ce fournisseur.
+  if (editing.value) s.discardTestResult(p.id)
+  s.replace(p)
+  dialogOpen.value = false
+}
 async function confirmDelete() {
   // Le dialogue de confirmation reste affiché pendant la requête : un second clic ne doit pas la rejouer.
   if (!deleting.value || isDeleting.value) return
@@ -49,23 +54,27 @@ async function confirmDelete() {
           Les fournisseurs sont essayés dans l'ordre. Quand l'un atteint son quota, l'assistant passe au suivant.
           Glissez les lignes, ou utilisez les flèches, pour changer l'ordre.
         </p>
-        <button type="button" data-test="assistant-add"
+        <button
+type="button" data-test="assistant-add"
           class="inline-flex items-center gap-2 rounded-btn bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90 active:scale-[0.96]"
           @click="openAdd"><Plus class="size-4" aria-hidden="true" />Ajouter un fournisseur</button>
       </div>
-      <p v-if="!s.isLoading.value && !s.error.value && !s.hasActive.value" data-test="assistant-no-active" role="alert"
+      <p
+v-if="!s.isLoading.value && !s.error.value && !s.hasActive.value" data-test="assistant-no-active" role="alert"
         class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
         Aucun fournisseur actif : l'assistant répond seulement avec les fiches d'aide.
       </p>
       <p v-if="s.error.value" data-test="assistant-error" class="text-sm text-danger">{{ s.error.value }}</p>
       <p v-if="s.actionError.value" data-test="assistant-action-error" role="alert" class="text-sm text-danger">{{ s.actionError.value }}</p>
       <p v-if="s.isLoading.value" class="text-sm text-text-muted">Chargement…</p>
-      <ProvidersTable v-else :providers="s.providers.value" :test-results="s.testResults.value" :testing-id="s.testingId.value" :moving="s.isMoving.value"
+      <ProvidersTable
+v-else-if="s.providers.value.length > 0 || !s.error.value" :providers="s.providers.value" :test-results="s.testResults.value" :testing-ids="s.testingIds.value" :moving="s.isMoving.value"
         @move="s.move" @toggle="s.toggle" @test="s.runTest" @edit="openEdit" @delete="(p) => (deleting = p)" />
     </template>
 
     <ProviderFormDialog :open="dialogOpen" :provider="editing" @close="dialogOpen = false" @saved="onSaved" />
-    <ConfirmActionDialog :open="deleting !== null" title="Supprimer le fournisseur"
+    <ConfirmActionDialog
+:open="deleting !== null" title="Supprimer le fournisseur"
       :message="`Supprimer ${deleting?.name ?? ''} ? L'assistant ne l'utilisera plus.`" confirm-label="Supprimer" confirm-tone="danger"
       @confirm="confirmDelete" @cancel="deleting = null" />
   </div>

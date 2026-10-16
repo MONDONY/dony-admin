@@ -134,9 +134,12 @@ describe('ProviderFormDialog', () => {
       expect(updateMock).not.toHaveBeenCalled()
     })
 
-    it('l’erreur disparaît à la saisie corrigée puis un nouvel envoi', async () => {
+    it('l’erreur disparaît dès la saisie corrigée, puis le nouvel envoi passe', async () => {
       const w = await submitWithLimit('0')
+      expect(w.find('[data-test="provider-field-error-dailyRequestLimit"]').exists()).toBe(true)
       await fill(w, { limit: '5' })
+      expect(w.find('[data-test="provider-field-error-dailyRequestLimit"]').exists()).toBe(false)
+      expect(w.find('[data-test="provider-limit"]').attributes('aria-invalid')).toBeUndefined()
       await w.find('[data-test="provider-submit"]').trigger('click')
       await flushPromises()
       expect(w.find('[data-test="provider-field-error-dailyRequestLimit"]').exists()).toBe(false)
@@ -286,5 +289,29 @@ describe('ProviderFormDialog', () => {
     const w = mount(ProviderFormDialog, { props: { open: true, provider: null } })
     await w.find('[data-test="provider-dialog"]').trigger('keydown', { key: 'a' })
     expect(w.emitted('close')).toBeUndefined()
+  })
+
+  it('le champ clé échappe aux gestionnaires de mots de passe', () => {
+    const key = mount(ProviderFormDialog, { props: { open: true, provider: null } }).find('[data-test="provider-api-key"]')
+    expect(key.attributes('type')).toBe('password')
+    expect(key.attributes('autocomplete')).toBe('new-password')
+    expect(key.attributes('data-1p-ignore')).toBeDefined()
+    expect(key.attributes('data-lpignore')).toBe('true')
+    expect(key.attributes('data-bwignore')).toBeDefined()
+    expect(key.attributes('data-form-type')).toBe('other')
+  })
+
+  it('la clé saisie est effacée de la mémoire à la fermeture et après l’enregistrement', async () => {
+    createMock.mockResolvedValue(existing)
+    const w = mount(ProviderFormDialog, { props: { open: true, provider: null } })
+    const keyValue = () => (w.find('[data-test="provider-api-key"]').element as HTMLInputElement).value
+    await fill(w, { 'api-key': 'gsk_secret_1' })
+    await w.find('[data-test="provider-cancel"]').trigger('click')
+    expect(keyValue()).toBe('')
+    await fill(w, { name: 'Groq', 'base-url': 'https://a.com', model: 'm', 'api-key': 'gsk_secret_2' })
+    await w.find('[data-test="provider-submit"]').trigger('click')
+    await flushPromises()
+    expect(w.emitted('saved')).toHaveLength(1)
+    expect(keyValue()).toBe('')
   })
 })

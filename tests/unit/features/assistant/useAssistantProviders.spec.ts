@@ -84,7 +84,7 @@ describe('useAssistantProviders', () => {
     const s = useAssistantProviders()
     await s.runTest('a')
     expect(s.testResults.value.a?.latencyMs).toBe(820)
-    expect(s.testingId.value).toBeNull()
+    expect(s.testingIds.value.size).toBe(0)
   })
 
   it('remove recharge la liste', async () => {
@@ -123,17 +123,133 @@ describe('useAssistantProviders, chemins d’erreur', () => {
     const s = useAssistantProviders()
     await s.runTest('a')
     expect(s.testResults.value.a).toEqual({ ok: false, status: null, latencyMs: 0, sample: null, error: 'Hors ligne' })
-    expect(s.testingId.value).toBeNull()
+    expect(s.testingIds.value.size).toBe(0)
   })
 
-  it('remove en échec affiche le message sans recharger la liste', async () => {
+  it('remove en échec quelconque affiche le message sans recharger la liste', async () => {
     svc.list.mockResolvedValue([p('a')])
+    svc.remove.mockRejectedValue(httpError(500, { detail: 'Panne' }))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.remove('a')
+    expect(s.actionError.value).toBe('Panne')
+    expect(svc.list).toHaveBeenCalledTimes(1)
+    expect(s.providers.value.map((x) => x.id)).toEqual(['a'])
+  })
+
+  it('remove sur un fournisseur déjà supprimé (404 avec code) : message gardé et liste rechargée', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')]).mockResolvedValueOnce([p('b')])
     svc.remove.mockRejectedValue(httpError(404, { code: 'assistant-provider-not-found', detail: 'Introuvable' }))
     const s = useAssistantProviders()
     await s.fetch()
     await s.remove('a')
     expect(s.actionError.value).toBe('Introuvable')
+    expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
+  })
+
+  it('toggle sur un fournisseur supprimé ailleurs (404 avec code) : liste rechargée', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')]).mockResolvedValueOnce([p('b')])
+    svc.update.mockRejectedValue(httpError(404, { code: 'assistant-provider-not-found', detail: 'Introuvable' }))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.toggle(s.providers.value[0]!)
+    expect(s.actionError.value).toBe('Introuvable')
+    expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
+  })
+
+  it('runTest sur un fournisseur supprimé ailleurs (404 avec code) : liste rechargée', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')]).mockResolvedValueOnce([p('b')])
+    svc.test.mockRejectedValue(httpError(404, { code: 'assistant-provider-not-found', detail: 'Introuvable' }))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.runTest('a')
+    expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
+    expect(s.testingIds.value.size).toBe(0)
+  })
+
+  it('un 404 sans code (endpoint absent) sur toggle ne recharge pas', async () => {
+    svc.list.mockResolvedValue([p('a')])
+    svc.update.mockRejectedValue(httpError(404))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.toggle(s.providers.value[0]!)
     expect(svc.list).toHaveBeenCalledTimes(1)
+  })
+
+  it('ordre refusé (422 ids) : ordre rétabli, message gardé, liste rechargée', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')]).mockResolvedValueOnce([p('b'), p('a')])
+    svc.reorder.mockRejectedValue(httpError(422, { violations: { ids: 'Liste périmée.' }, detail: 'Ordre invalide' }))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.move(1, 0)
+    expect(svc.list).toHaveBeenCalledTimes(2)
+    expect(s.providers.value.map((x) => x.id)).toEqual(['b', 'a'])
+    expect(s.actionError.value).toBe('Ordre invalide')
+    expect(s.error.value).toBeNull()
+    expect(s.isLoading.value).toBe(false)
+    expect(s.isMoving.value).toBe(false)
+  })
+
+  it('ordre refusé et rechargement en échec : l’ordre rétabli reste affiché, sans erreur de chargement', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')]).mockRejectedValueOnce(httpError(500))
+    svc.reorder.mockRejectedValue(httpError(500, { detail: 'Panne' }))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.move(1, 0)
+    expect(s.providers.value.map((x) => x.id)).toEqual(['a', 'b'])
+    expect(s.actionError.value).toBe('Panne')
+    expect(s.error.value).toBeNull()
+  })
+
+  it('remove retire la ligne tout de suite, sans « Chargement », et la garde retirée si le rechargement échoue', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')])
+    let rejectList: (_e: unknown) => void = () => {}
+    svc.list.mockReturnValueOnce(new Promise((_r, rej) => { rejectList = rej }))
+    svc.remove.mockResolvedValue(undefined)
+    const s = useAssistantProviders()
+    await s.fetch()
+    const done = s.remove('a')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
+    expect(s.isLoading.value).toBe(false)
+    rejectList(httpError(500))
+    await done
+    expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
+    expect(s.error.value).toBeNull()
+  })
+
+  it('deux tests en parallèle : le premier répond, le second reste en cours', async () => {
+    const resolvers: Record<string, (_v: unknown) => void> = {}
+    svc.test.mockImplementation((id: string) => new Promise((r) => { resolvers[id] = r }))
+    const s = useAssistantProviders()
+    const first = s.runTest('a')
+    const second = s.runTest('b')
+    expect([...s.testingIds.value].sort()).toEqual(['a', 'b'])
+    resolvers.a!({ ok: true, status: 200, latencyMs: 1, sample: 'ok', error: null })
+    await first
+    expect([...s.testingIds.value]).toEqual(['b'])
+    resolvers.b!({ ok: true, status: 200, latencyMs: 2, sample: 'ok', error: null })
+    await second
+    expect(s.testingIds.value.size).toBe(0)
+    expect(Object.keys(s.testResults.value).sort()).toEqual(['a', 'b'])
+  })
+
+  it('un second test sur le même fournisseur est ignoré tant que le premier tourne', async () => {
+    svc.test.mockReturnValue(new Promise(() => {}))
+    const s = useAssistantProviders()
+    void s.runTest('a')
+    await s.runTest('a')
+    expect(svc.test).toHaveBeenCalledTimes(1)
+  })
+
+  it('discardTestResult retire le résultat d’un seul fournisseur', async () => {
+    svc.test.mockResolvedValue({ ok: true, status: 200, latencyMs: 1, sample: 'ok', error: null })
+    const s = useAssistantProviders()
+    await s.runTest('a')
+    await s.runTest('b')
+    s.discardTestResult('a')
+    expect(Object.keys(s.testResults.value)).toEqual(['b'])
   })
 
   it('une erreur autre que 404 n’active pas l’état indisponible', async () => {
