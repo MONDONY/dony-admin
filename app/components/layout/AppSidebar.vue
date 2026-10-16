@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
   Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone, Settings,
-  LifeBuoy, IdCard, Coins,
+  LifeBuoy, IdCard, Coins, Sparkles,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -139,6 +139,7 @@ onBeforeUnmount(() => {
       <NavItem v-if="can('ALERT_VIEW')" to="/alertes" v-bind="badgeProps('/alertes')" label="Alertes"><template #icon><Bell class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('MODERATION_VIEW')" to="/moderation" label="Modération"><template #icon><MessageSquare class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('SUPPORT_TICKET_VIEW')" to="/support" v-bind="badgeProps('/support')" label="Support"><template #icon><LifeBuoy class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('ASSISTANT_MANAGE')" to="/assistant" label="Assistant IA"><template #icon><Sparkles class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('PROMO_MANAGE')" to="/promo" label="Codes promo"><template #icon><Ticket class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('TOPUP_CODE_MANAGE')" to="/topup-codes" label="Codes de recharge"><template #icon><Coins class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('AUDIT_VIEW')" to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
