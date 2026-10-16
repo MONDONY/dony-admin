@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { supportService } from '@/features/support/services/supportService'
 import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { httpStatus, violationsByField } from '@/lib/violations'
 import type { AdminSupportTicket, StartSupportTicketPayload } from '@/features/support/types/index'
 
 /** Champs dont la fenêtre affiche l'erreur à côté de la saisie. */
@@ -9,26 +10,10 @@ const SHOWN_FIELDS = ['userId', 'category', 'subject', 'message', 'attachmentKey
 
 export const START_UNAVAILABLE_MESSAGE = 'Cette fonction n’est pas encore disponible sur le serveur.'
 
-function httpStatus(e: unknown): number | undefined {
-  const err = e as { statusCode?: number; status?: number; response?: { status?: number } } | undefined
-  return err?.statusCode ?? err?.status ?? err?.response?.status
-}
-
 /** `detail` du ProblemDetail, sans retomber sur le message technique (« 404 Not Found »). */
 function problemDetailOr(e: unknown, fallback: string): string {
   const detail = (e as { data?: { detail?: unknown } } | undefined)?.data?.detail
   return typeof detail === 'string' && detail.trim() ? detail : fallback
-}
-
-/** 422 de bean validation : objet `champ → message`, seules les valeurs texte sont retenues. */
-function violationsByField(e: unknown): Record<string, string> {
-  const v = (e as { data?: { violations?: unknown } } | undefined)?.data?.violations
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
-  const out: Record<string, string> = {}
-  for (const [field, message] of Object.entries(v as Record<string, unknown>)) {
-    if (typeof message === 'string' && message.trim()) out[field] = message.trim()
-  }
-  return out
 }
 
 /**
