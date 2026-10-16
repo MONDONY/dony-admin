@@ -161,4 +161,13 @@ describe('pages/transactions', () => {
       expect(replaceMock).toHaveBeenLastCalledWith({ query: { held: 'true' } })
     })
   })
+
+  it('recherche globale : un ?open arrivé après le montage ouvre la fiche du paiement', async () => {
+    const route = reactive({ meta: {}, query: {} as Record<string, string> })
+    await mountPage(route)
+    getMock.mockReset().mockResolvedValue({ id: 'p1', status: 'ESCROW' })
+    route.query = { open: 'p1' }
+    await flushPromises()
+    expect(getMock).toHaveBeenCalledWith('p1')
+  })
 })

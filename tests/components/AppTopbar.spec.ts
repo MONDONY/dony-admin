@@ -12,6 +12,9 @@ vi.mock('@/components/ui/ThemeToggle.vue', () => ({ default: { name: 'ThemeToggl
 vi.mock('@/features/notifications/components/NotificationBell.vue', () => ({
   default: { name: 'NotificationBell', template: '<button data-test="notif-bell-stub" />' },
 }))
+vi.mock('@/features/search/components/GlobalSearch.vue', () => ({
+  default: { name: 'GlobalSearch', template: '<button data-test="global-search-stub" />' },
+}))
 type HeadInput = { value: { titleTemplate: (_t?: string) => string } }
 const useHeadMock = vi.fn()
 vi.stubGlobal('useHead', useHeadMock)
@@ -69,5 +72,10 @@ describe('AppTopbar', () => {
     s.unreadCount = 7
     s.unavailable = true
     expect(input.value.titleTemplate('Yadony ADMIN')).toBe('Yadony ADMIN')
+  })
+
+  it('affiche la recherche globale', () => {
+    const wrapper = mount(AppTopbar, { props: { title: 'X' } })
+    expect(wrapper.find('[data-test="global-search-stub"]').exists()).toBe(true)
   })
 })

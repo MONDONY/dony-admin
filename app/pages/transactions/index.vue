@@ -224,6 +224,11 @@ watch(() => route.query?.tab, (v) => {
   const t: Tab = isTab(v) ? v : 'payments'
   if (t !== tab.value) void switchTab(t, true)
 })
+// Même chose pour ?open (recherche globale) : ouvre la fiche si elle n'est pas déjà affichée.
+watch(() => route.query?.open, (openId) => {
+  if (typeof openId !== 'string' || !openId || openId === detail.payment.value?.id) return
+  void detail.open(openId)
+})
 </script>
 
 <template>

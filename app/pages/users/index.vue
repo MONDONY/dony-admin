@@ -87,6 +87,13 @@ onMounted(async () => {
   const openId = route.query?.open
   if (openId && typeof openId === 'string') await openUser(openId)
 })
+// Page déjà ouverte : la recherche globale (barre du haut) ne change que la query.
+watch(() => route.query?.open, async (openId) => {
+  if (typeof openId !== 'string' || !openId || openId === detail.user.value?.id) return
+  const q = route.query?.query
+  if (typeof q === 'string' && q && q !== filters.query) await setSearch(q)
+  await openUser(openId)
+})
 </script>
 
 <template>

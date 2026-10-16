@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 import NotificationBell from '@/features/notifications/components/NotificationBell.vue'
+import GlobalSearch from '@/features/search/components/GlobalSearch.vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatTabTitle } from '@/features/notifications/lib/format'
@@ -30,11 +31,12 @@ async function logout() {
 
 <template>
   <header class="h-topbar shrink-0 bg-surface border-b border-border flex items-center justify-between px-6">
-    <div>
+    <div class="min-w-0">
       <h1 class="font-display text-xl font-bold">{{ title }}</h1>
       <p v-if="subtitle" class="text-sm text-text-muted">{{ subtitle }}</p>
     </div>
     <div class="flex items-center gap-2">
+      <ClientOnly><GlobalSearch /></ClientOnly>
       <ThemeToggle />
       <NotificationBell />
       <Button variant="ghost" size="icon" aria-label="Se déconnecter" @click="logout"><LogOut class="w-4 h-4" /></Button>
