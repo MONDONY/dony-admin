@@ -46,4 +46,6 @@ export const PROVIDER_TEMPLATES: readonly ProviderTemplate[] = [
   { label: 'Gemini', name: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', supportsJsonMode: true },
   { label: 'Mistral', name: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest', supportsJsonMode: true },
   { label: 'OpenRouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: '', supportsJsonMode: false },
+  // Appelé par le SDK Anthropic natif du back (aiguillage sur l'hôte exact api.anthropic.com) ; le modèle reste modifiable.
+  { label: 'Anthropic (Claude)', name: 'Claude', baseUrl: 'https://api.anthropic.com', model: 'claude-haiku-5-5', supportsJsonMode: false },
 ] as const

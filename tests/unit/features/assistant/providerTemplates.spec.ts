@@ -17,6 +17,13 @@ describe('PROVIDER_TEMPLATES', () => {
     }
   })
 
+  it('Anthropic pointe exactement sur api.anthropic.com, seul hôte que le back aiguille vers le SDK Claude', () => {
+    const claude = PROVIDER_TEMPLATES.find((t) => t.label === 'Anthropic (Claude)')
+    expect(claude).toBeDefined()
+    expect(new URL(claude!.baseUrl).host).toBe('api.anthropic.com')
+    expect(claude!.model).toBe('claude-haiku-5-5')
+  })
+
   it('libellés uniques', () => {
     const labels = PROVIDER_TEMPLATES.map((t) => t.label)
     expect(new Set(labels).size).toBe(labels.length)
