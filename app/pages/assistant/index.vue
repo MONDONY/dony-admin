@@ -18,6 +18,7 @@ const s = useAssistantProviders()
 const dialogOpen = ref(false)
 const editing = ref<AdminProvider | null>(null)
 const deleting = ref<AdminProvider | null>(null)
+const isDeleting = ref(false)
 
 onMounted(() => s.fetch())
 
@@ -25,8 +26,15 @@ function openAdd() { editing.value = null; dialogOpen.value = true }
 function openEdit(p: AdminProvider) { editing.value = p; dialogOpen.value = true }
 function onSaved(p: AdminProvider) { s.replace(p); dialogOpen.value = false }
 async function confirmDelete() {
-  if (deleting.value) await s.remove(deleting.value.id)
-  deleting.value = null
+  // Le dialogue de confirmation reste affiché pendant la requête : un second clic ne doit pas la rejouer.
+  if (!deleting.value || isDeleting.value) return
+  isDeleting.value = true
+  try {
+    await s.remove(deleting.value.id)
+  } finally {
+    isDeleting.value = false
+    deleting.value = null
+  }
 }
 </script>
 
@@ -52,7 +60,7 @@ async function confirmDelete() {
       <p v-if="s.error.value" data-test="assistant-error" class="text-sm text-danger">{{ s.error.value }}</p>
       <p v-if="s.actionError.value" data-test="assistant-action-error" role="alert" class="text-sm text-danger">{{ s.actionError.value }}</p>
       <p v-if="s.isLoading.value" class="text-sm text-text-muted">Chargement…</p>
-      <ProvidersTable v-else :providers="s.providers.value" :test-results="s.testResults.value" :testing-id="s.testingId.value"
+      <ProvidersTable v-else :providers="s.providers.value" :test-results="s.testResults.value" :testing-id="s.testingId.value" :moving="s.isMoving.value"
         @move="s.move" @toggle="s.toggle" @test="s.runTest" @edit="openEdit" @delete="(p) => (deleting = p)" />
     </template>
 

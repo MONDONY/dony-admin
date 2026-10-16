@@ -154,4 +154,64 @@ describe('useAssistantProviders, chemins d’erreur', () => {
     expect(svc.reorder).not.toHaveBeenCalled()
     expect(s.providers.value.map((x) => x.id)).toEqual(['a', 'b'])
   })
+
+  describe('move : garde et bornes', () => {
+    it('ignore un second move tant que le premier n’a pas répondu', async () => {
+      svc.list.mockResolvedValue([p('a'), p('b'), p('c')])
+      let resolve: (_v: AdminProvider[]) => void = () => {}
+      svc.reorder.mockReturnValue(new Promise((r) => { resolve = r }))
+      const s = useAssistantProviders()
+      await s.fetch()
+      const first = s.move(0, 1)
+      expect(s.isMoving.value).toBe(true)
+      await s.move(1, 2)
+      expect(svc.reorder).toHaveBeenCalledTimes(1)
+      resolve([p('b'), p('a'), p('c')])
+      await first
+      expect(s.isMoving.value).toBe(false)
+      expect(s.providers.value.map((x) => x.id)).toEqual(['b', 'a', 'c'])
+    })
+
+    it('isMoving retombe aussi après un refus du serveur', async () => {
+      svc.list.mockResolvedValue([p('a'), p('b')])
+      svc.reorder.mockRejectedValue(httpError(500))
+      const s = useAssistantProviders()
+      await s.fetch()
+      await s.move(0, 1)
+      expect(s.isMoving.value).toBe(false)
+      expect(s.providers.value.map((x) => x.id)).toEqual(['a', 'b'])
+    })
+
+    it.each([[-1, 0], [0, 9], [0, -1], [5, 0], [0, 2]])('move(%i, %i) hors bornes : aucun effet', async (from, to) => {
+      svc.list.mockResolvedValue([p('a'), p('b')])
+      const s = useAssistantProviders()
+      await s.fetch()
+      await s.move(from, to)
+      expect(svc.reorder).not.toHaveBeenCalled()
+      expect(s.providers.value.map((x) => x.id)).toEqual(['a', 'b'])
+    })
+  })
+
+  it('remove réussi retire aussi le résultat de test du fournisseur supprimé', async () => {
+    svc.list.mockResolvedValueOnce([p('a'), p('b')]).mockResolvedValueOnce([p('b')])
+    svc.test.mockResolvedValue({ ok: true, status: 200, latencyMs: 5, sample: 'ok', error: null })
+    svc.remove.mockResolvedValue(undefined)
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.runTest('a')
+    await s.runTest('b')
+    await s.remove('a')
+    expect(Object.keys(s.testResults.value)).toEqual(['b'])
+  })
+
+  it('remove refusé garde le résultat de test', async () => {
+    svc.list.mockResolvedValue([p('a')])
+    svc.test.mockResolvedValue({ ok: true, status: 200, latencyMs: 5, sample: 'ok', error: null })
+    svc.remove.mockRejectedValue(httpError(500))
+    const s = useAssistantProviders()
+    await s.fetch()
+    await s.runTest('a')
+    await s.remove('a')
+    expect(Object.keys(s.testResults.value)).toEqual(['a'])
+  })
 })

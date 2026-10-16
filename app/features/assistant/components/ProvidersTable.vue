@@ -5,7 +5,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { providerStatus } from '@/features/assistant/utils/providerStatus'
 import type { AdminProvider, ProviderTestResult } from '@/features/assistant/types'
 
-defineProps<{ providers: AdminProvider[]; testResults: Record<string, ProviderTestResult>; testingId: string | null }>()
+const props = defineProps<{ providers: AdminProvider[]; testResults: Record<string, ProviderTestResult>; testingId: string | null; moving?: boolean }>()
 const emit = defineEmits<{
   move: [from: number, to: number]
   toggle: [provider: AdminProvider]
@@ -27,7 +27,13 @@ function usage(p: AdminProvider): string {
     : `${nf.format(p.stats.requestsToday)} / ${nf.format(p.dailyRequestLimit)}`
 }
 
+function testLine(r: ProviderTestResult): string {
+  if (!r.ok) return `Échec : ${r.error ?? 'erreur inconnue'}`
+  return r.sample ? `OK en ${r.latencyMs} ms : ${r.sample}` : `OK en ${r.latencyMs} ms`
+}
+
 function onDrop(to: number) {
+  if (props.moving) { dragIndex.value = null; return }
   if (dragIndex.value !== null && dragIndex.value !== to) emit('move', dragIndex.value, to)
   dragIndex.value = null
 }
@@ -49,16 +55,16 @@ function onDrop(to: number) {
       </thead>
       <tbody>
         <tr
-          v-for="(p, i) in providers" :key="p.id" :data-test="`provider-row-${p.slug}`" draggable="true"
+          v-for="(p, i) in providers" :key="p.id" :data-test="`provider-row-${p.slug}`" :draggable="!moving"
           class="border-t border-border align-top" :class="dragIndex === i ? 'opacity-50' : ''"
-          @dragstart="dragIndex = i" @dragover.prevent @drop.prevent="onDrop(i)" @dragend="dragIndex = null"
+          @dragstart="dragIndex = moving ? null : i" @dragover.prevent @drop.prevent="onDrop(i)" @dragend="dragIndex = null"
         >
           <td class="px-4 py-3">
             <div class="flex items-center gap-1 text-text-muted">
               <GripVertical class="size-4 cursor-grab" aria-hidden="true" />
-              <button type="button" :data-test="`provider-up-${p.slug}`" :disabled="i === 0" :aria-label="`Monter ${p.name}`"
+              <button type="button" :data-test="`provider-up-${p.slug}`" :disabled="moving || i === 0" :aria-label="`Monter ${p.name}`"
                 class="rounded-btn p-1 hover:bg-surface-elevated disabled:opacity-30" @click="emit('move', i, i - 1)"><ArrowUp class="size-4" /></button>
-              <button type="button" :data-test="`provider-down-${p.slug}`" :disabled="i === providers.length - 1" :aria-label="`Descendre ${p.name}`"
+              <button type="button" :data-test="`provider-down-${p.slug}`" :disabled="moving || i === providers.length - 1" :aria-label="`Descendre ${p.name}`"
                 class="rounded-btn p-1 hover:bg-surface-elevated disabled:opacity-30" @click="emit('move', i, i + 1)"><ArrowDown class="size-4" /></button>
             </div>
           </td>
@@ -67,9 +73,7 @@ function onDrop(to: number) {
             <div class="text-xs text-text-muted">{{ p.model }} · {{ host(p.baseUrl) }}</div>
             <p v-if="testResults[p.id]" :data-test="`provider-test-result-${p.slug}`" role="status"
               class="mt-1 text-xs" :class="testResults[p.id]!.ok ? 'text-text' : 'text-danger'">
-              {{ testResults[p.id]!.ok
-                ? `OK en ${testResults[p.id]!.latencyMs} ms : ${testResults[p.id]!.sample ?? ''}`
-                : `Échec : ${testResults[p.id]!.error ?? 'erreur inconnue'}` }}
+              {{ testLine(testResults[p.id]!) }}
             </p>
           </td>
           <td class="px-4 py-3 text-sm tabular-nums">••••{{ p.apiKeyLast4 }}</td>

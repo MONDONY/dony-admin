@@ -74,6 +74,10 @@ describe('ProvidersTable', () => {
     expect(ok.find('[data-test="provider-test-result-a"]').text()).toContain('OK en 820 ms')
     const ko = mountTable([p('a')], { testResults: { a: { ok: false, status: 401, latencyMs: 90, sample: null, error: 'HTTP 401' } } })
     expect(ko.find('[data-test="provider-test-result-a"]').text()).toContain('HTTP 401')
+    const noSample = mountTable([p('a')], { testResults: { a: { ok: true, status: 200, latencyMs: 820, sample: null, error: null } } })
+    expect(noSample.find('[data-test="provider-test-result-a"]').text()).toBe('OK en 820 ms')
+    const blank = mountTable([p('a')], { testResults: { a: { ok: true, status: 200, latencyMs: 820, sample: '', error: null } } })
+    expect(blank.find('[data-test="provider-test-result-a"]').text()).toBe('OK en 820 ms')
     const unknown = mountTable([p('a')], { testResults: { a: { ok: false, status: null, latencyMs: 0, sample: null, error: null } } })
     expect(unknown.find('[data-test="provider-test-result-a"]').text()).toContain('erreur inconnue')
   })
@@ -84,6 +88,17 @@ describe('ProvidersTable', () => {
 
   it('test en cours désactive le bouton', () => {
     expect(mountTable([p('a')], { testingId: 'a' }).find('[data-test="provider-test-a"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('envoi de l’ordre en cours : flèches et glisser désactivés', async () => {
+    const w = mountTable([p('a'), p('b'), p('c')], { moving: true })
+    for (const id of ['up-b', 'down-b', 'up-c', 'down-a']) {
+      expect(w.find(`[data-test="provider-${id}"]`).attributes('disabled')).toBeDefined()
+    }
+    expect(w.find('[data-test="provider-row-a"]').attributes('draggable')).toBe('false')
+    await w.find('[data-test="provider-row-c"]').trigger('dragstart')
+    await w.find('[data-test="provider-row-a"]').trigger('drop')
+    expect(w.emitted('move')).toBeUndefined()
   })
 
   it('liste vide', () => {

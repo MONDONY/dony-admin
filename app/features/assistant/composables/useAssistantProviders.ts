@@ -23,6 +23,7 @@ export function useAssistantProviders() {
   const actionError = ref<string | null>(null)
   const testResults = ref<Record<string, ProviderTestResult>>({})
   const testingId = ref<string | null>(null)
+  const isMoving = ref(false)
   const hasActive = computed(() => providers.value.some((p) => p.enabled))
 
   async function fetch() {
@@ -40,7 +41,10 @@ export function useAssistantProviders() {
   }
 
   async function move(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return
+    const last = providers.value.length - 1
+    // Un envoi d'ordre à la fois, et des indices dans la liste : sinon deux requêtes se chevauchent ou splice corrompt la liste.
+    if (isMoving.value || fromIndex === toIndex) return
+    if (fromIndex < 0 || fromIndex > last || toIndex < 0 || toIndex > last) return
     const previous = providers.value
     const next = [...previous]
     const [moved] = next.splice(fromIndex, 1)
@@ -48,11 +52,14 @@ export function useAssistantProviders() {
     next.splice(toIndex, 0, moved)
     providers.value = next
     actionError.value = null
+    isMoving.value = true
     try {
       providers.value = await assistantProviderService.reorder(next.map((p) => p.id))
     } catch (e) {
       providers.value = previous
       actionError.value = extractProblemMessage(e, "Impossible d'enregistrer le nouvel ordre")
+    } finally {
+      isMoving.value = false
     }
   }
 
@@ -89,11 +96,12 @@ export function useAssistantProviders() {
     actionError.value = null
     try {
       await assistantProviderService.remove(id)
+      testResults.value = Object.fromEntries(Object.entries(testResults.value).filter(([key]) => key !== id))
       await fetch()
     } catch (e) {
       actionError.value = extractProblemMessage(e, 'Impossible de supprimer le fournisseur')
     }
   }
 
-  return { providers, isLoading, error, unavailable, actionError, testResults, testingId, hasActive, fetch, move, toggle, runTest, remove, replace }
+  return { providers, isLoading, error, unavailable, actionError, testResults, testingId, isMoving, hasActive, fetch, move, toggle, runTest, remove, replace }
 }

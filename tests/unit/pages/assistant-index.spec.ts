@@ -11,6 +11,7 @@ const svc = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), update: vi.fn(),
 vi.mock('@/features/assistant/services/assistantProviderService', () => ({ assistantProviderService: svc }))
 
 import Page from '@/pages/assistant/index.vue'
+import ProviderFormDialog from '@/features/assistant/components/ProviderFormDialog.vue'
 
 const provider = (slug: string, extra = {}) => ({
   id: slug, name: slug.toUpperCase(), slug, baseUrl: `https://api.${slug}.com/v1`, model: 'm', apiKeyLast4: '1234',
@@ -128,5 +129,61 @@ describe('/assistant', () => {
     await confirm.trigger('click')
     await flushPromises()
     expect(w.find('[data-test="assistant-action-error"]').exists()).toBe(true)
+  })
+
+  it('ajout enregistré : la nouvelle ligne apparaît et la fenêtre se ferme', async () => {
+    svc.list.mockResolvedValue([provider('a')])
+    const w = await mountPage()
+    await w.find('[data-test="assistant-add"]').trigger('click')
+    w.findComponent(ProviderFormDialog).vm.$emit('saved', provider('nouveau'))
+    await flushPromises()
+    expect(w.find('[data-test="provider-row-nouveau"]').exists()).toBe(true)
+    expect(w.find('[data-test="provider-row-a"]').exists()).toBe(true)
+    expect(w.find('[data-test="provider-dialog"]').exists()).toBe(false)
+  })
+
+  it('modification enregistrée : la ligne existante est mise à jour', async () => {
+    svc.list.mockResolvedValue([provider('a'), provider('b')])
+    const w = await mountPage()
+    await w.find('[data-test="provider-edit-a"]').trigger('click')
+    w.findComponent(ProviderFormDialog).vm.$emit('saved', provider('a', { name: 'Renommé' }))
+    await flushPromises()
+    expect(w.findAll('tbody tr')).toHaveLength(2)
+    expect(w.find('[data-test="provider-row-a"]').text()).toContain('Renommé')
+    expect(w.find('[data-test="provider-dialog"]').exists()).toBe(false)
+  })
+
+  it('interrupteur : met le fournisseur en pause', async () => {
+    svc.list.mockResolvedValue([provider('a')])
+    svc.update.mockResolvedValue(provider('a', { enabled: false }))
+    const w = await mountPage()
+    await w.find('[data-test="provider-toggle-a"]').trigger('click')
+    await flushPromises()
+    expect(svc.update).toHaveBeenCalledWith('a', expect.objectContaining({ enabled: false }))
+    expect(w.find('[data-test="provider-row-a"]').text()).toContain('En pause')
+  })
+
+  it('Tester : affiche le résultat dans la ligne', async () => {
+    svc.list.mockResolvedValue([provider('a')])
+    svc.test.mockResolvedValue({ ok: true, status: 200, latencyMs: 820, sample: 'ok', error: null })
+    const w = await mountPage()
+    await w.find('[data-test="provider-test-a"]').trigger('click')
+    await flushPromises()
+    expect(svc.test).toHaveBeenCalledWith('a')
+    expect(w.find('[data-test="provider-test-result-a"]').text()).toContain('OK en 820 ms')
+  })
+
+  it('double clic sur Supprimer : une seule requête', async () => {
+    svc.list.mockResolvedValue([provider('a')])
+    let resolve: () => void = () => {}
+    svc.remove.mockReturnValue(new Promise<void>((r) => { resolve = r }))
+    const w = await mountPage()
+    await w.find('[data-test="provider-delete-a"]').trigger('click')
+    const confirm = w.findAll('button').filter((b) => b.text() === 'Supprimer').at(-1)!
+    await confirm.trigger('click')
+    await confirm.trigger('click')
+    expect(svc.remove).toHaveBeenCalledTimes(1)
+    resolve()
+    await flushPromises()
   })
 })

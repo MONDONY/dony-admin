@@ -33,6 +33,34 @@ describe('assistantProviderService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/assistant/providers/p1', { method: 'PATCH', body: rest })
   })
 
+  it('create envoie la clé rognée', async () => {
+    apiMock.mockResolvedValue({ id: 'p1' })
+    await assistantProviderService.create({ ...payload, apiKey: '  gsk_x \n' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/assistant/providers', { method: 'POST', body: payload })
+  })
+
+  it('create omet une clé blanche', async () => {
+    apiMock.mockResolvedValue({ id: 'p1' })
+    await assistantProviderService.create({ ...payload, apiKey: '   ' })
+    const { apiKey, ...rest } = payload
+    void apiKey
+    expect(apiMock).toHaveBeenCalledWith('/admin/assistant/providers', { method: 'POST', body: rest })
+  })
+
+  it('update envoie la clé rognée', async () => {
+    apiMock.mockResolvedValue({ id: 'p1' })
+    await assistantProviderService.update('p1', { ...payload, apiKey: '  gsk_x  ' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/assistant/providers/p1', { method: 'PATCH', body: payload })
+  })
+
+  it.each([['blanche', '   '], ['absente', undefined]])('update omet une clé %s', async (_l, apiKey) => {
+    apiMock.mockResolvedValue({ id: 'p1' })
+    await assistantProviderService.update('p1', { ...payload, apiKey })
+    const { apiKey: _k, ...rest } = payload
+    void _k
+    expect(apiMock).toHaveBeenCalledWith('/admin/assistant/providers/p1', { method: 'PATCH', body: rest })
+  })
+
   it('reorder PUTe la liste des ids', async () => {
     apiMock.mockResolvedValue([])
     await assistantProviderService.reorder(['b', 'a'])
