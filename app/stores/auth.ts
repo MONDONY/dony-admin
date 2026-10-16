@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (37 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (38 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -41,6 +41,7 @@ export type AdminPermission =
   | 'WALLET_ADJUST'
   | 'KYC_DECIDE'
   | 'TOPUP_CODE_MANAGE'
+  | 'ASSISTANT_MANAGE'
 
 export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'ADMIN_MANAGE',
@@ -90,6 +91,8 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'KYC_DECIDE',
   // Codes de recharge du solde : créer de l'argent (crédit non remboursable). Ni au rôle SUPPORT.
   'TOPUP_CODE_MANAGE',
+  // Assistant IA : clés d'API des fournisseurs. Jamais au rôle SUPPORT (une clé est un secret).
+  'ASSISTANT_MANAGE',
 ]
 
 /**
