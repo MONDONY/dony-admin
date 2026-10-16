@@ -34,6 +34,7 @@ const FORBIDDEN_TO_SUPPORT = [
   ['Paramètres', 'CONFIG_MANAGE'],
   ['Demandes RGPD', 'USER_GDPR_DELETE'],
   ['Administrateurs', 'ADMIN_MANAGE'],
+  ['Assistant IA', 'ASSISTANT_MANAGE'],
 ] as const
 
 describe('AppSidebar — entrées interdites au rôle SUPPORT', () => {

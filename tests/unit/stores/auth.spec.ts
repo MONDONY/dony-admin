@@ -144,8 +144,15 @@ describe('useAuthStore (admin)', () => {
   // 35 avec WALLET_ADJUST (correction manuelle de solde, PR dony-back feature/admin-wallet-ajustement).
   // 36 avec KYC_DECIDE (décisions manuelles KYC, PR dony-back feature/admin-kyc-file-decisions).
   // 37 avec TOPUP_CODE_MANAGE (codes de recharge du solde, PR yadony-back feature/codes-recharge-solde).
-  it('exposes 37 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(37)
+  // 38 avec ASSISTANT_MANAGE (clés d'API des fournisseurs de l'assistant IA, yadony-back #547).
+  it('exposes 38 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(38)
+  })
+
+  it('ASSISTANT_MANAGE : ADMIN et SUPER_ADMIN, pas SUPPORT (une clé d\'API est un secret)', () => {
+    expect(effectivePermissions('ADMIN', {}).has('ASSISTANT_MANAGE')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('ASSISTANT_MANAGE')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('ASSISTANT_MANAGE')).toBe(false)
   })
 
   it('KYC_DECIDE : ADMIN et SUPER_ADMIN, pas SUPPORT (qui garde USER_KYC)', () => {
