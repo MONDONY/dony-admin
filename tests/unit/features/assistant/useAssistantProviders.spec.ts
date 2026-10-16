@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const svc = vi.hoisted(() => ({
@@ -208,13 +209,13 @@ describe('useAssistantProviders, chemins d’erreur', () => {
     svc.remove.mockResolvedValue(undefined)
     const s = useAssistantProviders()
     await s.fetch()
-    const done = s.remove('a')
-    await Promise.resolve()
-    await Promise.resolve()
+    // remove rend la main sans attendre le rechargement, encore en attente ici.
+    await s.remove('a')
+    expect(svc.list).toHaveBeenCalledTimes(2)
     expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
     expect(s.isLoading.value).toBe(false)
     rejectList(httpError(500))
-    await done
+    await flushPromises()
     expect(s.providers.value.map((x) => x.id)).toEqual(['b'])
     expect(s.error.value).toBeNull()
   })

@@ -132,9 +132,10 @@ export function useAssistantProviders() {
       return
     }
     // La ligne part tout de suite ; le rechargement qui suit remet les priorités à jour sans masquer le tableau.
+    // Il n'est pas attendu : la confirmation se ferme dès que le serveur a supprimé.
     providers.value = providers.value.filter((p) => p.id !== id)
     discardTestResult(id)
-    await refresh()
+    void refresh()
   }
 
   return { providers, isLoading, error, unavailable, actionError, testResults, testingIds, isMoving, hasActive, fetch, move, toggle, runTest, discardTestResult, remove, replace }

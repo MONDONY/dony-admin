@@ -38,6 +38,8 @@ describe('matchPages', () => {
     const sidebar = readFileSync(resolve(process.cwd(), 'app/components/layout/AppSidebar.vue'), 'utf8')
     const entries = [...sidebar.matchAll(/<NavItem v-if="can\('(\w+)'\)"\s+to="([^"]+)"/g)].map(m => ({ permission: m[1], path: m[2] }))
     expect(entries.length).toBeGreaterThan(15)
+    // Une entrée écrite autrement (:to, autre ordre, permission composée) échapperait à la regex : on le voit ici.
+    expect(entries.length).toBe((sidebar.match(/<NavItem /g) ?? []).length)
     for (const e of entries) {
       const found = SEARCH_PAGES.some((p) => {
         const path = typeof p.to === 'string' ? p.to : (p.to as { path?: string }).path

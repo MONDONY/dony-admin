@@ -231,6 +231,8 @@ describe('/assistant', () => {
     await w.findAll('button').filter((b) => b.text() === 'Supprimer').at(-1)!.trigger('click')
     await flushPromises()
     expect(w.text()).not.toContain('Chargement')
+    // La confirmation se ferme sans attendre le rechargement, encore en attente.
+    expect(w.text()).not.toContain('Supprimer le fournisseur')
     expect(w.find('[data-test="provider-row-a"]').exists()).toBe(false)
     expect(w.find('[data-test="provider-row-b"]').exists()).toBe(true)
     resolveList([provider('b')])
