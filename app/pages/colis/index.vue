@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import BidsTable from '@/features/bids/components/BidsTable.vue'
 import BidFilters from '@/features/bids/components/BidFilters.vue'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
@@ -169,6 +169,27 @@ onMounted(async () => {
     loadBidsOnce(),
     openParam ? detail.open(openParam) : Promise.resolve(),
   ])
+})
+
+// Page déjà ouverte : la recherche globale (barre du haut) ne change que la query. On n'agit
+// que si la cible diffère de ce qui est affiché : syncQuery réécrit la même query sans boucler.
+watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as const, async ([t, o, a]) => {
+  const wanted: Tab = typeof t === 'string' && (TABS as readonly string[]).includes(t) ? t as Tab : 'bids'
+  const openId = uuidParam(o)
+  if (wanted === 'announcements') {
+    const focused = uuidParam(a)
+    if (focused && focused !== annFocusId.value) await showAnnouncement(focused)
+    return
+  }
+  if (wanted === 'demandes') {
+    if (!canSeeRequests.value || !openId || openId === prDetail.openId.value) return
+    if (tab.value !== 'demandes') await switchTab('demandes')
+    await openRequest(openId)
+    return
+  }
+  if (!openId || openId === detail.openId.value) return
+  if (tab.value !== 'bids') await switchTab('bids')
+  await openBid(openId)
 })
 </script>
 

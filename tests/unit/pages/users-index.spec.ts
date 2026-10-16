@@ -254,4 +254,25 @@ describe('users/index.vue — mode recette en masse', () => {
     const w = await mountUsersPage()
     expect(w.findComponent({ name: 'UserTable' }).props('selectable')).toBe(false)
   })
+
+  it('recherche globale : un ?open arrivé après le montage ouvre la fiche, sans rouvrir la même', async () => {
+    const { reactive } = await import('vue')
+    const route = reactive({ meta: { middleware: 'admin-only', permission: 'USER_VIEW' }, query: {} as Record<string, string> })
+    vi.stubGlobal('useRoute', () => route)
+    const mod = await import('@/pages/users/index.vue')
+    mount(mod.default, { global: { stubs: { NuxtLink: NuxtLinkStub, UserFilters: true, UserTable: true, UserDetailPanel: true, UserDeletionDialog: true, PaginationControls: true } } })
+    await flushPromises()
+    detailOpenMock.mockClear()
+    listMock.mockClear()
+    const id = 'f0f0f0f0-0000-4000-8000-000000000001'
+    route.query = { query: id, open: id }
+    await flushPromises()
+    expect(listMock.mock.calls.at(-1)?.[0].query).toBe(id)
+    expect(detailOpenMock).toHaveBeenCalledWith(id)
+    userRef.value = { id }
+    detailOpenMock.mockClear()
+    route.query = { query: id, open: id, x: '1' }
+    await flushPromises()
+    expect(detailOpenMock).not.toHaveBeenCalled()
+  })
 })
