@@ -49,6 +49,16 @@ const purge: PlatformSetting = {
   updatedAt: null, updatedByEmail: null,
 }
 
+// Quotas de l'assistant IA, par utilisateur et par jour : aide, et remplissage trajet/colis.
+const assistantQuota: PlatformSetting = {
+  key: 'assistant_daily_quota', value: '20', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+const formDraftQuota: PlatformSetting = {
+  key: 'assistant_form_draft_daily_quota', value: '30', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+
 function mountForm(props: Partial<InstanceType<typeof SettingsForm>['$props']> = {}) {
   return mount(SettingsForm, {
     props: { settings: [commission, urgency, cap, sms, pro], busy: false, ...props },
@@ -392,5 +402,35 @@ describe('SettingsForm', () => {
     expect((w.find('[data-test="setting-value-sms_enabled"]').element as HTMLSelectElement).disabled).toBe(true)
     expect((w.find('[data-test="setting-save-commission_rate"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((w.find('[data-test="setting-save-sms_enabled"]').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('affiche les quotas de l’assistant avec un libellé lisible, leur unité et leurs bornes', () => {
+    const w = mountForm({ settings: [assistantQuota, formDraftQuota] })
+    expect(w.text()).toContain('Questions à l’assistant d’aide par utilisateur et par jour')
+    expect(w.text()).toContain('Tours de remplissage par l’IA (trajet et colis) par utilisateur et par jour')
+    expect(w.find('[data-test="setting-unit-assistant_daily_quota"]').text()).toBe('questions')
+    expect(w.find('[data-test="setting-unit-assistant_form_draft_daily_quota"]').text()).toBe('tours')
+    expect(w.find('[data-test="setting-hint-assistant_daily_quota"]').text()).toBe('Entre 1 et 1000')
+    expect(w.find('[data-test="setting-hint-assistant_form_draft_daily_quota"]').text()).toBe('Entre 1 et 1000')
+  })
+
+  it.each([
+    ['assistant_daily_quota', '0'], ['assistant_daily_quota', '1001'], ['assistant_daily_quota', '2.5'],
+    ['assistant_form_draft_daily_quota', '0'], ['assistant_form_draft_daily_quota', '1001'],
+    ['assistant_form_draft_daily_quota', ''],
+  ])('refuse le quota %s = "%s" hors bornes, sans appel réseau', async (key, value) => {
+    const w = mountForm({ settings: [assistantQuota, formDraftQuota] })
+    await w.find(`[data-test="setting-value-${key}"]`).setValue(value)
+    expect(w.find(`[data-test="setting-error-${key}"]`).exists()).toBe(true)
+    await w.find(`[data-test="setting-save-${key}"]`).trigger('click')
+    expect(w.emitted('update')).toBeUndefined()
+  })
+
+  it('accepte les bornes incluses des quotas de l’assistant', async () => {
+    const w = mountForm({ settings: [assistantQuota, formDraftQuota] })
+    await w.find('[data-test="setting-value-assistant_daily_quota"]').setValue('1')
+    expect(w.find('[data-test="setting-error-assistant_daily_quota"]').exists()).toBe(false)
+    await w.find('[data-test="setting-value-assistant_form_draft_daily_quota"]').setValue('1000')
+    expect(w.find('[data-test="setting-error-assistant_form_draft_daily_quota"]').exists()).toBe(false)
   })
 })

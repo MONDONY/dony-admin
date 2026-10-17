@@ -27,6 +27,11 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   tracking_photos_max_per_bid: { label: 'Photos de suivi par colis (sur 24 h)', unit: 'photos' },
   photo_purge_enabled: { label: 'Suppression des photos activée (sinon à blanc)', unit: '' },
   flights_enabled: { label: 'Billets d’avion (onglet Billets visible dans l’application)', unit: '' },
+  assistant_daily_quota: { label: 'Questions à l’assistant d’aide par utilisateur et par jour', unit: 'questions' },
+  assistant_form_draft_daily_quota: {
+    label: 'Tours de remplissage par l’IA (trajet et colis) par utilisateur et par jour',
+    unit: 'tours',
+  },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
@@ -66,11 +71,13 @@ const SMS_DISABLE_PHRASE = 'DESACTIVER SMS'
 // Même mécanisme pour l'activation de la purge des photos : elle supprime définitivement des fichiers.
 const PURGE_ENABLE_PHRASE = 'ACTIVER PURGE'
 
-/** Bornes entières des réglages photos [min, max], alignées sur le backend (qui reste l'autorité). */
+/** Bornes entières [min, max] des réglages photos et des quotas de l'assistant, alignées sur le backend (qui reste l'autorité). */
 const INT_BOUNDS: Record<string, [number, number]> = {
   photo_retention_days_after_delivery: [1, 365],
   photo_upload_daily_quota: [5, 1000],
   tracking_photos_max_per_bid: [1, 20],
+  assistant_daily_quota: [1, 1000],
+  assistant_form_draft_daily_quota: [1, 1000],
 }
 function hintFor(key: string): string | null {
   const b = INT_BOUNDS[key]
