@@ -28,7 +28,7 @@ const kycVerified = computed(() => props.kycStatus === 'VERIFIED')
 const active = computed(() => props.status === 'ACTIVE')
 const grantBlocked = computed(() => {
   if (!kycVerified.value) return 'Identité non vérifiée : GP Pro ne peut pas être accordé.'
-  if (!active.value) return 'Compte suspendu, banni ou en cours de suppression : GP Pro ne peut pas être accordé.'
+  if (!active.value) return 'Compte inactif (hors service ou en cours de suppression) : GP Pro ne peut pas être accordé.'
   return null
 })
 

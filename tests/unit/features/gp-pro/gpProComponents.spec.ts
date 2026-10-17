@@ -263,7 +263,7 @@ describe('UserGpProSection', () => {
     const noKyc = mountSection({ kycStatus: 'PENDING' })
     expect(noKyc.get('[data-test="action-grant-gp-pro"]').attributes('disabled')).toBeDefined()
     expect(noKyc.get('[data-test="gp-pro-grant-blocked"]').text()).toContain('Identité non vérifiée')
-    expect(mountSection({ status: 'BANNED' }).get('[data-test="gp-pro-grant-blocked"]').text()).toContain('suspendu, banni')
+    expect(mountSection({ status: 'BANNED' }).get('[data-test="gp-pro-grant-blocked"]').text()).toContain('Compte inactif')
   })
 
   it('retirer avec motif ; badge actif affiché avec sa date', async () => {
