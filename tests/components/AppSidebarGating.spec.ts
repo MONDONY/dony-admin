@@ -35,6 +35,7 @@ const FORBIDDEN_TO_SUPPORT = [
   ['Demandes RGPD', 'USER_GDPR_DELETE'],
   ['Administrateurs', 'ADMIN_MANAGE'],
   ['Assistant IA', 'ASSISTANT_MANAGE'],
+  ['GP Pro', 'GP_PRO_REVIEW'],
 ] as const
 
 describe('AppSidebar — entrées interdites au rôle SUPPORT', () => {

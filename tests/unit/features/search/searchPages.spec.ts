@@ -34,6 +34,11 @@ describe('matchPages', () => {
     expect(matchPages('assistant', only('ASSISTANT_MANAGE')).map(p => p.key)).toEqual(['assistant'])
   })
 
+  it('trouve GP Pro et ses titulaires à revoir, seulement avec GP_PRO_REVIEW', () => {
+    expect(matchPages('gp pro', all).map(p => p.key)).toEqual(expect.arrayContaining(['gp-pro', 'gp-pro-review']))
+    expect(matchPages('gp', only('USER_VIEW')).map(p => p.key)).not.toContain('gp-pro')
+  })
+
   it('chaque entrée du menu latéral a sa page de recherche, avec la même permission', () => {
     const sidebar = readFileSync(resolve(process.cwd(), 'app/components/layout/AppSidebar.vue'), 'utf8')
     const entries = [...sidebar.matchAll(/<NavItem v-if="can\('(\w+)'\)"\s+to="([^"]+)"/g)].map(m => ({ permission: m[1], path: m[2] }))

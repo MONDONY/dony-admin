@@ -14,12 +14,25 @@ const baseUser = {
   city: 'Paris', country: 'FR', status: 'ACTIVE', kycStatus: 'VERIFIED', isProAccount: false,
   averageRating: 4.5, totalTrips: 2, totalShipments: 3, createdAt: '2026-01-01',
   roles: ['SENDER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null,
-  publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 1, refusedCount: 0,
+  publishingSuspended: false, gpPro: false, cancellationCount: 0, noShowCount: 1, refusedCount: 0,
   senderHandoverIncidentCount: 0, ratingCount: 10, deletionRequestedAt: null, messagingMutedUntil: null,
 }
 
 describe('UserDetailPanel', () => {
   beforeEach(() => seedAuth('ADMIN'))
+  it('GP Pro : section montée avec GP_PRO_REVIEW et un back qui expose gpPro ; changed relayé', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const section = w.findComponent({ name: 'UserGpProSection' })
+    expect(section.exists()).toBe(true)
+    section.vm.$emit('changed')
+    expect(w.emitted('gpProChanged')).toHaveLength(1)
+  })
+  it('GP Pro : section absente sur un ancien back (gpPro absent) ou sans la permission', () => {
+    const { gpPro: _gpPro, ...legacy } = baseUser
+    expect(mount(UserDetailPanel, { props: { user: legacy, open: true } }).find('[data-test="gp-pro-section"]').exists()).toBe(false)
+    seedAuth('SUPPORT')
+    expect(mount(UserDetailPanel, { props: { user: baseUser, open: true } }).find('[data-test="gp-pro-section"]').exists()).toBe(false)
+  })
   it('renders user profile and counters', () => {
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.text()).toContain('Jean Dupont')

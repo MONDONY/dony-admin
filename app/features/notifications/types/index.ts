@@ -38,6 +38,8 @@ export interface NotificationFeed {
 
 export const COUNTER_KEYS = [
   'reports', 'support', 'incidents', 'kyc', 'heldPayouts', 'walletRefunds', 'gdpr', 'alerts',
+  // Badge GP Pro (yadony-back #560) : demandes à examiner, titulaires à revoir.
+  'gpPro', 'gpProReview',
 ] as const
 export type CounterKey = (typeof COUNTER_KEYS)[number]
 export type NotificationCounts = Partial<Record<CounterKey, number>>

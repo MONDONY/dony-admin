@@ -145,8 +145,15 @@ describe('useAuthStore (admin)', () => {
   // 36 avec KYC_DECIDE (décisions manuelles KYC, PR dony-back feature/admin-kyc-file-decisions).
   // 37 avec TOPUP_CODE_MANAGE (codes de recharge du solde, PR yadony-back feature/codes-recharge-solde).
   // 38 avec ASSISTANT_MANAGE (clés d'API des fournisseurs de l'assistant IA, yadony-back #547).
-  it('exposes 38 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(38)
+  // 39 avec GP_PRO_REVIEW (demandes et retrait du badge GP Pro, yadony-back #560).
+  it('exposes 39 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(39)
+  })
+
+  it('GP_PRO_REVIEW : ADMIN et SUPER_ADMIN, pas SUPPORT (le badge est un signal de confiance)', () => {
+    expect(effectivePermissions('ADMIN', {}).has('GP_PRO_REVIEW')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('GP_PRO_REVIEW')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('GP_PRO_REVIEW')).toBe(false)
   })
 
   it('ASSISTANT_MANAGE : ADMIN et SUPER_ADMIN, pas SUPPORT (une clé d\'API est un secret)', () => {

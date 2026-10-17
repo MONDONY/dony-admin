@@ -170,7 +170,7 @@ const userDetail = {
   id: USER_ID, firstName: 'Awa', lastName: 'Diop', email: 'awa@x.fr', phoneNumber: '+221770000000',
   city: 'Dakar', country: 'SN', status: 'PENDING_DELETION', kycStatus: 'VERIFIED', isProAccount: false,
   averageRating: 4.5, totalTrips: 3, totalShipments: 2, createdAt: '2026-01-01T00:00:00Z',
-  roles: ['SENDER'], commissionRateOverride: null, publishingSuspended: false, kiloPro: false,
+  roles: ['SENDER'], commissionRateOverride: null, publishingSuspended: false, gpPro: false,
   cancellationCount: 0, noShowCount: 0, refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 2,
   deletionRequestedAt: '2026-09-01T10:00:00Z', deletionScheduledFor: '2026-10-01T10:00:00Z', messagingMutedUntil: null,
 }

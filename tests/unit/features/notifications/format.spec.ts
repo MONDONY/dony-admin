@@ -103,6 +103,11 @@ describe('navBadges', () => {
     expect(navBadges({ walletRefunds: 2 })['/transactions']).toEqual({ count: 2, label: '2', tone: 'neutral' })
     expect(navBadges({ heldPayouts: 0, walletRefunds: 0 })['/transactions']).toBeUndefined()
   })
+  it('GP Pro additionne demandes à examiner et titulaires à revoir, sans rouge', () => {
+    expect(navBadges({ gpPro: 2, gpProReview: 1 })['/gp-pro']).toEqual({ count: 3, label: '3', tone: 'neutral' })
+    expect(navBadges({ gpProReview: 4 })['/gp-pro']?.label).toBe('4')
+    expect(navBadges({ gpPro: 0, gpProReview: 0 })['/gp-pro']).toBeUndefined()
+  })
   it('clé absente = pas de badge', () => {
     expect(navBadges({})).toEqual({})
   })

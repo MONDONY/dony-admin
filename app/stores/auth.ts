@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (38 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (39 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -32,6 +32,7 @@ export type AdminPermission =
   | 'RATING_MODERATE'
   | 'RATING_DELETE'
   | 'PROMO_MANAGE'
+  | 'GP_PRO_REVIEW'
   | 'AUDIT_VIEW'
   | 'EXPORT_RUN'
   | 'NOTIFICATION_SEND'
@@ -74,6 +75,9 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'RATING_MODERATE',
   'RATING_DELETE',
   'PROMO_MANAGE',
+  // Examiner les demandes GP Pro, accorder et retirer le badge : un signal de confiance
+  // montré aux expéditeurs, jamais accordé au rôle SUPPORT (yadony-back #560).
+  'GP_PRO_REVIEW',
   'AUDIT_VIEW',
   'EXPORT_RUN',
   // Lot D — ni l'une ni l'autre n'appartient au rôle SUPPORT.

@@ -53,7 +53,9 @@ export interface AdminUserDetail extends AdminUserListItem {
   stripeAccountStatus: string | null
   commissionRateOverride: number | null
   publishingSuspended: boolean
-  kiloPro: boolean
+  /** Badge GP Pro attribué par l'admin ; absent d'un back antérieur à yadony-back #560. */
+  gpPro?: boolean
+  gpProGrantedAt?: string | null
   cancellationCount: number
   noShowCount: number
   refusedCount: number

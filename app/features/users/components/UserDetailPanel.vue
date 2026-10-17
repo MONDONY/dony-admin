@@ -9,6 +9,7 @@ import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
 import StartSupportConversationDialog from '@/features/support/components/StartSupportConversationDialog.vue'
 import UserSupportConversations from '@/features/support/components/UserSupportConversations.vue'
 import UserRecetteTesterSection from './UserRecetteTesterSection.vue'
+import UserGpProSection from '@/features/gp-pro/components/UserGpProSection.vue'
 import { userDisplayName } from '@/features/broadcast/composables/useUserSearch'
 import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -27,7 +28,7 @@ const emit = defineEmits<{
   suspendPublishing: [reason: string]; liftPublishing: []; setCommission: [rate: number | null];
   muteMessaging: [durationHours: number | null, reason: string]; unmuteMessaging: [];
   openKyc: []; resetKyc: [reason: string]; kycDecided: [kyc: AdminKycDetail]; kycStale: []; requestDelete: [];
-  grantPro: [reason: string]; revokePro: []; cancelDeletion: [reason: string];
+  grantPro: [reason: string]; revokePro: []; cancelDeletion: [reason: string]; gpProChanged: [];
 }>()
 const auth = useAuthStore()
 // Le rail de versement mobile money manquait à la fiche : seul Stripe y figurait, alors qu'un
@@ -537,6 +538,14 @@ const dialogConfig = computed<DialogConfig>(() => {
           </p>
         </div>
       </div>
+      <!-- Badge GP Pro (yadony-back #560) : absent d'un back qui n'expose pas encore `gpPro`. -->
+      <UserGpProSection
+        v-if="auth.can('GP_PRO_REVIEW') && user.gpPro !== undefined"
+        :key="`gp-pro-${user.id}`"
+        :user-id="user.id" :user-name="fullName()" :gp-pro="user.gpPro" :gp-pro-granted-at="user.gpProGrantedAt ?? null"
+        :kyc-status="user.kycStatus" :status="user.status"
+        @changed="emit('gpProChanged')"
+      />
       <!-- Mode recette (yadony-back#449) : super-admin seulement, le back l'exige aussi. -->
       <UserRecetteTesterSection v-if="auth.can('ADMIN_MANAGE')" :key="user.id" :user-id="user.id" />
       <!-- Séparé des actions réversibles au-dessus : bannir et supprimer ne doivent ni se

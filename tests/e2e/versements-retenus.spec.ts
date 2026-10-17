@@ -171,7 +171,7 @@ test('fiche utilisateur : bandeau des versements bloqués et lien vers Transacti
   const user = {
     id: 'u7', firstName: 'Moussa', lastName: 'Traoré', phoneNumber: '+33677777777', email: 'm@x.fr', city: 'Paris', country: 'FR',
     status: 'BANNED', kycStatus: 'VERIFIED', isProAccount: false, averageRating: null, totalTrips: 4, totalShipments: 0, createdAt: '2026-01-01',
-    roles: ['TRAVELER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null, publishingSuspended: false, kiloPro: false,
+    roles: ['TRAVELER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null, publishingSuspended: false, gpPro: false,
     cancellationCount: 0, noShowCount: 0, refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 0, deletionRequestedAt: null,
     messagingMutedUntil: null, payoutsHeldSince: '2026-09-20T10:00:00Z', payoutsHeldReason: 'BANNED', payoutsHeldReasons: ['BANNED', 'KYC_REVOKED'], heldPaymentsCount: 2,
   }

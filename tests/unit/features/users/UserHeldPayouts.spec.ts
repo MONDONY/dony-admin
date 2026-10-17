@@ -17,7 +17,7 @@ const baseUser = {
   city: 'Paris', country: 'FR', status: 'ACTIVE', kycStatus: 'VERIFIED', isProAccount: false,
   averageRating: 4.5, totalTrips: 2, totalShipments: 3, createdAt: '2026-01-01',
   roles: ['TRAVELER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null,
-  publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0,
+  publishingSuspended: false, gpPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0,
   senderHandoverIncidentCount: 0, ratingCount: 0, deletionRequestedAt: null, messagingMutedUntil: null,
   proSubscription: null,
 }
