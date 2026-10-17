@@ -156,6 +156,7 @@ watch(() => route.query?.open, async (openId) => {
       @kyc-stale="() => { if (detail.user.value) kyc.refresh(detail.user.value.id) }"
       @grant-pro="async (reason) => { await detail.grantPro(reason); await afterAction() }"
       @revoke-pro="async () => { await detail.revokePro(); await afterAction() }"
+      @gp-pro-changed="async () => { if (!detail.user.value) return; await detail.open(detail.user.value.id); await afterAction() }"
       @request-delete="openDeletion"
     />
 

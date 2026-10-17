@@ -48,7 +48,7 @@ const DETAIL_U1 = {
   stripeAccountStatus: 'ONBOARDING_COMPLETE',
   commissionRateOverride: null,
   publishingSuspended: false,
-  kiloPro: false,
+  gpPro: false,
   cancellationCount: 0,
   noShowCount: 1,
   refusedCount: 0,

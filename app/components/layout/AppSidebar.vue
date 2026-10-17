@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
   Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone, Settings,
-  LifeBuoy, IdCard, Coins, Sparkles,
+  LifeBuoy, IdCard, Coins, Sparkles, BadgeCheck,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -132,6 +132,7 @@ onBeforeUnmount(() => {
       <NavItem v-if="can('METRICS_VIEW')" to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_VIEW')" to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_KYC')" to="/kyc" v-bind="badgeProps('/kyc')" label="Vérifications d’identité"><template #icon><IdCard class="w-4 h-4" /></template></NavItem>
+      <NavItem v-if="can('GP_PRO_REVIEW')" to="/gp-pro" v-bind="badgeProps('/gp-pro')" label="GP Pro"><template #icon><BadgeCheck class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('USER_GDPR_DELETE')" to="/users/rgpd" v-bind="badgeProps('/users/rgpd')" label="Demandes RGPD"><template #icon><UserX class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" v-bind="badgeProps('/transactions')" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
       <NavItem v-if="can('BID_VIEW')" to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>

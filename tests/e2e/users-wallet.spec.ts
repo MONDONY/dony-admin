@@ -10,7 +10,7 @@ const USER = {
 const LIST_PAGE = { content: [USER], totalElements: 1, totalPages: 1, number: 0, size: 20 }
 const DETAIL = {
   ...USER, email: 'jean@x.fr', roles: ['SENDER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null,
-  publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 1, refusedCount: 0,
+  publishingSuspended: false, gpPro: false, cancellationCount: 0, noShowCount: 1, refusedCount: 0,
   senderHandoverIncidentCount: 0, ratingCount: 10, deletionRequestedAt: null, messagingMutedUntil: null,
 }
 const ACCOUNT_EUR = { currency: 'EUR', balance: 12.5, refundEligibleAmount: 10, frozen: false }

@@ -17,7 +17,7 @@ const pendingUser = {
   city: 'Paris', country: 'FR', status: 'PENDING_DELETION', kycStatus: 'VERIFIED', isProAccount: false,
   averageRating: 4.5, totalTrips: 2, totalShipments: 3, createdAt: '2026-01-01',
   roles: ['SENDER'], stripeAccountStatus: null, commissionRateOverride: null,
-  publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0,
+  publishingSuspended: false, gpPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0,
   senderHandoverIncidentCount: 0, ratingCount: 0, deletionRequestedAt: '2026-09-01T10:00:00Z',
   deletionScheduledFor: '2026-10-01T10:00:00Z', messagingMutedUntil: null,
 }

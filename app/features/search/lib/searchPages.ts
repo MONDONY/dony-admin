@@ -18,6 +18,8 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { key: 'overview', label: 'Vue d’ensemble', keywords: 'accueil tableau de bord metriques dashboard', to: '/', permission: 'METRICS_VIEW' },
   { key: 'users', label: 'Utilisateurs', keywords: 'comptes membres clients', to: '/users', permission: 'USER_VIEW' },
   { key: 'kyc', label: 'Vérifications d’identité', keywords: 'kyc didit identite', to: '/kyc', permission: 'USER_KYC' },
+  { key: 'gp-pro', label: 'GP Pro', keywords: 'badge gp voyageur regulier demandes', to: '/gp-pro', permission: 'GP_PRO_REVIEW' },
+  { key: 'gp-pro-review', label: 'Titulaires à revoir', parent: 'GP Pro', keywords: 'alertes badge gp', to: { path: '/gp-pro', query: { tab: 'revue' } }, permission: 'GP_PRO_REVIEW' },
   { key: 'rgpd', label: 'Demandes RGPD', keywords: 'suppression compte gdpr', to: '/users/rgpd', permission: 'USER_GDPR_DELETE' },
   { key: 'payments', label: 'Paiements', parent: 'Transactions', keywords: 'transactions escrow stripe', to: '/transactions', permission: 'PAYMENT_VIEW' },
   { key: 'chargebacks', label: 'Litiges bancaires', parent: 'Transactions', keywords: 'chargeback contestation', to: { path: '/transactions', query: { tab: 'chargebacks' } }, permission: 'PAYMENT_VIEW' },

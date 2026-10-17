@@ -18,7 +18,7 @@ const userDetail = {
   status: 'ACTIVE', kycStatus: 'VERIFIED', isProAccount: false,
   averageRating: 4.5, totalTrips: 3, totalShipments: 2, createdAt: '2026-01-01T00:00:00Z',
   roles: ['SENDER'], stripeAccountStatus: null, commissionRateOverride: null,
-  publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 0,
+  publishingSuspended: false, gpPro: false, cancellationCount: 0, noShowCount: 0,
   refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 2,
   deletionRequestedAt: null, messagingMutedUntil: null,
 }

@@ -18,7 +18,7 @@ const LIST_PAGE = {
 const DETAIL_U1 = {
   ...LIST_PAGE.content[0],
   email: 'jean@x.fr', roles: ['SENDER'], stripeAccountStatus: 'ONBOARDING_COMPLETE',
-  commissionRateOverride: null, publishingSuspended: false, kiloPro: false,
+  commissionRateOverride: null, publishingSuspended: false, gpPro: false,
   cancellationCount: 0, noShowCount: 1, refusedCount: 0, senderHandoverIncidentCount: 0,
   ratingCount: 10, deletionRequestedAt: null, messagingMutedUntil: null,
 }

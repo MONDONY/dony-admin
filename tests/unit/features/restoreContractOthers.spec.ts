@@ -44,7 +44,7 @@ const pendingUser = {
   id: 'u1', firstName: 'Jean', lastName: 'Dupont', phoneNumber: '+33600', email: 'j@x.fr', city: 'Paris', country: 'FR',
   status: 'PENDING_DELETION', kycStatus: 'VERIFIED', isProAccount: false, averageRating: null, totalTrips: 0,
   totalShipments: 0, createdAt: '2026-01-01', roles: [], stripeAccountStatus: null, commissionRateOverride: null,
-  publishingSuspended: false, kiloPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0,
+  publishingSuspended: false, gpPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0,
   senderHandoverIncidentCount: 0, ratingCount: 0, deletionRequestedAt: '2026-09-01T10:00:00Z',
   deletionScheduledFor: '2026-10-01T10:00:00Z', messagingMutedUntil: null,
 }

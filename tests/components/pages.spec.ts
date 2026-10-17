@@ -33,6 +33,7 @@ describe('placeholder pages', () => {
     () => import('@/pages/audit/index.vue'),
     () => import('@/pages/colis/index.vue'),
     () => import('@/pages/exports/index.vue'),
+    () => import('@/pages/gp-pro/index.vue'),
     () => import('@/pages/incidents/index.vue'),
     () => import('@/pages/moderation/index.vue'),
     () => import('@/pages/promo/index.vue'),

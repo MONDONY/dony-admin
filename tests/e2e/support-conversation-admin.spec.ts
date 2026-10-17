@@ -13,7 +13,7 @@ const USER = {
 }
 const USER_DETAIL = {
   ...USER, roles: ['SENDER'], stripeAccountStatus: null, commissionRateOverride: null, publishingSuspended: false,
-  kiloPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 0,
+  gpPro: false, cancellationCount: 0, noShowCount: 0, refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 0,
   deletionRequestedAt: null, messagingMutedUntil: null,
 }
 const USERS_PAGE = { content: [USER], totalElements: 1, totalPages: 1, number: 0, size: 20 }

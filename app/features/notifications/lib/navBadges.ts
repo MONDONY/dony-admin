@@ -13,6 +13,7 @@ const NAV_COUNTERS: { to: string; keys: CounterKey[]; dangerKeys: CounterKey[] }
   { to: '/support', keys: ['support'], dangerKeys: [] },
   { to: '/incidents', keys: ['incidents'], dangerKeys: [] },
   { to: '/kyc', keys: ['kyc'], dangerKeys: [] },
+  { to: '/gp-pro', keys: ['gpPro', 'gpProReview'], dangerKeys: [] },
   { to: '/transactions', keys: ['heldPayouts', 'walletRefunds'], dangerKeys: ['heldPayouts'] },
   { to: '/users/rgpd', keys: ['gdpr'], dangerKeys: [] },
   { to: '/alertes', keys: ['alerts'], dangerKeys: ['alerts'] },
