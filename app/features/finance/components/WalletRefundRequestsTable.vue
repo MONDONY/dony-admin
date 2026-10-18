@@ -57,11 +57,23 @@ const STATUS_TONE: Record<string, string> = {
               <div v-if="r.parentRequestId" class="text-xs">Reprise d'un échec</div>
             </td>
             <td class="px-4 py-3 text-sm text-text-muted" :data-test="`wrr-channel-${r.id}`">{{ r.channel ? WALLET_REFUND_CHANNEL_LABELS[r.channel] : '—' }}</td>
-            <td class="px-4 py-3 text-sm tabular-nums text-right" :data-test="`wrr-amount-${r.id}`">{{ formatMajorAmount(r.amount, r.currency) }}</td>
+            <td class="px-4 py-3 text-sm tabular-nums text-right">
+              <div :data-test="`wrr-amount-${r.id}`">{{ formatMajorAmount(r.amount, r.currency) }}</div>
+              <div v-if="r.paidAmount != null" class="text-xs text-text-muted" :data-test="`wrr-paid-${r.id}`">
+                Versé : {{ formatMajorAmount(r.paidAmount, r.currency) }}
+              </div>
+              <div v-if="r.feeAmount" class="text-xs text-text-muted" :data-test="`wrr-fee-${r.id}`">
+                Frais : {{ formatMajorAmount(r.feeAmount, r.currency) }}
+              </div>
+            </td>
             <td class="px-4 py-3 text-sm">
               <span :class="['inline-block rounded-full px-2 py-0.5 text-xs font-medium', STATUS_TONE[r.status] ?? 'bg-surface-elevated text-text-muted']">
                 {{ WALLET_REFUND_STATUS_LABELS[r.status] ?? r.status }}
               </span>
+              <div
+                v-if="r.resolutionNote" class="mt-1 max-w-xs text-xs text-text-muted text-pretty break-words"
+                :data-test="`wrr-note-${r.id}`"
+              >Note : {{ r.resolutionNote }}</div>
             </td>
             <td class="px-4 py-3 text-sm text-text-muted tabular-nums">
               {{ fmt(r.requestedAt) }}

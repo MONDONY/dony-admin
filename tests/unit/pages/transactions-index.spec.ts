@@ -25,7 +25,7 @@ vi.mock('@/features/payments/services/paymentsService', () => ({
   },
 }))
 
-const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn() }))
+const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn(), resolveWalletRefundRequest: vi.fn() }))
 vi.mock('@/features/finance/services/financeService', () => ({ financeService: finance }))
 
 const replaceMock = vi.fn()
@@ -152,6 +152,36 @@ describe('pages/transactions', () => {
       await w.find('[data-test="tab-wallet-refunds"]').trigger('click')
       await flushPromises()
       expect(replaceMock).toHaveBeenLastCalledWith({ query: { held: 'true', tab: 'wallet-refunds' } })
+    })
+
+    it('Marquer remboursée ouvre la saisie du montant versé, puis envoie {paidAmount, note}', async () => {
+      const pending = { id: 'r1', userId: 'u1', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-17T10:00:00', channel: 'MANUAL_ADMIN' }
+      finance.listWalletRefundRequests.mockResolvedValue({ content: [pending], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      finance.resolveWalletRefundRequest.mockReset().mockResolvedValue({ ...pending, status: 'RESOLVED', paidAmount: 487 })
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      expect(w.find('[data-test="wrr-resolve-dialog"]').exists()).toBe(false)
+      await w.find('[data-test="wrr-resolve-r1"]').trigger('click')
+      expect(finance.resolveWalletRefundRequest).not.toHaveBeenCalled()
+      await w.find('[data-test="wrr-paid-amount"]').setValue('487')
+      await w.find('[data-test="wrr-note"]').setValue('Wave')
+      await w.find('[data-test="wrr-resolve-confirm"]').trigger('click')
+      await flushPromises()
+      expect(finance.resolveWalletRefundRequest).toHaveBeenCalledWith('r1', { paidAmount: 487, note: 'Wave' })
+      expect(w.find('[data-test="wrr-resolve-dialog"]').exists()).toBe(false)
+      expect(finance.listWalletRefundRequests).toHaveBeenCalledTimes(2)
+    })
+
+    it('un refus du back reste dans la boîte de dialogue, et Annuler la ferme', async () => {
+      const pending = { id: 'r1', userId: 'u1', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-17T10:00:00', channel: 'MANUAL_ADMIN' }
+      finance.listWalletRefundRequests.mockResolvedValue({ content: [pending], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      finance.resolveWalletRefundRequest.mockReset().mockRejectedValue({ data: { detail: 'Cette demande a déjà été traitée' } })
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      await w.find('[data-test="wrr-resolve-r1"]').trigger('click')
+      await w.find('[data-test="wrr-resolve-confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="wrr-resolve-error"]').text()).toBe('Cette demande a déjà été traitée')
+      await w.find('[data-test="wrr-resolve-cancel"]').trigger('click')
+      expect(w.find('[data-test="wrr-resolve-dialog"]').exists()).toBe(false)
     })
 
     it('revenir sur Paiements retire tab de l’URL', async () => {
