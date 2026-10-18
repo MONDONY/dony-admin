@@ -78,6 +78,13 @@ export const usersService = {
   approveKyc(id: string, reason: string): Promise<AdminKycDetail> {
     return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/approve`, { method: 'POST', body: { reason } })
   },
+  /**
+   * Validation sans pièce (SUPER_ADMIN seulement, back #578) : réservée au compte de
+   * démonstration des stores, qui ne peut présenter aucune pièce d'identité.
+   */
+  approveKycWithoutDocuments(id: string, reason: string): Promise<AdminKycDetail> {
+    return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/approve-without-documents`, { method: 'POST', body: { reason } })
+  },
   /** `code` (catalogue) est montré à l'utilisateur ; `reason` reste interne (journal d'audit). */
   rejectKyc(id: string, code: string, reason: string): Promise<AdminKycDetail> {
     return useApi()<AdminKycDetail>(`/admin/users/${id}/kyc/reject`, { method: 'POST', body: { code, reason } })

@@ -66,8 +66,10 @@ export function useKycDecision(userId: () => string | null, options: Options = {
   }
 
   const approve = (reason: string) => run((id) => usersService.approveKyc(id, reason.trim()))
+  const approveWithoutDocuments = (reason: string) =>
+    run((id) => usersService.approveKycWithoutDocuments(id, reason.trim()))
   const reject = (code: string, reason: string) => run((id) => usersService.rejectKyc(id, code, reason.trim()))
   const revoke = (code: string, reason: string) => run((id) => usersService.revokeKyc(id, code, reason.trim()))
 
-  return { busy, error, errorCode, unavailable, allowedCodes, clearError, approve, reject, revoke }
+  return { busy, error, errorCode, unavailable, allowedCodes, clearError, approve, approveWithoutDocuments, reject, revoke }
 }

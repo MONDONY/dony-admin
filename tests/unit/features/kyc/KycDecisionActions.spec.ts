@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { seedAuth } from '~/tests/helpers/auth'
 
-const svc = vi.hoisted(() => ({ approveKyc: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() }))
+const svc = vi.hoisted(() => ({ approveKyc: vi.fn(), approveKycWithoutDocuments: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() }))
 vi.mock('@/features/users/services/usersService', () => ({ usersService: svc }))
 const kycSvc = vi.hoisted(() => ({ listRejectionCodes: vi.fn(), listVerifications: vi.fn() }))
 vi.mock('@/features/kyc/services/kycService', () => ({ kycService: kycSvc }))
 import { resetKycRejectionCodesCache } from '@/features/kyc/composables/useKycRejectionCodes'
 
 import KycDecisionActions from '@/features/kyc/components/KycDecisionActions.vue'
+import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 
 const BASE = {
   userId: 'u1', kycStatus: 'PENDING', verificationStatus: 'PENDING', rejectionReason: null, rejectionCode: null,
@@ -25,7 +26,7 @@ function mountActions(kyc: Record<string, unknown> = BASE, userName: string | nu
 describe('KycDecisionActions', () => {
   beforeEach(() => {
     seedAuth('ADMIN')
-    svc.approveKyc.mockReset(); svc.rejectKyc.mockReset(); svc.revokeKyc.mockReset()
+    svc.approveKyc.mockReset(); svc.approveKycWithoutDocuments.mockReset(); svc.rejectKyc.mockReset(); svc.revokeKyc.mockReset()
     resetKycRejectionCodesCache()
     kycSvc.listRejectionCodes.mockReset()
     kycSvc.listRejectionCodes.mockResolvedValue(['document_expired', 'suspected_fraud', 'other'])
@@ -177,5 +178,67 @@ describe('KycDecisionActions', () => {
     await w.find('[data-test="reason"]').setValue('document illisible')
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('reset')![0]).toEqual(['document illisible'])
+  })
+  describe('valider sans pièce (compte de démo)', () => {
+    const DEMO = 'Compte de démonstration review App Store'
+    const dialog = (w: ReturnType<typeof mountActions>) =>
+      w.findAllComponents(ConfirmActionDialog).find((d) => d.props('title') === 'Valider sans pièce d’identité')!
+
+    it('ADMIN avec KYC_DECIDE : bouton absent', () => {
+      expect(mountActions().find('[data-test="kyc-approve-without-documents"]').exists()).toBe(false)
+    })
+
+    it('SUPER_ADMIN : bouton présent même sans session, absent si déjà vérifié', () => {
+      seedAuth('SUPER_ADMIN')
+      const w = mountActions({ ...BASE, stripeSessionId: null, kycStatus: 'NOT_STARTED' })
+      expect(w.find('[data-test="kyc-approve-without-documents"]').attributes('disabled')).toBeUndefined()
+      expect(mountActions(VERIFIED).find('[data-test="kyc-approve-without-documents"]').exists()).toBe(false)
+    })
+
+    it('SUPER_ADMIN : confirme avec ressaisie du nom, envoie le motif et émet la fiche', async () => {
+      seedAuth('SUPER_ADMIN')
+      const updated = { ...VERIFIED, decisionKind: 'APPROVED' }
+      svc.approveKycWithoutDocuments.mockResolvedValue(updated)
+      const w = mountActions()
+      await w.find('[data-test="kyc-approve-without-documents"]').trigger('click')
+      expect(dialog(w).props('open')).toBe(true)
+      expect(dialog(w).props('confirmationPhrase')).toBe('Awa Diop')
+      dialog(w).vm.$emit('confirm', DEMO)
+      await flushPromises()
+      expect(svc.approveKycWithoutDocuments).toHaveBeenCalledWith('u1', DEMO)
+      expect(w.emitted('decided')![0]).toEqual([updated])
+      expect(dialog(w).props('open')).toBe(false)
+    })
+
+    it('motif trop court : aucun appel, message affiché', async () => {
+      seedAuth('SUPER_ADMIN')
+      const w = mountActions()
+      await w.find('[data-test="kyc-approve-without-documents"]').trigger('click')
+      dialog(w).vm.$emit('confirm', 'démo')
+      await flushPromises()
+      expect(svc.approveKycWithoutDocuments).not.toHaveBeenCalled()
+      expect(w.find('[data-test="kyc-approve-without-documents-error"]').text()).toContain('10 caractères')
+    })
+
+    it('refus du back : message affiché, rien d’émis', async () => {
+      seedAuth('SUPER_ADMIN')
+      svc.approveKycWithoutDocuments.mockRejectedValue({ statusCode: 403, data: { code: 'forbidden', detail: 'Accès refusé' } })
+      const w = mountActions()
+      await w.find('[data-test="kyc-approve-without-documents"]').trigger('click')
+      dialog(w).vm.$emit('confirm', DEMO)
+      await flushPromises()
+      expect(w.find('[data-test="kyc-approve-without-documents-error"]').text()).toBe('Accès refusé')
+      expect(w.emitted('decided')).toBeUndefined()
+    })
+
+    it('annuler ferme le dialogue sans appel', async () => {
+      seedAuth('SUPER_ADMIN')
+      const w = mountActions()
+      await w.find('[data-test="kyc-approve-without-documents"]').trigger('click')
+      dialog(w).vm.$emit('cancel')
+      await flushPromises()
+      expect(dialog(w).props('open')).toBe(false)
+      expect(svc.approveKycWithoutDocuments).not.toHaveBeenCalled()
+    })
   })
 })

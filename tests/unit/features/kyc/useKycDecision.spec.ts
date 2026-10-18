@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const svc = vi.hoisted(() => ({ approveKyc: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() }))
+const svc = vi.hoisted(() => ({ approveKyc: vi.fn(), approveKycWithoutDocuments: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() }))
 vi.mock('@/features/users/services/usersService', () => ({ usersService: svc }))
 
 import { useKycDecision } from '@/features/kyc/composables/useKycDecision'
@@ -19,6 +19,14 @@ describe('useKycDecision', () => {
     expect(res).toEqual(UPDATED)
     expect(d.busy.value).toBe(false)
     expect(d.error.value).toBeNull()
+  })
+
+  it('approveWithoutDocuments() appelle l’endpoint super admin avec le motif nettoyé', async () => {
+    svc.approveKycWithoutDocuments.mockResolvedValue(UPDATED)
+    const d = useKycDecision(() => 'u1')
+    const res = await d.approveWithoutDocuments('  Compte de démonstration review  ')
+    expect(svc.approveKycWithoutDocuments).toHaveBeenCalledWith('u1', 'Compte de démonstration review')
+    expect(res).toEqual(UPDATED)
   })
 
   it('reject() et revoke() transmettent code et motif', async () => {

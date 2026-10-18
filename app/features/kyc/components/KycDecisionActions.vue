@@ -5,7 +5,7 @@ import KycDecisionDialog from './KycDecisionDialog.vue'
 import type { KycDecisionMode, KycDecisionPayload } from './KycDecisionDialog.vue'
 import { useKycDecision } from '@/features/kyc/composables/useKycDecision'
 import { toDecisionCodes, useKycRejectionCodes } from '@/features/kyc/composables/useKycRejectionCodes'
-import { KYC_DECISIONS_UNAVAILABLE } from '@/features/kyc/types/index'
+import { KYC_APPROVE_REASON_MIN, KYC_DECISIONS_UNAVAILABLE } from '@/features/kyc/types/index'
 import type { AdminKycDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 
@@ -30,6 +30,10 @@ const decision = useKycDecision(() => props.kyc.userId, { onStale: () => emit('s
 
 const canDecide = computed(() => auth.can('KYC_DECIDE') && !decision.unavailable.value)
 const isVerified = computed(() => props.kyc.kycStatus === 'VERIFIED')
+// Validation sans pièce (compte de démonstration des stores) : le back la réserve au
+// SUPER_ADMIN, KYC_DECIDE ne suffit pas.
+const canApproveWithoutDocuments = computed(() =>
+  auth.user?.role === 'SUPER_ADMIN' && canDecide.value && !isVerified.value)
 // La session se lit sur son identifiant (`stripeSessionId`, qui porte celui du fournisseur
 // courant). `providerSessionUrl` est absent tant que les modèles d'URL console ne sont pas
 // configurés côté back : il ne dit rien de l'existence d'une session.
@@ -44,6 +48,8 @@ const confirmationName = computed(() => props.userName?.trim() || props.kyc.user
 
 const mode = ref<KycDecisionMode | null>(null)
 const resetOpen = ref(false)
+const withoutDocumentsOpen = ref(false)
+const withoutDocumentsError = ref<string | null>(null)
 
 function openDialog(next: KycDecisionMode) {
   decision.clearError()
@@ -64,6 +70,23 @@ async function onSubmit(payload: KycDecisionPayload) {
   // du back, il reste ouvert pour que le message soit lu à côté de la saisie.
   if (result || decision.unavailable.value) mode.value = null
   if (result) emit('decided', result)
+}
+
+function openWithoutDocuments() {
+  decision.clearError()
+  withoutDocumentsError.value = null
+  withoutDocumentsOpen.value = true
+}
+
+async function confirmWithoutDocuments(reason: string) {
+  withoutDocumentsOpen.value = false
+  if (reason.trim().length < KYC_APPROVE_REASON_MIN) {
+    withoutDocumentsError.value = `Motif trop court : au moins ${KYC_APPROVE_REASON_MIN} caractères.`
+    return
+  }
+  const result = await decision.approveWithoutDocuments(reason)
+  if (result) emit('decided', result)
+  else withoutDocumentsError.value = decision.error.value
 }
 
 function confirmReset(reason: string) {
@@ -97,6 +120,12 @@ const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-co
         >Refuser</button>
       </template>
       <button
+        v-if="canApproveWithoutDocuments" type="button" data-test="kyc-approve-without-documents"
+        :disabled="decision.busy.value"
+        :class="[btn, 'bg-warning/20 text-warning hover:bg-warning/30']"
+        @click="openWithoutDocuments"
+      >Valider sans pièce (compte de démo)</button>
+      <button
         v-if="canDecide && isVerified" type="button" data-test="kyc-revoke" :disabled="decision.busy.value"
         :class="[btn, 'bg-danger/15 text-danger hover:bg-danger/25']"
         @click="openDialog('revoke')"
@@ -113,6 +142,11 @@ const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-co
       class="mt-2 text-xs text-text-muted text-pretty"
     >Décision impossible : aucune session chez le fournisseur, l’utilisateur n’a encore envoyé aucune pièce.</p>
 
+    <p
+      v-if="withoutDocumentsError" data-test="kyc-approve-without-documents-error"
+      class="mt-2 text-xs text-danger text-pretty"
+    >{{ withoutDocumentsError }}</p>
+
     <KycDecisionDialog
       :open="mode !== null"
       :mode="mode ?? 'approve'"
@@ -124,6 +158,16 @@ const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-co
       :error="decision.error.value"
       @submit="onSubmit"
       @cancel="closeDialog"
+    />
+    <ConfirmActionDialog
+      :open="withoutDocumentsOpen"
+      title="Valider sans pièce d’identité"
+      message="Réservé au compte de démonstration remis aux équipes de review des stores. Le compte sera considéré comme vérifié sans qu’aucune identité n’ait été contrôlée : il pourra publier, faire des offres et contacter de vrais utilisateurs. Révocable ensuite."
+      confirm-label="Valider sans pièce"
+      :require-reason="true"
+      :confirmation-phrase="confirmationName"
+      @confirm="confirmWithoutDocuments"
+      @cancel="withoutDocumentsOpen = false"
     />
     <ConfirmActionDialog
       :open="resetOpen"
