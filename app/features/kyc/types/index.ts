@@ -131,6 +131,7 @@ const HISTORY_ACTIONS: Record<string, string> = {
   // ADMIN
   KYC_RESET_BY_ADMIN: 'Vérification réinitialisée par un admin',
   KYC_VERIFIED_BY_ADMIN: 'Identité validée par un admin',
+  KYC_VERIFIED_WITHOUT_DOCUMENTS_BY_ADMIN: 'Identité validée sans pièce (compte de démo)',
   KYC_REJECTED_BY_ADMIN: 'Identité refusée par un admin',
   KYC_REVOKED_BY_ADMIN: 'Identité révoquée par un admin',
 }
