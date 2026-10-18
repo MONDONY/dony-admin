@@ -133,6 +133,21 @@ export interface AdminWalletRefundRequest {
   resolvedAt?: string | null
   userName?: string | null
   origin?: WalletRefundOrigin | null
+  /**
+   * Montant réellement versé hors plateforme à la résolution manuelle, dans `currency` (nul si
+   * l'admin ne l'a pas saisi, ou demande non résolue à la main). L'écart avec `amount` est le
+   * frais d'opérateur à la charge de l'utilisateur ; le solde, lui, est débité en entier.
+   */
+  paidAmount?: number | null
+  /** Note de l'admin à la résolution manuelle. */
+  resolutionNote?: string | null
+  /** Frais retenus par le rail (somme des items hors échec), nul sans item. */
+  feeAmount?: number | null
+}
+/** Corps facultatif de POST /admin/wallet-refund-requests/{id}/resolve (yadony-back #575). */
+export interface ResolveWalletRefundBody {
+  paidAmount: number
+  note?: string | null
 }
 export interface AdminWalletRefundRequestPage { content: AdminWalletRefundRequest[]; totalElements: number; totalPages: number; number: number; size: number }
 

@@ -41,6 +41,23 @@ describe('WalletRefundRequestsTable', () => {
     expect(w.emitted('resolve')?.[0]).toEqual(['r1'])
   })
 
+  it('affiche le montant versé, les frais et la note d’une demande résolue, rien sinon', () => {
+    const resolved: AdminWalletRefundRequest[] = [
+      {
+        id: 'x1', userId: 'u1', currency: 'XOF', amount: 500, status: 'RESOLVED', requestedAt: '2026-10-17T10:00:00',
+        channel: 'MANUAL_ADMIN', paidAmount: 487, resolutionNote: 'Versé par Wave', feeAmount: 13,
+      },
+      { id: 'x2', userId: 'u2', currency: 'EUR', amount: 12, status: 'RESOLVED', requestedAt: '2026-10-17T10:00:00', feeAmount: 0 },
+    ]
+    const w = mount(WalletRefundRequestsTable, { props: { requests: resolved, loading: false, busyId: null } })
+    expect(w.find('[data-test="wrr-paid-x1"]').text()).toBe('Versé : ' + formatMajorAmount(487, 'XOF'))
+    expect(w.find('[data-test="wrr-fee-x1"]').text()).toBe('Frais : ' + formatMajorAmount(13, 'XOF'))
+    expect(w.find('[data-test="wrr-note-x1"]').text()).toBe('Note : Versé par Wave')
+    expect(w.find('[data-test="wrr-paid-x2"]').exists()).toBe(false)
+    expect(w.find('[data-test="wrr-fee-x2"]').exists()).toBe(false)
+    expect(w.find('[data-test="wrr-note-x2"]').exists()).toBe(false)
+  })
+
   it('verrouille le bouton de la demande en cours de traitement', () => {
     const w = mount(WalletRefundRequestsTable, { props: { requests, loading: false, busyId: 'r1' } })
     const btn = w.find('[data-test="wrr-resolve-r1"]')

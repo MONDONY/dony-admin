@@ -10,6 +10,7 @@ import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
 import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
 import WalletRefundRequestsTable from '@/features/finance/components/WalletRefundRequestsTable.vue'
+import ResolveWalletRefundDialog from '@/features/finance/components/ResolveWalletRefundDialog.vue'
 import PeriodFilter from '@/features/finance/components/PeriodFilter.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePayments } from '@/features/payments/composables/usePayments'
@@ -19,7 +20,7 @@ import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback } from '@/features/payments/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, WalletRefundView } from '@/features/finance/types/index'
+import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, WalletRefundView } from '@/features/finance/types/index'
 import { WALLET_REFUND_VIEWS } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
@@ -159,14 +160,30 @@ async function setWalletRefundView(view: WalletRefundView) {
   walletRefundView.value = view
   await loadWalletRefunds(0)
 }
-async function resolveWalletRefund(id: string) {
-  walletRefundBusyId.value = id
-  tabError.value = null
+/** Ticket manuel en cours de clôture : la boîte de dialogue demande le montant réellement versé. */
+const resolvingWalletRefund = ref<AdminWalletRefundRequest | null>(null)
+const resolveWalletRefundError = ref<string | null>(null)
+function openResolveWalletRefund(id: string) {
+  resolvingWalletRefund.value = walletRefunds.value.find(r => r.id === id) ?? null
+  resolveWalletRefundError.value = null
+}
+function closeResolveWalletRefund() {
+  if (walletRefundBusyId.value) return
+  resolvingWalletRefund.value = null
+  resolveWalletRefundError.value = null
+}
+async function resolveWalletRefund(body: ResolveWalletRefundBody) {
+  const request = resolvingWalletRefund.value
+  if (!request) return
+  walletRefundBusyId.value = request.id
+  resolveWalletRefundError.value = null
   try {
-    await financeService.resolveWalletRefundRequest(id)
+    await financeService.resolveWalletRefundRequest(request.id, body)
+    resolvingWalletRefund.value = null
     await loadWalletRefunds()
   }
-  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de résoudre cette demande de remboursement') }
+  // L'erreur reste dans la boîte de dialogue : la saisie n'est pas perdue (422 du back, par exemple).
+  catch (e) { resolveWalletRefundError.value = extractProblemMessage(e, 'Impossible de résoudre cette demande de remboursement') }
   finally { walletRefundBusyId.value = null }
 }
 
@@ -340,7 +357,12 @@ watch(() => route.query?.open, (openId) => {
           @click="setWalletRefundView(v.key)"
         >{{ v.label }}</button>
       </div>
-      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" :empty-label="walletRefundEmptyLabels[walletRefundView]" @resolve="resolveWalletRefund" />
+      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" :empty-label="walletRefundEmptyLabels[walletRefundView]" @resolve="openResolveWalletRefund" />
+      <ResolveWalletRefundDialog
+        :open="resolvingWalletRefund !== null" :request="resolvingWalletRefund"
+        :busy="walletRefundBusyId !== null" :error="resolveWalletRefundError"
+        @confirm="resolveWalletRefund" @cancel="closeResolveWalletRefund"
+      />
       <div class="mt-4"><PaginationControls :page="walletRefundsPage" :total-pages="walletRefundsTotalPages" @change="loadWalletRefunds" /></div>
     </template>
   </div>

@@ -86,4 +86,11 @@ describe('financeService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests/r1/resolve', { method: 'POST' })
     expect(res.status).toBe('RESOLVED')
   })
+
+  it('resolveWalletRefundRequest envoie le montant versé et la note quand ils sont fournis', async () => {
+    apiMock.mockResolvedValue({ id: 'r1', status: 'RESOLVED', paidAmount: 487 })
+    await financeService.resolveWalletRefundRequest('r1', { paidAmount: 487, note: 'Wave' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests/r1/resolve',
+      { method: 'POST', body: { paidAmount: 487, note: 'Wave' } })
+  })
 })

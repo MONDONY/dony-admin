@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage, WalletRefundRequestStatus } from '@/features/finance/types/index'
+import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage, ResolveWalletRefundBody, WalletRefundRequestStatus } from '@/features/finance/types/index'
 
 /**
  * Onglets financiers. Seule écriture : la résolution d'un ticket manuel de
@@ -37,8 +37,13 @@ export const financeService = {
     const query = statuses?.length ? { page, size, status: statuses.join(',') } : { page, size }
     return useApi()<AdminWalletRefundRequestPage>('/admin/wallet-refund-requests', { query })
   },
-  /** Marque une demande résolue après le virement manuel ; le backend vide alors le portefeuille. */
-  resolveWalletRefundRequest(id: string): Promise<AdminWalletRefundRequest> {
-    return useApi()<AdminWalletRefundRequest>(`/admin/wallet-refund-requests/${id}/resolve`, { method: 'POST' })
+  /**
+   * Marque une demande résolue après le virement manuel ; le backend vide alors le portefeuille.
+   * Avec `body`, le montant réellement versé et la note sont gardés sur la demande et dans
+   * l'audit (yadony-back #575) ; sans, la résolution se fait comme avant.
+   */
+  resolveWalletRefundRequest(id: string, body?: ResolveWalletRefundBody): Promise<AdminWalletRefundRequest> {
+    return useApi()<AdminWalletRefundRequest>(`/admin/wallet-refund-requests/${id}/resolve`,
+      body ? { method: 'POST', body } : { method: 'POST' })
   },
 }

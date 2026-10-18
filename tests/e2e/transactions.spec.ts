@@ -137,6 +137,14 @@ test('amounts keep their own currency, and the currency chip filters the list', 
 })
 
 test('admin traite une demande de remboursement wallet depuis son onglet', async ({ page }) => {
+  // Route posée après celles du beforeEach : prioritaire sur le motif générique de la liste.
+  let resolveBody: unknown = null
+  await page.route('**/api/v1/admin/wallet-refund-requests/r1/resolve', (route) => {
+    resolveBody = route.request().postDataJSON()
+    return route.fulfill({
+      json: { id: 'r1', userId: 'u1', currency: 'XOF', amount: 15000, status: 'RESOLVED', requestedAt: '2026-09-01T10:00:00', paidAmount: 14600 },
+    })
+  })
   await page.goto('/transactions')
   await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
   await page.locator('[data-test="tab-wallet-refunds"]').click()
@@ -147,7 +155,17 @@ test('admin traite une demande de remboursement wallet depuis son onglet', async
   await expect(page.locator('[data-test="wrr-amount-r1"]')).not.toContainText('€')
   await expect(row).toContainText('En attente')
   await page.locator('[data-test="wrr-resolve-r1"]').click()
-  // Après la résolution, la file est rechargée : la ligne reste (mock inchangé) mais l'appel est parti.
+  // La confirmation demande le montant réellement versé, prérempli avec la demande.
+  const amount = page.locator('[data-test="wrr-paid-amount"]')
+  await expect(amount).toHaveValue('15000')
+  await amount.fill('14600,5')
+  await expect(page.locator('[data-test="wrr-paid-amount-error"]')).toContainText('Pas de décimales en XOF')
+  await expect(page.locator('[data-test="wrr-resolve-confirm"]')).toBeDisabled()
+  await amount.fill('14600')
+  await page.locator('[data-test="wrr-note"]').fill('Versé par Wave')
+  await page.locator('[data-test="wrr-resolve-confirm"]').click()
+  await expect(page.locator('[data-test="wrr-resolve-dialog"]')).toHaveCount(0)
+  expect(resolveBody).toEqual({ paidAmount: 14600, note: 'Versé par Wave' })
   await expect(page.locator('[data-test="transactions-error"]')).toHaveCount(0)
 })
 
