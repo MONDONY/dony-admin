@@ -92,4 +92,27 @@ describe('WalletRefundRequestsTable', () => {
     const w = mount(WalletRefundRequestsTable, { props: { requests: [], loading: false, busyId: null, emptyLabel: 'Aucun remboursement en cours' } })
     expect(w.text()).toContain('Aucun remboursement en cours')
   })
+
+  it('propose « Relancer le remboursement » sur un ticket manuel en attente venu du mobile money, et l’émet', async () => {
+    const rows: AdminWalletRefundRequest[] = [
+      { id: 'mm', userId: 'u1', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN', sourceRail: 'PAWAPAY', failureReason: 'PAWAPAY_WALLET_OUT_OF_FUNDS' },
+      { id: 'card', userId: 'u2', currency: 'EUR', amount: 40, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN', sourceRail: 'STRIPE' },
+      { id: 'root', userId: 'u3', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN', sourceRail: null },
+      { id: 'old', userId: 'u4', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN' },
+      { id: 'auto', userId: 'u5', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'AUTOMATIC_PAWAPAY', sourceRail: 'PAWAPAY' },
+      { id: 'run', userId: 'u6', currency: 'XOF', amount: 500, status: 'PROCESSING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN', sourceRail: 'PAWAPAY' },
+    ]
+    const w = mount(WalletRefundRequestsTable, { props: { requests: rows, loading: false, busyId: null } })
+    expect(w.find('[data-test="wrr-retry-mm"]').text()).toBe('Relancer le remboursement')
+    expect(w.find('[data-test="wrr-resolve-mm"]').exists()).toBe(true)
+    expect(w.find('[data-test="wrr-retry-card"]').exists()).toBe(false)
+    expect(w.find('[data-test="wrr-retry-root"]').exists()).toBe(false)
+    // Ancien backend sans sourceRail : le bouton reste proposé, l'aperçu tranchera.
+    expect(w.find('[data-test="wrr-retry-old"]').exists()).toBe(true)
+    expect(w.find('[data-test="wrr-retry-auto"]').exists()).toBe(false)
+    expect(w.find('[data-test="wrr-retry-run"]').exists()).toBe(false)
+    expect(w.find('[data-test="wrr-failure-mm"]').text()).toBe('Motif : Wallet pawaPay sans fonds')
+    await w.find('[data-test="wrr-retry-mm"]').trigger('click')
+    expect(w.emitted('retry')?.[0]).toEqual(['mm'])
+  })
 })

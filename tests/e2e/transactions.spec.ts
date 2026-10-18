@@ -169,6 +169,43 @@ test('admin traite une demande de remboursement wallet depuis son onglet', async
   await expect(page.locator('[data-test="transactions-error"]')).toHaveCount(0)
 })
 
+test('admin relance un remboursement mobile money : manque affiché, puis versement du dû', async ({ page }) => {
+  const child = { id: 'r1', userId: 'u1', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN', sourceRail: 'PAWAPAY', parentRequestId: 'p0', failureReason: 'PAWAPAY_WALLET_OUT_OF_FUNDS' }
+  let processing = false
+  await page.route('**/api/v1/admin/wallet-refund-requests?**', (route) => route.fulfill({
+    json: { content: [{ ...child, status: processing ? 'PROCESSING' : 'PENDING' }], totalElements: 1, totalPages: 1, number: 0, size: 20 },
+  }))
+  // Cas réel du 18/10 : wallet CI XOF à 487,50, dû 477, sûr 473, il manque 4 XOF ; après alimentation, 491,50.
+  const previews = [
+    { requestId: 'r1', currency: 'XOF', country: 'CI', provider: 'ORANGE_CIV', msisdnMasked: '+225 •••• 90', grossAmount: 500, amountDue: 477, walletBalance: 487.5, maxSafeAmount: 473, suggestedAmount: null, topUpNeeded: 4, refundRatePercent: 3, retryAvailable: false, unavailableReason: 'pawapay-insufficient-funds' },
+    { requestId: 'r1', currency: 'XOF', country: 'CI', provider: 'ORANGE_CIV', msisdnMasked: '+225 •••• 90', grossAmount: 500, amountDue: 477, walletBalance: 491.5, maxSafeAmount: 477, suggestedAmount: 477, topUpNeeded: 0, refundRatePercent: 3, retryAvailable: true, unavailableReason: null },
+  ]
+  await page.route('**/api/v1/admin/wallet-refund-requests/r1/retry-preview', (route) => route.fulfill({ json: previews.shift() }))
+  let retryBody: unknown = null
+  await page.route('**/api/v1/admin/wallet-refund-requests/r1/retry', (route) => {
+    retryBody = route.request().postDataJSON()
+    processing = true
+    return route.fulfill({ json: { request: { ...child, status: 'PROCESSING' }, amount: 477, amountDue: 477, walletBalance: 491.5, maxSafeAmount: 477 } })
+  })
+  await page.goto('/transactions')
+  await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-test="tab-wallet-refunds"]').click()
+  await expect(page.locator('[data-test="wrr-row-r1"]')).toBeVisible({ timeout: 15000 })
+  await expect(page.locator('[data-test="wrr-failure-r1"]')).toContainText('Wallet pawaPay sans fonds')
+  await page.locator('[data-test="wrr-retry-r1"]').click()
+  await expect(page.locator('[data-test="wrr-retry-due"]')).toHaveText('477 XOF')
+  await expect(page.locator('[data-test="wrr-retry-balance"]')).toContainText('487,50 XOF')
+  await expect(page.locator('[data-test="wrr-retry-msisdn"]')).toHaveText('+225 •••• 90')
+  await expect(page.locator('[data-test="wrr-retry-topup"]')).toContainText('Il manque 4 XOF')
+  await expect(page.locator('[data-test="wrr-retry-confirm"]')).toBeDisabled()
+  await page.locator('[data-test="wrr-retry-refresh"]').click()
+  await expect(page.locator('[data-test="wrr-retry-amount"]')).toHaveValue('477')
+  await page.locator('[data-test="wrr-retry-confirm"]').click()
+  await expect(page.locator('[data-test="wrr-retry-dialog"]')).toHaveCount(0)
+  expect(retryBody).toEqual({ amount: 477 })
+  await expect(page.locator('[data-test="wrr-row-r1"]')).toContainText('En cours')
+})
+
 test('les litiges bancaires se paginent au-delà de 20', async ({ page }) => {
   const pages: string[] = []
   await page.route('**/api/v1/admin/chargebacks**', (route) => {

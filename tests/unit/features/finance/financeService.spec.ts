@@ -93,4 +93,16 @@ describe('financeService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests/r1/resolve',
       { method: 'POST', body: { paidAmount: 487, note: 'Wave' } })
   })
+
+  it('getWalletRefundRetryPreview GETe l’aperçu de la relance', async () => {
+    apiMock.mockResolvedValue({ amountDue: 477 })
+    await financeService.getWalletRefundRetryPreview('r1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests/r1/retry-preview')
+  })
+
+  it('retryWalletRefundRequest POSTe le montant dû confirmé', async () => {
+    apiMock.mockResolvedValue({ amount: 477 })
+    await financeService.retryWalletRefundRequest('r1', { amount: 477 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests/r1/retry', { method: 'POST', body: { amount: 477 } })
+  })
 })
