@@ -11,6 +11,7 @@ import CashCommissionsTable from '@/features/finance/components/CashCommissionsT
 import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
 import WalletRefundRequestsTable from '@/features/finance/components/WalletRefundRequestsTable.vue'
 import ResolveWalletRefundDialog from '@/features/finance/components/ResolveWalletRefundDialog.vue'
+import RetryWalletRefundDialog from '@/features/finance/components/RetryWalletRefundDialog.vue'
 import PeriodFilter from '@/features/finance/components/PeriodFilter.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePayments } from '@/features/payments/composables/usePayments'
@@ -20,7 +21,7 @@ import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback } from '@/features/payments/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, WalletRefundView } from '@/features/finance/types/index'
+import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRetryPreview, WalletRefundView } from '@/features/finance/types/index'
 import { WALLET_REFUND_VIEWS } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
@@ -184,6 +185,61 @@ async function resolveWalletRefund(body: ResolveWalletRefundBody) {
   }
   // L'erreur reste dans la boîte de dialogue : la saisie n'est pas perdue (422 du back, par exemple).
   catch (e) { resolveWalletRefundError.value = extractProblemMessage(e, 'Impossible de résoudre cette demande de remboursement') }
+  finally { walletRefundBusyId.value = null }
+}
+
+/**
+ * Relance d'un remboursement mobile money passé en manuel : l'aperçu lit le solde pawaPay et
+ * le dû ; un 422 (demande non éligible) s'affiche dans la fenêtre. « Verser maintenant » envoie
+ * le dû ; un 422 reste dans la fenêtre, un succès passe la ligne « En cours » puis recharge.
+ */
+const retryingWalletRefund = ref<AdminWalletRefundRequest | null>(null)
+const retryPreview = ref<WalletRefundRetryPreview | null>(null)
+const retryPreviewLoading = ref(false)
+const retryPreviewError = ref<string | null>(null)
+const retryWalletRefundError = ref<string | null>(null)
+async function loadRetryPreview() {
+  const request = retryingWalletRefund.value
+  if (!request) return
+  retryPreviewLoading.value = true
+  retryPreviewError.value = null
+  try {
+    const preview = await financeService.getWalletRefundRetryPreview(request.id)
+    if (retryingWalletRefund.value?.id === request.id) retryPreview.value = preview
+  }
+  catch (e) {
+    retryPreview.value = null
+    retryPreviewError.value = extractProblemMessage(e, 'Impossible de lire l’aperçu de la relance')
+  }
+  finally { retryPreviewLoading.value = false }
+}
+async function openRetryWalletRefund(id: string) {
+  retryingWalletRefund.value = walletRefunds.value.find(r => r.id === id) ?? null
+  retryPreview.value = null
+  retryWalletRefundError.value = null
+  await loadRetryPreview()
+}
+function closeRetryWalletRefund() {
+  if (walletRefundBusyId.value) return
+  retryingWalletRefund.value = null
+  retryPreview.value = null
+  retryPreviewError.value = null
+  retryWalletRefundError.value = null
+}
+async function retryWalletRefund(body: RetryWalletRefundBody) {
+  const request = retryingWalletRefund.value
+  if (!request) return
+  walletRefundBusyId.value = request.id
+  retryWalletRefundError.value = null
+  try {
+    await financeService.retryWalletRefundRequest(request.id, body)
+    const row = walletRefunds.value.find(r => r.id === request.id)
+    if (row) row.status = 'PROCESSING'
+    walletRefundBusyId.value = null
+    closeRetryWalletRefund()
+    await loadWalletRefunds()
+  }
+  catch (e) { retryWalletRefundError.value = extractProblemMessage(e, 'Impossible de relancer ce remboursement') }
   finally { walletRefundBusyId.value = null }
 }
 
@@ -357,7 +413,13 @@ watch(() => route.query?.open, (openId) => {
           @click="setWalletRefundView(v.key)"
         >{{ v.label }}</button>
       </div>
-      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" :empty-label="walletRefundEmptyLabels[walletRefundView]" @resolve="openResolveWalletRefund" />
+      <WalletRefundRequestsTable :requests="walletRefunds" :loading="walletRefundsLoading" :busy-id="walletRefundBusyId" :empty-label="walletRefundEmptyLabels[walletRefundView]" @resolve="openResolveWalletRefund" @retry="openRetryWalletRefund" />
+      <RetryWalletRefundDialog
+        :open="retryingWalletRefund !== null" :request="retryingWalletRefund" :preview="retryPreview"
+        :loading="retryPreviewLoading" :preview-error="retryPreviewError"
+        :busy="walletRefundBusyId !== null" :error="retryWalletRefundError"
+        @confirm="retryWalletRefund" @cancel="closeRetryWalletRefund" @refresh="loadRetryPreview"
+      />
       <ResolveWalletRefundDialog
         :open="resolvingWalletRefund !== null" :request="resolvingWalletRefund"
         :busy="walletRefundBusyId !== null" :error="resolveWalletRefundError"

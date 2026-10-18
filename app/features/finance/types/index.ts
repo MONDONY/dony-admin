@@ -143,6 +143,58 @@ export interface AdminWalletRefundRequest {
   resolutionNote?: string | null
   /** Frais retenus par le rail (somme des items hors échec), nul sans item. */
   feeAmount?: number | null
+  /**
+   * Rail des recharges remboursées (yadony-back, relance mobile money) : PAWAPAY, STRIPE, MIXED,
+   * nul sans item. Absent sur un ancien backend.
+   */
+  sourceRail?: WalletRefundSourceRail | null
+  /** Dernier motif d'échec connu (items de la demande, sinon de la demande parente). */
+  failureReason?: string | null
+}
+
+export type WalletRefundSourceRail = 'PAWAPAY' | 'STRIPE' | 'MIXED'
+
+/**
+ * Aperçu d'une relance mobile money (GET /admin/wallet-refund-requests/{id}/retry-preview).
+ * La relance verse le dû entier, jamais une partie : `suggestedAmount` vaut le dû quand le
+ * wallet pawaPay le couvre en sécurité, sinon il est nul et `topUpNeeded` dit ce qu'il manque.
+ * Solde illisible : `walletBalance`, `maxSafeAmount`, `suggestedAmount` et `topUpNeeded` nuls.
+ */
+export interface WalletRefundRetryPreview {
+  requestId: string
+  currency: string
+  /** Pays du wallet pawaPay, en ISO alpha-2 (CI, SN…). */
+  country: string
+  provider: string
+  /** Numéro de la recharge, toujours masqué par le backend. */
+  msisdnMasked: string | null
+  grossAmount: number
+  amountDue: number
+  walletBalance: number | null
+  maxSafeAmount: number | null
+  suggestedAmount: number | null
+  topUpNeeded: number | null
+  refundRatePercent: number
+  retryAvailable: boolean
+  unavailableReason: 'pawapay-balance-unavailable' | 'pawapay-insufficient-funds' | string | null
+}
+/** Corps de POST /admin/wallet-refund-requests/{id}/retry : `amount` confirme le dû affiché. */
+export interface RetryWalletRefundBody {
+  amount: number
+}
+export interface WalletRefundRetryResult {
+  request: AdminWalletRefundRequest
+  amount: number
+  amountDue: number
+  walletBalance: number
+  maxSafeAmount: number
+}
+
+/** Libellés des motifs d'échec connus ; un motif inconnu s'affiche tel quel. */
+export const WALLET_REFUND_FAILURE_LABELS: Record<string, string> = {
+  PAWAPAY_WALLET_OUT_OF_FUNDS: 'Wallet pawaPay sans fonds',
+  'pawapay-wallet-balance-short': 'Wallet pawaPay trop bas, rien n’a été envoyé',
+  'balance-short': 'Solde de l’utilisateur insuffisant',
 }
 /** Corps facultatif de POST /admin/wallet-refund-requests/{id}/resolve (yadony-back #575). */
 export interface ResolveWalletRefundBody {

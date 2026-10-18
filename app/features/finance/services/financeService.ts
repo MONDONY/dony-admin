@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage, ResolveWalletRefundBody, WalletRefundRequestStatus } from '@/features/finance/types/index'
+import type { AdminWalletPage, AdminMobileMoneyPage, AdminCashCommissionPage, AdminMobileMoneyCommissions, AdminWalletRefundRequest, AdminWalletRefundRequestPage, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRequestStatus, WalletRefundRetryPreview, WalletRefundRetryResult } from '@/features/finance/types/index'
 
 /**
  * Onglets financiers. Seule écriture : la résolution d'un ticket manuel de
@@ -45,5 +45,16 @@ export const financeService = {
   resolveWalletRefundRequest(id: string, body?: ResolveWalletRefundBody): Promise<AdminWalletRefundRequest> {
     return useApi()<AdminWalletRefundRequest>(`/admin/wallet-refund-requests/${id}/resolve`,
       body ? { method: 'POST', body } : { method: 'POST' })
+  },
+  /**
+   * Aperçu d'une relance du remboursement mobile money : dû, solde du wallet pawaPay, montant
+   * sûr, manque à alimenter et numéro masqué. 422 si la demande n'est pas éligible.
+   */
+  getWalletRefundRetryPreview(id: string): Promise<WalletRefundRetryPreview> {
+    return useApi()<WalletRefundRetryPreview>(`/admin/wallet-refund-requests/${id}/retry-preview`)
+  },
+  /** Verse réellement le dû sur le numéro de la recharge (rail pawaPay). 422 si non couvert. */
+  retryWalletRefundRequest(id: string, body: RetryWalletRefundBody): Promise<WalletRefundRetryResult> {
+    return useApi()<WalletRefundRetryResult>(`/admin/wallet-refund-requests/${id}/retry`, { method: 'POST', body })
   },
 }

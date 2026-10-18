@@ -6,6 +6,7 @@ import {
   WALLET_REFUND_STATUS_LABELS,
 } from '@/features/finance/types/index'
 import type { AdminWalletRefundRequest } from '@/features/finance/types/index'
+import { canRetryWalletRefund, failureLabel } from '@/features/finance/components/walletRefundRetry'
 
 withDefaults(defineProps<{
   requests: AdminWalletRefundRequest[]
@@ -13,7 +14,7 @@ withDefaults(defineProps<{
   busyId: string | null
   emptyLabel?: string
 }>(), { emptyLabel: 'Aucune demande de remboursement en attente' })
-const emit = defineEmits<{ resolve: [id: string] }>()
+const emit = defineEmits<{ resolve: [id: string]; retry: [id: string] }>()
 
 function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
 
@@ -74,12 +75,25 @@ const STATUS_TONE: Record<string, string> = {
                 v-if="r.resolutionNote" class="mt-1 max-w-xs text-xs text-text-muted text-pretty break-words"
                 :data-test="`wrr-note-${r.id}`"
               >Note : {{ r.resolutionNote }}</div>
+              <div
+                v-if="failureLabel(r.failureReason)" class="mt-1 max-w-xs text-xs text-text-muted text-pretty break-words"
+                :data-test="`wrr-failure-${r.id}`"
+              >Motif : {{ failureLabel(r.failureReason) }}</div>
             </td>
             <td class="px-4 py-3 text-sm text-text-muted tabular-nums">
               {{ fmt(r.requestedAt) }}
               <div v-if="r.resolvedAt" class="text-xs">Clos le {{ fmt(r.resolvedAt) }}</div>
             </td>
             <td class="px-4 py-3 text-right">
+              <div class="flex flex-wrap justify-end gap-2">
+              <button
+                v-if="canRetryWalletRefund(r)"
+                type="button"
+                :data-test="`wrr-retry-${r.id}`"
+                :disabled="busyId === r.id"
+                class="rounded-btn border border-primary px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                @click="emit('retry', r.id)"
+              >Relancer le remboursement</button>
               <button
                 v-if="needsAction(r)"
                 type="button"
@@ -88,6 +102,7 @@ const STATUS_TONE: Record<string, string> = {
                 class="rounded-btn bg-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                 @click="emit('resolve', r.id)"
               >{{ busyId === r.id ? 'Traitement…' : 'Marquer remboursée' }}</button>
+              </div>
             </td>
           </tr>
         </tbody>

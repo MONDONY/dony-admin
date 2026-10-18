@@ -25,7 +25,7 @@ vi.mock('@/features/payments/services/paymentsService', () => ({
   },
 }))
 
-const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn(), resolveWalletRefundRequest: vi.fn() }))
+const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn(), resolveWalletRefundRequest: vi.fn(), getWalletRefundRetryPreview: vi.fn(), retryWalletRefundRequest: vi.fn() }))
 vi.mock('@/features/finance/services/financeService', () => ({ financeService: finance }))
 
 const replaceMock = vi.fn()
@@ -182,6 +182,57 @@ describe('pages/transactions', () => {
       expect(w.find('[data-test="wrr-resolve-error"]').text()).toBe('Cette demande a déjà été traitée')
       await w.find('[data-test="wrr-resolve-cancel"]').trigger('click')
       expect(w.find('[data-test="wrr-resolve-dialog"]').exists()).toBe(false)
+    })
+
+    const MOMO_CHILD = { id: 'r1', userId: 'u1', currency: 'XOF', amount: 500, status: 'PENDING', requestedAt: '2026-10-18T10:00:00', channel: 'MANUAL_ADMIN', sourceRail: 'PAWAPAY', parentRequestId: 'p0', failureReason: 'PAWAPAY_WALLET_OUT_OF_FUNDS' }
+    const PREVIEW_OK = { requestId: 'r1', currency: 'XOF', country: 'CI', provider: 'ORANGE_CIV', msisdnMasked: '+225 •••• 90', grossAmount: 500, amountDue: 477, walletBalance: 491.5, maxSafeAmount: 477, suggestedAmount: 477, topUpNeeded: 0, refundRatePercent: 3, retryAvailable: true, unavailableReason: null }
+
+    it('Relancer le remboursement : aperçu, envoi du dû, ligne « En cours » puis rechargement', async () => {
+      finance.listWalletRefundRequests.mockResolvedValue({ content: [{ ...MOMO_CHILD }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      finance.getWalletRefundRetryPreview.mockReset().mockResolvedValue(PREVIEW_OK)
+      let release: (_v: unknown) => void = () => {}
+      finance.retryWalletRefundRequest.mockReset().mockResolvedValue({ request: { ...MOMO_CHILD, status: 'PROCESSING' }, amount: 477, amountDue: 477, walletBalance: 491.5, maxSafeAmount: 477 })
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      finance.listWalletRefundRequests.mockImplementation(() => new Promise((r) => { release = r }))
+      await w.find('[data-test="wrr-retry-r1"]').trigger('click')
+      await flushPromises()
+      expect(finance.getWalletRefundRetryPreview).toHaveBeenCalledWith('r1')
+      expect(w.find('[data-test="wrr-retry-due"]').text()).toContain('477')
+      await w.find('[data-test="wrr-retry-confirm"]').trigger('click')
+      await flushPromises()
+      expect(finance.retryWalletRefundRequest).toHaveBeenCalledWith('r1', { amount: 477 })
+      expect(w.find('[data-test="wrr-retry-dialog"]').exists()).toBe(false)
+      expect(w.find('[data-test="wrr-row-r1"]').text()).toContain('En cours')
+      release({ content: [{ ...MOMO_CHILD, status: 'PROCESSING' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      await flushPromises()
+      expect(finance.listWalletRefundRequests).toHaveBeenCalledTimes(2)
+    })
+
+    it('Relancer : un 422 de l’aperçu s’affiche, un 422 de l’envoi reste dans la fenêtre, Actualiser relit', async () => {
+      finance.listWalletRefundRequests.mockResolvedValue({ content: [{ ...MOMO_CHILD }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+      finance.getWalletRefundRetryPreview.mockReset().mockRejectedValueOnce({ data: { detail: 'Cette demande ne vient pas d’une recharge mobile money : remboursez hors app' } })
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      await w.find('[data-test="wrr-retry-r1"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="wrr-retry-preview-error"]').text()).toContain('remboursez hors app')
+      expect((w.find('[data-test="wrr-retry-confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+      await w.find('[data-test="wrr-retry-cancel"]').trigger('click')
+      expect(w.find('[data-test="wrr-retry-dialog"]').exists()).toBe(false)
+
+      finance.getWalletRefundRetryPreview.mockResolvedValueOnce({ ...PREVIEW_OK, walletBalance: 487.5, maxSafeAmount: 473, suggestedAmount: null, topUpNeeded: 4, retryAvailable: false, unavailableReason: 'pawapay-insufficient-funds' })
+      await w.find('[data-test="wrr-retry-r1"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="wrr-retry-topup"]').text()).toContain('4 XOF')
+      finance.getWalletRefundRetryPreview.mockResolvedValueOnce(PREVIEW_OK)
+      await w.find('[data-test="wrr-retry-refresh"]').trigger('click')
+      await flushPromises()
+      expect(finance.getWalletRefundRetryPreview).toHaveBeenCalledTimes(3)
+      finance.retryWalletRefundRequest.mockReset().mockRejectedValue({ data: { detail: 'Le wallet pawaPay CI XOF ne couvre pas le montant dû' } })
+      await w.find('[data-test="wrr-retry-confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="wrr-retry-error"]').text()).toContain('ne couvre pas')
+      expect(w.find('[data-test="wrr-retry-dialog"]').exists()).toBe(true)
+      expect(w.find('[data-test="wrr-retry-due"]').text()).toContain('477')
     })
 
     it('revenir sur Paiements retire tab de l’URL', async () => {
