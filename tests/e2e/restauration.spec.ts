@@ -244,7 +244,8 @@ test('fiche utilisateur → Envoyer une notification → composer pré-rempli �
   await page.locator('[data-test="confirm"]').click()
   await expect.poll(() => sendBodies.length).toBe(1)
   expect(previewBodies[0]).toEqual({ type: 'USER', userId: USER_ID })
-  expect(sendBodies[0]).toEqual({ title: 'Votre colis', body: 'Merci de confirmer votre adresse de remise.', target: { type: 'USER', userId: USER_ID } })
+  // Message à une personne : la case « push » est cochée par défaut.
+  expect(sendBodies[0]).toEqual({ title: 'Votre colis', body: 'Merci de confirmer votre adresse de remise.', target: { type: 'USER', userId: USER_ID }, push: true })
 })
 
 test('composer : recherche d’un utilisateur par nom, puis 422 non joignable', async ({ page }) => {
