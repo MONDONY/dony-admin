@@ -22,7 +22,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   preview: [target: BroadcastTarget]
-  send: [title: string, body: string, target: BroadcastTarget]
+  send: [title: string, body: string, target: BroadcastTarget, push: boolean]
 }>()
 
 const title = ref('')
@@ -32,6 +32,16 @@ const origin = ref('')
 const destination = ref('')
 const userId = ref(props.initialUserId ?? '')
 const confirmOpen = ref(false)
+
+// Faire aussi sonner les téléphones. Par défaut, seulement pour un message adressé à une
+// personne : une diffusion large (concours, info de service) arrive dans la boîte Annonces
+// sans réveiller tout le monde. Le défaut suit la cible tant que l'admin n'a pas choisi.
+const pushDefaultFor = (type: BroadcastTargetType) => type === 'USER'
+const push = ref(pushDefaultFor(targetType.value))
+const pushTouched = ref(false)
+watch(targetType, (type) => {
+  if (!pushTouched.value) push.value = pushDefaultFor(type)
+})
 
 // Seuls les champs pertinents pour le type choisi entrent dans le ciblage — un champ
 // laissé rempli après un changement de cible ne doit pas fuiter dans la requête.
@@ -88,7 +98,7 @@ function onSendClick() {
 
 function confirmSend() {
   confirmOpen.value = false
-  emit('send', title.value, body.value, target.value)
+  emit('send', title.value, body.value, target.value, push.value)
 }
 
 // Un broadcast est irrattrapable une fois parti : la confirmation nomme toujours le
@@ -101,6 +111,7 @@ const confirmMessage = computed(() => {
   }
   const n = freshCount.value
   return `Ce message sera envoyé à ${n} destinataire${n > 1 ? 's' : ''}. `
+    + (push.value ? 'Leur téléphone sonnera. ' : 'Il arrivera dans la boîte Annonces, sans sonnerie. ')
     + 'Cette action est irréversible et ne pourra pas être annulée.'
 })
 </script>
@@ -150,6 +161,16 @@ const confirmMessage = computed(() => {
     <BroadcastUserPicker
       v-if="targetType === 'USER'" v-model="userId" :can-search="canSearchUsers" :disabled="busy"
     />
+
+    <label class="flex items-start gap-2 text-sm text-text">
+      <input
+        v-model="push" data-test="broadcast-push" type="checkbox" :disabled="busy"
+        class="mt-0.5 disabled:opacity-40" @change="pushTouched = true"
+      >
+      <span>Faire aussi sonner les téléphones
+        <span class="block text-text-muted text-pretty">Sans cette case, le message arrive dans la boîte Annonces de l’app, sans sonnerie.</span>
+      </span>
+    </label>
 
     <div class="flex items-center gap-3">
       <button
