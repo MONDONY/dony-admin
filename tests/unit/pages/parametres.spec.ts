@@ -12,6 +12,8 @@ const photos = vi.hoisted(() => ({ status: vi.fn(), runPurge: vi.fn(), reconcile
 vi.mock('@/features/settings/services/settingsService', () => ({ settingsService: settings }))
 vi.mock('@/features/exchange-rates/services/exchangeRatesService', () => ({ exchangeRatesService: rates }))
 vi.mock('@/features/photo-storage/services/photoStorageService', () => ({ photoStorageService: photos }))
+const grids = vi.hoisted(() => ({ list: vi.fn(), schedule: vi.fn(), cancel: vi.fn(), simulate: vi.fn() }))
+vi.mock('@/features/commission-grid/services/commissionGridService', () => ({ commissionGridService: grids }))
 
 const PURGE = { key: 'photo_purge_enabled', value: 'false', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null }
 const QUOTA = { key: 'photo_upload_daily_quota', value: '60', type: 'INTEGER', updatedAt: null, updatedByEmail: null }
@@ -22,7 +24,7 @@ const STATUS = {
 
 async function mountPage() {
   const mod = await import('@/pages/parametres.vue')
-  const w = mount(mod.default)
+  const w = mount(mod.default, { global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
   await flushPromises()
   return w
 }
@@ -44,6 +46,7 @@ describe('/parametres', () => {
     settings.list.mockResolvedValue([PURGE, QUOTA])
     rates.list.mockResolvedValue([])
     photos.status.mockResolvedValue(STATUS)
+    grids.list.mockResolvedValue({ history: { content: [], page: 0, size: 1, totalElements: 0, totalPages: 0, last: true } })
   })
 
   it('activer la purge recharge le statut de la carte', async () => {
@@ -68,5 +71,25 @@ describe('/parametres', () => {
     await save(w, 'photo_upload_daily_quota', '70')
     expect(settings.update).toHaveBeenCalledWith('photo_upload_daily_quota', '70')
     expect(photos.status).toHaveBeenCalledTimes(1)
+  })
+
+  describe('commission par paliers', () => {
+    const RATE = { key: 'commission_rate', value: '0.05', type: 'DECIMAL', updatedAt: null, updatedByEmail: null }
+
+    it('une grille en vigueur remplace le champ du taux unique par un renvoi', async () => {
+      settings.list.mockResolvedValue([RATE])
+      grids.list.mockResolvedValue({ current: { id: 'g1' }, history: { content: [] } })
+      const w = await mountPage()
+      expect(grids.list).toHaveBeenCalledWith(0, 1)
+      expect(w.find('[data-test="setting-commission-managed"]').exists()).toBe(true)
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(false)
+    })
+
+    it('back sans l’endpoint : le champ reste', async () => {
+      settings.list.mockResolvedValue([RATE])
+      grids.list.mockRejectedValue(Object.assign(new Error('404'), { statusCode: 404 }))
+      const w = await mountPage()
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(true)
+    })
   })
 })

@@ -59,9 +59,12 @@ const formDraftQuota: PlatformSetting = {
   updatedAt: null, updatedByEmail: null,
 }
 
+const NuxtLinkStub = { name: 'NuxtLink', template: '<a :href="to"><slot /></a>', props: ['to'] }
+
 function mountForm(props: Partial<InstanceType<typeof SettingsForm>['$props']> = {}) {
   return mount(SettingsForm, {
     props: { settings: [commission, urgency, cap, sms, pro], busy: false, ...props },
+    global: { stubs: { NuxtLink: NuxtLinkStub } },
   })
 }
 
@@ -432,5 +435,26 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="setting-error-assistant_daily_quota"]').exists()).toBe(false)
     await w.find('[data-test="setting-value-assistant_form_draft_daily_quota"]').setValue('1000')
     expect(w.find('[data-test="setting-error-assistant_form_draft_daily_quota"]').exists()).toBe(false)
+  })
+
+  describe('commission par paliers (onglet Tarification)', () => {
+    it('sans grille : le champ du taux unique reste, avec un lien vers l’onglet', () => {
+      const w = mountForm()
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(true)
+      expect(w.find('[data-test="setting-commission-managed"]').exists()).toBe(false)
+      const link = w.find('[data-test="setting-commission-link"] a')
+      expect(link.attributes('href')).toBe('/tarification')
+    })
+
+    it('grille en vigueur : renvoi vers l’onglet au lieu du champ, les autres réglages intacts', () => {
+      const w = mountForm({ commissionGridActive: true })
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-save-commission_rate"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-commission-link"]').exists()).toBe(false)
+      const managed = w.find('[data-test="setting-commission-managed"]')
+      expect(managed.text()).toContain('Commission gérée dans l’onglet')
+      expect(managed.find('a').attributes('href')).toBe('/tarification')
+      expect(w.find('[data-test="setting-value-urgency_threshold_days"]').exists()).toBe(true)
+    })
   })
 })

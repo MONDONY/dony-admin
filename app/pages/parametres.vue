@@ -7,6 +7,7 @@ import { useExchangeRates } from '@/features/exchange-rates/composables/useExcha
 import PhotoStorageCard from '@/features/photo-storage/components/PhotoStorageCard.vue'
 import MaintenanceCard from '@/features/maintenance/components/MaintenanceCard.vue'
 import { useAuthStore } from '@/stores/auth'
+import { commissionGridService } from '@/features/commission-grid/services/commissionGridService'
 
 definePageMeta({
   middleware: 'admin-only',
@@ -31,9 +32,19 @@ async function onUpdate(key: string, value: string) {
   if (saved && key === 'photo_purge_enabled') void photoCard.value?.refresh()
 }
 
+// Une grille par paliers en vigueur remplace le taux unique : la carte `commission_rate` renvoie
+// alors vers l'onglet Tarification. Back sans l'endpoint ou erreur : on garde le champ.
+const commissionGridActive = ref(false)
+async function loadCommissionGrid() {
+  try {
+    commissionGridActive.value = !!(await commissionGridService.list(0, 1)).current
+  } catch { commissionGridActive.value = false }
+}
+
 onMounted(() => {
   load()
   loadRates()
+  void loadCommissionGrid()
 })
 </script>
 
@@ -48,7 +59,7 @@ onMounted(() => {
       >{{ error }}</p>
 
       <p v-if="isLoading" class="text-sm text-text-muted">Chargement…</p>
-      <SettingsForm v-else :settings="settings" :busy="busy" @update="onUpdate" />
+      <SettingsForm v-else :settings="settings" :busy="busy" :commission-grid-active="commissionGridActive" @update="onUpdate" />
       <PhotoStorageCard ref="photoCard" class="mt-6" />
     </div>
 

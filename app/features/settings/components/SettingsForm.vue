@@ -3,7 +3,13 @@ import { reactive, ref, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import type { PlatformSetting } from '@/features/settings/types/index'
 
-const props = defineProps<{ settings: PlatformSetting[]; busy?: boolean }>()
+/**
+ * `commissionGridActive` : une grille de commission par paliers est en vigueur (onglet
+ * Tarification). Le taux unique `commission_rate` ne s'applique plus : sa carte renvoie vers
+ * l'onglet au lieu d'offrir un champ trompeur. Sans grille, le champ reste, avec le lien.
+ */
+const props = defineProps<{ settings: PlatformSetting[]; busy?: boolean; commissionGridActive?: boolean }>()
+const isManagedByGrid = (key: string) => key === 'commission_rate' && !!props.commissionGridActive
 const emit = defineEmits<{ update: [key: string, value: string] }>()
 
 /**
@@ -280,7 +286,12 @@ function cancelPending() {
         </p>
       </div>
 
-      <div class="flex items-center gap-2">
+      <p v-if="isManagedByGrid(s.key)" class="text-sm text-text-muted text-pretty" data-test="setting-commission-managed">
+        Commission gérée dans l’onglet
+        <NuxtLink to="/tarification" class="font-medium text-primary hover:underline">Tarification</NuxtLink>
+        (grille par paliers en vigueur).
+      </p>
+      <div v-else class="flex items-center gap-2">
         <select
           v-if="s.type === 'BOOLEAN'"
           v-model="drafts[s.key]" :data-test="`setting-value-${s.key}`" :disabled="busy"
@@ -307,10 +318,14 @@ function cancelPending() {
         >Enregistrer</button>
       </div>
 
+      <p v-if="s.key === 'commission_rate' && !isManagedByGrid(s.key)" class="text-xs text-text-muted" data-test="setting-commission-link">
+        Taux unique appliqué tant qu’aucune grille n’est en vigueur. Commission par paliers :
+        <NuxtLink to="/tarification" class="font-medium text-primary hover:underline">onglet Tarification</NuxtLink>.
+      </p>
       <p v-if="hintFor(s.key) && !errorFor(s.key, drafts[s.key])" class="text-xs text-text-muted" :data-test="`setting-hint-${s.key}`">
         {{ hintFor(s.key) }}
       </p>
-      <p v-if="errorFor(s.key, drafts[s.key])" class="text-xs text-danger" :data-test="`setting-error-${s.key}`">
+      <p v-if="!isManagedByGrid(s.key) && errorFor(s.key, drafts[s.key])" class="text-xs text-danger" :data-test="`setting-error-${s.key}`">
         {{ errorFor(s.key, drafts[s.key]) }}
       </p>
     </div>

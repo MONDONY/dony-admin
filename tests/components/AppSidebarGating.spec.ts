@@ -32,6 +32,7 @@ const FORBIDDEN_TO_SUPPORT = [
   ['Exports', 'EXPORT_RUN'],
   ['Communications', 'NOTIFICATION_SEND'],
   ['Paramètres', 'CONFIG_MANAGE'],
+  ['Tarification', 'CONFIG_MANAGE'],
   ['Demandes RGPD', 'USER_GDPR_DELETE'],
   ['Administrateurs', 'ADMIN_MANAGE'],
   ['Assistant IA', 'ASSISTANT_MANAGE'],
