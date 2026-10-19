@@ -22,13 +22,19 @@ describe('broadcastService', () => {
     expect(apiMock.mock.calls[0][1].body).toEqual({ type: 'ALL' })
   })
 
-  it('send POSTe titre, corps et ciblage', async () => {
+  it('send POSTe titre, corps, ciblage et le choix du push', async () => {
     apiMock.mockResolvedValue({ id: 'b1', recipientCount: 12 })
-    await broadcastService.send('Titre', 'Corps', { type: 'USER', userId: 'u1' })
+    await broadcastService.send('Titre', 'Corps', { type: 'USER', userId: 'u1' }, true)
     expect(apiMock).toHaveBeenCalledWith('/admin/notifications/broadcast', {
       method: 'POST',
-      body: { title: 'Titre', body: 'Corps', target: { type: 'USER', userId: 'u1' } },
+      body: { title: 'Titre', body: 'Corps', target: { type: 'USER', userId: 'u1' }, push: true },
     })
+  })
+
+  it('send transmet push: false explicitement', async () => {
+    apiMock.mockResolvedValue({ id: 'b1', recipientCount: 12 })
+    await broadcastService.send('Titre', 'Corps', { type: 'ALL' }, false)
+    expect(apiMock.mock.calls[0][1].body.push).toBe(false)
   })
 
   it('listHistory GETe une page', async () => {

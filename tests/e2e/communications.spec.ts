@@ -91,6 +91,8 @@ test('admin compose un message ciblé sur un corridor, l’estime, l’envoie et
     title: 'Nouvelle offre corridor',
     body: 'Profitez du corridor Paris → Dakar cette semaine.',
     target: { type: 'CORRIDOR', origin: 'Paris', destination: 'Dakar' },
+    // Diffusion large : sans sonnerie par défaut, la case « push » n'a pas été cochée.
+    push: false,
   })
 
   await expect(page.locator('[data-test="broadcast-row-br1"]')).toBeVisible()

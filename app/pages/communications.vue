@@ -29,8 +29,8 @@ const initialUserId = computed(() => {
 async function onPreview(target: BroadcastTarget) {
   await preview(target)
 }
-async function onSend(title: string, body: string, target: BroadcastTarget) {
-  await send(title, body, target)
+async function onSend(title: string, body: string, target: BroadcastTarget, push: boolean) {
+  await send(title, body, target, push)
 }
 
 onMounted(fetchHistory)

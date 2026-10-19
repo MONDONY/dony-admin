@@ -230,7 +230,7 @@ describe('useBroadcast : preview ciblée', () => {
   it('404 à l’envoi : même message clair', async () => {
     bsvc.send.mockRejectedValue(Object.assign(new Error('404 Not Found'), { statusCode: 404, data: {} }))
     const b = useBroadcast()
-    await b.send('t', 'b', { type: 'USER', userId: UUID })
+    await b.send('t', 'b', { type: 'USER', userId: UUID }, true)
     expect(b.error.value).toBe('Utilisateur introuvable : vérifiez l’identifiant.')
   })
 
@@ -239,7 +239,7 @@ describe('useBroadcast : preview ciblée', () => {
     bsvc.send.mockResolvedValue({ id: 'b1' })
     const b = useBroadcast()
     await b.preview({ type: 'USER', userId: UUID })
-    await b.send('t', 'b', { type: 'USER', userId: UUID })
+    await b.send('t', 'b', { type: 'USER', userId: UUID }, true)
     expect(b.targetUserName.value).toBeNull()
   })
 })

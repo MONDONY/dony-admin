@@ -73,11 +73,11 @@ export function useBroadcast() {
     }
   }
 
-  async function send(title: string, body: string, target: BroadcastTarget) {
+  async function send(title: string, body: string, target: BroadcastTarget, push: boolean) {
     busy.value = true
     error.value = null
     try {
-      await broadcastService.send(title, body, target)
+      await broadcastService.send(title, body, target, push)
       recipientCount.value = null
       targetUserName.value = null
       targetUserReachable.value = null

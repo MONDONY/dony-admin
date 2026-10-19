@@ -85,7 +85,35 @@ describe('BroadcastComposer', () => {
     // Cible ALL : la phrase de contrôle est exigée depuis l'arbitrage sur la diffusion.
     await w.find('[data-test="confirmation-input"]').setValue('DIFFUSER A TOUS')
     await w.find('[data-test="confirm"]').trigger('click')
-    expect(w.emitted('send')![0]).toEqual(['Titre', 'Corps', { type: 'ALL' }])
+    // Diffusion à tous : sans sonnerie par défaut.
+    expect(w.emitted('send')![0]).toEqual(['Titre', 'Corps', { type: 'ALL' }, false])
+  })
+
+  it('la case push est décochée par défaut pour une diffusion large et la modale le dit', async () => {
+    const w = mountComposer({ recipientCount: 87 })
+    expect((w.find('[data-test="broadcast-push"]').element as HTMLInputElement).checked).toBe(false)
+    await w.find('[data-test="broadcast-title"]').setValue('Titre')
+    await w.find('[data-test="broadcast-body"]').setValue('Corps')
+    await w.find('[data-test="broadcast-send"]').trigger('click')
+    expect(w.text()).toContain('sans sonnerie')
+  })
+
+  it('la case push est cochée par défaut pour un message à une personne', async () => {
+    const w = mountComposer({ initialUserId: '3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b' })
+    expect((w.find('[data-test="broadcast-push"]').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('le défaut suit la cible tant que l’admin n’a pas choisi, puis son choix prime', async () => {
+    const w = mountComposer()
+    const box = () => w.find('[data-test="broadcast-push"]').element as HTMLInputElement
+    await w.find('[data-test="broadcast-target"]').setValue('USER')
+    expect(box().checked).toBe(true)
+    await w.find('[data-test="broadcast-target"]').setValue('ALL')
+    expect(box().checked).toBe(false)
+
+    await w.find('[data-test="broadcast-push"]').setValue(true)
+    await w.find('[data-test="broadcast-target"]').setValue('CORRIDOR')
+    expect(box().checked).toBe(true)
   })
 
   it('annuler la confirmation n’émet pas send', async () => {

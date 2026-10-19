@@ -40,8 +40,8 @@ describe('useBroadcast', () => {
   it('send recharge l historique et remet le compteur a zero', async () => {
     const b = useBroadcast()
     await b.preview({ type: 'ALL' })
-    await b.send('T', 'B', { type: 'ALL' })
-    expect(svc.send).toHaveBeenCalledWith('T', 'B', { type: 'ALL' })
+    await b.send('T', 'B', { type: 'ALL' }, false)
+    expect(svc.send).toHaveBeenCalledWith('T', 'B', { type: 'ALL' }, false)
     expect(svc.listHistory).toHaveBeenCalled()
     expect(b.recipientCount.value).toBeNull()
   })
@@ -49,7 +49,7 @@ describe('useBroadcast', () => {
   it('send capture l erreur backend sans recharger l historique', async () => {
     svc.send.mockRejectedValue({ data: { detail: 'Envoi impossible' } })
     const b = useBroadcast()
-    await b.send('T', 'B', { type: 'ALL' })
+    await b.send('T', 'B', { type: 'ALL' }, false)
     expect(b.error.value).toBe('Envoi impossible')
     expect(svc.listHistory).not.toHaveBeenCalled()
   })
