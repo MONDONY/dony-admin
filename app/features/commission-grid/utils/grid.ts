@@ -9,12 +9,14 @@ import type {
 
 /**
  * Taux (fraction, `0.07`) → pourcentage affiché (`7`). L'arrondi absorbe le bruit flottant
- * (`0.07 * 100 === 7.000000000000001`), comme `SettingsForm`.
+ * (`0.07 * 100 === 7.000000000000001`) à la MÊME précision que `percentToRate` (6 décimales de
+ * fraction = 4 de pourcentage) : `0.07125` se relit `7.125`, jamais `7.13`. Arrondir plus court
+ * ferait monter le taux en silence quand on reprogramme une grille « à l'identique ».
  */
 export function rateToPercent(rate: Decimal | null | undefined): string {
   const n = Number(rate)
   if (rate === null || rate === undefined || Number.isNaN(n)) return ''
-  return String(Math.round(n * 10000) / 100)
+  return String(Math.round(n * 1_000_000) / 10_000)
 }
 
 /** Saisie décimale (virgule acceptée) → nombre ; vide ou illisible = `null`. */

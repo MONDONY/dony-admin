@@ -1,9 +1,10 @@
 /** /tarification : onglets dans l'URL, états du chargement, câblage des trois onglets. */
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick, reactive } from 'vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
-const route = vi.hoisted(() => ({ meta: {}, query: {} as Record<string, string> }))
+const route = reactive({ meta: {}, query: {} as Record<string, string> })
 const replace = vi.hoisted(() => vi.fn())
 vi.stubGlobal('definePageMeta', vi.fn())
 vi.stubGlobal('useRoute', () => route)
@@ -61,6 +62,17 @@ describe('/tarification', () => {
     expect(w.find('[data-test="simulator-source"]').exists()).toBe(true)
     await w.find('[data-test="tarification-tab-grille"]').trigger('click')
     expect(replace).toHaveBeenLastCalledWith({ query: { other: 'x' } })
+  })
+
+  it('?tab= changé sans remontage (recherche ⌘K depuis la page) : l’onglet suit', async () => {
+    const w = await mountPage()
+    expect(w.find('[data-test="grid-current"]').exists()).toBe(true)
+    route.query = { tab: 'historique' }
+    await nextTick()
+    expect(w.find('[data-test="history-list"]').exists()).toBe(true)
+    route.query = {}
+    await nextTick()
+    expect(w.find('[data-test="grid-current"]').exists()).toBe(true)
   })
 
   it('onglet inconnu → Grille', async () => {

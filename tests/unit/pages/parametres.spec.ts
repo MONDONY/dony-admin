@@ -85,6 +85,18 @@ describe('/parametres', () => {
       expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(false)
     })
 
+    it('tant que le statut de la grille n’est pas connu, aucun champ commission éditable', async () => {
+      settings.list.mockResolvedValue([RATE])
+      let resolveGrid!: (_v: unknown) => void
+      grids.list.mockReturnValue(new Promise((r) => { resolveGrid = r }))
+      const w = await mountPage()
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-commission-pending"]').exists()).toBe(true)
+      resolveGrid({ history: { content: [] } })
+      await flushPromises()
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(true)
+    })
+
     it('back sans l’endpoint : le champ reste', async () => {
       settings.list.mockResolvedValue([RATE])
       grids.list.mockRejectedValue(Object.assign(new Error('404'), { statusCode: 404 }))

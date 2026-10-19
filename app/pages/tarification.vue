@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import CommissionGridPanel from '@/features/commission-grid/components/CommissionGridPanel.vue'
 import MarginSimulator from '@/features/commission-grid/components/MarginSimulator.vue'
 import CommissionGridHistory from '@/features/commission-grid/components/CommissionGridHistory.vue'
@@ -22,8 +22,12 @@ const TABS: { value: Tab; label: string }[] = [
 ]
 const route = useRoute()
 const router = useRouter()
-const initial = route.query?.tab
-const tab = ref<Tab>(TABS.some(t => t.value === initial) ? initial as Tab : 'grille')
+const tabFrom = (q: unknown): Tab => (TABS.some(t => t.value === q) ? q as Tab : 'grille')
+const tab = ref<Tab>(tabFrom(route.query?.tab))
+
+// Navigation vers la même page avec un autre ?tab= (recherche ⌘K depuis l'onglet) : la page
+// n'est pas remontée, seul l'onglet change.
+watch(() => route.query?.tab, (q) => { tab.value = tabFrom(q) })
 
 const grids = useCommissionGrids()
 
@@ -87,7 +91,10 @@ const tabClass = (t: Tab) => tab.value === t ? 'border-b-2 border-primary text-t
           :cancelling="grids.cancelling.value"
           @cancel="grids.cancel" @scheduled="grids.onScheduled"
         />
-        <MarginSimulator v-else-if="tab === 'simulateur'" :current="grids.current.value" :scheduled="grids.scheduled.value" />
+        <MarginSimulator
+          v-else-if="tab === 'simulateur'"
+          :current="grids.current.value" :scheduled="grids.scheduled.value" :flat-rate="flatRate"
+        />
         <CommissionGridHistory
           v-else
           :items="grids.history.value" :current-id="grids.current.value?.id ?? null"

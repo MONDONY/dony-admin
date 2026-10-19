@@ -3,7 +3,7 @@ import {
   deltaSign, draftFromGrid, draftToRequest, formatAmount, formatAmountDelta, formatPercent, gridState,
   parseDecimalInput, percentToRate, rateToPercent, tierRangeLabel,
 } from '@/features/commission-grid/utils/grid'
-import { formatParis, parisInputToUtc, utcToParisInput } from '@/features/commission-grid/utils/parisTime'
+import { formatParis, parisInputToUtc } from '@/features/commission-grid/utils/parisTime'
 import { DEFAULT_MINIMUMS } from '@/features/commission-grid/types/index'
 import type { CommissionGrid } from '@/features/commission-grid/types/index'
 
@@ -21,6 +21,8 @@ describe('conversions pourcentage ↔ taux', () => {
     expect(rateToPercent(0.07)).toBe('7')
     expect(rateToPercent('0.065')).toBe('6.5')
     expect(rateToPercent(0.0575)).toBe('5.75')
+    expect(rateToPercent(0.07125)).toBe('7.125')
+    expect(rateToPercent(0.123456)).toBe('12.3456')
     expect(rateToPercent(null)).toBe('')
     expect(rateToPercent('abc')).toBe('')
   })
@@ -31,6 +33,15 @@ describe('conversions pourcentage ↔ taux', () => {
     expect(percentToRate('0.07')).toBe(0.0007)
     expect(percentToRate('')).toBeNull()
     expect(percentToRate('x')).toBeNull()
+  })
+
+  it.each([0.07, 0.065, 0.07125, 0.0575, 0.123456, 0.3, 0])('aller-retour taux %s → % → taux sans dérive', (rate) => {
+    expect(percentToRate(rateToPercent(rate))).toBe(rate)
+  })
+
+  it('reprogrammer une grille à l’identique renvoie exactement les mêmes taux', () => {
+    const grid = { ...GRID, tiers: [{ fromEur: 0, rate: 0.07125 }, { fromEur: 100, rate: 0.065 }] }
+    expect(draftToRequest(draftFromGrid(grid)).tiers.map(t => t.rate)).toEqual([0.07125, 0.065])
   })
 
   it('parseDecimalInput : vide ou illisible = null', () => {
@@ -165,20 +176,26 @@ describe('heure de Paris ↔ UTC', () => {
     expect(parisInputToUtc('demain')).toBeNull()
   })
 
-  it('utcToParisInput relit une date du back (UTC sans fuseau) en heure de Paris', () => {
-    expect(utcToParisInput('2026-10-31T23:00:00')).toBe('2026-11-01T00:00')
-    expect(utcToParisInput('2026-07-01T10:30:00.123456')).toBe('2026-07-01T12:30')
-    expect(utcToParisInput(null)).toBe('')
-    expect(utcToParisInput('nope')).toBe('')
+  it('heure inexistante (29/03/2026 02:30, saut de 2 h à 3 h) : décalée à 03:30, jamais plus tôt', () => {
+    expect(parisInputToUtc('2026-03-29T02:30')).toBe('2026-03-29T01:30:00')
+    expect(formatParis(parisInputToUtc('2026-03-29T02:30'))).toBe('29 mars 2026 à 03:30')
+    expect(parisInputToUtc('2026-03-29T01:59')).toBe('2026-03-29T00:59:00')
+    expect(parisInputToUtc('2026-03-29T03:00')).toBe('2026-03-29T01:00:00')
   })
 
-  it('aller-retour', () => {
-    const v = '2026-03-29T03:15'
-    expect(utcToParisInput(parisInputToUtc(v))).toBe(v)
+  it('heure ambiguë (25/10/2026 02:30, vécue deux fois) : seconde occurrence, heure d’hiver', () => {
+    expect(parisInputToUtc('2026-10-25T02:30')).toBe('2026-10-25T01:30:00')
+    expect(formatParis(parisInputToUtc('2026-10-25T02:30'))).toBe('25 octobre 2026 à 02:30')
+  })
+
+  it('aller-retour saisie → UTC → affichage', () => {
+    expect(formatParis(parisInputToUtc('2026-03-29T03:15'))).toBe('29 mars 2026 à 03:15')
+    expect(formatParis('2026-07-01T10:30:00.123456')).toBe('1er juillet 2026 à 12:30')
   })
 
   it('formatParis', () => {
-    expect(formatParis('2026-10-31T23:00:00')).toBe('1 novembre 2026 à 00:00')
+    expect(formatParis('2026-10-31T23:00:00')).toBe('1er novembre 2026 à 00:00')
+    expect(formatParis('nope')).toBe('')
     expect(formatParis('2026-08-15T08:05:00Z')).toBe('15 août 2026 à 10:05')
     expect(formatParis(undefined)).toBe('')
   })

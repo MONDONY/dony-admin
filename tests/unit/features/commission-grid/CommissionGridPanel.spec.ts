@@ -15,7 +15,7 @@ describe('CommissionGridPanel', () => {
   it('grille en vigueur : date en heure de Paris, tranches et minimums', () => {
     const w = mount(CommissionGridPanel, { props: { current: GRID, scheduled: null } })
     const card = plain(w.find('[data-test="grid-current"]').text())
-    expect(card).toContain('En vigueur depuis le 1 octobre 2026 à 10:00')
+    expect(card).toContain('En vigueur depuis le 1er octobre 2026 à 10:00')
     expect(card).toContain('De 0,00 € à 100,00 €')
     expect(card).toContain('7 %')
     expect(card).toContain('650 F CFA')
@@ -31,7 +31,7 @@ describe('CommissionGridPanel', () => {
 
   it('grille programmée : annulation confirmée', async () => {
     const w = mount(CommissionGridPanel, { props: { current: GRID, scheduled: SCHEDULED } })
-    expect(w.find('[data-test="grid-scheduled"]').text()).toContain('Programmée pour le 1 décembre 2026 à 09:00')
+    expect(w.find('[data-test="grid-scheduled"]').text()).toContain('Programmée pour le 1er décembre 2026 à 09:00')
     await w.find('[data-test="grid-scheduled-cancel"]').trigger('click')
     expect(w.text()).toContain('ne prendra pas effet')
     await w.find('[data-test="cancel"]').trigger('click')

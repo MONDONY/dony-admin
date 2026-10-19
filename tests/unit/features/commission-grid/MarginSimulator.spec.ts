@@ -67,7 +67,7 @@ describe('MarginSimulator', () => {
     const w = await mountSim({ scheduled: SCHEDULED })
     const options = w.findAll('[data-test="simulator-source"] option').map(o => o.text())
     expect(options[0]).toBe('Grille en vigueur')
-    expect(options[1]).toContain('Grille programmée (1 décembre 2026')
+    expect(options[1]).toContain('Grille programmée (1er décembre 2026')
     await w.find('[data-test="simulator-source"]').setValue('scheduled')
     await vi.advanceTimersByTimeAsync(SIMULATOR_DEBOUNCE_MS)
     expect(svc.simulate.mock.calls.at(-1)![0].gridId).toBe('g-next')
@@ -76,11 +76,40 @@ describe('MarginSimulator', () => {
     await w.setProps({ scheduled: null })
     expect((w.find('[data-test="simulator-source"]').element as HTMLSelectElement).value).toBe('current')
 
+    // Sans taux unique connu : seule la grille proposée 7 / 6 / 5 % reste.
     const none = await mountSim({ current: null })
-    expect(none.find('[data-test="simulator-source"]').text()).toContain('Grille par défaut')
+    expect(none.findAll('[data-test="simulator-source"] option').map(o => o.text())).toEqual(['Grille proposée (7 / 6 / 5 %)'])
     const req = svc.simulate.mock.calls.at(-1)![0]
     expect(req.gridId).toBeUndefined()
-    expect(req.draft.tiers[0]).toEqual({ fromEur: 0, rate: 0.07 })
+    expect(req.draft.tiers.map((t: { rate: number }) => t.rate)).toEqual([0.07, 0.06, 0.05])
+  })
+
+  it('sans grille en vigueur : le taux unique actuel par défaut, une tranche sans minimum', async () => {
+    const w = await mountSim({ current: null, flatRate: '0.12' })
+    const options = w.findAll('[data-test="simulator-source"] option').map(o => o.text().replace(/[\u00a0\u202f]/g, ' '))
+    expect(options).toEqual(['Taux unique actuel (12 %)', 'Grille proposée (7 / 6 / 5 %)'])
+    const req = svc.simulate.mock.calls.at(-1)![0]
+    expect(req.draft.tiers).toEqual([{ fromEur: 0, rate: 0.12 }])
+    expect(Object.values(req.draft.minimums)).toEqual(['0', '0', '0', '0', '0', '0', '0'])
+    expect(req.draft.minimums.XOF).toBe('0')
+
+    await w.find('[data-test="simulator-source"]').setValue('proposal')
+    await vi.advanceTimersByTimeAsync(SIMULATOR_DEBOUNCE_MS)
+    expect(svc.simulate.mock.calls.at(-1)![0].draft.tiers).toHaveLength(3)
+  })
+
+  it('taux unique arrivé après le montage : il devient le choix par défaut', async () => {
+    const w = await mountSim({ current: null })
+    expect((w.find('[data-test="simulator-source"]').element as HTMLSelectElement).value).toBe('proposal')
+    await w.setProps({ flatRate: '0.05' })
+    await vi.advanceTimersByTimeAsync(SIMULATOR_DEBOUNCE_MS)
+    // happy-dom ne resélectionne pas une option insérée après coup : on lit la requête envoyée.
+    expect(svc.simulate.mock.calls.at(-1)![0].draft.tiers).toEqual([{ fromEur: 0, rate: 0.05 }])
+    // Un choix délibéré de la grille proposée n'est pas écrasé par un nouveau rendu.
+    await w.find('[data-test="simulator-source"]').setValue('proposal')
+    await w.setProps({ flatRate: '0.06' })
+    await vi.advanceTimersByTimeAsync(SIMULATOR_DEBOUNCE_MS)
+    expect(svc.simulate.mock.calls.at(-1)![0].draft.tiers).toHaveLength(3)
   })
 
   it('erreur et serveur pas à jour', async () => {

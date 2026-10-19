@@ -34,7 +34,8 @@ async function onUpdate(key: string, value: string) {
 
 // Une grille par paliers en vigueur remplace le taux unique : la carte `commission_rate` renvoie
 // alors vers l'onglet Tarification. Back sans l'endpoint ou erreur : on garde le champ.
-const commissionGridActive = ref(false)
+// `null` tant que le statut n'est pas connu : la carte attend au lieu de montrer un champ furtif.
+const commissionGridActive = ref<boolean | null>(null)
 async function loadCommissionGrid() {
   try {
     commissionGridActive.value = !!(await commissionGridService.list(0, 1)).current

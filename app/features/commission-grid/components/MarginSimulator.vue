@@ -4,38 +4,63 @@ import { useMarginSimulator, type SimulatorSource } from '@/features/commission-
 import {
   COMMISSION_CURRENCIES, COMMISSION_GRID_UNAVAILABLE, RAIL_LABELS,
 } from '@/features/commission-grid/types/index'
-import type { CommissionGrid } from '@/features/commission-grid/types/index'
-import { draftFromGrid, draftToRequest, formatAmount } from '@/features/commission-grid/utils/grid'
+import type { CommissionCurrency, CommissionGrid, GridDraft } from '@/features/commission-grid/types/index'
+import {
+  draftFromGrid, draftToRequest, formatAmount, formatPercent, rateToPercent,
+} from '@/features/commission-grid/utils/grid'
 import { formatParis } from '@/features/commission-grid/utils/parisTime'
 
 /**
  * Onglet « Simulateur » : marge de Yadony par moyen de paiement pour un montant net, sur la grille
- * en vigueur, la grille programmée, ou la grille par défaut tant qu'aucune n'est en vigueur.
- * Chiffres indicatifs du back (tarifs publics des prestataires), jamais un prix.
+ * en vigueur ou la grille programmée. Tant qu'aucune grille n'est en vigueur : le taux unique
+ * actuel (`flatRate`, réglage `commission_rate`, en fraction) par défaut, ou la grille proposée
+ * 7 / 6 / 5 %. Chiffres indicatifs du back (tarifs publics des prestataires), jamais un prix.
  */
-const props = defineProps<{ current: CommissionGrid | null; scheduled: CommissionGrid | null }>()
+const props = defineProps<{ current: CommissionGrid | null; scheduled: CommissionGrid | null; flatRate?: string | null }>()
 
-type SourceKey = 'current' | 'scheduled' | 'default'
-const sourceKey = ref<SourceKey>(props.current ? 'current' : 'default')
+type SourceKey = 'current' | 'scheduled' | 'flat' | 'proposal'
+
+/**
+ * Le taux unique simulé comme une grille d'une seule tranche, sans minimum : c'est ce que fait le
+ * back (`flatPlatformGrid`) pour la commission « actuelle » tant qu'aucune grille n'existe.
+ */
+function flatDraft(rate: string): GridDraft {
+  const minimums = {} as Record<CommissionCurrency, string>
+  for (const c of COMMISSION_CURRENCIES) minimums[c] = '0'
+  return { tiers: [{ fromEur: '0', ratePercent: rateToPercent(rate) }], minimums, effectiveFromParis: '', note: '' }
+}
+const hasFlatRate = computed(() => rateToPercent(props.flatRate) !== '')
 
 const sourceOptions = computed(() => {
   const out: { value: SourceKey; label: string }[] = []
-  if (props.current) out.push({ value: 'current', label: 'Grille en vigueur' })
-  else out.push({ value: 'default', label: 'Grille par défaut (aucune en vigueur)' })
+  if (props.current) {
+    out.push({ value: 'current', label: 'Grille en vigueur' })
+  } else {
+    if (hasFlatRate.value) out.push({ value: 'flat', label: `Taux unique actuel (${formatPercent(props.flatRate)})` })
+    out.push({ value: 'proposal', label: 'Grille proposée (7 / 6 / 5 %)' })
+  }
   if (props.scheduled) {
     out.push({ value: 'scheduled', label: `Grille programmée (${formatParis(props.scheduled.effectiveFrom)})` })
   }
   return out
 })
 
-// Une grille qui disparaît (annulée, ou entrée en vigueur) ne doit pas rester sélectionnée.
-watch(sourceOptions, (opts) => {
+const sourceKey = ref<SourceKey>(sourceOptions.value[0]!.value)
+
+// Une grille qui disparaît (annulée, ou entrée en vigueur) ne doit pas rester sélectionnée ; le
+// taux unique, lu à part, arrive parfois après le montage : il redevient alors le choix par défaut.
+watch(sourceOptions, (opts, previous) => {
+  if (sourceKey.value === 'proposal' && opts[0]?.value === 'flat' && !previous?.some(o => o.value === 'flat')) {
+    sourceKey.value = 'flat'
+    return
+  }
   if (!opts.some(o => o.value === sourceKey.value)) sourceKey.value = opts[0]!.value
 })
 
 const source = computed<SimulatorSource | null>(() => {
   if (sourceKey.value === 'current' && props.current) return { gridId: props.current.id }
   if (sourceKey.value === 'scheduled' && props.scheduled) return { gridId: props.scheduled.id }
+  if (sourceKey.value === 'flat' && props.flatRate) return { draft: draftToRequest(flatDraft(props.flatRate)) }
   return { draft: draftToRequest(draftFromGrid(null)) }
 })
 

@@ -456,5 +456,15 @@ describe('SettingsForm', () => {
       expect(managed.find('a').attributes('href')).toBe('/tarification')
       expect(w.find('[data-test="setting-value-urgency_threshold_days"]').exists()).toBe(true)
     })
+
+    it('statut de la grille inconnu : ni champ ni lien, une attente ; les autres réglages intacts', () => {
+      const w = mountForm({ commissionGridActive: null })
+      expect(w.find('[data-test="setting-commission-pending"]').text()).toBe('Chargement…')
+      expect(w.find('[data-test="setting-value-commission_rate"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-commission-link"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-commission-managed"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-error-commission_rate"]').exists()).toBe(false)
+      expect(w.find('[data-test="setting-value-urgency_threshold_days"]').exists()).toBe(true)
+    })
   })
 })

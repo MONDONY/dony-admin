@@ -104,7 +104,7 @@ describe('CommissionGridEditor', () => {
     const w = mountEditor()
     expect(w.find('[data-test="effective-label"]').text()).toContain('dès la confirmation')
     await w.find('[data-test="effective-from"]').setValue('2026-11-01T00:00')
-    expect(w.find('[data-test="effective-label"]').text()).toContain('le 1 novembre 2026 à 00:00 (heure de Paris)')
+    expect(w.find('[data-test="effective-label"]').text()).toContain('le 1er novembre 2026 à 00:00 (heure de Paris)')
     await w.find('[data-test="effective-now"]').trigger('click')
     expect(w.find('[data-test="effective-label"]').text()).toContain('dès la confirmation')
   })

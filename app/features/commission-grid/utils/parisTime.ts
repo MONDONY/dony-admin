@@ -38,18 +38,14 @@ function parisOffsetMs(ms: number): number {
   return asUtc - Math.floor(ms / 1000) * 1000
 }
 
-/** Date du back (UTC sans fuseau) → valeur d'un `<input type="datetime-local">` en heure de Paris. */
-export function utcToParisInput(value: string | null | undefined): string {
-  const ms = parseServerDate(value)
-  if (Number.isNaN(ms)) return ''
-  const p = parisParts(ms)
-  return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`
-}
-
 /**
  * Saisie en heure de Paris → `LocalDateTime` UTC attendu par le back (`2026-11-01T00:00:00`) ;
  * vide ou illisible = `null` (effet immédiat). Le décalage est relu à l'instant obtenu : une saisie
  * proche du changement d'heure tombe ainsi sur le bon côté.
+ *
+ * Changements d'heure : une heure inexistante (29/03 02:30, l'horloge saute de 2 h à 3 h) est
+ * décalée d'une heure plus tard (03:30) ; une heure ambiguë (25/10 02:30, vécue deux fois) est lue
+ * à sa seconde occurrence (heure d'hiver). Dans les deux cas, jamais plus tôt que voulu.
  */
 export function parisInputToUtc(value: string | null | undefined): string | null {
   const m = INPUT.exec((value ?? '').trim())
@@ -60,10 +56,10 @@ export function parisInputToUtc(value: string | null | undefined): string | null
   return new Date(utc).toISOString().slice(0, 19)
 }
 
-/** « 1 novembre 2026 à 01:00 », heure de Paris ; chaîne vide si la date est absente. */
+/** « 1er novembre 2026 à 01:00 », « 15 août 2026 à 10:05 », heure de Paris ; vide si la date est absente. */
 export function formatParis(value: string | null | undefined): string {
   const ms = parseServerDate(value)
   if (Number.isNaN(ms)) return ''
   const p = parisParts(ms)
-  return `${p.day} ${MONTHS[p.month - 1]} ${p.year} à ${pad(p.hour)}:${pad(p.minute)}`
+  return `${p.day === 1 ? '1er' : p.day} ${MONTHS[p.month - 1]} ${p.year} à ${pad(p.hour)}:${pad(p.minute)}`
 }
