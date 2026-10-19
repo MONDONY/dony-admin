@@ -43,6 +43,9 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { key: 'exports', label: 'Exports', keywords: 'csv telecharger', to: '/exports', permission: 'EXPORT_RUN' },
   { key: 'reports', label: 'Signalements', keywords: 'scarabee bugs reports', to: '/signalements', permission: 'REPORT_VIEW' },
   { key: 'communications', label: 'Communications', keywords: 'notifications push broadcast envoi', to: '/communications', permission: 'NOTIFICATION_SEND' },
+  { key: 'pricing', label: 'Tarification', keywords: 'commission grille paliers taux minimum frais de service', to: '/tarification', permission: 'CONFIG_MANAGE' },
+  { key: 'pricing-simulator', label: 'Simulateur de marge', parent: 'Tarification', keywords: 'commission marge tva stripe mobile money', to: { path: '/tarification', query: { tab: 'simulateur' } }, permission: 'CONFIG_MANAGE' },
+  { key: 'pricing-history', label: 'Historique des grilles', parent: 'Tarification', keywords: 'commission grilles annulees', to: { path: '/tarification', query: { tab: 'historique' } }, permission: 'CONFIG_MANAGE' },
   { key: 'settings', label: 'Paramètres', keywords: 'configuration reglages', to: '/parametres', permission: 'CONFIG_MANAGE' },
   { key: 'admins', label: 'Administrateurs', keywords: 'equipe roles permissions', to: '/administrateurs', permission: 'ADMIN_MANAGE' },
 ]
