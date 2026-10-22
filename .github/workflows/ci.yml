@@ -29,7 +29,11 @@ jobs:
           path: coverage/
 
   e2e:
-    runs-on: ubuntu-latest
+    # Figé sur 24.04 : `ubuntu-latest` est passé à 26.04 le 2026-10-22 et Playwright refuse
+    # d'y installer Chromium (« does not support chromium on ubuntu26.04-x64 »), ce qui tuait
+    # le job avant le premier test sur toutes les PR. À repasser sur `ubuntu-latest` quand
+    # Playwright supportera 26.04.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
