@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { PROMO_TARGET_LABELS, formatPromoRate, type AdminPromoCode } from '@/features/promo/types/index'
 defineProps<{ codes: AdminPromoCode[]; loading: boolean }>()
@@ -48,7 +49,6 @@ function fmtDate(d: string | null) { return d ? new Date(d).toLocaleDateString('
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="codes.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun code promo</p>
+    <StateBlock :loading="loading" :empty="codes.length === 0" empty-label="Aucun code promo" />
   </div>
 </template>

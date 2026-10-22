@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import {
-  LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
-  Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, KeyRound, Megaphone, Settings,
-  LifeBuoy, IdCard, Coins, Sparkles, BadgeCheck, Percent,
-} from 'lucide-vue-next'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { KeyRound, Keyboard } from 'lucide-vue-next'
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
+import { routeLocationKey } from 'vue-router'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore, type AdminPermission } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { navBadges } from '@/features/notifications/lib/navBadges'
 import NavItem from './NavItem.vue'
+import NavGroup from './NavGroup.vue'
+import { HOME_ENTRY, NAV_GROUPS, type NavEntry } from './navConfig'
+import { useNavCollapse } from './useNavCollapse'
+import { useShortcutsHelp } from '@/composables/useShortcuts'
 
 const auth = useAuthStore()
 const initials = computed(() =>
@@ -24,6 +25,30 @@ const badgeProps = (to: string) => {
   const b = badges.value[to]
   return b ? { badge: b.count, badgeTone: b.tone } : {}
 }
+
+// Groupes du menu : n'affichent que les entrées autorisées ; un groupe sans entrée disparaît.
+const visibleGroups = computed(() =>
+  NAV_GROUPS
+    .map(g => ({ ...g, entries: g.entries.filter(e => can(e.permission)) }))
+    .filter(g => g.entries.length > 0),
+)
+const route = inject(routeLocationKey, null)
+const isActive = (e: NavEntry) => {
+  const path = route?.path
+  if (!path) return false
+  return e.to === '/' ? path === '/' : path === e.to || path.startsWith(`${e.to}/`)
+}
+const { isOpen, toggle } = useNavCollapse()
+const groupOpen = (g: { id: string; entries: NavEntry[] }) => isOpen(g.id) || g.entries.some(isActive)
+const groupBadge = (g: { entries: NavEntry[] }) => {
+  const list = g.entries.map(e => badges.value[e.to]).filter((b): b is NonNullable<typeof b> => !!b)
+  return {
+    badge: list.reduce((n, b) => n + b.count, 0),
+    badgeTone: list.some(b => b.tone === 'danger') ? ('danger' as const) : ('neutral' as const),
+  }
+}
+const shortcutsHelp = useShortcutsHelp()
+
 let unsubscribeNotifications: (() => void) | null = null
 
 const showProfileMenu = ref(false)
@@ -101,6 +126,15 @@ onBeforeUnmount(() => {
               <KeyRound class="w-4 h-4" />
               Changer mon mot de passe
             </NuxtLink>
+            <button
+              type="button" role="menuitem" data-test="profile-shortcuts"
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-surface-elevated transition-colors"
+              @click="closeProfileMenu(); shortcutsHelp.show()"
+            >
+              <Keyboard class="w-4 h-4" />
+              Raccourcis clavier
+              <kbd class="ml-auto rounded border border-border px-1.5 text-[11px] text-text-muted">?</kbd>
+            </button>
           </div>
         </Transition>
       </div>
@@ -128,28 +162,19 @@ onBeforeUnmount(() => {
           <div v-for="i in 8" :key="i" class="h-9 rounded-btn bg-border/40 animate-pulse" />
         </nav>
       </template>
-    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-      <NavItem v-if="can('METRICS_VIEW')" to="/" label="Vue d’ensemble"><template #icon><LayoutDashboard class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('USER_VIEW')" to="/users" label="Utilisateurs"><template #icon><Users class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('USER_KYC')" to="/kyc" v-bind="badgeProps('/kyc')" label="Vérifications d’identité"><template #icon><IdCard class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('GP_PRO_REVIEW')" to="/gp-pro" v-bind="badgeProps('/gp-pro')" label="GP Pro"><template #icon><BadgeCheck class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('USER_GDPR_DELETE')" to="/users/rgpd" v-bind="badgeProps('/users/rgpd')" label="Demandes RGPD"><template #icon><UserX class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('PAYMENT_VIEW')" to="/transactions" v-bind="badgeProps('/transactions')" label="Transactions"><template #icon><CreditCard class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('BID_VIEW')" to="/colis" label="Colis"><template #icon><Package class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('DISPUTE_VIEW')" to="/incidents" v-bind="badgeProps('/incidents')" label="Incidents"><template #icon><AlertTriangle class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('ALERT_VIEW')" to="/alertes" v-bind="badgeProps('/alertes')" label="Alertes"><template #icon><Bell class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('MODERATION_VIEW')" to="/moderation" label="Modération"><template #icon><MessageSquare class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('SUPPORT_TICKET_VIEW')" to="/support" v-bind="badgeProps('/support')" label="Support"><template #icon><LifeBuoy class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('ASSISTANT_MANAGE')" to="/assistant" label="Assistant IA"><template #icon><Sparkles class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('PROMO_MANAGE')" to="/promo" label="Codes promo"><template #icon><Ticket class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('TOPUP_CODE_MANAGE')" to="/topup-codes" label="Codes de recharge"><template #icon><Coins class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('AUDIT_VIEW')" to="/audit" label="Audit"><template #icon><ScrollText class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('EXPORT_RUN')" to="/exports" label="Exports"><template #icon><Download class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('REPORT_VIEW')" to="/signalements" v-bind="badgeProps('/signalements')" label="Signalements"><template #icon><Flag class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('NOTIFICATION_SEND')" to="/communications" label="Communications"><template #icon><Megaphone class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('CONFIG_MANAGE')" to="/tarification" label="Tarification"><template #icon><Percent class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('CONFIG_MANAGE')" to="/parametres" label="Paramètres"><template #icon><Settings class="w-4 h-4" /></template></NavItem>
-      <NavItem v-if="can('ADMIN_MANAGE')" to="/administrateurs" label="Administrateurs"><template #icon><ShieldCheck class="w-4 h-4" /></template></NavItem>
+    <nav class="flex-1 px-3 py-4 space-y-3 overflow-y-auto" aria-label="Navigation principale">
+      <NavItem v-if="can(HOME_ENTRY.permission)" :to="HOME_ENTRY.to" :label="HOME_ENTRY.label">
+        <template #icon><component :is="HOME_ENTRY.icon" class="w-4 h-4" /></template>
+      </NavItem>
+      <NavGroup
+        v-for="g in visibleGroups" :id="g.id" :key="g.id" :label="g.label"
+        :open="groupOpen(g)" :active="g.entries.some(isActive)"
+        v-bind="groupBadge(g)" @toggle="toggle(g.id)"
+      >
+        <NavItem v-for="e in g.entries" :key="e.to" :to="e.to" v-bind="badgeProps(e.to)" :label="e.label">
+          <template #icon><component :is="e.icon" class="w-4 h-4" /></template>
+        </NavItem>
+      </NavGroup>
     </nav>
     </ClientOnly>
   </aside>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   /** Resynchronisation Stripe effectuée : la fiche est à recharger. */
   resynced: []
 }>()
+useEscapeClose(() => emit('close'), () => props.open)
 
 type PendingAction = 'release' | 'refund' | 'retry-payout' | 'retry-refund'
 

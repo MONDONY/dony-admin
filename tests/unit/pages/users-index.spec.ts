@@ -14,6 +14,7 @@ import { seedAuth } from '~/tests/helpers/auth'
 // Stubs Nuxt globaux
 vi.stubGlobal('definePageMeta', vi.fn())
 vi.stubGlobal('navigateTo', vi.fn())
+vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
 vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApiKey: '' } }))
 
@@ -34,9 +35,9 @@ vi.mock('@/features/users/services/usersService', () => ({
 
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a><slot /></a>', props: ['to', 'target', 'rel'] }
 
-async function mountUsersPage(queryParam?: string, openParam?: string) {
+async function mountUsersPage(queryParam?: string, openParam?: string, extraQuery: Record<string, string> = {}) {
   // On contrôle useRoute() pour simuler le paramètre d'URL
-  const query: Record<string, string> = {}
+  const query: Record<string, string> = { ...extraQuery }
   if (queryParam) query.query = queryParam
   if (openParam) query.open = openParam
   vi.stubGlobal('useRoute', () => ({
@@ -133,6 +134,19 @@ describe("users/index.vue — lecture du paramètre d'URL", () => {
     const [filtersArg] = listMock.mock.calls[0]
     expect(filtersArg.query).toBe(uuid)
     expect(detailOpenMock).not.toHaveBeenCalled()
+  })
+
+  it('retrouve le statut et la recherche de l’URL (?status=SUSPENDED&query=awa) au premier chargement', async () => {
+    await mountUsersPage('awa', undefined, { status: 'SUSPENDED' })
+    expect(listMock).toHaveBeenCalledTimes(1)
+    const [filtersArg] = listMock.mock.calls[0]
+    expect(filtersArg.status).toBe('SUSPENDED')
+    expect(filtersArg.query).toBe('awa')
+  })
+
+  it('ignore un statut inconnu de l’URL au lieu de le transmettre au back', async () => {
+    await mountUsersPage(undefined, undefined, { status: 'PIRATE' })
+    expect(listMock.mock.calls[0][0].status).toBe('TOUS')
   })
 
   // Lien depuis l'onglet Portefeuilles des transactions : la liste est filtrée ET la fiche

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
 import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
 import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -23,6 +24,10 @@ definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle:
 // par override verrait sinon un onglet qui répond 403 en affichant « aucun avis ».
 const auth = useAuthStore()
 const activeTab = ref<'reports' | 'ratings'>('reports')
+const mainTabs = computed<TabItem<'reports' | 'ratings'>[]>(() => [
+  { id: 'reports', label: 'Signalements' },
+  ...(auth.can('RATING_MODERATE') ? [{ id: 'ratings' as const, label: 'Avis' }] : []),
+])
 
 // ---- Signalements ----
 const r = useReports()
@@ -247,20 +252,10 @@ onMounted(async () => {
 <template>
   <div>
     <!-- Onglets principaux -->
-    <div class="flex gap-1 mb-4 border-b border-border">
-      <button
-        type="button" data-test="tab-reports"
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-          activeTab === 'reports' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text']"
-        @click="switchTab('reports')"
-      >Signalements</button>
-      <button
-        v-if="auth.can('RATING_MODERATE')" type="button" data-test="tab-ratings"
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-          activeTab === 'ratings' ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text']"
-        @click="switchTab('ratings')"
-      >Avis</button>
-    </div>
+    <TabBar
+      class="mb-4" variant="underline" :tabs="mainTabs" :model-value="activeTab"
+      aria-label="Sections des signalements" @update:model-value="switchTab"
+    />
 
     <!-- SIGNALEMENTS -->
     <div v-show="activeTab === 'reports'">

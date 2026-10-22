@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { formatMoney } from '@/features/payments/types/index'
 import type { AdminChargeback, ChargebackStatus } from '@/features/payments/types/index'
@@ -30,7 +31,6 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="chargebacks.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun litige bancaire</p>
+    <StateBlock :loading="loading" :empty="chargebacks.length === 0" empty-label="Aucun litige bancaire" />
   </div>
 </template>

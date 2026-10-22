@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { ref } from 'vue'
 import type { AdminAuditEntry } from '@/features/audit/types/index'
 defineProps<{ entries: AdminAuditEntry[]; loading: boolean }>()
@@ -50,7 +51,6 @@ function pretty(p: Record<string, unknown> | null) { return JSON.stringify(p, nu
         </template>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="entries.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune entrée</p>
+    <StateBlock :loading="loading" :empty="entries.length === 0" empty-label="Aucune entrée" />
   </div>
 </template>

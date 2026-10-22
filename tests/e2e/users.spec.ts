@@ -167,10 +167,13 @@ test('admin coupe la messagerie avec une durée choisie puis la rétablit', asyn
   await page.locator('[data-test="row-u1"]').click()
   await expect(page.locator('[data-test="messaging-status"]')).toContainText('Autorisée')
 
+  // La mise en sourdine vit dans l'onglet Gestion ; le statut de messagerie, dans le Profil.
+  await page.locator('[data-test="tab-gestion"]').click()
   await page.locator('[data-test="mute-duration"]').selectOption('168')
   await page.locator('[data-test="action-mute"]').click()
   await page.locator('[data-test="reason"]').fill('propos déplacés répétés')
   await page.locator('[data-test="confirm"]').click()
+  await page.locator('[data-test="tab-profil"]').click()
 
   await expect(page.locator('[data-test="messaging-status"]')).toContainText('Coupée jusqu')
   await expect.poll(() => muteCalls.length).toBe(1)

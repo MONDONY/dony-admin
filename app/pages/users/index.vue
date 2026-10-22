@@ -10,6 +10,7 @@ import { useUsers } from '@/features/users/composables/useUsers'
 import { useUserDetail } from '@/features/users/composables/useUserDetail'
 import { useUserKyc } from '@/features/users/composables/useUserKyc'
 import { useUserDeletion } from '@/features/users/composables/useUserDeletion'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useRecetteBulk } from '@/features/users/composables/useRecetteBulk'
 import type { AdminDeletionReasonCode, AdminKycDetail, UserStatusFilter } from '@/features/users/types/index'
 
@@ -17,9 +18,17 @@ definePageMeta({ middleware: 'admin-only', permission: 'USER_VIEW', pageTitle: '
 
 const route = useRoute()
 const {
-  users, isLoading, totalPages, totalElements, currentPage, filters,
+  users, isLoading, error: listError, totalPages, totalElements, currentPage, filters,
   fetchUsers, goToPage, setStatusFilter, setSearch, setRecetteFilter,
 } = useUsers()
+// Statut et recherche vivent dans l'URL (?status=SUSPENDED&query=…) : la vue survit à un
+// rechargement et se partage. `query` est aussi le paramètre des liens de contreparties.
+const urlFilters = useUrlFilters(filters, {
+  status: { default: 'TOUS', allowed: ['TOUS', 'ACTIVE', 'SUSPENDED', 'BANNED', 'PENDING_DELETION'] },
+  query: { default: '' },
+})
+// Avant le premier rendu : les champs des filtres (recherche, dates) s'initialisent depuis leurs props.
+urlFilters.restore()
 const detail = useUserDetail()
 const kyc = useUserKyc()
 const deletion = useUserDeletion()
@@ -125,9 +134,9 @@ watch(() => route.query?.open, async (openId) => {
       />
     </Transition>
     <UserTable
-      :users="users" :loading="isLoading"
+      :users="users" :loading="isLoading" :error="listError"
       :selectable="recetteAvailable" :selected-ids="recette.selected.value"
-      @select="openUser" @toggle="recette.toggle" @toggle-page="recette.togglePage"
+      @select="openUser" @retry="fetchUsers" @toggle="recette.toggle" @toggle-page="recette.togglePage"
     />
     <div class="mt-4">
       <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />

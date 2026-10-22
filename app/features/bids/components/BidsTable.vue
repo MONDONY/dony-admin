@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { bidStatusMeta } from './bidStatus'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import type { AdminBidListItem } from '@/features/bids/types/index'
 
-defineProps<{ bids: AdminBidListItem[]; loading: boolean }>()
-const emit = defineEmits<{ select: [id: string] }>()
+defineProps<{ bids: AdminBidListItem[]; loading: boolean; error?: string | null }>()
+const emit = defineEmits<{ select: [id: string]; retry: [] }>()
 
 function fmt(d: string) {
   return new Date(d).toLocaleDateString('fr-FR')
@@ -42,7 +43,6 @@ function fmt(d: string) {
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="bids.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun colis</p>
+    <StateBlock :loading="loading" :error="error" :empty="bids.length === 0" empty-label="Aucun colis" @retry="emit('retry')" />
   </div>
 </template>

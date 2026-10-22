@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 const props = defineProps<{
   open: boolean; title: string; message: string; confirmLabel: string
   requireReason?: boolean
@@ -22,6 +22,16 @@ const reasonChoice = ref('')
 watch(() => props.open, (o) => {
   if (o) { reason.value = ''; confirmation.value = ''; reasonChoice.value = '' }
 })
+
+// Échap annule, y compris depuis le champ de motif : c'est le geste attendu d'une fenêtre modale,
+// et le panneau qui l'a ouverte (qui écoute aussi Échap) reste en place derrière.
+function onEscape(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || !props.open) return
+  e.preventDefault()
+  emit('cancel')
+}
+onMounted(() => window.addEventListener('keydown', onEscape))
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
 
 const controlLabel = computed(
   () => props.confirmationLabel ?? `Saisissez « ${props.confirmationPhrase} » pour confirmer`,
@@ -54,7 +64,7 @@ function onConfirm() {
 
 <template>
   <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-test="overlay">
-    <div class="w-full max-w-sm rounded-card border border-border bg-surface p-6 shadow-xl">
+    <div role="dialog" aria-modal="true" :aria-label="title" class="w-full max-w-sm rounded-card border border-border bg-surface p-6 shadow-xl">
       <h2 class="font-display text-lg font-semibold mb-1">{{ title }}</h2>
       <p class="text-sm text-text-muted mb-4">{{ message }}</p>
       <slot />

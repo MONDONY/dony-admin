@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { fmtDate, reviewReasonLabel } from '@/features/gp-pro/types/index'
 import type { AdminGpProReviewRow } from '@/features/gp-pro/types/index'
 
@@ -46,7 +47,6 @@ const emit = defineEmits<{ dismiss: [flagId: string] }>()
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="items.length === 0" data-test="gp-pro-review-empty" class="p-6 text-center text-sm text-text-muted">Aucun titulaire à revoir</p>
+    <StateBlock :loading="loading" :empty="items.length === 0" empty-label="Aucun titulaire à revoir" empty-test="gp-pro-review-empty" />
   </div>
 </template>

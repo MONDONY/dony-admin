@@ -10,7 +10,7 @@ import type { AdminAlert, AlertSeverity, ResolvedFilter } from '@/features/alert
 
 definePageMeta({ middleware: 'admin-only', permission: 'ALERT_VIEW', pageTitle: 'Alertes', pageSubtitle: 'Alertes opérationnelles' })
 
-const { alerts, isLoading, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, markResolvedLocally } = useAlerts()
+const { alerts, isLoading, error: alertsError, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, markResolvedLocally } = useAlerts()
 const pendingId = ref<string | null>(null)
 const selected = ref<AdminAlert | null>(null)
 
@@ -84,7 +84,7 @@ onMounted(fetchAlerts)
       Cliquez sur une alerte pour voir ce qui s’est passé, les étapes à suivre et les liens vers le paiement, le colis ou l’utilisateur concerné.
     </p>
 
-    <AlertsTable :alerts="alerts" :loading="isLoading" @resolve="(id) => pendingId = id" @open="(a) => selected = a" />
+    <AlertsTable :alerts="alerts" :loading="isLoading" :error="alertsError" @retry="fetchAlerts" @resolve="(id) => pendingId = id" @open="(a) => selected = a" />
 
     <div class="mt-4">
       <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />

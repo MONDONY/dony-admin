@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { STATUS_LABELS, categoryLabel, formatDate, statusTone } from '@/features/support/utils/format'
@@ -38,7 +39,6 @@ const emit = defineEmits<{ select: [id: string] }>()
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="tickets.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun ticket</p>
+    <StateBlock :loading="loading" :empty="tickets.length === 0" empty-label="Aucun ticket" />
   </div>
 </template>

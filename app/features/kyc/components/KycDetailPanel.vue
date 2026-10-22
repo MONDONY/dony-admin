@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import KycReviewDetails from './KycReviewDetails.vue'
@@ -18,6 +19,7 @@ const props = defineProps<{
   resetBusy?: boolean
 }>()
 const emit = defineEmits<{ close: []; decided: [kyc: AdminKycDetail]; stale: []; reset: [reason: string] }>()
+useEscapeClose(() => emit('close'))
 
 const title = computed(() => props.row?.userName ?? `Utilisateur ${props.userId.slice(0, 8)}`)
 const provider = computed(() => props.kyc?.provider ?? props.row?.provider ?? null)

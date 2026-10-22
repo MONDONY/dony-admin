@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
@@ -14,6 +15,7 @@ const emit = defineEmits<{
   close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, beneficiaryUserId: string, reason: string]
   split: [senderRefund: number, travelerPayout: number, note: string]; 'retry-split': []
 }>()
+useEscapeClose(() => emit('close'))
 
 const auth = useAuthStore()
 const pending = ref<DisputeResolution | null>(null)

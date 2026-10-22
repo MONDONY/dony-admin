@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminConversation } from '@/features/moderation/types/index'
 defineProps<{ conversations: AdminConversation[]; loading: boolean }>()
@@ -37,7 +38,6 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString('fr-FR') 
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="conversations.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune conversation</p>
+    <StateBlock :loading="loading" :empty="conversations.length === 0" empty-label="Aucune conversation" />
   </div>
 </template>

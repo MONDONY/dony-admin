@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { alertSeverityMeta } from './alertSeverity'
 import { alertGuide, alertSummary } from '@/features/alerts/lib/alertCatalog'
 import { formatAlertDate } from '@/features/alerts/lib/alertDate'
 import type { AdminAlert } from '@/features/alerts/types/index'
 import { useAuthStore } from '@/stores/auth'
-defineProps<{ alerts: AdminAlert[]; loading: boolean }>()
-const emit = defineEmits<{ resolve: [id: string]; open: [alert: AdminAlert] }>()
+defineProps<{ alerts: AdminAlert[]; loading: boolean; error?: string | null }>()
+const emit = defineEmits<{ resolve: [id: string]; open: [alert: AdminAlert]; retry: [] }>()
 const auth = useAuthStore()
 </script>
 
@@ -51,7 +52,6 @@ const auth = useAuthStore()
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="alerts.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune alerte</p>
+    <StateBlock :loading="loading" :error="error" :empty="alerts.length === 0" empty-label="Aucune alerte" @retry="emit('retry')" />
   </div>
 </template>

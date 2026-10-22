@@ -28,6 +28,7 @@ vi.mock('@/composables/useApi', () => ({
 vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { firebaseApiKey: '', apiBaseUrl: '' } }))
 vi.stubGlobal('navigateTo', vi.fn())
+vi.stubGlobal('useRouter', () => ({ push: vi.fn() }))
 
 describe('auth layout', () => {
   it('renders slot content', async () => {

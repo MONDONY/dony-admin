@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ReportRatingPreview from './ReportRatingPreview.vue'
@@ -196,7 +197,6 @@ function actionTaken(r: AdminReport): string | null {
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="reports.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun signalement</p>
+    <StateBlock :loading="loading" :empty="reports.length === 0" empty-label="Aucun signalement" />
   </div>
 </template>

@@ -21,7 +21,7 @@ const baseUser = {
 describe('UserDetailPanel', () => {
   beforeEach(() => seedAuth('ADMIN'))
   it('GP Pro : section montée avec GP_PRO_REVIEW et un back qui expose gpPro ; changed relayé', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     const section = w.findComponent({ name: 'UserGpProSection' })
     expect(section.exists()).toBe(true)
     section.vm.$emit('changed')
@@ -29,9 +29,9 @@ describe('UserDetailPanel', () => {
   })
   it('GP Pro : section absente sur un ancien back (gpPro absent) ou sans la permission', () => {
     const { gpPro: _gpPro, ...legacy } = baseUser
-    expect(mount(UserDetailPanel, { props: { user: legacy, open: true } }).find('[data-test="gp-pro-section"]').exists()).toBe(false)
+    expect(mount(UserDetailPanel, { props: { initialTab: 'gestion', user: legacy, open: true } }).find('[data-test="gp-pro-section"]').exists()).toBe(false)
     seedAuth('SUPPORT')
-    expect(mount(UserDetailPanel, { props: { user: baseUser, open: true } }).find('[data-test="gp-pro-section"]').exists()).toBe(false)
+    expect(mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } }).find('[data-test="gp-pro-section"]').exists()).toBe(false)
   })
   it('renders user profile and counters', () => {
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
@@ -104,7 +104,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('commission editor: apply with a valid input opens the confirm dialog without emitting', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="commission-input"]').setValue('8')
     await w.find('[data-test="commission-apply"]').trigger('click')
     expect(w.find('[data-test="overlay"]').exists()).toBe(true)
@@ -112,7 +112,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('commission editor: confirming the apply dialog emits the expected fraction', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="commission-input"]').setValue('8')
     await w.find('[data-test="commission-apply"]').trigger('click')
     await w.find('[data-test="confirm"]').trigger('click')
@@ -120,7 +120,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('commission editor: cancelling the apply dialog emits nothing', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="commission-input"]').setValue('8')
     await w.find('[data-test="commission-apply"]').trigger('click')
     await w.find('[data-test="cancel"]').trigger('click')
@@ -129,7 +129,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('commission editor: reset opens the confirm dialog, then emits null on confirm', async () => {
-    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, commissionRateOverride: 0.08 }, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: { ...baseUser, commissionRateOverride: 0.08 }, open: true } })
     await w.find('[data-test="commission-reset"]').trigger('click')
     expect(w.emitted('setCommission')).toBeUndefined()
     await w.find('[data-test="confirm"]').trigger('click')
@@ -137,13 +137,13 @@ describe('UserDetailPanel', () => {
   })
 
   it('commission editor: the confirm dialog does not require a reason', async () => {
-    const w = mount(UserDetailPanel, { props: { user: { ...baseUser, commissionRateOverride: 0.08 }, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: { ...baseUser, commissionRateOverride: 0.08 }, open: true } })
     await w.find('[data-test="commission-reset"]').trigger('click')
     expect(w.find('[data-test="reason"]').exists()).toBe(false)
   })
 
   it('commission editor: rejects a value above the back-end max (99.9 %) and does not open the dialog', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="commission-input"]').setValue('99.95')
     await w.find('[data-test="commission-apply"]').trigger('click')
     expect(w.find('[data-test="overlay"]').exists()).toBe(false)
@@ -151,7 +151,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('commission editor: accepts the boundary value 99.9 % and emits the back-end max fraction on confirm', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="commission-input"]').setValue('99.9')
     await w.find('[data-test="commission-apply"]').trigger('click')
     await w.find('[data-test="confirm"]').trigger('click')
@@ -160,12 +160,12 @@ describe('UserDetailPanel', () => {
 
   it('hides commission editor without USER_COMMISSION permission', () => {
     seedAuth('SUPPORT')
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     expect(w.find('[data-test="commission-input"]').exists()).toBe(false)
   })
 
   it('shows the mute duration selector and the mute button with USER_MESSAGE_MUTE', () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     expect(w.find('[data-test="mute-duration"]').exists()).toBe(true)
     expect(w.find('[data-test="action-mute"]').exists()).toBe(true)
   })
@@ -174,13 +174,13 @@ describe('UserDetailPanel', () => {
   // par un override explicite, qui teste réellement le gating et non le rôle.
   it('hides the mute duration selector and the mute button without USER_MESSAGE_MUTE', () => {
     seedAuth('SUPPORT', { USER_MESSAGE_MUTE: false })
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     expect(w.find('[data-test="mute-duration"]').exists()).toBe(false)
     expect(w.find('[data-test="action-mute"]').exists()).toBe(false)
   })
 
   it('mute: confirming with the default duration (24h) emits muteMessaging with the reason', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="action-mute"]').trigger('click')
     await w.find('[data-test="reason"]').setValue('spam répété')
     await w.find('[data-test="confirm"]').trigger('click')
@@ -188,7 +188,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('mute: selecting 7 jours emits muteMessaging with 168 hours', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="mute-duration"]').setValue('168')
     await w.find('[data-test="action-mute"]').trigger('click')
     await w.find('[data-test="reason"]').setValue('spam')
@@ -197,7 +197,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('mute: selecting indéfini emits muteMessaging with a null duration', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="mute-duration"]').setValue('indefinite')
     await w.find('[data-test="action-mute"]').trigger('click')
     await w.find('[data-test="reason"]').setValue('abus répétés')
@@ -206,7 +206,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('mute: cancelling the dialog emits nothing', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="action-mute"]').trigger('click')
     await w.find('[data-test="cancel"]').trigger('click')
     expect(w.emitted('muteMessaging')).toBeUndefined()
@@ -214,7 +214,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('mute: the confirm dialog requires a reason', async () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     await w.find('[data-test="action-mute"]').trigger('click')
     expect(w.find('[data-test="reason"]').exists()).toBe(true)
     expect(w.find('[data-test="confirm"]').attributes('disabled')).toBeDefined()
@@ -261,13 +261,13 @@ describe('UserDetailPanel', () => {
   })
 
   it('disables the mute action while busy', () => {
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true, busy: true } })
     expect(w.find('[data-test="action-mute"]').attributes('disabled')).toBeDefined()
   })
 
   it('émet requestDelete depuis la zone de danger', async () => {
     seedAuth('ADMIN')
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: false } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true, busy: false } })
     await w.find('[data-test="action-delete"]').trigger('click')
     expect(w.emitted('requestDelete')).toHaveLength(1)
   })
@@ -276,7 +276,7 @@ describe('UserDetailPanel', () => {
   // pas seulement être inerte.
   it('masque le bouton de suppression sans la permission USER_DELETE', () => {
     seedAuth('SUPPORT')
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true, busy: false } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true, busy: false } })
     expect(w.find('[data-test="action-delete"]').exists()).toBe(false)
   })
 
@@ -437,14 +437,14 @@ describe('UserDetailPanel', () => {
     }
 
     it('propose d\'offrir un accès PRO à un compte qui n\'en a aucun', () => {
-      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
       expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
       expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(false)
       expect(w.find('[data-test="pro-source"]').text()).toBe('aucun')
     })
 
     it('émet grantPro avec le motif saisi dans la confirmation', async () => {
-      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
       await w.find('[data-test="action-grant-pro"]').trigger('click')
       await w.find('[data-test="reason"]').setValue('partenaire pilote Dakar')
       await w.find('[data-test="confirm"]').trigger('click')
@@ -452,14 +452,14 @@ describe('UserDetailPanel', () => {
     })
 
     it('n\'offre la révocation que pour un accès offert, et montre son motif', () => {
-      const w = mount(UserDetailPanel, { props: { user: granted, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: granted, open: true } })
       expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(true)
       expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(false)
       expect(w.text()).toContain('partenaire pilote')
     })
 
     it('émet revokePro sans exiger de motif', async () => {
-      const w = mount(UserDetailPanel, { props: { user: granted, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: granted, open: true } })
       await w.find('[data-test="action-revoke-pro"]').trigger('click')
       await w.find('[data-test="confirm"]').trigger('click')
       expect(w.emitted('revokePro')).toBeTruthy()
@@ -469,7 +469,7 @@ describe('UserDetailPanel', () => {
     // Un abonnement payant se résilie dans Stripe : proposer les deux gestes ici laisserait
     // croire qu'on peut annuler un paiement depuis l'administration.
     it('n\'offre aucun geste sur un abonnement payant, et le dit', () => {
-      const w = mount(UserDetailPanel, { props: { user: paying, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: paying, open: true } })
       expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(false)
       expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(false)
       expect(w.find('[data-test="pro-stripe-hint"]').text()).toContain('Stripe')
@@ -498,13 +498,13 @@ describe('UserDetailPanel', () => {
     }
 
     it('permet d\'offrir un accès à un abonnement payant EXPIRÉ', () => {
-      const w = mount(UserDetailPanel, { props: { user: expiredStripe, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: expiredStripe, open: true } })
       expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
       expect(w.find('[data-test="pro-stripe-hint"]').exists()).toBe(false)
     })
 
     it('permet d\'offrir un accès pendant une grâce historique', () => {
-      const w = mount(UserDetailPanel, { props: { user: legacyGrace, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: legacyGrace, open: true } })
       expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
     })
 
@@ -515,14 +515,14 @@ describe('UserDetailPanel', () => {
         ...expiredStripe,
         proSubscription: { ...expiredStripe.proSubscription, status: 'PAST_DUE' },
       }
-      const w = mount(UserDetailPanel, { props: { user: pastDue, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: pastDue, open: true } })
       expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(false)
       expect(w.find('[data-test="pro-stripe-hint"]').exists()).toBe(true)
     })
 
     it('cache toute la section pour un rôle SUPPORT, qui n\'a pas USER_PRO_GRANT', () => {
       seedAuth('SUPPORT')
-      const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+      const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
       expect(w.find('[data-test="pro-grant-section"]').exists()).toBe(false)
     })
   })
@@ -659,13 +659,67 @@ describe('UserDetailPanel — mode recette', () => {
 
   it('visible pour un super-admin (ADMIN_MANAGE)', () => {
     seedAuth('SUPER_ADMIN')
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true }, global: { stubs } })
     expect(w.find('[data-test="recette-stub"]').text()).toBe('u1')
   })
 
   it('absente pour un ADMIN sans ADMIN_MANAGE', () => {
     seedAuth('ADMIN')
-    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, global: { stubs } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true }, global: { stubs } })
     expect(w.find('[data-test="recette-stub"]').exists()).toBe(false)
+  })
+})
+
+describe('UserDetailPanel : onglet Gestion et clavier', () => {
+  beforeEach(() => seedAuth('ADMIN'))
+
+  it('l’onglet Gestion regroupe les réglages rares et se rejoint au clic', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="user-gestion"]').exists()).toBe(false)
+    expect(w.find('[data-test="action-delete"]').exists()).toBe(false)
+    await w.find('[data-test="tab-gestion"]').trigger('click')
+    expect(w.find('[data-test="tab-gestion"]').attributes('aria-selected')).toBe('true')
+    expect(w.find('[data-test="user-gestion"]').exists()).toBe(true)
+    expect(w.find('[data-test="action-delete"]').exists()).toBe(true)
+    expect(w.find('[data-test="commission-input"]').exists()).toBe(true)
+  })
+
+  it('le Profil garde les gestes courants de modération', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="action-suspend"]').exists()).toBe(true)
+    expect(w.find('[data-test="action-ban"]').exists()).toBe(true)
+    expect(w.find('[data-test="mute-duration"]').exists()).toBe(false)
+  })
+
+  it('l’onglet Gestion est absent quand le rôle n’a aucun de ses droits', () => {
+    seedAuth('SUPPORT', {
+      USER_MESSAGE_MUTE: false, USER_COMMISSION: false, USER_PRO_GRANT: false,
+      GP_PRO_REVIEW: false, ADMIN_MANAGE: false, USER_DELETE: false,
+    })
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
+    expect(w.find('[data-test="tab-gestion"]').exists()).toBe(false)
+  })
+
+  it('une erreur d’action s’affiche aussi dans l’onglet Gestion', () => {
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true, error: 'Refusé' } })
+    expect(w.find('[data-test="user-error-gestion"]').text()).toContain('Refusé')
+  })
+
+  it('Échap ferme la fiche', () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, attachTo: document.body })
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(w.emitted('close')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('Échap ne ferme pas la fiche pendant qu’une confirmation est ouverte, il annule la confirmation', async () => {
+    const w = mount(UserDetailPanel, { props: { user: baseUser, open: true }, attachTo: document.body })
+    await w.find('[data-test="action-suspend"]').trigger('click')
+    expect(w.find('[data-test="overlay"]').exists()).toBe(true)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await w.vm.$nextTick()
+    expect(w.emitted('close')).toBeUndefined()
+    expect(w.find('[data-test="overlay"]').exists()).toBe(false)
+    w.unmount()
   })
 })

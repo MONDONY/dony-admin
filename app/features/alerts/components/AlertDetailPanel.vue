@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { alertSeverityMeta } from './alertSeverity'
@@ -14,6 +15,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ alert: AdminAlert | null }>()
 const emit = defineEmits<{ close: []; resolve: [id: string]; 'auto-resolved': [ids: string[]]; changed: [] }>()
+useEscapeClose(() => emit('close'), () => props.alert !== null)
 const auth = useAuthStore()
 
 const guide = computed(() => props.alert ? alertGuide(props.alert.type) : null)

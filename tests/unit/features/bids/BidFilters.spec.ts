@@ -29,14 +29,23 @@ describe('BidFilters', () => {
   })
 
   it('emits date range updates and clears them', async () => {
+    // Le bouton d'effacement n'existe que si une borne est posée : on part d'une date de fin déjà filtrée.
     const wrapper = mountFilters({ modelDateTo: '2026-07-31' })
 
     await wrapper.find('[data-test="date-from"]').setValue('2026-07-01')
     await wrapper.find('[data-test="date-to"]').setValue('2026-07-31')
     await wrapper.findAll('button').at(-1)!.trigger('click')
 
-    expect(wrapper.emitted('update:dateRange')?.[0]).toEqual(['2026-07-01', null])
+    expect(wrapper.emitted('update:dateRange')?.[0]).toEqual(['2026-07-01', '2026-07-31'])
     expect(wrapper.emitted('update:dateRange')?.[1]).toEqual(['2026-07-01', '2026-07-31'])
     expect(wrapper.emitted('update:dateRange')?.[2]).toEqual([null, null])
+  })
+
+  it('affiche les filtres venus de l’URL (recherche et dates)', () => {
+    const wrapper = mountFilters({ modelQuery: 'YD-9', modelDateFrom: '2026-07-01', modelDateTo: '2026-07-31' })
+
+    expect((wrapper.find('[data-test="search"]').element as HTMLInputElement).value).toBe('YD-9')
+    expect((wrapper.find('[data-test="date-from"]').element as HTMLInputElement).value).toBe('2026-07-01')
+    expect((wrapper.find('[data-test="date-to"]').element as HTMLInputElement).value).toBe('2026-07-31')
   })
 })

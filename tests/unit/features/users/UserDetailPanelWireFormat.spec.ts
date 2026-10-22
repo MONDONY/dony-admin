@@ -30,25 +30,25 @@ describe('UserDetailPanel — format réel du fil (champs absents, pas null)', (
   // sans abonnement. Une comparaison `!== null` y serait vraie et afficherait le panneau
   // comme si une ligne existait.
   it('sans abonnement : annonce « aucun » et propose d\'offrir l\'accès', () => {
-    const w = mount(UserDetailPanel, { props: { user: wireUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: wireUser, open: true } })
     expect(w.find('[data-test="pro-source"]').text()).toBe('aucun')
     expect(w.find('[data-test="action-grant-pro"]').exists()).toBe(true)
     expect(w.find('[data-test="action-revoke-pro"]').exists()).toBe(false)
   })
 
   it('sans dérogation de commission : annonce le taux global, jamais « NaN % »', () => {
-    const w = mount(UserDetailPanel, { props: { user: wireUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: wireUser, open: true } })
     expect(w.text()).toContain('taux global appliqué')
     expect(w.text()).not.toContain('NaN')
   })
 
   it('sans dérogation de commission : pas de bouton « Réinitialiser »', () => {
-    const w = mount(UserDetailPanel, { props: { user: wireUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: wireUser, open: true } })
     expect(w.find('[data-test="commission-reset"]').exists()).toBe(false)
   })
 
   it('sans dérogation de commission : le champ de saisie est vide, pas prérempli à « NaN »', () => {
-    const w = mount(UserDetailPanel, { props: { user: wireUser, open: true } })
+    const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: wireUser, open: true } })
     const input = w.find('[data-test="commission-input"]').element as HTMLInputElement
     expect(input.value).toBe('')
   })
@@ -60,7 +60,7 @@ describe('UserDetailPanel — format réel du fil (champs absents, pas null)', (
 
   it('avec une dérogation réelle, l’affichage et le bouton reviennent', () => {
     const w = mount(UserDetailPanel, {
-      props: { user: { ...wireUser, commissionRateOverride: 0.08 }, open: true },
+      props: { initialTab: 'gestion', user: { ...wireUser, commissionRateOverride: 0.08 }, open: true },
     })
     expect(w.text()).toContain('8.0 %')
     expect(w.find('[data-test="commission-reset"]').exists()).toBe(true)

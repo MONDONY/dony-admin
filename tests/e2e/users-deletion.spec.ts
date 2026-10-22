@@ -57,6 +57,8 @@ test('un escrow actif empêche la confirmation et explique pourquoi', async ({ p
   await page.goto('/users')
   await page.click(`[data-test="row-${USER_ID}"]`)
   // Attendre que la fiche soit rendue avant d'interagir
+  // La zone de danger vit dans l'onglet Gestion de la fiche.
+  await page.click('[data-test="tab-gestion"]')
   await expect(page.locator('[data-test="action-delete"]')).toBeVisible()
   await page.click('[data-test="action-delete"]')
 
@@ -105,6 +107,8 @@ test('un rapport propre permet de supprimer après double confirmation', async (
 
   await page.goto('/users')
   await page.click(`[data-test="row-${USER_ID}"]`)
+  // La zone de danger vit dans l'onglet Gestion de la fiche.
+  await page.click('[data-test="tab-gestion"]')
   await expect(page.locator('[data-test="action-delete"]')).toBeVisible()
   await page.click('[data-test="action-delete"]')
 
@@ -162,6 +166,8 @@ test('un refus du back laisse le dialogue ouvert avec le message', async ({ page
 
   await page.goto('/users')
   await page.click(`[data-test="row-${USER_ID}"]`)
+  // La zone de danger vit dans l'onglet Gestion de la fiche.
+  await page.click('[data-test="tab-gestion"]')
   await expect(page.locator('[data-test="action-delete"]')).toBeVisible()
   await page.click('[data-test="action-delete"]')
   await page.selectOption('[data-test="deletion-reason-code"]', 'FRAUD')

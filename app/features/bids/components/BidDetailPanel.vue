@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import BidTimeline from './BidTimeline.vue'
@@ -44,6 +45,7 @@ const emit = defineEmits<{
   /** Colis annulé ou litige ouvert : la fiche est à relire. */
   changed: []
 }>()
+useEscapeClose(() => emit('close'), () => props.open)
 const auth = useAuthStore()
 
 /** Ancien back (sans les champs de la fiche détaillée) : sections en « non disponible ». */

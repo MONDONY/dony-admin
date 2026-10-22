@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminMessage } from '@/features/moderation/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -54,7 +55,6 @@ function deletedByAdminLabel(m: AdminMessage) {
         >Supprimer</button>
       </div>
     </div>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="messages.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun message</p>
+    <StateBlock :loading="loading" :empty="messages.length === 0" empty-label="Aucun message" />
   </div>
 </template>

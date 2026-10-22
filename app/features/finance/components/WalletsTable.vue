@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { formatAmount } from '@/features/finance/types/index'
 import type { AdminWallet } from '@/features/finance/types/index'
 
@@ -30,7 +31,6 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="wallets.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun portefeuille</p>
+    <StateBlock :loading="loading" :empty="wallets.length === 0" empty-label="Aucun portefeuille" />
   </div>
 </template>
