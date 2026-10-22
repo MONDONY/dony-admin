@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { matchPages, SEARCH_PAGES } from '@/features/search/lib/searchPages'
 import { maskPhone, normalizeSearch } from '@/features/search/lib/normalize'
 import type { AdminPermission } from '@/stores/auth'
+import { ALL_NAV_ENTRIES } from '@/components/layout/navConfig'
 
 const all = () => true
 const only = (...perms: AdminPermission[]) => (p: AdminPermission) => perms.includes(p)
@@ -40,18 +41,20 @@ describe('matchPages', () => {
   })
 
   it('chaque entrée du menu latéral a sa page de recherche, avec la même permission', () => {
-    const sidebar = readFileSync(resolve(process.cwd(), 'app/components/layout/AppSidebar.vue'), 'utf8')
-    const entries = [...sidebar.matchAll(/<NavItem v-if="can\('(\w+)'\)"\s+to="([^"]+)"/g)].map(m => ({ permission: m[1], path: m[2] }))
-    expect(entries.length).toBeGreaterThan(15)
-    // Une entrée écrite autrement (:to, autre ordre, permission composée) échapperait à la regex : on le voit ici.
-    expect(entries.length).toBe((sidebar.match(/<NavItem /g) ?? []).length)
-    for (const e of entries) {
+    // Le menu se construit depuis `navConfig` : c'est la source unique, la recherche ⌘K doit la couvrir.
+    expect(ALL_NAV_ENTRIES.length).toBeGreaterThan(15)
+    for (const e of ALL_NAV_ENTRIES) {
       const found = SEARCH_PAGES.some((p) => {
         const path = typeof p.to === 'string' ? p.to : (p.to as { path?: string }).path
-        return path === e.path && p.permission === e.permission
+        return path === e.to && p.permission === e.permission
       })
-      expect(found, `${e.path} (${e.permission}) absent de la recherche ⌘K`).toBe(true)
+      expect(found, `${e.to} (${e.permission}) absent de la recherche ⌘K`).toBe(true)
     }
+  })
+
+  it('le menu ne garde aucune entrée écrite à la main hors de navConfig', () => {
+    const sidebar = readFileSync(resolve(process.cwd(), 'app/components/layout/AppSidebar.vue'), 'utf8')
+    expect(sidebar).not.toMatch(/<NavItem v-if="can\('/)
   })
 
   it('chaque page a une route et une permission', () => {

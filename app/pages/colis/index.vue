@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import BidsTable from '@/features/bids/components/BidsTable.vue'
 import BidFilters from '@/features/bids/components/BidFilters.vue'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
@@ -13,6 +13,8 @@ import PackageRequestsTable from '@/features/package-requests/components/Package
 import PackageRequestDetailPanel from '@/features/package-requests/components/PackageRequestDetailPanel.vue'
 import { usePackageRequests } from '@/features/package-requests/composables/usePackageRequests'
 import { usePackageRequestDetail, PACKAGE_REQUESTS_UNAVAILABLE } from '@/features/package-requests/composables/usePackageRequestDetail'
+import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useAuthStore } from '@/stores/auth'
 import { uuidParam } from '@/lib/safeInput'
 
@@ -28,7 +30,24 @@ const tab = ref<Tab>('bids')
 // Évalué au montage : la session n'existe pas au rendu serveur, un `v-if` direct sur
 // `auth.can()` ferait diverger l'hydratation.
 const canSeeRequests = ref(false)
-const { bids, isLoading, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter } = useAdminBids()
+const tabItems = computed<TabItem<Tab>[]>(() => [
+  { id: 'bids', label: 'Colis' },
+  { id: 'announcements', label: 'Annonces' },
+  ...(canSeeRequests.value ? [{ id: 'demandes' as const, label: 'Demandes' }] : []),
+])
+const { bids, isLoading, error: bidsError, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter } = useAdminBids()
+// Filtres de l'onglet Colis dans l'URL (?status=IN_TRANSIT&query=…), à côté de tab/open/announcementId.
+const urlFilters = useUrlFilters(filters, {
+  status: {
+    default: 'TOUS',
+    allowed: ['TOUS', 'AWAITING_PAYMENT', 'PENDING', 'PAYMENT_ESCROWED', 'ACCEPTED', 'HANDED_OVER', 'IN_TRANSIT', 'REJECTED', 'CANCELLED', 'COMPLETED', 'NO_SHOW', 'PARCEL_REFUSED', 'EXPIRED'],
+  },
+  query: { default: '' },
+  dateFrom: { default: null },
+  dateTo: { default: null },
+})
+// Avant le premier rendu : les champs des filtres (recherche, dates) s'initialisent depuis leurs props.
+urlFilters.restore()
 const detail = useBidTimeline()
 const {
   announcements: anns, isLoading: annLoading, error: annError, busy: annBusy,
@@ -195,24 +214,7 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
 
 <template>
   <div>
-    <div class="flex gap-1 mb-4">
-      <button
-        type="button" data-test="tab-bids"
-        :class="['rounded-full px-3 py-1.5 text-sm', tab === 'bids' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
-        @click="switchTab('bids')"
-      >Colis</button>
-      <button
-        type="button" data-test="tab-announcements"
-        :class="['rounded-full px-3 py-1.5 text-sm', tab === 'announcements' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
-        @click="switchTab('announcements')"
-      >Annonces</button>
-      <button
-        v-if="canSeeRequests"
-        type="button" data-test="tab-demandes"
-        :class="['rounded-full px-3 py-1.5 text-sm', tab === 'demandes' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']"
-        @click="switchTab('demandes')"
-      >Demandes</button>
-    </div>
+    <TabBar class="mb-4" :tabs="tabItems" :model-value="tab" aria-label="Sections des colis" @update:model-value="switchTab" />
 
     <template v-if="tab === 'bids'">
       <BidFilters
@@ -235,7 +237,7 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
           @click="clearTripFilter"
         >Voir tous les colis</button>
       </div>
-      <BidsTable :bids="bids" :loading="isLoading" @select="openBid" />
+      <BidsTable :bids="bids" :loading="isLoading" :error="bidsError" @select="openBid" @retry="fetchBids" />
       <div class="mt-4">
         <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />
       </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { TOPUP_STATUS_META, formatTopupAmount, parseUtc, type AdminTopupCode } from '@/features/topup-codes/types/index'
@@ -53,7 +54,6 @@ function fmtDate(d: string) { return parseUtc(d).toLocaleDateString('fr-FR') }
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="codes.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun code de recharge</p>
+    <StateBlock :loading="loading" :empty="codes.length === 0" empty-label="Aucun code de recharge" />
   </div>
 </template>

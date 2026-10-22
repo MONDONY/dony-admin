@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { UserStatusFilter } from '@/features/users/types/index'
 /** `showRecette` : filtre « Testeurs recette », réservé au super-admin en staging. */
-withDefaults(defineProps<{ modelStatus: UserStatusFilter; modelQuery: string; showRecette?: boolean; modelRecette?: boolean }>(),
+const props = withDefaults(defineProps<{ modelStatus: UserStatusFilter; modelQuery: string; showRecette?: boolean; modelRecette?: boolean }>(),
   { showRecette: false, modelRecette: false })
 const emit = defineEmits<{ 'update:status': [UserStatusFilter]; 'update:query': [string]; 'update:recette': [boolean] }>()
 const chips: { value: UserStatusFilter; label: string }[] = [
@@ -12,7 +12,9 @@ const chips: { value: UserStatusFilter; label: string }[] = [
   { value: 'BANNED', label: 'Bannis' },
   { value: 'PENDING_DELETION', label: 'Suppression demandée' },
 ]
-const q = ref('')
+// Initialisé depuis l'URL (filtre restauré) et resynchronisé si le parent change la valeur.
+const q = ref(props.modelQuery ?? '')
+watch(() => props.modelQuery, (v) => { q.value = v ?? '' })
 </script>
 
 <template>

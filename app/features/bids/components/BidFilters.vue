@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import type { BidStatusFilter } from '@/features/bids/types/index'
 
-defineProps<{ modelStatus: BidStatusFilter; modelQuery: string; modelDateFrom: string | null; modelDateTo: string | null }>()
+const props = defineProps<{ modelStatus: BidStatusFilter; modelQuery: string; modelDateFrom: string | null; modelDateTo: string | null }>()
 const emit = defineEmits<{
   'update:status': [BidStatusFilter]
   'update:query': [string]
@@ -24,9 +24,10 @@ const statusChips: { value: BidStatusFilter; label: string }[] = [
   { value: 'EXPIRED', label: 'Expiré' },
 ]
 
-const q = ref('')
-const dateFrom = ref('')
-const dateTo = ref('')
+// Initialisés depuis les props : les filtres peuvent venir de l'URL (lien partagé, rechargement).
+const q = ref(props.modelQuery ?? '')
+const dateFrom = ref(props.modelDateFrom ?? '')
+const dateTo = ref(props.modelDateTo ?? '')
 
 function applyDates() {
   emit('update:dateRange', dateFrom.value || null, dateTo.value || null)

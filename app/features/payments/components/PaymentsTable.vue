@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { paymentStatusMeta } from './paymentStatus'
 import { formatMoney, isPaymentHeld, paymentMethodLabel } from '@/features/payments/types/index'
@@ -59,7 +60,6 @@ function fmt(d: string) {
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="payments.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun paiement</p>
+    <StateBlock :loading="loading" :empty="payments.length === 0" empty-label="Aucun paiement" />
   </div>
 </template>

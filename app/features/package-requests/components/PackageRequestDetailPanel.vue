@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
@@ -22,6 +23,7 @@ const props = defineProps<{
   errorCode?: string | null
 }>()
 const emit = defineEmits<{ close: []; remove: [publicReason: string, internalNote: string]; restore: [] }>()
+useEscapeClose(() => emit('close'))
 const auth = useAuthStore()
 
 const canModerate = computed(() => auth.can('CONTENT_REMOVE'))

@@ -74,6 +74,33 @@ describe('pages/transactions', () => {
     expect(getMock).toHaveBeenCalledWith('p1')
   })
 
+  it('filtres de l’URL (?status=ESCROW&method=PAWAPAY&currency=XOF&dateFrom=…) appliqués au premier chargement', async () => {
+    await mountPage({ status: 'ESCROW', method: 'PAWAPAY', currency: 'XOF', dateFrom: '2026-07-01', dateTo: '2026-07-31', hideAbandoned: 'false' })
+    expect(listMock).toHaveBeenCalledTimes(1)
+    expect(listMock.mock.calls[0][0]).toMatchObject({
+      status: 'ESCROW', method: 'PAWAPAY', currency: 'XOF', dateFrom: '2026-07-01', dateTo: '2026-07-31', hideAbandoned: false,
+    })
+  })
+
+  it('un filtre inconnu dans l’URL est ignoré', async () => {
+    await mountPage({ status: 'PIRATE', currency: 'ZZZ', dateFrom: 'hier' })
+    expect(listMock.mock.calls[0][0]).toMatchObject({ status: 'TOUS', currency: 'TOUTES', dateFrom: null })
+  })
+
+  it('changer le statut réécrit l’URL sans toucher à l’onglet', async () => {
+    const w = await mountPage({ tab: 'payments' })
+    await w.find('[data-test="chip-status-ESCROW"]').trigger('click')
+    await flushPromises()
+    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'payments', status: 'ESCROW' } })
+  })
+
+  it('les onglets sont regroupés par sujet', async () => {
+    const w = await mountPage()
+    expect(w.find('[data-test="tab-group-Paiements"]').findAll('button')).toHaveLength(2)
+    expect(w.find('[data-test="tab-group-Mobile money"]').findAll('button')).toHaveLength(2)
+    expect(w.find('[data-test="tab-group-Soldes"]').findAll('button')).toHaveLength(3)
+  })
+
   it('sans paramètre : liste sans filtre de retenue', async () => {
     await mountPage()
     expect(listMock.mock.calls[0][0].held).toBe(false)

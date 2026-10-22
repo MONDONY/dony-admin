@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import {
   formatMajorAmount,
   WALLET_REFUND_CHANNEL_LABELS,
@@ -108,7 +109,6 @@ const STATUS_TONE: Record<string, string> = {
         </tbody>
       </table>
     </div>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="requests.length === 0" class="p-6 text-center text-sm text-text-muted">{{ emptyLabel }}</p>
+    <StateBlock :loading="loading" :empty="requests.length === 0" :empty-label="emptyLabel" />
   </div>
 </template>

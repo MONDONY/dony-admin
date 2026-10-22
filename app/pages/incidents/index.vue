@@ -6,6 +6,7 @@ import NoShowsTable from '@/features/incidents/components/NoShowsTable.vue'
 import NoShowFilters from '@/features/incidents/components/NoShowFilters.vue'
 import NoShowDetailPanel from '@/features/incidents/components/NoShowDetailPanel.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
+import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
 import { useDisputes } from '@/features/incidents/composables/useDisputes'
 import { useDisputeDetail } from '@/features/incidents/composables/useDisputeDetail'
 import { useNoShows, DISPUTE_REFRESH_MS } from '@/features/incidents/composables/useNoShows'
@@ -18,10 +19,14 @@ const TABS: readonly Tab[] = ['disputes', 'noshows']
 const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TABS as readonly string[]).includes(v)
 const asId = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null)
 
+const TAB_ITEMS: TabItem<Tab>[] = [
+  { id: 'disputes', label: 'Litiges' },
+  { id: 'noshows', label: 'No-shows' },
+]
 const route = useRoute()
 const router = useRouter()
 const tab = ref<Tab>('disputes')
-const { disputes, isLoading, totalPages, currentPage, fetchDisputes, goToPage } = useDisputes()
+const { disputes, isLoading, error: disputesError, totalPages, currentPage, fetchDisputes, goToPage } = useDisputes()
 const detail = useDisputeDetail()
 const noshows = useNoShows()
 let noshowsLoaded = false
@@ -107,13 +112,10 @@ watch(() => [route.query?.tab, route.query?.open] as const, async ([t, open]) =>
 
 <template>
   <div>
-    <div class="flex gap-1 mb-4">
-      <button type="button" data-test="tab-disputes" :aria-pressed="tab === 'disputes'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'disputes' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('disputes')">Litiges</button>
-      <button type="button" data-test="tab-noshows" :aria-pressed="tab === 'noshows'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'noshows' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('noshows')">No-shows</button>
-    </div>
+    <TabBar class="mb-4" :tabs="TAB_ITEMS" :model-value="tab" aria-label="Sections des incidents" @update:model-value="switchTab" />
 
     <template v-if="tab === 'disputes'">
-      <DisputesTable :disputes="disputes" :loading="isLoading" @select="detail.open" />
+      <DisputesTable :disputes="disputes" :loading="isLoading" :error="disputesError" @select="detail.open" @retry="fetchDisputes" />
       <div class="mt-4"><PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" /></div>
       <DisputeDetailPanel
         v-if="detail.dispute.value"

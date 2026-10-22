@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { cashCommissionStatusMeta } from './cashCommissionStatus'
 import { formatAmount } from '@/features/finance/types/index'
@@ -29,7 +30,6 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="commissions.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune commission cash</p>
+    <StateBlock :loading="loading" :empty="commissions.length === 0" empty-label="Aucune commission cash" />
   </div>
 </template>

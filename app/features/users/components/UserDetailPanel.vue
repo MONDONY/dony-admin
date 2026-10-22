@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
@@ -17,6 +18,8 @@ import { heldPaymentsReminder, holdReasonsLabel } from '@/features/payments/type
 
 const props = defineProps<{
   user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
+  /** Onglet affiché à l'ouverture (liens profonds, tests) ; « profil » par défaut. */
+  initialTab?: 'profil' | 'gestion' | 'kyc' | 'wallet'
   kyc?: AdminKycDetail | null; kycLoading?: boolean; kycError?: string | null
   /** Ancien back sans POST /admin/users/{id}/cancel-deletion : bouton masqué. */
   cancelDeletionUnavailable?: boolean
@@ -30,6 +33,7 @@ const emit = defineEmits<{
   openKyc: []; resetKyc: [reason: string]; kycDecided: [kyc: AdminKycDetail]; kycStale: []; requestDelete: [];
   grantPro: [reason: string]; revokePro: []; cancelDeletion: [reason: string]; gpProChanged: [];
 }>()
+useEscapeClose(() => emit('close'), () => props.open)
 const auth = useAuthStore()
 // Le rail de versement mobile money manquait à la fiche : seul Stripe y figurait, alors qu'un
 // voyageur en zone CFA n'est payé que par ce compte, dans sa devise.
@@ -121,8 +125,8 @@ const pending = ref<Pending>(null)
 // la lecture back interroge Stripe Identity en direct — inutile de la payer sans besoin.
 // L'onglet Portefeuille est autonome (ses propres lectures et sa correction de solde) : la
 // fiche n'a ni props ni événements de plus, et il ne charge rien tant qu'on ne l'ouvre pas.
-type Tab = 'profil' | 'kyc' | 'wallet'
-const tab = ref<Tab>('profil')
+type Tab = 'profil' | 'gestion' | 'kyc' | 'wallet'
+const tab = ref<Tab>(props.initialTab ?? 'profil')
 const kycLoaded = ref(false)
 function openTab(next: Tab) {
   tab.value = next
@@ -131,6 +135,17 @@ function openTab(next: Tab) {
     emit('openKyc')
   }
 }
+// « Gestion » regroupe les réglages rares ou lourds de conséquences (messagerie, commission,
+// accès PRO, GP Pro, mode recette, suppression) : ils ne se mélangent plus aux gestes
+// courants du Profil. L'onglet n'existe que si l'admin a au moins un de ces droits.
+const canManage = computed(() => ['USER_MESSAGE_MUTE', 'USER_COMMISSION', 'USER_PRO_GRANT', 'GP_PRO_REVIEW', 'ADMIN_MANAGE', 'USER_DELETE']
+  .some(p => auth.can(p as Parameters<typeof auth.can>[0])))
+const visibleTabs = computed<{ id: Tab; label: string }[]>(() => [
+  { id: 'profil', label: 'Profil' },
+  ...(canManage.value ? [{ id: 'gestion' as const, label: 'Gestion' }] : []),
+  ...(auth.can('USER_KYC') ? [{ id: 'kyc' as const, label: 'KYC' }] : []),
+  ...(auth.can('PAYMENT_VIEW') ? [{ id: 'wallet' as const, label: 'Portefeuille' }] : []),
+])
 const fullName = () => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || '—'
 /** Nom à ressaisir avant une révocation KYC ; null si inconnu (repli sur l'identifiant). */
 const kycUserName = computed(() => [props.user.firstName, props.user.lastName].filter(Boolean).join(' ') || null)
@@ -349,23 +364,11 @@ const dialogConfig = computed<DialogConfig>(() => {
 
       <div class="mb-4 flex gap-1 border-b border-border" role="tablist">
         <button
-          type="button" data-test="tab-profil" role="tab" :aria-selected="tab === 'profil'"
+          v-for="t in visibleTabs" :key="t.id" type="button" :data-test="`tab-${t.id}`" role="tab" :aria-selected="tab === t.id"
           class="rounded-t-btn px-4 py-2 text-sm"
-          :class="tab === 'profil' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
-          @click="openTab('profil')"
-        >Profil</button>
-        <button
-          v-if="auth.can('USER_KYC')" type="button" data-test="tab-kyc" role="tab" :aria-selected="tab === 'kyc'"
-          class="rounded-t-btn px-4 py-2 text-sm"
-          :class="tab === 'kyc' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
-          @click="openTab('kyc')"
-        >KYC</button>
-        <button
-          v-if="auth.can('PAYMENT_VIEW')" type="button" data-test="tab-wallet" role="tab" :aria-selected="tab === 'wallet'"
-          class="rounded-t-btn px-4 py-2 text-sm"
-          :class="tab === 'wallet' ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
-          @click="openTab('wallet')"
-        >Portefeuille</button>
+          :class="tab === t.id ? 'border-b-2 border-primary text-text' : 'text-text-muted hover:text-text'"
+          @click="openTab(t.id)"
+        >{{ t.label }}</button>
       </div>
 
       <template v-if="tab === 'profil'">
@@ -472,7 +475,13 @@ const dialogConfig = computed<DialogConfig>(() => {
         >Rétablir la messagerie</button>
       </div>
 
-      <div v-if="auth.can('USER_MESSAGE_MUTE')" class="mt-4 flex items-center gap-2">
+      <UserSupportConversations v-if="auth.can('SUPPORT_TICKET_VIEW')" :user-id="user.id" />
+
+      </template>
+
+      <div v-if="tab === 'gestion'" class="space-y-4" data-test="user-gestion">
+      <p v-if="error" data-test="user-error-gestion" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ error }}</p>
+      <div v-if="auth.can('USER_MESSAGE_MUTE')" class="flex items-center gap-2">
         <select
           v-model="muteDuration" data-test="mute-duration"
           class="rounded-btn border border-border bg-surface px-3 py-2 text-sm"
@@ -487,8 +496,6 @@ const dialogConfig = computed<DialogConfig>(() => {
           @click="pending = 'muteMessaging'"
         >Couper la messagerie</button>
       </div>
-
-      <UserSupportConversations v-if="auth.can('SUPPORT_TICKET_VIEW')" :user-id="user.id" />
 
       <div v-if="auth.can('USER_COMMISSION')" class="mt-4 space-y-2">
         <p class="text-text-muted">Commission
@@ -564,7 +571,7 @@ const dialogConfig = computed<DialogConfig>(() => {
           @click="emit('requestDelete')"
         >Supprimer le compte…</button>
       </div>
-      </template>
+      </div>
 
       <UserKycTab
         v-if="tab === 'kyc'"

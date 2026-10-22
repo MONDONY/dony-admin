@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { fmtDate, frequencyLabel, sourceLabel } from '@/features/gp-pro/types/index'
 import type { AdminGpProApplicationRow } from '@/features/gp-pro/types/index'
 
@@ -39,7 +40,6 @@ function docsLabel(n: number | undefined) {
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="items.length === 0" data-test="gp-pro-empty" class="p-6 text-center text-sm text-text-muted">Aucune demande à examiner</p>
+    <StateBlock :loading="loading" :empty="items.length === 0" empty-label="Aucune demande à examiner" empty-test="gp-pro-empty" />
   </div>
 </template>

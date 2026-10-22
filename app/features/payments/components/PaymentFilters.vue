@@ -60,8 +60,8 @@ watch(search, () => {
 })
 onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer) })
 
-const dateFrom = ref('')
-const dateTo = ref('')
+const dateFrom = ref(props.modelDateFrom ?? '')
+const dateTo = ref(props.modelDateTo ?? '')
 
 function applyDates() {
   emit('update:dateRange', dateFrom.value || null, dateTo.value || null)

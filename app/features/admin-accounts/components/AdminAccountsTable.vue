@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminAccount, ManagedAdminRole, AdminStatus } from '@/features/admin-accounts/types/index'
 
@@ -69,7 +70,6 @@ function fmtDate(d: string | null) {
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="accounts.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun administrateur</p>
+    <StateBlock :loading="loading" :empty="accounts.length === 0" empty-label="Aucun administrateur" />
   </div>
 </template>

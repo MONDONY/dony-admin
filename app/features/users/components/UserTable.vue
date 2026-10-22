@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { computed } from 'vue'
 import UserTableRow from './UserTableRow.vue'
 import type { AdminUserListItem } from '@/features/users/types/index'
@@ -10,10 +11,12 @@ import type { AdminUserListItem } from '@/features/users/types/index'
 const props = withDefaults(defineProps<{
   users: AdminUserListItem[]
   loading: boolean
+  /** Échec du chargement : montré à la place du « Aucun utilisateur » trompeur. */
+  error?: string | null
   selectable?: boolean
   selectedIds?: ReadonlySet<string>
-}>(), { selectable: false, selectedIds: () => new Set<string>() })
-const emit = defineEmits<{ select: [id: string]; toggle: [id: string]; 'toggle-page': [ids: string[]] }>()
+}>(), { selectable: false, selectedIds: () => new Set<string>(), error: null })
+const emit = defineEmits<{ select: [id: string]; toggle: [id: string]; 'toggle-page': [ids: string[]]; retry: [] }>()
 
 const pageIds = computed(() => props.users.map((u) => u.id))
 const selectedOnPage = computed(() => pageIds.value.filter((id) => props.selectedIds.has(id)).length)
@@ -54,7 +57,6 @@ const someOnPage = computed(() => selectedOnPage.value > 0 && !allOnPage.value)
         />
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="users.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun utilisateur</p>
+    <StateBlock :loading="loading" :error="error" :empty="users.length === 0" empty-label="Aucun utilisateur" @retry="emit('retry')" />
   </div>
 </template>

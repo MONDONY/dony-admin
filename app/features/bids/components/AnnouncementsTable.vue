@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
@@ -100,8 +101,7 @@ function confirmRemove(internalNote: string, publicReason?: string) {
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="announcements.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune annonce</p>
+    <StateBlock :loading="loading" :empty="announcements.length === 0" empty-label="Aucune annonce" />
 
     <ConfirmActionDialog
       :open="pending !== null"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import { packageRequestStatusMeta } from '@/features/package-requests/labels'
@@ -56,7 +57,6 @@ function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` 
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="requests.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune demande d’envoi</p>
+    <StateBlock :loading="loading" :empty="requests.length === 0" empty-label="Aucune demande d’envoi" />
   </div>
 </template>

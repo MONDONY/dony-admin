@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminNoShow } from '@/features/incidents/types/index'
 import {
@@ -47,7 +48,6 @@ function details(r: AdminNoShow): string[] {
         </div>
       </li>
     </ul>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="rows.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune déclaration d’absence pour ces filtres</p>
+    <StateBlock :loading="loading" :empty="rows.length === 0" empty-label="Aucune déclaration d’absence pour ces filtres" />
   </div>
 </template>

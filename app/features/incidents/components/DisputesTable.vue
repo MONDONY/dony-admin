@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { disputeStatusMeta } from './disputeStatus'
 import type { AdminDisputeListItem } from '@/features/incidents/types/index'
 
-defineProps<{ disputes: AdminDisputeListItem[]; loading: boolean }>()
-const emit = defineEmits<{ select: [id: string] }>()
+defineProps<{ disputes: AdminDisputeListItem[]; loading: boolean; error?: string | null }>()
+const emit = defineEmits<{ select: [id: string]; retry: [] }>()
 
 function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
 </script>
@@ -24,7 +25,6 @@ function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="disputes.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun litige</p>
+    <StateBlock :loading="loading" :error="error" :empty="disputes.length === 0" empty-label="Aucun litige" @retry="emit('retry')" />
   </div>
 </template>

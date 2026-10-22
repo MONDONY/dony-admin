@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import type { AdminRating } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -74,7 +75,6 @@ function stars(n: number) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="ratings.length === 0" class="p-6 text-center text-sm text-text-muted">Aucun avis</p>
+    <StateBlock :loading="loading" :empty="ratings.length === 0" empty-label="Aucun avis" />
   </div>
 </template>

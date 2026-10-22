@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import {
   formatWaiting, isOverdue, kycDecisionCodeLabel, kycDecisionMeta, kycProviderLabel, kycStatusMeta,
@@ -54,7 +55,6 @@ function fmtDate(d: string | null | undefined) { return d ? new Date(d).toLocale
         </tr>
       </tbody>
     </table>
-    <p v-if="loading" class="p-6 text-center text-sm text-text-muted">Chargement…</p>
-    <p v-else-if="items.length === 0" class="p-6 text-center text-sm text-text-muted">Aucune vérification dans cette file</p>
+    <StateBlock :loading="loading" :empty="items.length === 0" empty-label="Aucune vérification dans cette file" />
   </div>
 </template>

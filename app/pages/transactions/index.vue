@@ -14,11 +14,13 @@ import ResolveWalletRefundDialog from '@/features/finance/components/ResolveWall
 import RetryWalletRefundDialog from '@/features/finance/components/RetryWalletRefundDialog.vue'
 import PeriodFilter from '@/features/finance/components/PeriodFilter.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
+import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
 import { usePayments } from '@/features/payments/composables/usePayments'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback } from '@/features/payments/types/index'
 import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRetryPreview, WalletRefundView } from '@/features/finance/types/index'
@@ -29,12 +31,34 @@ definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle
 type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions' | 'wallet-refunds'
 
 const TABS: readonly Tab[] = ['payments', 'chargebacks', 'wallets', 'mobile-money', 'mm-commissions', 'cash-commissions', 'wallet-refunds']
+/** Groupés par sujet pour qu'on s'y retrouve ; les identifiants restent ceux des liens (?tab=). */
+const TAB_ITEMS: TabItem<Tab>[] = [
+  { id: 'payments', label: 'Paiements', group: 'Paiements' },
+  { id: 'chargebacks', label: 'Litiges bancaires', group: 'Paiements' },
+  { id: 'mobile-money', label: 'Mobile money', group: 'Mobile money' },
+  { id: 'mm-commissions', label: 'Commissions mobile money', group: 'Mobile money' },
+  { id: 'wallets', label: 'Portefeuilles', group: 'Soldes' },
+  { id: 'wallet-refunds', label: 'Remboursements wallet', group: 'Soldes' },
+  { id: 'cash-commissions', label: 'Commissions cash', group: 'Soldes' },
+]
 const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TABS as readonly string[]).includes(v)
 const tab = ref<Tab>('payments')
 const route = useRoute()
 const router = useRouter()
 const { payments, isLoading, error: paymentsError, totalPages, currentPage, filters, totals, exporting, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, setQuery, setHideAbandoned, exportCsv, heldFilterUnsupported } = usePayments()
 const auth = useAuthStore()
+// Filtres de l'onglet Paiements dans l'URL (?status=ESCROW&method=PAWAPAY…) ; `held`, `tab` et
+// `open` gardent leur propre logique plus bas et sont préservés par la réécriture.
+const urlFilters = useUrlFilters(filters, {
+  status: { default: 'TOUS', allowed: ['TOUS', 'PENDING', 'ESCROW', 'RELEASED', 'FAILED', 'REFUNDED', 'CANCELLED'] },
+  method: { default: 'TOUS', allowed: ['TOUS', 'STRIPE', 'PAWAPAY'] },
+  currency: { default: 'TOUTES', allowed: ['TOUTES', 'EUR', 'USD', 'CAD', 'GBP', 'CHF', 'XOF', 'XAF'] },
+  dateFrom: { default: null },
+  dateTo: { default: null },
+  hideAbandoned: { default: true },
+})
+// Avant le premier rendu : les champs des filtres (recherche, dates) s'initialisent depuis leurs props.
+urlFilters.restore()
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
@@ -306,15 +330,7 @@ watch(() => route.query?.open, (openId) => {
 
 <template>
   <div>
-    <div class="flex gap-1 mb-4 flex-wrap">
-      <button type="button" data-test="tab-payments" :aria-pressed="tab === 'payments'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'payments' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('payments')">Paiements</button>
-      <button type="button" data-test="tab-chargebacks" :aria-pressed="tab === 'chargebacks'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'chargebacks' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('chargebacks')">Litiges bancaires</button>
-      <button type="button" data-test="tab-wallets" :aria-pressed="tab === 'wallets'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallets' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallets')">Portefeuilles</button>
-      <button type="button" data-test="tab-mobile-money" :aria-pressed="tab === 'mobile-money'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mobile-money' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mobile-money')">Mobile money</button>
-      <button type="button" data-test="tab-mm-commissions" :aria-pressed="tab === 'mm-commissions'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'mm-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('mm-commissions')">Commissions mobile money</button>
-      <button type="button" data-test="tab-cash-commissions" :aria-pressed="tab === 'cash-commissions'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'cash-commissions' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('cash-commissions')">Commissions cash</button>
-      <button type="button" data-test="tab-wallet-refunds" :aria-pressed="tab === 'wallet-refunds'" :class="['rounded-full px-3 py-1.5 text-sm', tab === 'wallet-refunds' ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted']" @click="switchTab('wallet-refunds')">Remboursements wallet</button>
-    </div>
+    <TabBar class="mb-4" :tabs="TAB_ITEMS" :model-value="tab" aria-label="Sections des transactions" @update:model-value="switchTab" />
     <p
       v-if="tabError" data-test="transactions-error"
       class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
