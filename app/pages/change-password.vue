@@ -11,7 +11,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 definePageMeta({ layout: 'auth' })
 
 const api = useApi()
-const { refreshProfile } = useFirebaseAuth()
+const { refreshProfile, signOut } = useFirebaseAuth()
 const authStore = useAuthStore()
 
 // Skip only for the forced first-login flow: the temporary password was
@@ -24,10 +24,14 @@ const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const error = ref('')
+// Le back exige une connexion de moins de 5 minutes pour changer le mot de passe
+// (ADMIN_RECENT_LOGIN_REQUIRED) : passé ce délai, seule une reconnexion débloque.
+const reloginRequired = ref(false)
 const loading = ref(false)
 
 async function handleSubmit() {
   error.value = ''
+  reloginRequired.value = false
   if (requiresCurrentPassword.value && !currentPassword.value) {
     error.value = 'Mot de passe actuel requis'
     return
@@ -70,8 +74,13 @@ async function handleSubmit() {
     const freshToken = await auth?.currentUser?.getIdToken(true)
     await refreshProfile(freshToken)
     await navigateTo('/')
-  } catch {
-    error.value = 'Erreur lors du changement de mot de passe. Réessaie.'
+  } catch (e) {
+    if ((e as { data?: { code?: string } })?.data?.code === 'ADMIN_RECENT_LOGIN_REQUIRED') {
+      reloginRequired.value = true
+      error.value = 'Ta connexion date de plus de 5 minutes. Reconnecte-toi, puis change ton mot de passe tout de suite.'
+    } else {
+      error.value = 'Erreur lors du changement de mot de passe. Réessaie.'
+    }
   } finally {
     loading.value = false
   }
@@ -119,6 +128,13 @@ async function handleSubmit() {
 
       <div v-if="error" class="rounded-btn bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
         {{ error }}
+        <button
+          v-if="reloginRequired" type="button" data-test="relogin"
+          class="mt-2 block font-semibold underline underline-offset-2"
+          @click="signOut"
+        >
+          Se reconnecter
+        </button>
       </div>
 
       <button
