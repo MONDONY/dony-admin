@@ -238,7 +238,7 @@ describe('BidPhotoGallery', () => {
   })
 
   it('displayed : faux pendant le chargement, faux en erreur 500, vrai une fois chargée', async () => {
-    let resolve!: (value: unknown) => void
+    let resolve!: (_v: unknown) => void
     svc.photos.mockReturnValueOnce(new Promise(r => { resolve = r }))
     const w = mountGallery(); await flushPromises()
     expect(w.emitted('update:displayed')?.at(-1) ?? [false]).toEqual([false])

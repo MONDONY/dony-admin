@@ -120,3 +120,11 @@ export function bidEmptyState(f: BidsFilterState): { label: string; hint: string
     ? { label: 'Aucun colis à traiter pour ces filtres.', hint: undefined, action: 'Voir dans Tous' }
     : { label: 'Rien à traiter pour l’instant.', hint: 'Aucun litige, no-show, paiement en attente ni retard.', action: 'Voir tous les colis' }
 }
+
+/** Onglets du tiroir qui vont dans `?section=` ; Résumé, onglet par défaut, n'y est jamais écrit. */
+export const BID_DRAWER_SECTIONS = ['tracking', 'money', 'chat', 'incidents'] as const
+export type BidDrawerSection = typeof BID_DRAWER_SECTIONS[number]
+/** `?section=` lu dans l'URL : valeur inconnue, Résumé ou tableau ignorés (`null`). */
+export function bidDrawerSection(value: unknown): BidDrawerSection | null {
+  return typeof value === 'string' && (BID_DRAWER_SECTIONS as readonly string[]).includes(value) ? value as BidDrawerSection : null
+}

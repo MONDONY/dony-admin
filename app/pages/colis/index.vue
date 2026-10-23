@@ -13,7 +13,7 @@ import { useAdminBids } from '@/features/bids/composables/useAdminBids'
 import { useBidCounts } from '@/features/bids/composables/useBidCounts'
 import { useBidSuggestions } from '@/features/bids/composables/useBidSuggestions'
 import { BID_VIEWS } from '@/features/bids/lib/bidViews'
-import { BID_URL_FILTERS, bidActiveChips, bidEmptyState, bidInitialView, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
+import { BID_URL_FILTERS, bidActiveChips, bidDrawerSection, bidEmptyState, bidInitialView, searchFromSuggestion, type BidDrawerSection } from '@/features/bids/lib/bidPageFilters'
 import { useBidTimeline } from '@/features/bids/composables/useBidTimeline'
 import { useAdminAnnouncements } from '@/features/bids/composables/useAdminAnnouncements'
 import PackageRequestFilters from '@/features/package-requests/components/PackageRequestFilters.vue'
@@ -105,6 +105,8 @@ function syncQuery(next: { tab: Tab; open?: string | null }) {
   }
   if (next.tab !== 'bids') query.tab = next.tab
   if (next.open) query.open = next.open
+  // Onglet du tiroir : seulement avec une fiche colis ouverte (Résumé, l'onglet par défaut, n'est pas écrit).
+  if (next.tab === 'bids' && next.open && drawerSection.value) query.section = drawerSection.value
   if (next.tab === 'bids' && filters.announcementId) query.announcementId = filters.announcementId
   if (next.tab === 'announcements' && annFocusId.value) query.announcement = annFocusId.value
   // Filtres réécrits sur cette query-là : la vue est écrite ou non selon le trajet qu'elle porte.
@@ -112,13 +114,24 @@ function syncQuery(next: { tab: Tab; open?: string | null }) {
 }
 
 // ---- Fiche colis ----
-async function openBid(id: string) {
+/**
+ * Onglet du tiroir (?section=) : lu avec ?open= à l'ouverture, réécrit à chaque changement d'onglet.
+ * Un autre colis ouvert repart sur Résumé, sauf si le lien qui l'ouvre porte lui-même la section.
+ */
+const drawerSection = ref<BidDrawerSection | null>(null)
+async function openBid(id: string, section: BidDrawerSection | null = null) {
+  drawerSection.value = section
   syncQuery({ tab: 'bids', open: id })
   await detail.open(id)
 }
 function closeBid() {
   detail.close()
+  drawerSection.value = null
   syncQuery({ tab: 'bids' })
+}
+function onSectionChange(section: string) {
+  drawerSection.value = bidDrawerSection(section)
+  if (detail.openId.value) syncQuery({ tab: 'bids', open: detail.openId.value })
 }
 /** « Voir l'annonce » : onglet Annonces réduit à l'annonce du colis. */
 async function showAnnouncement(id: string) {
@@ -255,6 +268,7 @@ onMounted(async () => {
   if (tripId) filters.announcementId = tripId
   // ?open=<colisId> sur l'onglet Colis (lien « Ouvrir le colis » d'un no-show, d'un paiement) : ouvre la fiche.
   const openParam = uuidParam(route.query?.open)
+  if (openParam) drawerSection.value = bidDrawerSection(route.query?.section)
   await Promise.all([
     loadBidsOnce(),
     openParam ? detail.open(openParam) : Promise.resolve(),
@@ -279,7 +293,7 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
   }
   if (!openId || openId === detail.openId.value) return
   if (tab.value !== 'bids') await switchTab('bids')
-  await openBid(openId)
+  await openBid(openId, bidDrawerSection(route.query?.section))
 })
 </script>
 
@@ -353,6 +367,8 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
         :timeline-loading="detail.timelineLoading.value"
         :timeline-error="detail.timelineError.value"
         :open="detail.bid.value !== null"
+        :section="drawerSection ?? 'summary'"
+        @update:section="onSectionChange"
         @close="closeBid"
         @show-announcement="showAnnouncement"
         @show-trip-bids="showTripBids"

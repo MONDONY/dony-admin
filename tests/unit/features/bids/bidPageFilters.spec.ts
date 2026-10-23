@@ -1,11 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { BID_SEARCH_SCOPES, bidActiveChips, bidEmptyState, bidInitialView, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
+import { BID_SEARCH_SCOPES, bidActiveChips, bidDrawerSection, bidEmptyState, bidInitialView, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
 import type { AdminBidSuggest, BidsFilterState } from '@/features/bids/types/index'
 
 const base = (): BidsFilterState => ({ status: 'TOUS', announcementId: null, query: '', scope: 'ALL', view: 'ALL', paymentMethod: null, content: '', alert: null, dateFrom: null, dateTo: null })
 const suggest = (parcels: AdminBidSuggest['parcels']): AdminBidSuggest => ({ senders: [], travelers: [], recipients: [], trips: [], parcels })
 
 describe('bidPageFilters', () => {
+  it('bidDrawerSection : seuls les onglets non par défaut du tiroir passent, Résumé et inconnus donnent null', () => {
+    expect(['tracking', 'money', 'chat', 'incidents'].map(bidDrawerSection)).toEqual(['tracking', 'money', 'chat', 'incidents'])
+    expect(bidDrawerSection('summary')).toBeNull()
+    expect(bidDrawerSection('javascript:x')).toBeNull()
+    expect(bidDrawerSection(['money'])).toBeNull()
+    expect(bidDrawerSection(undefined)).toBeNull()
+  })
+
   it('portées dans l’ordre du sélecteur', () => {
     expect(BID_SEARCH_SCOPES.map(s => s.value)).toEqual(['ALL', 'TRACKING', 'SENDER', 'TRAVELER', 'RECIPIENT', 'TRIP'])
   })

@@ -487,6 +487,8 @@ describe('BidDetailPanel', () => {
       expect(w.emitted('update:section')?.[0]).toEqual(['tracking'])
       expect(w.find('[data-test="section-trip"]').exists()).toBe(false)
       expect(w.find('[data-test="section-timeline"]').exists()).toBe(true)
+      // Le service est simulé automatiquement (réponse `undefined`) : une conversation vide, comme le back.
+      ;(moderationService as any).getMessages = vi.fn().mockResolvedValue([])
       await tab(w, 'chat')
       await flushPromises()
       expect(w.find('[data-test="bid-chat-tab"]').exists()).toBe(true)
