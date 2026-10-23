@@ -94,4 +94,30 @@ describe('useAdminBids', () => {
     const b = useAdminBids(); await b.fetchBids()
     expect(b.error.value).toBe('boom'); expect(b.isLoading.value).toBe(false)
   })
+
+  it('search_fromTodo_switchesToAll_oneFetch', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids(); await b.setView('TODO'); svc.listBids.mockClear()
+    await b.search('Awa Diop', 'SENDER')
+    expect(b.filters).toMatchObject({ view: 'ALL', query: 'Awa Diop', scope: 'SENDER' })
+    expect(svc.listBids).toHaveBeenCalledTimes(1)
+  })
+  it('search_otherView_keepsView_emptySearch_keepsAll', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids(); await b.setView('ACTIVE')
+    await b.search('Awa')
+    expect(b.filters.view).toBe('ACTIVE'); expect(b.filters.scope).toBe('ALL')
+    await b.setView('TODO'); await b.search('')
+    expect(b.filters.view).toBe('TODO')
+  })
+  it('setScope_emptyQuery_noReload', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids(); await b.setView('TODO'); svc.listBids.mockClear()
+    await b.setScope('TRIP')
+    expect(b.filters.scope).toBe('TRIP'); expect(b.filters.view).toBe('TODO')
+    expect(svc.listBids).not.toHaveBeenCalled()
+    b.filters.query = 'Paris'
+    await b.setScope('SENDER')
+    expect(b.filters.view).toBe('ALL'); expect(svc.listBids).toHaveBeenCalledTimes(1)
+  })
 })

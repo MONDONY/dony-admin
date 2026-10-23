@@ -54,4 +54,35 @@ describe('useBidCounts', () => {
     await c.reload()
     expect(svc.counts).toHaveBeenCalledTimes(3)
   })
+
+  it('settled_afterFirstAnswer_evenOnError', async () => {
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('x'), { statusCode: 500 }))
+    const c = useBidCounts(filters())
+    expect(c.settled.value).toBe(false)
+    const p = c.reload()
+    expect(c.settled.value).toBe(false)
+    await p
+    expect(c.settled.value).toBe(true)
+  })
+  it('sync_retriesAfterError', async () => {
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('x'), { statusCode: 500 }))
+    svc.counts.mockResolvedValueOnce(counts(9))
+    const c = useBidCounts(filters())
+    await c.sync()
+    expect(c.error.value).toBeTruthy()
+    await c.sync()
+    expect(svc.counts).toHaveBeenCalledTimes(2)
+    expect(c.counts.value?.all).toBe(9); expect(c.error.value).toBeNull()
+  })
+  it('sync_scopeWithoutQuery_noReload', async () => {
+    svc.counts.mockResolvedValue(counts(3))
+    const f = filters(); const c = useBidCounts(f)
+    await c.sync()
+    f.scope = 'TRIP'
+    await c.sync()
+    expect(svc.counts).toHaveBeenCalledTimes(1)
+    f.query = 'Paris'
+    await c.sync()
+    expect(svc.counts).toHaveBeenCalledTimes(2)
+  })
 })

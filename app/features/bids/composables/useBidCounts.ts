@@ -10,11 +10,13 @@ export function useBidCounts(filters: BidsFilterState) {
   const unavailable = ref(false)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  /** Une première réponse est arrivée (nombres, endpoint absent ou erreur). */
+  const settled = ref(false)
   let seq = 0
   let lastKey: string | null = null
 
-  /** Filtres dont dépendent les nombres (ni la vue, ni le statut, ni l'alerte). */
-  const keyOf = () => JSON.stringify([filters.announcementId, filters.query.trim(), filters.scope, filters.paymentMethod, filters.content.trim(), filters.dateFrom, filters.dateTo])
+  /** Filtres dont dépendent les nombres (ni la vue, ni le statut, ni l'alerte ; la portée seulement avec un texte). */
+  const keyOf = () => JSON.stringify([filters.announcementId, filters.query.trim(), filters.query.trim() ? filters.scope : 'ALL', filters.paymentMethod, filters.content.trim(), filters.dateFrom, filters.dateTo])
 
   async function reload(): Promise<void> {
     lastKey = keyOf()
@@ -29,9 +31,13 @@ export function useBidCounts(filters: BidsFilterState) {
     } catch (e) {
       if (my !== seq) return
       if (isEndpointMissing(e)) { unavailable.value = true; counts.value = null }
-      else error.value = extractProblemMessage(e, 'Impossible de charger les nombres')
+      else {
+        error.value = extractProblemMessage(e, 'Impossible de charger les nombres')
+        // Un échec n'est pas un état acquis : le prochain `sync` réessaiera.
+        lastKey = null
+      }
     } finally {
-      if (my === seq) isLoading.value = false
+      if (my === seq) { isLoading.value = false; settled.value = true }
     }
   }
 
@@ -41,5 +47,5 @@ export function useBidCounts(filters: BidsFilterState) {
     await reload()
   }
 
-  return { counts, unavailable, isLoading, error, reload, sync }
+  return { counts, unavailable, isLoading, error, settled, reload, sync }
 }

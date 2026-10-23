@@ -179,4 +179,30 @@ describe('BidSearchBox', () => {
     await w.setProps({ modelQuery: 'Jean Dupont' })
     expect((input(w).element as HTMLInputElement).value).toBe('Jean Dupont')
   })
+
+  it('BidSearchBox_exactTrackingEnter_picksParcel_whenListShown', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('yd-42')
+    await input(w).trigger('input')
+    await input(w).trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('pick')![0]).toEqual(['parcel', suggestions.parcels[0]])
+    expect(w.emitted('update:query')).toBeUndefined()
+  })
+
+  it('BidSearchBox_exactTrackingEnter_listClosed_searches', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('YD-42')
+    await input(w).trigger('input')
+    await input(w).trigger('keydown', { key: 'Escape' })
+    await input(w).trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('pick')).toBeUndefined()
+    expect(w.emitted('update:query')![0]).toEqual(['YD-42'])
+  })
+
+  it('BidSearchBox_resetKey_resyncsTextWithModel', async () => {
+    const w = mountBox({ modelQuery: 'Jean' })
+    await input(w).setValue('Je')
+    await w.setProps({ resetKey: 1 })
+    expect((input(w).element as HTMLInputElement).value).toBe('Jean')
+  })
 })

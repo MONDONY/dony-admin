@@ -92,4 +92,13 @@ describe('BidFilters', () => {
     const opts = w.findAll('[data-test="filter-payment"] option')
     expect(opts.map(o => o.element.getAttribute('value'))).toEqual(['', 'STRIPE', 'CASH', 'WAVE', 'ORANGE_MONEY', 'MOBILE_MONEY', 'PAWAPAY'])
   })
+
+  it('Contenu : Entrée sans changement de valeur, aucun événement', async () => {
+    const w = mountFilters({ content: 'livres' })
+    await w.find('[data-test="filter-content"]').trigger('keydown', { key: 'Enter' })
+    await w.find('[data-test="filter-content"]').setValue(' livres ')
+    await w.find('[data-test="filter-content"]').trigger('keydown', { key: 'Enter' })
+    await w.find('[data-test="filter-content"]').trigger('search')
+    expect(w.emitted('update:content')).toBeUndefined()
+  })
 })

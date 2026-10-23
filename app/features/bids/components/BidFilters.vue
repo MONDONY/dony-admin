@@ -93,7 +93,7 @@ const field = 'min-h-10 rounded-btn border border-border bg-surface px-3 text-sm
         Contenu
         <input
           v-model="content" type="search" data-test="filter-content" aria-label="Contenu" placeholder="Ex. vêtements" :class="[field, 'min-w-[180px] text-text']"
-          @keydown.enter.prevent="emit('update:content', content.trim())" @blur="applyContent" @search="emit('update:content', content.trim())"
+          @keydown.enter.prevent="applyContent" @blur="applyContent" @search="applyContent"
         >
       </label>
     </template>

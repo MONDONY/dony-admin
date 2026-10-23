@@ -1,7 +1,9 @@
 import { bidStatusMeta } from '../components/bidStatus'
 import { bidPaymentMethodLabel } from './bidLabels'
-import { BID_ALERTS } from './bidViews'
-import type { AdminBidSuggest, BidSearchScope, BidsFilterState, BidStatus } from '../types'
+import { BID_ALERTS, BID_VIEWS, defaultViewFor } from './bidViews'
+import { readFilters, type FilterSpecs } from '@/lib/urlFilters'
+import { uuidParam } from '@/lib/safeInput'
+import type { AdminBidSuggest, BidSearchScope, BidsFilterState, BidStatus, BidView } from '../types'
 
 /** Portées de la recherche, dans l'ordre du sélecteur. */
 export const BID_SEARCH_SCOPES: { value: BidSearchScope; label: string }[] = [
@@ -76,4 +78,45 @@ export function exactParcelId(text: string, suggestions: AdminBidSuggest | null)
   const wanted = text.trim().toUpperCase()
   if (!wanted || !suggestions) return null
   return suggestions.parcels.find(p => p.trackingNumber?.toUpperCase() === wanted)?.bidId ?? null
+}
+
+const STATUS_FILTERS = ['TOUS', 'AWAITING_PAYMENT', 'PENDING', 'PAYMENT_ESCROWED', 'ACCEPTED', 'HANDED_OVER', 'IN_TRANSIT', 'ARRIVED',
+  'REJECTED', 'CANCELLED', 'COMPLETED', 'NO_SHOW', 'PARCEL_REFUSED', 'EXPIRED']
+
+type BidUrlKey = 'status' | 'query' | 'scope' | 'paymentMethod' | 'content' | 'alert' | 'dateFrom' | 'dateTo'
+/** Filtres de l'onglet Colis dans l'URL, hors vue (dont le défaut se calcule) et hors trajet (géré par la page). */
+export const BID_URL_FILTERS: FilterSpecs<BidUrlKey> = {
+  status: { default: 'TOUS', allowed: STATUS_FILTERS },
+  query: { default: '' },
+  scope: { default: 'ALL', allowed: BID_SEARCH_SCOPES.map(s => s.value) },
+  paymentMethod: { default: null, allowed: BID_PAYMENT_METHODS },
+  content: { default: '' },
+  alert: { default: null, allowed: Object.keys(BID_ALERTS) },
+  dateFrom: { default: null },
+  dateTo: { default: null },
+}
+const VIEW_SPEC: FilterSpecs<'view'> = { view: { default: null, allowed: BID_VIEWS.map(v => v.id) } }
+
+/**
+ * Vue par défaut d'après les paramètres **valides** de l'URL : `?status=PIRATE` ou un
+ * `announcementId` qui n'est pas un UUID ne font pas passer à « Tous ».
+ */
+export function bidInitialView(query: Record<string, unknown>): BidView {
+  const valid: Record<string, unknown> = {}
+  const found = readFilters(query, BID_URL_FILTERS)
+  for (const [k, v] of Object.entries(found)) {
+    if (v !== BID_URL_FILTERS[k as BidUrlKey].default) valid[k] = v
+  }
+  Object.assign(valid, readFilters(query, VIEW_SPEC))
+  const trip = uuidParam(query.announcementId)
+  if (trip) valid.announcementId = trip
+  return defaultViewFor(valid)
+}
+
+/** Liste vide : « À traiter » sans filtre n'a rien à faire ; avec filtres, on le dit et on propose « Tous ». */
+export function bidEmptyState(f: BidsFilterState): { label: string; hint: string | undefined; action: string | null } {
+  if (f.view !== 'TODO') return { label: 'Aucun colis', hint: undefined, action: null }
+  return bidActiveChips(f).length > 0
+    ? { label: 'Aucun colis à traiter pour ces filtres.', hint: undefined, action: 'Voir dans Tous' }
+    : { label: 'Rien à traiter pour l’instant.', hint: 'Aucun litige, no-show, paiement en attente ni retard.', action: 'Voir tous les colis' }
 }

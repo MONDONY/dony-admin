@@ -37,7 +37,23 @@ export function useAdminBids() {
     if (v === 'TODO') { filters.status = 'TOUS'; filters.alert = null }
     currentPage.value = 0; await fetchBids()
   }
-  async function setScope(s: BidSearchScope) { filters.scope = s; currentPage.value = 0; await fetchBids() }
+  /**
+   * Recherche validée (texte ou suggestion choisie). Retrouver un colis passe d'abord : depuis
+   * « À traiter », une recherche non vide bascule sur « Tous ». La vider ne rebascule pas.
+   */
+  async function search(q: string, scope?: BidSearchScope) {
+    if (scope) filters.scope = scope
+    filters.query = q
+    if (q.trim() && filters.view === 'TODO') filters.view = 'ALL'
+    currentPage.value = 0; await fetchBids()
+  }
+  /** Portée : sans texte, elle ne change pas la liste (pas de rechargement). */
+  async function setScope(s: BidSearchScope) {
+    filters.scope = s
+    if (!filters.query.trim()) return
+    if (filters.view === 'TODO') filters.view = 'ALL'
+    currentPage.value = 0; await fetchBids()
+  }
   async function setPaymentMethod(m: string | null) { filters.paymentMethod = m; currentPage.value = 0; await fetchBids() }
   async function setContent(c: string) { filters.content = c; currentPage.value = 0; await fetchBids() }
   async function setAlert(a: BidAlertCode | null) { filters.alert = a; currentPage.value = 0; await fetchBids() }
@@ -47,5 +63,5 @@ export function useAdminBids() {
     currentPage.value = 0; await fetchBids()
   }
 
-  return { bids, isLoading, error, totalPages, currentPage, pageSize, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter, setView, setScope, setPaymentMethod, setContent, setAlert, resetFilters }
+  return { bids, isLoading, error, totalPages, currentPage, pageSize, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter, setView, search, setScope, setPaymentMethod, setContent, setAlert, resetFilters }
 }

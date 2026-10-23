@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { BID_SEARCH_SCOPES, bidActiveChips, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
+import { BID_SEARCH_SCOPES, bidActiveChips, bidEmptyState, bidInitialView, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
 import type { AdminBidSuggest, BidsFilterState } from '@/features/bids/types/index'
 
 const base = (): BidsFilterState => ({ status: 'TOUS', announcementId: null, query: '', scope: 'ALL', view: 'ALL', paymentMethod: null, content: '', alert: null, dateFrom: null, dateTo: null })
@@ -54,5 +54,24 @@ describe('bidPageFilters', () => {
     expect(exactParcelId('DON-8ANH', s)).toBeNull()
     expect(exactParcelId('', s)).toBeNull()
     expect(exactParcelId('DON-8ANH6EZR', null)).toBeNull()
+  })
+
+  it('bidInitialView : seuls les paramètres valides font passer à « Tous »', () => {
+    expect(bidInitialView({})).toBe('TODO')
+    expect(bidInitialView({ tab: 'bids', open: '1c1a0000-0000-4000-8000-0000000000b1' })).toBe('TODO')
+    expect(bidInitialView({ status: 'PIRATE', announcementId: 'garbage', view: 'NOPE', dateFrom: 'hier', status2: 'x' })).toBe('TODO')
+    expect(bidInitialView({ status: 'TOUS', scope: 'ALL', query: '' })).toBe('TODO')
+    expect(bidInitialView({ status: 'IN_TRANSIT' })).toBe('ALL')
+    expect(bidInitialView({ announcementId: '2a2a0000-0000-4000-8000-0000000000a1' })).toBe('ALL')
+    expect(bidInitialView({ view: 'TODO' })).toBe('ALL')
+    expect(bidInitialView({ query: 'Awa' })).toBe('ALL')
+  })
+
+  it('bidEmptyState : « À traiter » sans filtre, avec filtres, autres vues, nombres pas encore reçus', () => {
+    expect(bidEmptyState({ ...base(), view: 'TODO' })).toEqual({ label: 'Rien à traiter pour l’instant.', hint: 'Aucun litige, no-show, paiement en attente ni retard.', action: 'Voir tous les colis' })
+    for (const over of [{ status: 'PENDING' as const }, { alert: 'LATE' as const }, { paymentMethod: 'CASH' }, { content: 'x' }, { dateTo: '2026-07-01' }, { query: 'x' }]) {
+      expect(bidEmptyState({ ...base(), view: 'TODO', ...over })).toEqual({ label: 'Aucun colis à traiter pour ces filtres.', hint: undefined, action: 'Voir dans Tous' })
+    }
+    expect(bidEmptyState({ ...base(), view: 'ACTIVE' })).toEqual({ label: 'Aucun colis', hint: undefined, action: null })
   })
 })

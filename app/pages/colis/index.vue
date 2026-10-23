@@ -12,8 +12,8 @@ import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { useAdminBids } from '@/features/bids/composables/useAdminBids'
 import { useBidCounts } from '@/features/bids/composables/useBidCounts'
 import { useBidSuggestions } from '@/features/bids/composables/useBidSuggestions'
-import { BID_ALERTS, BID_VIEWS, defaultViewFor } from '@/features/bids/lib/bidViews'
-import { BID_PAYMENT_METHODS, BID_SEARCH_SCOPES, bidActiveChips, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
+import { BID_VIEWS } from '@/features/bids/lib/bidViews'
+import { BID_URL_FILTERS, bidActiveChips, bidEmptyState, bidInitialView, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
 import { useBidTimeline } from '@/features/bids/composables/useBidTimeline'
 import { useAdminAnnouncements } from '@/features/bids/composables/useAdminAnnouncements'
 import PackageRequestFilters from '@/features/package-requests/components/PackageRequestFilters.vue'
@@ -45,39 +45,34 @@ const tabItems = computed<TabItem<Tab>[]>(() => [
 ])
 const {
   bids, isLoading, error: bidsError, totalPages, currentPage, filters, fetchBids, goToPage,
-  setStatusFilter, setSearch, setDateRange, setAnnouncementFilter, setView, setScope, setPaymentMethod, setContent, setAlert, resetFilters,
+  setStatusFilter, search, setDateRange, setAnnouncementFilter, setView, setScope, setPaymentMethod, setContent, setAlert, resetFilters,
 } = useAdminBids()
 // Nombres par vue et suggestions : endpoints neufs, absents d'un ancien back (repli sans vues ni suggestions).
 const countsApi = useBidCounts(filters)
 const suggestApi = useBidSuggestions()
+// Onglets de vue : seulement une fois les nombres répondus, et jamais face à un ancien back.
+const viewsReady = computed(() => countsApi.settled.value && !countsApi.unavailable.value)
 const viewsAvailable = computed(() => !countsApi.unavailable.value)
+/** Change à chaque choix de suggestion ou fiche ouverte depuis la recherche : le champ reprend la requête appliquée. */
+const searchResetKey = ref(0)
 
+// Avant le premier rendu (et avant que l'URL ne soit suivie) : vue par défaut selon les paramètres
+// valides reçus (un lien ?status= ou ?announcementId= montre « Tous », pas un « À traiter » vide).
+filters.view = bidInitialView(route.query ?? {})
 // Filtres de l'onglet Colis dans l'URL (?view=ACTIVE&status=IN_TRANSIT&query=…), à côté de tab/open/announcementId.
-// La vue par défaut dépend des autres paramètres (« À traiter » sans filtre, « Tous » sinon) : elle n'est
-// écrite que si elle en diffère, et un « Tous » choisi depuis « À traiter » reste donc dans l'URL.
+// La vue par défaut dépend des autres paramètres : elle n'est écrite que si elle en diffère, et un
+// « Tous » choisi depuis « À traiter » reste donc dans l'URL.
 const urlFilters = useUrlFilters(filters, {
   view: {
     default: 'ALL',
     allowed: BID_VIEWS.map(v => v.id),
-    defaultFrom: q => (countsApi.unavailable.value ? 'ALL' : defaultViewFor(q)),
+    defaultFrom: q => (countsApi.unavailable.value ? 'ALL' : bidInitialView(q)),
   },
-  status: {
-    default: 'TOUS',
-    allowed: ['TOUS', 'AWAITING_PAYMENT', 'PENDING', 'PAYMENT_ESCROWED', 'ACCEPTED', 'HANDED_OVER', 'IN_TRANSIT', 'ARRIVED', 'REJECTED', 'CANCELLED', 'COMPLETED', 'NO_SHOW', 'PARCEL_REFUSED', 'EXPIRED'],
-  },
-  query: { default: '' },
-  scope: { default: 'ALL', allowed: BID_SEARCH_SCOPES.map(s => s.value) },
-  paymentMethod: { default: null, allowed: BID_PAYMENT_METHODS },
-  content: { default: '' },
-  alert: { default: null, allowed: Object.keys(BID_ALERTS) },
-  dateFrom: { default: null },
-  dateTo: { default: null },
+  ...BID_URL_FILTERS,
 })
-// Avant le premier rendu : vue par défaut selon les paramètres reçus (un lien ?status= ou
-// ?announcementId= montre « Tous », pas un « À traiter » vide), puis les valeurs de l'URL.
-filters.view = defaultViewFor(route.query ?? {})
 urlFilters.restore()
 const activeChips = computed(() => bidActiveChips(filters))
+const emptyState = computed(() => bidEmptyState(filters))
 const detail = useBidTimeline()
 const {
   announcements: anns, isLoading: annLoading, error: annError, busy: annBusy,
@@ -112,7 +107,8 @@ function syncQuery(next: { tab: Tab; open?: string | null }) {
   if (next.open) query.open = next.open
   if (next.tab === 'bids' && filters.announcementId) query.announcementId = filters.announcementId
   if (next.tab === 'announcements' && annFocusId.value) query.announcement = annFocusId.value
-  router.replace({ query })
+  // Filtres réécrits sur cette query-là : la vue est écrite ou non selon le trajet qu'elle porte.
+  router.replace({ query: urlFilters.apply(query) as Record<string, string> })
 }
 
 // ---- Fiche colis ----
@@ -139,6 +135,8 @@ async function clearAnnouncementFocus() {
 async function showTripBids(id: string) {
   detail.close()
   bidsLoaded = true
+  // Comme le lien ?announcementId= : tous les colis du trajet, pas seulement ceux « À traiter ».
+  filters.view = 'ALL'
   await setAnnouncementFilter(id)
   syncQuery({ tab: 'bids' })
 }
@@ -190,29 +188,28 @@ watch(countsApi.unavailable, (missing) => {
 function onType(text: string) {
   if (!suggestApi.unavailable.value) suggestApi.query(text)
 }
-/** Entrée : un n° de suivi exact parmi les suggestions affichées ouvre sa fiche, sinon on cherche. */
+/** Recherche validée (Entrée ou « Chercher ») ; un n° exact affiché arrive en `pick` de colis. */
 async function onSearch(text: string) {
-  const bidId = exactParcelId(text, suggestApi.suggestions.value)
   suggestApi.clear()
-  if (bidId) await openBid(bidId)
-  else await setSearch(text)
+  await search(text)
 }
-/** Suggestion choisie : une personne ou un trajet devient une recherche à portée (puce retirable), un colis ouvre sa fiche. */
+/**
+ * Suggestion choisie : une personne ou un trajet devient une recherche à portée (puce retirable),
+ * un colis ouvre sa fiche. Dans les deux cas le champ reprend la requête appliquée.
+ */
 async function onPick(...[kind, payload]: Parameters<typeof searchFromSuggestion>) {
   suggestApi.clear()
-  const search = searchFromSuggestion(kind, payload)
-  if (!search) {
+  searchResetKey.value++
+  const picked = searchFromSuggestion(kind, payload)
+  if (!picked) {
     await openBid((payload as { bidId: string }).bidId)
     return
   }
-  filters.scope = search.scope
-  await setSearch(search.query)
+  await search(picked.query, picked.scope)
 }
 async function removeChip(key: string) {
-  if (key === 'search') {
-    filters.scope = 'ALL'
-    await setSearch('')
-  } else if (key === 'status') await setStatusFilter('TOUS')
+  if (key === 'search') await search('', 'ALL')
+  else if (key === 'status') await setStatusFilter('TOUS')
   else if (key === 'period') await setDateRange(null, null)
   else if (key === 'payment') await setPaymentMethod(null)
   else if (key === 'content') await setContent('')
@@ -292,14 +289,24 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
 
     <template v-if="tab === 'bids'">
       <div class="mb-4 space-y-3">
-        <BidViewTabs v-if="viewsAvailable" :model-value="filters.view" :counts="countsApi.counts.value" @update:model-value="setView" />
+        <div v-if="viewsReady">
+          <BidViewTabs :model-value="filters.view" :counts="countsApi.counts.value" @update:model-value="setView" />
+          <p v-if="countsApi.error.value" data-test="bid-counts-error" role="status" class="mt-1 flex items-center gap-2 text-xs text-text-muted">
+            Nombres indisponibles
+            <button
+              type="button" data-test="bid-counts-retry"
+              class="inline-flex min-h-10 items-center rounded-btn px-2 text-xs text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              @click="countsApi.reload()"
+            >Réessayer</button>
+          </p>
+        </div>
         <BidSearchBox
-          :model-query="filters.query" :model-scope="filters.scope"
+          :model-query="filters.query" :model-scope="filters.scope" :reset-key="searchResetKey"
           :suggestions="suggestApi.suggestions.value" :suggestions-disabled="suggestApi.unavailable.value"
           @type="onType" @update:query="onSearch" @update:scope="setScope" @pick="onPick"
         />
         <BidAlertPills
-          v-if="viewsAvailable && (filters.view === 'TODO' || filters.view === 'ALL')"
+          v-if="viewsReady && (filters.view === 'TODO' || filters.view === 'ALL')"
           :model-value="filters.alert" :alerts="countsApi.counts.value?.alerts ?? null" @update:model-value="setAlert"
         />
         <BidFilters
@@ -323,18 +330,18 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
           @click="clearTripFilter"
         >Voir tous les colis</button>
       </div>
+      <!-- « À traiter » vide : rien à dire avant la réponse des nombres (un ancien back bascule sur « Tous »). -->
       <BidsTable
-        :bids="bids" :loading="isLoading" :error="bidsError"
-        :empty-label="filters.view === 'TODO' ? 'Rien à traiter pour l’instant.' : 'Aucun colis'"
-        :empty-hint="filters.view === 'TODO' ? 'Aucun litige, no-show, paiement en attente ni retard.' : undefined"
+        :bids="bids" :loading="isLoading || (filters.view === 'TODO' && bids.length === 0 && !countsApi.settled.value)" :error="bidsError"
+        :empty-label="emptyState.label" :empty-hint="emptyState.hint"
         @select="openBid" @retry="fetchBids"
       />
-      <div v-if="filters.view === 'TODO' && !isLoading && !bidsError && bids.length === 0" class="mt-3 flex justify-center">
+      <div v-if="emptyState.action && !isLoading && !bidsError && bids.length === 0 && countsApi.settled.value" class="mt-3 flex justify-center">
         <button
           type="button" data-test="todo-show-all"
           class="inline-flex min-h-10 items-center rounded-btn px-3 text-sm text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           @click="setView('ALL')"
-        >Voir tous les colis</button>
+        >{{ emptyState.action }}</button>
       </div>
       <div class="mt-4">
         <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />

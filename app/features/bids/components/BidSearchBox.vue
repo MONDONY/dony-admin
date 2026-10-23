@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { bidStatusMeta } from './bidStatus'
-import { BID_SEARCH_SCOPES } from '@/features/bids/lib/bidPageFilters'
+import { BID_SEARCH_SCOPES, exactParcelId } from '@/features/bids/lib/bidPageFilters'
 import type { AdminBidSuggest, BidSearchScope, BidStatus } from '@/features/bids/types/index'
 
 export type BidSuggestionKind = 'sender' | 'traveler' | 'recipient' | 'trip' | 'parcel'
@@ -12,6 +12,8 @@ const props = defineProps<{
   modelScope: BidSearchScope
   suggestions: AdminBidSuggest | null
   suggestionsDisabled: boolean
+  /** Changer cette valeur remet le texte du champ sur `modelQuery` (après un choix, même si la requête n'a pas changé). */
+  resetKey?: number
 }>()
 const emit = defineEmits<{
   'update:query': [string]
@@ -23,7 +25,7 @@ const emit = defineEmits<{
 const SCOPES = BID_SEARCH_SCOPES
 
 const q = ref(props.modelQuery ?? '')
-watch(() => props.modelQuery, v => { q.value = v ?? '' })
+watch(() => [props.modelQuery, props.resetKey], () => { q.value = props.modelQuery ?? '' })
 
 const open = ref(false)
 const listId = `bid-suggestions-${useId()}`
@@ -91,7 +93,9 @@ function onKey(e: KeyboardEvent) {
     active.value = -1
   } else if (e.key === 'Enter') {
     e.preventDefault()
-    const it = showList.value ? flat.value[active.value] : undefined
+    // Sans option active, un n° de suivi exact parmi les suggestions affichées ouvre ce colis.
+    const exact = showList.value ? exactParcelId(q.value, props.suggestions) : null
+    const it = showList.value ? (flat.value[active.value] ?? flat.value.find(i => i.kind === 'parcel' && (i.payload as { bidId: string }).bidId === exact)) : undefined
     if (it) pick(it)
     else submit()
   }

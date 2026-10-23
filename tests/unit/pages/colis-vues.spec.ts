@@ -107,10 +107,14 @@ describe('/colis : vues rapides et recherche', () => {
     expect(w.find('[data-test="alert-pill-LATE"]').exists()).toBe(false)
   })
 
-  it('a view outside the allowed list is ignored', async () => {
+  it('invalid params are ignored: no switch to ALL, no stray replace', async () => {
     route.query = { view: 'PIRATE' }
     await mountPage()
-    expect(lastList().view).toBe('ALL')
+    expect(lastList().view).toBe('TODO')
+    route.query = { status: 'PIRATE', announcementId: 'garbage' }
+    await mountPage()
+    expect(lastList()).toMatchObject({ view: 'TODO', status: 'TOUS', announcementId: null })
+    expect(replaceMock).not.toHaveBeenCalled()
   })
 
   it('switchingView_updatesUrlAndReloads', async () => {
@@ -166,9 +170,11 @@ describe('/colis : vues rapides et recherche', () => {
     expect(bids.suggest).toHaveBeenCalledWith('Aw')
     await w.find('[data-test="suggestion-sender-0"]').trigger('click')
     await flushPromises()
-    expect(lastList()).toMatchObject({ query: 'Awa Diop', scope: 'SENDER' })
+    // Une recherche part de « À traiter » vers « Tous » : retrouver un colis d'abord.
+    expect(lastList()).toMatchObject({ query: 'Awa Diop', scope: 'SENDER', view: 'ALL' })
     expect(w.find('[data-test="active-chip-search"]').text()).toContain('Expéditeur : Awa Diop')
-    expect(route.query).toMatchObject({ query: 'Awa Diop', scope: 'SENDER' })
+    expect(route.query).toEqual({ query: 'Awa Diop', scope: 'SENDER' })
+    expect((w.find('[data-test="search"]').element as HTMLInputElement).value).toBe('Awa Diop')
     expect(w.find('[data-test="suggestion-sender-0"]').exists()).toBe(false)
   })
 
@@ -210,6 +216,9 @@ describe('/colis : vues rapides et recherche', () => {
     expect(route.query).toMatchObject({ open: BID })
     expect(bids.listBids.mock.calls.length).toBe(before)
     expect(w.find('[data-test="bid-detail"]').exists()).toBe(true)
+    // Le champ revient à la recherche réellement appliquée (vide), pas à « DON ».
+    expect((w.find('[data-test="search"]').element as HTMLInputElement).value).toBe('')
+    expect(lastList().view).toBe('TODO')
   })
 
   it('exactTrackingEnter_opensDrawer', async () => {
@@ -220,6 +229,17 @@ describe('/colis : vues rapides et recherche', () => {
     await flushPromises()
     expect(bids.getBid).toHaveBeenCalledWith(BID)
     expect(bids.listBids.mock.calls.length).toBe(before)
+    expect((w.find('[data-test="search"]').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('exact tracking number after Escape (list closed) searches instead of opening', async () => {
+    const w = await mountPage()
+    await typeSearch(w, 'DON-8ANH6EZR')
+    await w.find('[data-test="search"]').trigger('keydown', { key: 'Escape' })
+    await w.find('[data-test="search"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(bids.getBid).not.toHaveBeenCalled()
+    expect(lastList().query).toBe('DON-8ANH6EZR')
   })
 
   it('Enter on a text that is not a known tracking number searches', async () => {
@@ -228,15 +248,93 @@ describe('/colis : vues rapides et recherche', () => {
     await w.find('[data-test="search"]').trigger('keydown', { key: 'Enter' })
     await flushPromises()
     expect(bids.getBid).not.toHaveBeenCalled()
-    expect(lastList().query).toBe('Dakar')
+    expect(lastList()).toMatchObject({ query: 'Dakar', view: 'ALL' })
     expect(w.find('[data-test="active-chip-search"]').text()).toContain('Recherche : Dakar')
+    // Retirer la recherche ne revient pas tout seul à « À traiter ».
+    await w.find('[data-test="active-chip-search-remove"]').trigger('click')
+    await flushPromises()
+    expect(lastList()).toMatchObject({ query: '', view: 'ALL' })
   })
 
-  it('scope select reloads the list', async () => {
+  it('scope select: no reload with an empty query, reload with one', async () => {
     const w = await mountPage()
+    const lists = bids.listBids.mock.calls.length
     await w.find('[data-test="search-scope"]').setValue('TRIP')
     await flushPromises()
-    expect(lastList().scope).toBe('TRIP')
+    expect(bids.listBids.mock.calls.length).toBe(lists)
+    expect(bids.counts).toHaveBeenCalledTimes(1)
+    await typeSearch(w, 'Paris')
+    await w.find('[data-test="search"]').trigger('keydown', { key: 'Escape' })
+    await w.find('[data-test="search"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(lastList()).toMatchObject({ query: 'Paris', scope: 'TRIP', view: 'ALL' })
+  })
+
+  it('a status chosen in TODO keeps the TODO view', async () => {
+    const w = await mountPage()
+    await w.find('[data-test="filter-status"]').setValue('AWAITING_PAYMENT')
+    await flushPromises()
+    expect(lastList()).toMatchObject({ view: 'TODO', status: 'AWAITING_PAYMENT' })
+  })
+
+  it('tripFocus_fromTodo_showsAllAndSurvivesReload (A)', async () => {
+    route.query = { open: BID }
+    const w = await mountPage()
+    expect(lastList().view).toBe('TODO')
+    w.findComponent({ name: 'BidDetailPanel' }).vm.$emit('show-trip-bids', ANN)
+    await flushPromises()
+    expect(lastList()).toMatchObject({ view: 'ALL', announcementId: ANN })
+    expect(route.query).toEqual({ announcementId: ANN })
+    w.unmount()
+    await mountPage()
+    expect(lastList()).toMatchObject({ view: 'ALL', announcementId: ANN })
+  })
+
+  it('tripFocus_clear_keepsScreenAndUrlConsistent (B)', async () => {
+    route.query = { announcementId: ANN }
+    const w = await mountPage()
+    await w.find('[data-test="trip-filter-clear"]').trigger('click')
+    await flushPromises()
+    expect(lastList()).toMatchObject({ view: 'ALL', announcementId: null })
+    expect(route.query).toEqual({ view: 'ALL' })
+    w.unmount()
+    await mountPage()
+    expect(lastList()).toMatchObject({ view: 'ALL', announcementId: null })
+  })
+
+  it('counts error: discreet notice with retry', async () => {
+    bids.counts.mockRejectedValueOnce(Object.assign(new Error('boom'), { statusCode: 500 }))
+    const w = await mountPage()
+    expect(w.find('[data-test="bid-counts-error"]').text()).toContain('Nombres indisponibles')
+    expect(w.find('[data-test="bid-view-TODO"]').exists()).toBe(true)
+    await w.find('[data-test="bid-counts-retry"]').trigger('click')
+    await flushPromises()
+    expect(bids.counts).toHaveBeenCalledTimes(2)
+    expect(w.find('[data-test="bid-counts-error"]').exists()).toBe(false)
+  })
+
+  it('before counts answer: no view tabs and no « Rien à traiter »', async () => {
+    let answer!: (_v: unknown) => void
+    bids.counts.mockReturnValue(new Promise((_r, reject) => { answer = reject }))
+    bids.listBids.mockResolvedValue(EMPTY)
+    const w = await mountPage()
+    expect(w.find('[data-test="bid-view-TODO"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Rien à traiter')
+    answer(MISSING())
+    await flushPromises()
+    expect(w.find('[data-test="bid-view-TODO"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Rien à traiter')
+  })
+
+  it('emptyTodo_withFilters_saysSoAndOffersAll', async () => {
+    bids.listBids.mockResolvedValue(EMPTY)
+    route.query = { view: 'TODO', paymentMethod: 'CASH' }
+    const w = await mountPage()
+    expect(w.find('[data-test="state-empty"]').text()).toContain('Aucun colis à traiter pour ces filtres.')
+    expect(w.find('[data-test="todo-show-all"]').text()).toBe('Voir dans Tous')
+    await w.find('[data-test="todo-show-all"]').trigger('click')
+    await flushPromises()
+    expect(lastList()).toMatchObject({ view: 'ALL', paymentMethod: 'CASH' })
   })
 
   it('countsReloadAfterFilterChange', async () => {
