@@ -112,7 +112,7 @@ async function confirmDeletion(reasonCode: AdminDeletionReasonCode, reason: stri
   // d'objet : retour à la liste, sauf si l'admin a déjà quitté cette page.
   if (!ok || unmounted) return
   closeDeletion()
-  await navigateTo('/users')
+  await navigateTo('/users', { replace: true })
 }
 
 const showCommission = computed(() => auth.can('USER_COMMISSION'))

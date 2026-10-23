@@ -60,9 +60,15 @@ function selectTab(id: ProfileTab) {
 }
 
 // Gestes sur le compte : la fiche renvoyée remplace `user` seulement si ce compte est encore affiché.
+// `detailSeq` ordonne toutes les écritures de `user` (lecture, relecture, geste) : seule la plus récente s'applique.
+let detailSeq = 0
 const actions = useAccountActions({
   getId: () => (unmounted ? null : user.value?.id ?? null),
-  onUpdate: (detail) => { if (!unmounted && detail.id === user.value?.id) user.value = detail },
+  onUpdate: (detail) => {
+    if (unmounted || detail.id !== user.value?.id) return
+    detailSeq++
+    user.value = detail
+  },
 })
 
 const alerts = computed(() => user.value ? buildAlerts(user.value, ov.overview.value?.kpis ?? NO_KPIS) : [])
@@ -76,9 +82,10 @@ const isCurrent = (id: string) => !unmounted && userId.value === id
 async function refreshDetail() {
   const id = userId.value
   if (!id) return
+  const mine = ++detailSeq
   try {
     const res = await usersService.get(id)
-    if (isCurrent(id)) user.value = res
+    if (isCurrent(id) && mine === detailSeq) user.value = res
   } catch { /* données affichées conservées */ }
 }
 
@@ -87,9 +94,10 @@ async function loadDetail() {
   if (!id) return
   detailLoading.value = true
   detailError.value = null
+  const mine = ++detailSeq
   try {
     const res = await usersService.get(id)
-    if (isCurrent(id)) user.value = res
+    if (isCurrent(id) && mine === detailSeq) user.value = res
   } catch (e) {
     if (!isCurrent(id)) return
     const status = (e as { statusCode?: number, status?: number, response?: { status?: number } })
@@ -169,25 +177,25 @@ onBeforeUnmount(() => { unmounted = true })
 
       <TabBar :tabs="tabs" :model-value="tab" variant="underline" id-prefix="profile-tab" aria-label="Sections de la fiche" @update:model-value="selectTab" />
 
-      <section v-if="tab === 'overview'" id="profile-panel-overview" role="tabpanel" aria-labelledby="profile-tab-overview" data-test="tab-content-overview">
+      <section v-if="tab === 'overview'" id="profile-panel-overview" aria-labelledby="profile-tab-overview" data-test="tab-content-overview">
         <UserOverviewTab v-if="ov.overview.value" :in-progress="ov.overview.value.inProgress" :timeline="ov.overview.value.timeline" />
       </section>
-      <section v-else-if="tab === 'parcels'" id="profile-panel-parcels" role="tabpanel" aria-labelledby="profile-tab-parcels" data-test="tab-content-parcels">
+      <section v-else-if="tab === 'parcels'" id="profile-panel-parcels" aria-labelledby="profile-tab-parcels" data-test="tab-content-parcels">
         <UserParcelsTab :key="user.id" :user-id="user.id" />
       </section>
-      <section v-else-if="tab === 'money'" id="profile-panel-money" role="tabpanel" aria-labelledby="profile-tab-money" data-test="tab-content-money">
+      <section v-else-if="tab === 'money'" id="profile-panel-money" aria-labelledby="profile-tab-money" data-test="tab-content-money">
         <UserMoneyTab :key="user.id" :user-id="user.id" />
       </section>
-      <section v-else-if="tab === 'incidents'" id="profile-panel-incidents" role="tabpanel" aria-labelledby="profile-tab-incidents" data-test="tab-content-incidents">
+      <section v-else-if="tab === 'incidents'" id="profile-panel-incidents" aria-labelledby="profile-tab-incidents" data-test="tab-content-incidents">
         <UserIncidentsTab :key="user.id" :user-id="user.id" />
       </section>
-      <section v-else-if="tab === 'identity'" id="profile-panel-identity" role="tabpanel" aria-labelledby="profile-tab-identity" data-test="tab-content-identity">
+      <section v-else-if="tab === 'identity'" id="profile-panel-identity" aria-labelledby="profile-tab-identity" data-test="tab-content-identity">
         <UserIdentityTab :key="user.id" :user="user" @refresh="refreshDetail" />
       </section>
-      <section v-else-if="tab === 'support'" id="profile-panel-support" role="tabpanel" aria-labelledby="profile-tab-support" data-test="tab-content-support">
+      <section v-else-if="tab === 'support'" id="profile-panel-support" aria-labelledby="profile-tab-support" data-test="tab-content-support">
         <UserSupportTab :key="user.id" :user-id="user.id" />
       </section>
-      <section v-else-if="tab === 'manage'" id="profile-panel-manage" role="tabpanel" aria-labelledby="profile-tab-manage" data-test="tab-content-manage">
+      <section v-else-if="tab === 'manage'" id="profile-panel-manage" aria-labelledby="profile-tab-manage" data-test="tab-content-manage">
         <UserManageTab
           :key="user.id" :user="user" :busy="actions.busy.value" :error="actions.error.value"
           @set-commission="actions.setCommissionRate" @grant-pro="actions.grantPro" @revoke-pro="actions.revokePro"

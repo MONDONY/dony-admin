@@ -222,7 +222,7 @@ describe('UserManageTab', () => {
       w.getComponent(DeletionStub).vm.$emit('confirm', 'FRAUD', 'Fraude')
       await flushPromises()
       expect(deleteMock).toHaveBeenCalledWith('u1', 'FRAUD', 'Fraude')
-      expect(navigateToMock).toHaveBeenCalledWith('/users')
+      expect(navigateToMock).toHaveBeenCalledWith('/users', { replace: true })
     })
 
     it('échec : le dialogue reste ouvert avec l’erreur, pas de redirection', async () => {

@@ -131,6 +131,36 @@ describe('users/[id].vue', () => {
     expect(sectionMock).toHaveBeenCalledWith(ID, 'audit', 0, 20, undefined)
   })
 
+  it('une relecture lancée avant une suspension et résolue après ne restaure pas l’ancien statut', async () => {
+    getKycMock.mockResolvedValue({ kycStatus: 'VERIFIED' })
+    const w = await mountPage({ tab: 'identity' })
+    let resolveStale: (_v: unknown) => void = () => {}
+    getMock.mockReturnValueOnce(new Promise((r) => { resolveStale = r }))
+    w.getComponent({ name: 'UserIdentityTab' }).vm.$emit('refresh')
+    await flushPromises()
+    suspendMock.mockResolvedValue({ ...USER, status: 'SUSPENDED' })
+    await w.get('[data-test="actions-trigger"]').trigger('click')
+    await w.get('[data-test="menu-suspend"]').trigger('click')
+    await w.get('[data-test="reason"]').setValue('Fraude')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="profile-header"]').text()).toContain('Suspendu')
+    resolveStale({ ...USER, status: 'ACTIVE' })
+    await flushPromises()
+    expect(w.get('[data-test="profile-header"]').text()).toContain('Suspendu')
+    expect(w.find('[data-test="alert-suspended"]').exists()).toBe(true)
+  })
+
+  it('synthèse sans aucune clé facultative (JSON NON_NULL) : la fiche s’affiche et masque les cartes absentes', async () => {
+    overviewMock.mockResolvedValue({ kpis: { parcelsInProgress: 0 }, inProgress: undefined, timeline: undefined })
+    const w = await mountPage()
+    expect(w.get('[data-test="profile-name"]').text()).toBe('Awa Diallo')
+    expect(w.get('[data-test="kpi-parcels"]').text()).toContain('0')
+    for (const k of ['trips', 'held', 'disputes', 'reports', 'rating']) expect(w.find(`[data-test="kpi-${k}"]`).exists()).toBe(false)
+    expect(w.find('[data-test="in-progress-card"]').exists()).toBe(false)
+    expect(w.find('[data-test="timeline-card"]').exists()).toBe(false)
+  })
+
   it('refresh de l’onglet identité : détail relu en silence, onglet non remonté', async () => {
     getKycMock.mockResolvedValue({ kycStatus: 'VERIFIED' })
     const w = await mountPage({ tab: 'identity' })
@@ -226,10 +256,11 @@ describe('users/[id].vue', () => {
     expect(w.get('[data-test="profile-name"]').text()).toBe(ID.slice(0, 8))
   })
 
-  it('panneaux d’onglet reliés à leur bouton', async () => {
+  it('panneaux d’onglet : simples sections reliées à leur bouton, sans rôle tabpanel', async () => {
     const w = await mountPage({ tab: 'money' })
     const panel = w.get('[data-test="tab-content-money"]')
-    expect(panel.attributes('role')).toBe('tabpanel')
+    expect(panel.element.tagName).toBe('SECTION')
+    expect(panel.attributes('role')).toBeUndefined()
     expect(panel.attributes('aria-labelledby')).toBe('profile-tab-money')
     expect(w.find('#profile-tab-money').exists()).toBe(true)
   })
@@ -454,7 +485,7 @@ describe('users/[id].vue', () => {
       w.getComponent({ name: 'UserDeletionDialog' }).vm.$emit('confirm', 'FRAUD', 'Fraude')
       await flushPromises()
       expect(deleteUserMock).toHaveBeenCalledWith(ID, 'FRAUD', 'Fraude')
-      expect(navigateToMock).toHaveBeenCalledWith('/users')
+      expect(navigateToMock).toHaveBeenCalledWith('/users', { replace: true })
     })
 
     it('GP Pro relu : le détail est rechargé en silence', async () => {
