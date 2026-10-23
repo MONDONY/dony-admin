@@ -6,7 +6,7 @@ export type CanFn = ReturnType<typeof useAuthStore>['can']
 export type ProfileTab = 'overview' | 'parcels' | 'money' | 'incidents' | 'identity' | 'support' | 'manage'
 
 const MANAGE_PERMISSIONS: AdminPermission[] = [
-  'USER_MESSAGE_MUTE', 'USER_COMMISSION', 'USER_PRO_GRANT', 'GP_PRO_REVIEW', 'ADMIN_MANAGE', 'USER_DELETE', 'WALLET_ADJUST',
+  'USER_COMMISSION', 'USER_PRO_GRANT', 'GP_PRO_REVIEW', 'ADMIN_MANAGE', 'USER_DELETE',
 ]
 
 /** Onglets de la fiche selon les droits de l'admin ; le serveur reste l'autorité. */

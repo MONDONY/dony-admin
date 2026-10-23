@@ -154,7 +154,7 @@ onBeforeUnmount(() => { unmounted = true })
         </template>
       </UserProfileHeader>
       <p
-        v-if="actions.error.value" data-test="account-action-error" role="alert"
+        v-if="actions.error.value && tab !== 'manage'" data-test="account-action-error" role="alert"
         class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
       >{{ actions.error.value }}</p>
       <UserAccountBanners
@@ -189,7 +189,7 @@ onBeforeUnmount(() => { unmounted = true })
       </section>
       <section v-else-if="tab === 'manage'" id="profile-panel-manage" role="tabpanel" aria-labelledby="profile-tab-manage" data-test="tab-content-manage">
         <UserManageTab
-          :key="user.id" :user="user" :busy="actions.busy.value"
+          :key="user.id" :user="user" :busy="actions.busy.value" :error="actions.error.value"
           @set-commission="actions.setCommissionRate" @grant-pro="actions.grantPro" @revoke-pro="actions.revokePro"
           @changed="refreshDetail"
         />

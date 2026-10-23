@@ -25,11 +25,14 @@ describe('visibleTabs', () => {
   })
   it.each([
     ['REPORT_VIEW', 'incidents'], ['DISPUTE_VIEW', 'incidents'], ['AUDIT_VIEW', 'support'],
-    ['SUPPORT_TICKET_VIEW', 'support'], ['WALLET_ADJUST', 'manage'], ['USER_DELETE', 'manage'],
-    ['USER_MESSAGE_MUTE', 'manage'], ['USER_COMMISSION', 'manage'], ['USER_PRO_GRANT', 'manage'],
+    ['SUPPORT_TICKET_VIEW', 'support'], ['USER_DELETE', 'manage'],
+    ['USER_COMMISSION', 'manage'], ['USER_PRO_GRANT', 'manage'],
     ['GP_PRO_REVIEW', 'manage'], ['ADMIN_MANAGE', 'manage'],
   ] as const)('%s seule ouvre %s', (perm, tab) => {
     expect(ALL_PERMISSIONS).toContain(perm)
     expect(ids(p => p === perm)).toContain(tab)
+  })
+  it.each(['USER_MESSAGE_MUTE', 'WALLET_ADJUST'] as const)('%s seule n’ouvre pas Gestion (geste dans le menu ou l’onglet Argent)', (perm) => {
+    expect(ids(p => p === perm)).not.toContain('manage')
   })
 })

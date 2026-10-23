@@ -327,7 +327,7 @@ describe('users/[id].vue', () => {
       await w.get('[data-test="reason"]').setValue('Fraude')
       await w.get('[data-test="confirm"]').trigger('click')
       await openMenu(w)
-      expect(w.get('[data-test="menu-ban"]').attributes('disabled')).toBeDefined()
+      expect(w.get('[data-test="menu-ban"]').attributes('aria-disabled')).toBe('true')
       d.resolve({ ...USER, status: 'SUSPENDED' }); await flushPromises()
     })
 
@@ -430,6 +430,18 @@ describe('users/[id].vue', () => {
       await flushPromises()
       expect(setCommissionMock).toHaveBeenCalledWith(ID, 0.08)
       expect(w.get('[data-test="commission-state"]').text()).toContain('8.0 %')
+    })
+
+    it('échec d’un geste depuis Gestion : une seule alerte, dans l’onglet', async () => {
+      setCommissionMock.mockRejectedValue({ data: { detail: 'Taux refusé' } })
+      const w = await mountPage({ tab: 'manage' })
+      await w.get('[data-test="commission-input"]').setValue('8')
+      await w.get('[data-test="commission-apply"]').trigger('click')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="manage-error"]').text()).toBe('Taux refusé')
+      expect(w.find('[data-test="account-action-error"]').exists()).toBe(false)
+      expect(w.findAll('[role="alert"]').filter(a => a.text() === 'Taux refusé')).toHaveLength(1)
     })
 
     it('suppression : analyse d’impact, confirmation, redirection vers /users', async () => {

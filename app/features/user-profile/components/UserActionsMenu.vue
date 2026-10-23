@@ -46,6 +46,8 @@ function onDocPointer(e: Event) {
   if (menuOpen.value && root.value && !root.value.contains(e.target as Node)) closeMenu(false)
 }
 function onMenuKeydown(e: KeyboardEvent) {
+  // Tab quitte le menu : on le ferme sans retenir le focus, qui continue naturellement.
+  if (e.key === 'Tab') { closeMenu(false); return }
   const list = items()
   if (list.length === 0) return
   const at = list.indexOf(document.activeElement as HTMLElement)
@@ -67,6 +69,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocPointer)
 })
 
+const focusTrigger = () => { void nextTick(() => trigger.value?.focus()) }
+
 // --- Gestes : directs, ou confirmés (textes identiques à l'ancien tiroir) ---
 type Pending = 'suspend' | 'ban' | 'unban' | 'suspendPublishing' | 'mute' | null
 const pending = ref<Pending>(null)
@@ -81,14 +85,15 @@ const heldReminder = computed(() => {
 })
 
 function choose(id: AccountActionId) {
+  if (props.busy) return
   closeMenu(false)
   switch (id) {
     case 'writeSupport': writeSupportOpen.value = true; break
     case 'suspend': case 'ban': case 'unban': case 'suspendPublishing': pending.value = id; break
     case 'mute': muteDuration.value = '24'; pending.value = 'mute'; break
-    case 'unsuspend': emit('unsuspend'); break
-    case 'liftPublishing': emit('liftPublishing'); break
-    case 'unmute': emit('unmuteMessaging'); break
+    case 'unsuspend': emit('unsuspend'); focusTrigger(); break
+    case 'liftPublishing': emit('liftPublishing'); focusTrigger(); break
+    case 'unmute': emit('unmuteMessaging'); focusTrigger(); break
     default: break // notify : lien
   }
 }
@@ -117,6 +122,7 @@ const dialog = computed(() => {
 function confirm(reason: string) {
   const p = pending.value
   pending.value = null
+  focusTrigger()
   if (p === 'suspend') emit('suspend', reason)
   else if (p === 'ban') emit('ban', reason)
   else if (p === 'suspendPublishing') emit('suspendPublishing', reason)
@@ -127,7 +133,8 @@ function confirm(reason: string) {
 </script>
 
 <template>
-  <div v-if="groups.length > 0" ref="root" class="relative" data-test="actions-menu">
+  <div ref="root" class="relative">
+    <div v-if="groups.length > 0" data-test="actions-menu">
     <button
       ref="trigger" type="button" data-test="actions-trigger" aria-haspopup="menu" :aria-expanded="menuOpen"
       class="inline-flex items-center gap-2 rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white transition-[background-color,scale] hover:bg-primary/90 active:scale-[0.96]"
@@ -151,8 +158,8 @@ function confirm(reason: string) {
             <span class="block text-xs text-text-muted text-pretty">{{ a.hint }}</span>
           </NuxtLink>
           <button
-            v-else type="button" role="menuitem" tabindex="-1" :data-test="`menu-${a.id}`" :disabled="busy"
-            class="block w-full rounded-btn px-3 py-2 text-left text-sm hover:bg-surface-elevated focus-visible:bg-surface-elevated disabled:opacity-40"
+            v-else type="button" role="menuitem" tabindex="-1" :data-test="`menu-${a.id}`" :aria-disabled="busy ? 'true' : undefined"
+            class="block w-full rounded-btn px-3 py-2 text-left text-sm hover:bg-surface-elevated focus-visible:bg-surface-elevated aria-disabled:opacity-40"
             @click="choose(a.id)"
           >
             <span class="block font-medium" :class="a.danger ? 'text-danger' : ''">{{ a.label }}</span>
@@ -161,11 +168,12 @@ function confirm(reason: string) {
         </template>
       </div>
     </div>
+    </div>
 
     <ConfirmActionDialog
       :open="pending !== null" :title="dialog.title" :message="dialog.message"
       :confirm-label="dialog.confirmLabel" :require-reason="dialog.requireReason"
-      @confirm="confirm" @cancel="pending = null"
+      @confirm="confirm" @cancel="pending = null; focusTrigger()"
     >
       <div v-if="pending === 'mute'" class="mb-4">
         <label for="mute-duration" class="mb-1 block text-xs text-text-muted">Durée de la coupure</label>
@@ -182,7 +190,7 @@ function confirm(reason: string) {
 
     <StartSupportConversationDialog
       :open="writeSupportOpen" :recipient="supportRecipient"
-      @close="writeSupportOpen = false" @sent="writeSupportOpen = false"
+      @close="writeSupportOpen = false; focusTrigger()" @sent="writeSupportOpen = false; focusTrigger()"
     />
   </div>
 </template>

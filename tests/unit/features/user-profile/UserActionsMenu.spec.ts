@@ -203,11 +203,57 @@ describe('UserActionsMenu', () => {
     expect(w.find('[data-test="support-dialog"]').exists()).toBe(false)
   })
 
-  it('occupé : le bouton et les éléments sont désactivés', async () => {
+  it('occupé : éléments aria-disabled (atteignables au clavier) et activation ignorée', async () => {
     const w = mountMenu({}, 'ADMIN', true)
     await open(w)
-    expect(w.findAll('button[role="menuitem"]').every(b => b.attributes('disabled') !== undefined)).toBe(true)
+    const buttons = w.findAll('button[role="menuitem"]')
+    expect(buttons.every(b => b.attributes('aria-disabled') === 'true' && b.attributes('disabled') === undefined)).toBe(true)
+    expect(document.activeElement).toBe(w.findAll('[role="menuitem"]')[0]!.element)
+    await item(w, 'suspend').trigger('click')
+    expect(w.find('[role="dialog"]').exists()).toBe(false)
+    expect(w.find('[role="menu"]').exists()).toBe(true)
     expect(trigger(w).attributes('disabled')).toBeUndefined()
+  })
+
+  it('Tab ferme le menu sans retenir le focus', async () => {
+    const w = mountMenu()
+    await open(w)
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    w.get('[role="menu"]').element.dispatchEvent(ev)
+    await flushPromises()
+    expect(ev.defaultPrevented).toBe(false)
+    expect(w.find('[role="menu"]').exists()).toBe(false)
+    expect(document.activeElement).not.toBe(trigger(w).element)
+  })
+
+  it('le focus revient au bouton après un geste direct et après un dialogue (annulé ou confirmé)', async () => {
+    let w = mountMenu({ status: 'SUSPENDED' })
+    await choose(w, 'unsuspend')
+    expect(document.activeElement).toBe(trigger(w).element)
+    wrapper?.unmount()
+    w = mountMenu()
+    await choose(w, 'suspend')
+    await w.get('[data-test="cancel"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(trigger(w).element)
+    ;(document.activeElement as HTMLElement).blur()
+    await choose(w, 'suspend')
+    await confirmWith(w, 'Fraude')
+    expect(document.activeElement).toBe(trigger(w).element)
+    ;(document.activeElement as HTMLElement).blur()
+    await choose(w, 'writeSupport')
+    await w.get('[data-test="support-close"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(trigger(w).element)
+  })
+
+  it('le dialogue d’écriture survit à la disparition des actions (relecture de la fiche)', async () => {
+    const w = mountMenu({}, 'SUPPORT')
+    await choose(w, 'writeSupport')
+    await w.setProps({ user: { ...USER, status: 'PENDING_DELETION' } as never })
+    // SUPPORT : plus aucune action pour ce statut, mais le dialogue ouvert reste monté
+    expect(w.find('[data-test="actions-trigger"]').exists()).toBe(false)
+    expect(w.find('[data-test="support-dialog"]').exists()).toBe(true)
   })
 
   it('les éléments dangereux sont repérés par un texte, pas seulement une couleur', async () => {

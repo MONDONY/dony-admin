@@ -68,7 +68,7 @@ describe('UserManageTab', () => {
       expect(w.emitted('setCommission')![0]).toEqual([0.08])
     })
 
-    it('arrondi à 0,1 % : 7,25 → 0,073', async () => {
+    it('arrondi au dixième de pour cent : 7,26 → 0,073 (7,3 %)', async () => {
       const w = mountTab()
       await w.get('[data-test="commission-input"]').setValue('7.26')
       await w.get('[data-test="commission-apply"]').trigger('click')
@@ -85,7 +85,15 @@ describe('UserManageTab', () => {
       expect(w.get('[data-test="commission-invalid"]').attributes('role')).toBe('alert')
     })
 
-    it('99,9 et 0 sont acceptés', async () => {
+    it('99,9 est accepté : 0,999', async () => {
+      const w = mountTab()
+      await w.get('[data-test="commission-input"]').setValue('99.9')
+      await w.get('[data-test="commission-apply"]').trigger('click')
+      await confirm(w)
+      expect(w.emitted('setCommission')![0]).toEqual([0.999])
+    })
+
+    it('0 est accepté', async () => {
       const w = mountTab()
       await w.get('[data-test="commission-input"]').setValue('0')
       await w.get('[data-test="commission-apply"]').trigger('click')
@@ -251,6 +259,20 @@ describe('UserManageTab', () => {
       d.resolve(); await flushPromises()
       expect(navigateToMock).not.toHaveBeenCalled()
     })
+  })
+
+  it('erreur de geste : répétée en haut de l’onglet, role=alert', () => {
+    const w = mountTab({}, 'ADMIN')
+    expect(w.find('[data-test="manage-error"]').exists()).toBe(false)
+    wrapper?.unmount()
+    seedAuth('ADMIN')
+    wrapper = mount(UserManageTab, {
+      props: { user: USER as never, error: 'Commission refusée' },
+      global: { stubs: { UserGpProSection: GpStub, UserRecetteTesterSection: RecetteStub, UserDeletionDialog: DeletionStub } },
+    })
+    const e = wrapper.get('[data-test="manage-error"]')
+    expect(e.attributes('role')).toBe('alert')
+    expect(e.text()).toBe('Commission refusée')
   })
 
   it('aucun droit de gestion exploitable ici : message explicite', () => {

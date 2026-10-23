@@ -9,7 +9,7 @@ import { userDisplayName } from '@/features/broadcast/composables/useUserSearch'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminDeletionReasonCode, AdminUserDetail } from '@/features/users/types/index'
 
-const props = defineProps<{ user: AdminUserDetail, busy?: boolean }>()
+const props = defineProps<{ user: AdminUserDetail, busy?: boolean, error?: string | null }>()
 const emit = defineEmits<{
   setCommission: [rate: number | null]; grantPro: [reason: string]; revokePro: []; changed: []
 }>()
@@ -126,6 +126,11 @@ const card = 'rounded-card border border-border bg-surface p-5'
 
 <template>
   <div class="flex flex-col gap-4" data-test="user-manage">
+    <p
+      v-if="error" data-test="manage-error" role="alert"
+      class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
+    >{{ error }}</p>
+
     <p v-if="nothing" data-test="manage-empty" class="text-sm text-text-muted">
       Aucun réglage de compte n’est disponible avec vos droits : les gestes courants sont dans « Actions du compte ».
     </p>
