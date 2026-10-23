@@ -5,6 +5,7 @@ import { paymentStatusMeta } from '@/features/payments/components/paymentStatus'
 import { REPORT_REASON_LABELS } from '@/features/signalements/reportReasons'
 import { REPORT_TARGET_TYPE_LABELS } from '@/features/signalements/reportActionLabels'
 import { reportStatusMeta } from '@/features/signalements/components/reportStatus'
+import { auditActionLabel } from '@/features/user-profile/lib/auditActionLabels'
 import { formatDayUtc } from '@/features/user-profile/lib/formatDayUtc'
 import { formatInstant } from '@/features/user-profile/lib/formatInstant'
 import type { BidStatus } from '@/features/bids/types/index'
@@ -225,8 +226,8 @@ export const ratingColumns: SectionColumn[] = [
 
 export const auditColumns: SectionColumn[] = [
   { key: 'createdAt', label: 'Date', format: (r: UserAuditRow) => formatInstant(r.createdAt) },
-  { key: 'action', label: 'Action', format: (r: UserAuditRow) => humanize(r.action) },
-  { key: 'actorName', label: 'Par', format: (r: UserAuditRow) => r.actorName ?? 'Inconnu' },
+  { key: 'action', label: 'Action', format: (r: UserAuditRow) => auditActionLabel(r.action) },
+  { key: 'actorName', label: 'Par', format: (r: UserAuditRow) => r.actorName ?? '—' },
   { key: 'reason', label: 'Motif', format: (r: UserAuditRow) => r.reason || '—' },
 ]
 

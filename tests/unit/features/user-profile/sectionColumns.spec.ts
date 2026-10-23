@@ -129,10 +129,11 @@ describe('sectionColumns', () => {
     expect(txt(ratingColumns, 'flagged', { ...rt, flagged: false })).toBe('Non')
     expect(col(ratingColumns, 'flagged').tone!({ ...rt, flagged: false })).toBe('neutral')
     const a = { id: 1, action: 'USER_SUSPENDED', actorName: null, actorId: null, reason: null, createdAt: '2026-10-20T10:00:00Z' }
-    expect(txt(auditColumns, 'actorName', a)).toBe('Inconnu')
+    expect(txt(auditColumns, 'actorName', a)).toBe('—')
     expect(txt(auditColumns, 'actorName', { ...a, actorName: 'a@b.fr' })).toBe('a@b.fr')
     expect(txt(auditColumns, 'reason', a)).toBe('—')
-    expect(txt(auditColumns, 'action', a)).toBe('User suspended')
+    expect(txt(auditColumns, 'action', a)).toBe('Action non répertoriée (USER_SUSPENDED)')
+    expect(txt(auditColumns, 'action', { ...a, action: 'USER_SUSPENDED_BY_ADMIN' })).toBe('Compte suspendu')
     expect(txt(auditColumns, 'createdAt', a)).toContain('20/10/2026')
   })
 

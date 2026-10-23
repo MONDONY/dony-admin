@@ -13,7 +13,10 @@ vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: null }))
 vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApiKey: '' } }))
 
 const getMock = vi.fn()
-vi.mock('@/features/users/services/usersService', () => ({ usersService: { get: (...a: unknown[]) => getMock(...a) } }))
+const getKycMock = vi.fn()
+vi.mock('@/features/users/services/usersService', () => ({
+  usersService: { get: (...a: unknown[]) => getMock(...a), getKyc: (...a: unknown[]) => getKycMock(...a) },
+}))
 const overviewMock = vi.fn()
 const sectionMock = vi.fn()
 vi.mock('@/features/user-profile/services/userProfileService', () => ({
@@ -49,7 +52,7 @@ async function mountPage(query: Record<string, string> = {}, id: string = ID, ro
 
 describe('users/[id].vue', () => {
   beforeEach(() => {
-    navigateToMock.mockReset(); replaceMock.mockReset(); getMock.mockReset(); overviewMock.mockReset(); sectionMock.mockReset()
+    navigateToMock.mockReset(); replaceMock.mockReset(); getMock.mockReset(); overviewMock.mockReset(); sectionMock.mockReset(); getKycMock.mockReset()
     sectionMock.mockResolvedValue({ content: [], totalPages: 0, number: 0, totalElements: 0 })
     getMock.mockResolvedValue(USER)
     overviewMock.mockResolvedValue({ kpis: { ...NULLS, parcelsInProgress: 2 }, inProgress: [], timeline: [] })
@@ -104,6 +107,20 @@ describe('users/[id].vue', () => {
     w = await mountPage({ tab: 'incidents' })
     expect(w.get('[data-test="tab-content-incidents"]').find('[data-test="section-reports-received"]').exists()).toBe(true)
     expect(sectionMock).toHaveBeenCalledTimes(5)
+  })
+
+  it('onglets identité et support : KYC chargé à l’ouverture, journal des gestes', async () => {
+    getKycMock.mockResolvedValue({ kycStatus: 'VERIFIED' })
+    const w = await mountPage()
+    expect(getKycMock).not.toHaveBeenCalled()
+    const id = await mountPage({ tab: 'identity' })
+    expect(getKycMock).toHaveBeenCalledWith(ID)
+    expect(id.find('[data-test="tab-content-identity"]').exists()).toBe(true)
+    expect(w.exists()).toBe(true)
+    sectionMock.mockClear()
+    const sup = await mountPage({ tab: 'support' })
+    expect(sup.get('[data-test="tab-content-support"]').find('[data-test="section-audit"]').exists()).toBe(true)
+    expect(sectionMock).toHaveBeenCalledWith(ID, 'audit', 0, 20, undefined)
   })
 
   it('SUPPORT : pas d’onglet Gestion, ?tab=manage retombe sur la vue d’ensemble', async () => {
