@@ -25,16 +25,16 @@ Date : 23/10/2026. Statut : maquette validée par le propriétaire le 23/10. Maq
 
 **Trois nombres existent déjà pour « séquestre de plus de 48 h »** et doivent rester égaux : la carte `escrowJ48` de la vue d'ensemble (`AdminMetricsService.countEscrowJ48` : `ESCROW` et `created_at` de plus de 48 h), l'alerte horaire `ESCROW_J48_TIMEOUT` (`EscrowScheduler`, même critère), et la nouvelle vue « À traiter ».
 
-**Le numéro des opérations mobile money est chiffré en base** (`msisdn` via `EncryptedStringConverter`). Seul `msisdn_masked` (les derniers chiffres) est interrogeable en SQL : la recherche par numéro ne porte donc que sur ces derniers chiffres, pas sur 8 chiffres comme sur la page Colis.
+**Le numéro des opérations mobile money est chiffré en base** (`msisdn` via `EncryptedStringConverter`) et sa forme masquée est `+221 •••• 67` (indicatif et deux derniers chiffres, `Msisdn.mask`). **Aucune recherche par numéro de téléphone mobile money n'est donc possible ni souhaitable** : deux chiffres ne désignent personne, et chercher dans le numéro complet exigerait de le déchiffrer ligne par ligne. On cherche une opération par son identifiant, l'identifiant du fournisseur, le paiement, le colis, la personne ou le n° de suivi.
 
 ## Pourquoi
 
-Le propriétaire ne voit pas où l'argent demande une action, retrouve mal une transaction (pas de recherche par trajet, montant ou fin de numéro), lit des UUID dans quatre onglets, et surtout **quitte la page dès qu'il lui faut une information qui vit ailleurs** (le colis, le trajet, le litige, la conversation, la fiche de la personne, les alertes, le journal) sans pouvoir y arriver d'un clic au bon endroit.
+Le propriétaire ne voit pas où l'argent demande une action, retrouve mal une transaction (pas de recherche par trajet ni par montant), lit des UUID dans quatre onglets, et surtout **quitte la page dès qu'il lui faut une information qui vit ailleurs** (le colis, le trajet, le litige, la conversation, la fiche de la personne, les alertes, le journal) sans pouvoir y arriver d'un clic au bon endroit.
 
 ## Objectifs
 
 1. Voir ce qui demande une action : vues à nombre, étiquette d'alerte par ligne, pastilles par section.
-2. Retrouver une transaction par n° de suivi, nom, trajet, montant, référence Stripe ou pawaPay, fin de numéro mobile money.
+2. Retrouver une transaction par n° de suivi, nom, trajet, montant, référence Stripe ou pawaPay.
 3. Un tiroir rangé par onglets, le problème en premier.
 4. **Chaque information qui n'est pas dans Transactions est un lien qui atterrit sur la bonne information** (voir « Carte des liens »), et l'inverse : depuis les autres pages, un lien arrive dans Transactions déjà filtré ou déjà ouvert sur le bon onglet.
 5. Les six autres onglets montrent des noms, des trajets et des liens au lieu d'UUID, avec recherche et vues.
@@ -110,7 +110,7 @@ Le propriétaire ne voit pas où l'argent demande une action, retrouve mal une t
 | Conversation de modération | Modération, conversation ouverte | `/moderation?open=<conversationId>` | `MODERATION_VIEW` | `conversationId` (nouveau, identifiant Firestore) |
 | Litige bancaire du paiement | Litiges bancaires, ligne ouverte | `/transactions?tab=chargebacks&open=<chargebackId>` | `PAYMENT_VIEW` | `chargebackId` (nouveau) |
 | Alertes ouvertes du paiement | Alertes, alerte ouverte | `/alertes?open=<alertId>` | `ALERT_VIEW` | `openAlerts` (nouveau) ; la page Alertes doit accepter `?open=` |
-| « Voir tout le journal » du paiement | Audit filtré sur ce paiement | `/audit?entityType=Payment&entityId=<id>` | `AUDIT_VIEW` | filtre `entityId` (nouveau, back et page) |
+| « Voir tout le journal » du paiement | Audit filtré sur ce paiement | `/audit?entityType=PAYMENT&entityId=<id>` | `AUDIT_VIEW` | filtre `entityId` (nouveau, back et page) |
 | Stripe (PaymentIntent) | Dashboard Stripe | `insight.stripeDashboardUrl` | — | existe (lien externe, `rel="noopener noreferrer"`) |
 | Colis d'une commission cash | Colis, onglet Argent | `/colis?open=<bidId>&section=money` | `BID_VIEW` | `bidId` (existe) + trajet, n° de suivi, voyageur (nouveaux) |
 | Colis d'un litige bancaire | Colis ; paiement | `/colis?open=<bidId>` · `/transactions?open=<paymentId>` | `BID_VIEW` · `PAYMENT_VIEW` | `paymentId` (nouveau dans le DTO, déjà en base) |
@@ -138,7 +138,7 @@ Le propriétaire ne voit pas où l'argent demande une action, retrouve mal une t
 | Alertes | INV-14 | Remboursements wallet | `/transactions?tab=wallet-refunds` | existe |
 | Recherche globale ⌘K | Un paiement | Tiroir paiement ouvert | `/transactions?open=<id>` | existe |
 | Recherche globale ⌘K | Les pages Transactions | Section et sous-onglet exacts | `searchPages.ts` (sept entrées) | existe, ajouter « Versements échoués » |
-| Incidents (litige) | Paiement lié | Tiroir paiement ouvert | `/transactions?open=<paymentId>` | à ajouter si l'identifiant du paiement est disponible dans le litige |
+| Incidents (litige, absence du voyageur) | « Voir le paiement de ce colis » | Liste filtrée sur le colis (une ligne), avec puce « Colis » retirable | `/transactions?bidId=<bidId>&view=ALL` | nouveau (l'identifiant du paiement n'est pas dans le litige, celui du colis y est) |
 | Notifications d'alerte | `WALLET_REFUND_REQUESTED` | Onglet Remboursements wallet | `/transactions?tab=wallet-refunds` | existe |
 
 ### Ce qu'il faut ajouter aux pages de destination
@@ -169,10 +169,10 @@ Le propriétaire ne voit pas où l'argent demande une action, retrouve mal une t
    - Urgence : `HELD`, puis `CHARGEBACK_OPEN`, puis `MM_FAILED`, puis `ESCROW_J48` ; à égalité le plus ancien d'abord. Une seule étiquette par paiement, la plus urgente.
    - Calcul écrit **une fois** en SQL (`AdminPaymentSql.ALERT_RANK`) et partagé par la liste, les nombres, le tri et l'étiquette de ligne ; jamais une seconde implémentation en Java ou dans le front.
    - Vues : *En séquestre* = `ESCROW` ; *Versés (3 j)* = `RELEASED` avec libération il y a moins de 72 h ; *Remboursés* = `REFUNDED` ; *Échoués / annulés* = `FAILED`, `CANCELLED` ; *Tous* = tout sauf les checkouts abandonnés (`PENDING` depuis plus de 24 h) ; « À traiter » traverse les autres vues, les nombres ne s'additionnent pas, et l'écran le dit.
-5. **Corrections par rapport à la maquette validée** : l'étiquette « Livré depuis 3 j · pas encore versé » devient « En séquestre depuis plus de 48 h » (appel n° 4), et la fin de numéro mobile money cherche les **derniers chiffres visibles** (numéro chiffré en base), pas 8 chiffres. La maquette sera corrigée.
+5. **Corrections par rapport à la maquette validée** : l'étiquette « Livré depuis 3 j · pas encore versé » devient « En séquestre depuis plus de 48 h » (appel n° 4), et **la recherche par numéro de téléphone mobile money disparaît** (le numéro masqué ne montre que l'indicatif et deux chiffres, voir « État des lieux »). La maquette est corrigée.
 6. **Fiche paiement** : `GET /admin/payments/{id}` gagne, à la fin, des blocs optionnels : `alert`, `trackingNumber`, `links` (`announcementId`, `disputeId`, `disputeStatus`, `cancellationId`, `conversationId`, `chargebackId`, `packageRequestId`), `openAlerts` (`id`, `type`, `severity`), `chargeback` (`id`, `status`, `reason`, `openedAt`, `outcome`). Chaque lien n'est rempli que si la permission de sa destination est détenue (`links.disputeId` seulement avec `DISPUTE_VIEW`, `conversationId` avec `MODERATION_VIEW`, `openAlerts` avec `ALERT_VIEW`). `GET /admin/payments` gagne sur chaque ligne `alert`, `trackingNumber`, `announcementId` ; les champs `insight` existants restent.
 7. **Autres listes** :
-   - Mobile money : filtres `view` (`FAILED`, `OPEN`, `DONE`, `ALL`), `kind`, `provider`, `q` ; ligne enrichie de `personId`, `personName`, `role`, `purpose`, `bidId`, `trackingNumber`, `corridor`, `retryable`. Le numéro reste masqué.
+   - Mobile money : filtres `view` (`FAILED`, `OPEN`, `DONE`, `ALL`), `kind`, `provider`, `q` (identifiant d'opération ou du fournisseur, identifiants de paiement et de colis, n° de suivi, nom de la personne, trajet : jamais le numéro de téléphone) ; ligne enrichie de `personId`, `personName`, `role`, `purpose`, `bidId`, `trackingNumber`, `corridor`, `retryable`. Le numéro reste masqué.
    - Portefeuilles : ajout de `userName`, filtres `q`, `currency`, `balanceSign`.
    - Commissions cash : ajout de `trackingNumber`, `corridor`, `travelerId`, `travelerName`, filtre `status` (`PENDING`, `REQUIRES_3DS`, `CHARGED`, `FAILED`, `REFUNDED`, `REFUND_FAILED`) ; vue « À traiter » = `FAILED`, `REQUIRES_3DS`, `REFUND_FAILED`.
    - Litiges bancaires : ajout de `paymentId`, `trackingNumber`, `corridor`, `senderName`, `travelerName`, filtre `status` ; échéance de réponse affichée si le back la connaît (`resolvedAt` / `outcome` sinon).
@@ -191,7 +191,7 @@ Découpage des composants et composables, noms des fichiers, détail du SQL, lib
 ## Questions ouvertes pour le propriétaire (non bloquantes)
 
 1. **Critère J+48** : garder « séquestre créé il y a plus de 48 h » (cohérent avec la carte et l'alerte, mais signale aussi des colis en transit normal) ou passer à « colis livré depuis plus de 48 h et pas versé » (plus juste, mais change la carte et l'alerte).
-2. **Recherche par fin de numéro** : limitée aux derniers chiffres visibles (numéro chiffré en base). Acceptable ?
+2. **Recherche par numéro de téléphone mobile money** : abandonnée (numéro chiffré, masque à deux chiffres). Si le besoin existe, il demande une colonne de hachage dédiée et une migration : décision à part.
 3. **Dérogation et audit** : inchangés. Le lien « tout le journal » exige `AUDIT_VIEW` ; les admins sans cette permission voient seulement la chronologie du tiroir.
 
 ## Vérification
