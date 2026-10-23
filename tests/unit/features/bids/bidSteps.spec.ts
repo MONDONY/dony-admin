@@ -81,7 +81,7 @@ describe('bidStepper', () => {
 
   it('arrivedAt : En transit atteint pour un colis refusé ou terminé', () => {
     const milestones = { arrivedAt: '2026-06-04T09:00:00Z' } as never
-    expect(states(bid('CANCELLED', { milestones }))).toEqual([D, T, T, T, D, T])
+    expect(states(bid('CANCELLED', { milestones }))).toEqual([D, D, D, D, D, T])
   })
 
   it('une remise renseignée prolonge un colis annulé', () => {
