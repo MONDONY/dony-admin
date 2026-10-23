@@ -34,11 +34,10 @@ export function fallbackPhotos(bid: AdminBidDetail, timeline: AdminBidTimeline |
   const created: AdminBidPhoto[] = (bid.photoUrls ?? []).map((url, i) => ({
     id: `creation-${i}`, stage: 'CREATION', label: PHOTO_STAGE_LABELS.CREATION, at: bid.createdAt, url,
   }))
-  const scans: AdminBidPhoto[] = []
-  ;(timeline?.entries ?? []).forEach((e, i) => {
+  const scans = (timeline?.entries ?? []).flatMap((e, i): AdminBidPhoto[] => {
     const stage = SCAN_STAGES[e.label]
-    if (e.kind !== 'SCAN' || !e.photoUrl || !stage) return
-    scans.push({ id: `scan-${i}`, stage, label: PHOTO_STAGE_LABELS[stage], at: e.at, url: e.photoUrl })
+    if (e.kind !== 'SCAN' || !e.photoUrl || !stage) return []
+    return [{ id: `scan-${i}`, stage, label: PHOTO_STAGE_LABELS[stage], at: e.at, url: e.photoUrl }]
   })
   return [...created, ...scans]
 }

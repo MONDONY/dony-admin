@@ -92,7 +92,7 @@ describe('bidsAdminService', () => {
     expect(r.alerts).toEqual({ disputeOpen: 0, noShow: 0, paymentPending: 0, late: 0 })
     expect(r.all).toBe(6)
   })
-  it('suggest_trimsAndEncodesQuery', async () => {
+  it('suggest_trimsQuery', async () => {
     apiMock.mockResolvedValue({})
     await bidsAdminService.suggest('  a&b=c  ')
     const [url, opts] = apiMock.mock.calls[0]

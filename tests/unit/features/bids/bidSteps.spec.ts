@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { bidStepper } from '@/features/bids/lib/bidSteps'
 import type { AdminBidDetail, AdminBidMoney, BidStatus } from '@/features/bids/types'
 
-const money = { paymentId: 'p', capturedAt: '2026-06-01T11:00:00Z' } as AdminBidMoney
+const mk = (status: string) => ({ paymentId: 'p', status, capturedAt: '2026-06-01T11:00:00Z' }) as AdminBidMoney
+const money = mk('ESCROW')
 const bid = (status: BidStatus, extra: Partial<AdminBidDetail> = {}): AdminBidDetail =>
   ({ id: 'b', status, createdAt: '2026-06-01T10:00:00Z', ...extra }) as AdminBidDetail
 const states = (b: AdminBidDetail) => bidStepper(b).steps.map(s => s.state)
@@ -55,7 +56,7 @@ describe('bidStepper', () => {
   it('bidStepper_completed_allDone_withDates', () => {
     const s = bidStepper(bid('COMPLETED', { money, milestones: { deliveredAt: '2026-06-05T09:00:00Z' } as never })).steps
     expect(s[0].at).toBe('2026-06-01T10:00:00Z')
-    expect(s[1].at).toBe('2026-06-01T11:00:00Z')
+    expect(s[1].at).toBeUndefined()
     expect(s[5].at).toBe('2026-06-05T09:00:00Z')
     expect(s[2].at).toBeUndefined()
   })
@@ -64,6 +65,23 @@ describe('bidStepper', () => {
     const s = bidStepper(bid('PENDING')).steps
     expect(s[1].state).toBe('current')
     expect(s[1].at).toBeUndefined()
+  })
+
+  it.each([
+    ['CANCELLED', 'FAILED', [D, T, T, T, T, T]],
+    ['EXPIRED', 'FAILED', [D, T, T, T, T, T]],
+    ['CANCELLED', 'CANCELLED', [D, T, T, T, T, T]],
+    ['PENDING', 'PENDING', [D, C, T, T, T, T]],
+    ['PENDING', 'ESCROW', [D, D, C, T, T, T]],
+    ['PENDING', 'RELEASED', [D, D, C, T, T, T]],
+    ['CANCELLED', 'REFUNDED', [D, D, T, T, T, T]],
+  ] as const)('%s avec paiement %s', (status, pay, expected) => {
+    expect(states(bid(status, { money: mk(pay) }))).toEqual(expected)
+  })
+
+  it('arrivedAt : En transit atteint pour un colis refusé ou terminé', () => {
+    const milestones = { arrivedAt: '2026-06-04T09:00:00Z' } as never
+    expect(states(bid('CANCELLED', { milestones }))).toEqual([D, T, T, T, D, T])
   })
 
   it('une remise renseignée prolonge un colis annulé', () => {

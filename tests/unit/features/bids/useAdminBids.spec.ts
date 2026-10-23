@@ -47,4 +47,51 @@ describe('useAdminBids', () => {
     await b.goToPage(2); await b.setDateRange('2026-10-01', '2026-10-31')
     expect(b.filters.dateFrom).toBe('2026-10-01'); expect(b.filters.dateTo).toBe('2026-10-31'); expect(b.currentPage.value).toBe(0)
   })
+
+  const emptyPage = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
+  it('setView_resetsPageAndReloads', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids(); await b.goToPage(3); await b.setView('ACTIVE')
+    expect(b.filters.view).toBe('ACTIVE'); expect(b.currentPage.value).toBe(0)
+    expect(svc.listBids).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'ACTIVE' }), 0, 20)
+  })
+  it('setView_todo_clearsStatusAndAlert', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids(); await b.setStatusFilter('COMPLETED'); await b.setAlert('LATE')
+    await b.setView('TODO')
+    expect(b.filters.status).toBe('TOUS'); expect(b.filters.alert).toBeNull()
+    await b.setStatusFilter('COMPLETED')
+    expect(b.filters.view).toBe('TODO')
+  })
+  it('setters_sendFilterToService', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids()
+    await b.setScope('SENDER'); await b.setPaymentMethod('CASH'); await b.setContent('livres'); await b.setAlert('NO_SHOW')
+    expect(svc.listBids).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'SENDER', paymentMethod: 'CASH', content: 'livres', alert: 'NO_SHOW' }), 0, 20)
+  })
+  it('resetFilters_keepsTripFilter', async () => {
+    svc.listBids.mockResolvedValue(emptyPage)
+    const b = useAdminBids()
+    await b.setAnnouncementFilter('ann-1'); await b.setView('CLOSED'); await b.setSearch('x'); await b.setScope('TRIP')
+    await b.setPaymentMethod('CASH'); await b.setContent('c'); await b.setAlert('LATE'); await b.setDateRange('2026-10-01', '2026-10-02'); await b.goToPage(2)
+    await b.resetFilters()
+    expect(b.filters).toMatchObject({ status: 'TOUS', announcementId: 'ann-1', query: '', scope: 'ALL', view: 'ALL', paymentMethod: null, content: '', alert: null, dateFrom: null, dateTo: null })
+    expect(b.currentPage.value).toBe(0)
+    expect(svc.listBids).toHaveBeenCalledTimes(10)
+  })
+  it('fetchBids_ignoresStaleResponse', async () => {
+    let resolveFirst!: (v: unknown) => void
+    svc.listBids.mockReturnValueOnce(new Promise(r => { resolveFirst = r }))
+    svc.listBids.mockResolvedValueOnce({ ...emptyPage, content: [{ id: 'new' }] })
+    const b = useAdminBids()
+    const first = b.fetchBids(); const second = b.fetchBids()
+    await second
+    resolveFirst({ ...emptyPage, content: [{ id: 'old' }] }); await first
+    expect(b.bids.value).toEqual([{ id: 'new' }]); expect(b.isLoading.value).toBe(false)
+  })
+  it('fetchBids_error_setsMessage', async () => {
+    svc.listBids.mockRejectedValue(new Error('boom'))
+    const b = useAdminBids(); await b.fetchBids()
+    expect(b.error.value).toBe('boom'); expect(b.isLoading.value).toBe(false)
+  })
 })

@@ -32,24 +32,30 @@ const ENDED: Partial<Record<BidStatus, { label: string; tone: 'danger' | 'neutra
   NO_SHOW: { label: 'No-show', tone: 'danger', reached: 3 },
 }
 
+/** Paiement autorisé : FAILED, CANCELLED et PENDING (intention non aboutie) ne comptent pas. */
+const PAID_STATUSES = new Set(['ESCROW', 'RELEASED', 'REFUNDED'])
+
 export function bidStepper(bid: AdminBidDetail): BidStepperModel {
   const ended = ENDED[bid.status] ?? null
+  const paid = PAID_STATUSES.has(bid.money?.status ?? '')
   let done: number
   if (ended) {
     // Les traces du colis (paiement, remise, livraison) prolongent le minimum du statut.
     done = Math.max(
       ended.reached,
-      bid.money ? 2 : 0,
+      paid ? 2 : 0,
       bid.milestones?.handoverLocation ? 4 : 0,
+      bid.milestones?.arrivedAt ? 5 : 0,
       bid.milestones?.deliveredAt ? 6 : 0,
     )
   } else {
     done = ACTIVE[bid.status] ?? 0
-    // En attente d'acceptation : le paiement est fait dès que le montant est capturé.
-    if (bid.status === 'PENDING' && bid.money) done = 2
+    // En attente d'acceptation : le paiement est fait dès que les fonds sont autorisés.
+    if (bid.status === 'PENDING' && paid) done = 2
   }
   const dates: Partial<Record<BidStep['id'], string | null | undefined>> = {
-    created: bid.createdAt, paid: bid.money?.capturedAt, delivered: bid.milestones?.deliveredAt,
+    // Pas de date pour « Payé » : `capturedAt` est la capture Stripe (à l'acceptation), pas l'autorisation.
+    created: bid.createdAt, delivered: bid.milestones?.deliveredAt,
   }
   const steps = STEPS.map((s, i): BidStep => {
     const state = i < done ? 'done' : i === done && !ended ? 'current' : 'todo'
