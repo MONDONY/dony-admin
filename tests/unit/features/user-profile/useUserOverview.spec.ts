@@ -54,4 +54,33 @@ describe('useUserOverview', () => {
     await c.load()
     expect(c.error.value).toBe('Impossible de charger la synthèse')
   })
+
+  it('appels répétés : seule la dernière réponse compte', async () => {
+    let resolveOld!: (_v: unknown) => void
+    let resolveNew!: (_v: unknown) => void
+    overview.mockReturnValueOnce(new Promise(r => { resolveOld = r }))
+    overview.mockReturnValueOnce(new Promise(r => { resolveNew = r }))
+    const c = useUserOverview('u1')
+    const old = c.load()
+    const recent = c.load()
+    resolveNew({ kpis: { n: 'new' } })
+    await recent
+    resolveOld({ kpis: { n: 'old' } })
+    await old
+    expect(c.overview.value).toEqual({ kpis: { n: 'new' } })
+    expect(c.isLoading.value).toBe(false)
+  })
+
+  it('une ancienne erreur tardive est ignorée', async () => {
+    let rejectOld!: (_e: unknown) => void
+    overview.mockReturnValueOnce(new Promise((_, rej) => { rejectOld = rej }))
+    overview.mockResolvedValueOnce({ kpis: {} })
+    const c = useUserOverview('u1')
+    const old = c.load()
+    await c.load()
+    rejectOld({ statusCode: 404 })
+    await old
+    expect(c.unavailable.value).toBe(false)
+    expect(c.error.value).toBeNull()
+  })
 })

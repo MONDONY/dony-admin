@@ -15,7 +15,9 @@ export function buildAlerts(
   const alerts: UserAlert[] = []
   if (user.status === 'SUSPENDED') alerts.push({ id: 'suspended', text: 'Compte suspendu' })
   if (user.status === 'BANNED') alerts.push({ id: 'banned', text: 'Compte banni' })
-  if (user.deletionScheduledFor) alerts.push({ id: 'deletion', text: 'Suppression du compte demandée' })
+  if (user.deletionScheduledFor || user.status === 'PENDING_DELETION') {
+    alerts.push({ id: 'deletion', text: 'Suppression du compte demandée' })
+  }
   if (kpis.openDisputes !== null && kpis.openDisputes > 0) {
     alerts.push({ id: 'disputes', text: plural(kpis.openDisputes, 'litige ouvert', 'litiges ouverts') })
   }

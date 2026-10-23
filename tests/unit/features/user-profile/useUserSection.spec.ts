@@ -53,4 +53,49 @@ describe('useUserSection', () => {
     expect(c.error.value).toBeNull()
     expect(c.loaded.value).toBe(true)
   })
+
+  it('réponses dans le désordre : seule la dernière requête compte', async () => {
+    let resolveOld!: (_v: unknown) => void
+    let resolveNew!: (_v: unknown) => void
+    section.mockReturnValueOnce(new Promise(r => { resolveOld = r }))
+    section.mockReturnValueOnce(new Promise(r => { resolveNew = r }))
+    const c = useUserSection<{ id: string }>('u1', 'parcels')
+    const old = c.goToPage(2)
+    const recent = c.goToPage(3)
+    resolveNew({ content: [{ id: 'new' }], totalPages: 5, number: 3, totalElements: 90 })
+    await recent
+    expect(c.isLoading.value).toBe(false)
+    resolveOld({ content: [{ id: 'old' }], totalPages: 4, number: 2, totalElements: 70 })
+    await old
+    expect(c.rows.value).toEqual([{ id: 'new' }])
+    expect(c.page.value).toBe(3)
+    expect(c.totalPages.value).toBe(5)
+    expect(c.isLoading.value).toBe(false)
+  })
+
+  it('une ancienne requête en erreur ne touche pas l’état, ni isLoading', async () => {
+    let rejectOld!: (_e: unknown) => void
+    let resolveNew!: (_v: unknown) => void
+    section.mockReturnValueOnce(new Promise((_, rej) => { rejectOld = rej }))
+    section.mockReturnValueOnce(new Promise(r => { resolveNew = r }))
+    const c = useUserSection('u1', 'parcels')
+    const old = c.goToPage(1)
+    const recent = c.goToPage(2)
+    rejectOld({ data: { detail: 'Tard' } })
+    await old
+    expect(c.error.value).toBeNull()
+    expect(c.isLoading.value).toBe(true)
+    resolveNew({ content: [], totalPages: 3, number: 2, totalElements: 0 })
+    await recent
+    expect(c.isLoading.value).toBe(false)
+  })
+
+  it('reload() recharge la page courante', async () => {
+    section.mockResolvedValue({ content: [], totalPages: 3, number: 1, totalElements: 0 })
+    const c = useUserSection('u1', 'parcels')
+    await c.goToPage(1)
+    await c.reload()
+    expect(section).toHaveBeenCalledTimes(2)
+    expect(section).toHaveBeenLastCalledWith('u1', 'parcels', 1, 20, undefined)
+  })
 })

@@ -25,4 +25,12 @@ describe('userProfileService', () => {
     await userProfileService.section('u1', 'reports', 0, 10, { direction: 'SENT' })
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/reports', { query: { page: 0, size: 10, direction: 'SENT' } })
   })
+
+  it('encode l’identifiant dans le chemin', async () => {
+    apiMock.mockResolvedValue({})
+    await userProfileService.overview('a/b')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/a%2Fb/overview')
+    await userProfileService.section('a/b', 'audit', 0, 20)
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/users/a%2Fb/audit', { query: { page: 0, size: 20 } })
+  })
 })

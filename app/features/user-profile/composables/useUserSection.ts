@@ -13,19 +13,24 @@ export function useUserSection<T>(userId: string, section: UserSection, extra?: 
   const error = ref<string | null>(null)
   const loaded = ref(false)
 
+  let seq = 0
+
   async function fetchPage(p: number): Promise<void> {
+    const my = ++seq
     isLoading.value = true
     error.value = null
     try {
       const res = await userProfileService.section<T>(userId, section, p, PAGE_SIZE, extra)
+      if (my !== seq) return
       rows.value = res.content
       totalPages.value = res.totalPages
       page.value = p
       loaded.value = true
     } catch (e) {
+      if (my !== seq) return
       error.value = extractProblemMessage(e, 'Impossible de charger cette section')
     } finally {
-      isLoading.value = false
+      if (my === seq) isLoading.value = false
     }
   }
 
@@ -39,5 +44,10 @@ export function useUserSection<T>(userId: string, section: UserSection, extra?: 
     return fetchPage(p)
   }
 
-  return { rows, page, totalPages, isLoading, error, loaded, load, goToPage }
+  /** Recharge la page courante (après une action qui change la liste). */
+  function reload(): Promise<void> {
+    return fetchPage(page.value)
+  }
+
+  return { rows, page, totalPages, isLoading, error, loaded, load, goToPage, reload }
 }

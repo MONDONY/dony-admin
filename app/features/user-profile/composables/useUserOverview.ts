@@ -11,17 +11,23 @@ export function useUserOverview(userId: string) {
   /** Backend plus ancien (endpoint absent) : l'appelant se replie sur l'ancien affichage. */
   const unavailable = ref(false)
 
+  let seq = 0
+
   async function load(): Promise<void> {
+    const my = ++seq
     isLoading.value = true
     error.value = null
     unavailable.value = false
     try {
-      overview.value = await userProfileService.overview(userId)
+      const res = await userProfileService.overview(userId)
+      if (my !== seq) return
+      overview.value = res
     } catch (e) {
+      if (my !== seq) return
       if (isEndpointMissing(e)) unavailable.value = true
       else error.value = extractProblemMessage(e, 'Impossible de charger la synthèse')
     } finally {
-      isLoading.value = false
+      if (my === seq) isLoading.value = false
     }
   }
 

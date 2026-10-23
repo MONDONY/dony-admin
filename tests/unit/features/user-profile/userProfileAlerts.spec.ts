@@ -42,4 +42,10 @@ describe('buildAlerts', () => {
     expect(a[0]!.text).toContain('42,00 EUR')
     expect(a[0]!.text).toContain('15 000,00 XOF')
   })
+
+  it('PENDING_DELETION sans date : alerte de suppression sans date', () => {
+    const a = buildAlerts({ status: 'PENDING_DELETION', deletionScheduledFor: null }, NULLS)
+    expect(a.map(x => x.id)).toEqual(['deletion'])
+    expect(a[0]!.text).not.toMatch(/\d/)
+  })
 })
