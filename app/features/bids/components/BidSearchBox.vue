@@ -125,7 +125,7 @@ function onKey(e: KeyboardEvent) {
       <div v-for="g in groups" :key="g.kind" role="group" :aria-label="g.label">
         <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">{{ g.label }}</p>
         <div
-          v-for="it in g.items" :key="optionId(it)" :id="optionId(it)" role="option" :aria-selected="activeId === optionId(it)"
+          v-for="it in g.items" :id="optionId(it)" :key="optionId(it)" role="option" :aria-selected="activeId === optionId(it)"
           :data-test="`suggestion-${it.kind}-${it.index}`"
           :class="['flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm', activeId === optionId(it) ? 'bg-surface-elevated' : 'hover:bg-surface-elevated']"
           @mousedown.prevent @click="pick(it)"
