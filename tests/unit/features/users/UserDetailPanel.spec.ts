@@ -98,7 +98,7 @@ describe('UserDetailPanel', () => {
   })
 
   it('hides publishing actions without USER_SUSPEND permission', () => {
-    seedAuth('SUPPORT', { USER_SUSPEND: false })
+    seedAuth('SUPPORT')
     const w = mount(UserDetailPanel, { props: { user: baseUser, open: true } })
     expect(w.find('[data-test="action-suspend-publishing"]').exists()).toBe(false)
   })
@@ -170,10 +170,9 @@ describe('UserDetailPanel', () => {
     expect(w.find('[data-test="action-mute"]').exists()).toBe(true)
   })
 
-  // Lot C : SUPPORT possède désormais USER_MESSAGE_MUTE — la privation se prouve donc
-  // par un override explicite, qui teste réellement le gating et non le rôle.
+  // SUPPORT n'a plus USER_MESSAGE_MUTE : le rôle seul suffit à masquer la coupure.
   it('hides the mute duration selector and the mute button without USER_MESSAGE_MUTE', () => {
-    seedAuth('SUPPORT', { USER_MESSAGE_MUTE: false })
+    seedAuth('SUPPORT')
     const w = mount(UserDetailPanel, { props: { initialTab: 'gestion', user: baseUser, open: true } })
     expect(w.find('[data-test="mute-duration"]').exists()).toBe(false)
     expect(w.find('[data-test="action-mute"]').exists()).toBe(false)
