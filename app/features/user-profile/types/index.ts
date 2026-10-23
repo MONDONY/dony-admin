@@ -21,12 +21,13 @@ export interface UserOverviewKpis {
 export interface InProgressItem {
   kind: 'PARCEL' | 'TRIP'
   id: string
-  reference: string
+  /** Absent (JSON NON_NULL) pour un trajet. */
+  reference?: string | null
   corridor: string
   role: string
   status: string
   updatedAt: string
-  amount: MoneyAmount | null
+  amount?: MoneyAmount | null
 }
 
 export interface TimelineEntry {
@@ -34,8 +35,8 @@ export interface TimelineEntry {
   title: string
   detail: string
   at: string
-  refType: string | null
-  refId: string | null
+  refType?: string | null
+  refId?: string | null
 }
 
 export interface UserOverview {
@@ -56,39 +57,39 @@ export interface SectionPage<T> {
 
 export interface UserParcelRow {
   id: string
-  trackingNumber: string | null
+  trackingNumber?: string | null
   corridor: string
   /** SENDER | TRAVELER */
   role: string
   status: string
   createdAt: string
-  deliveredAt: string | null
-  amount: MoneyAmount | null
-  announcementId: string | null
+  deliveredAt?: string | null
+  amount?: MoneyAmount | null
+  announcementId?: string | null
 }
 
 /** Ligne de /trips : AdminAnnouncementListItemResponse existant. `departureDate` est un jour (yyyy-MM-dd). */
 export interface UserTripRow {
   id: string
   status: string
-  travelerName: string | null
+  travelerName?: string | null
   corridor: string
   departureDate: string
   availableKg: number
   pricePerKg: number
-  currency: string | null
-  tripGroupId: string | null
-  tripLegIndex: number | null
-  tripLegCount: number | null
+  currency?: string | null
+  tripGroupId?: string | null
+  tripLegIndex?: number | null
+  tripLegCount?: number | null
 }
 
 export interface UserRequestRow {
   id: string
   corridor: string
   status: string
-  weightKg: number | null
+  weightKg?: number | null
   /** Jour calendaire envoyé comme minuit UTC : formater avec `formatDayUtc`. */
-  desiredDate: string | null
+  desiredDate?: string | null
   createdAt: string
   openNegotiationCount: number
 }
@@ -97,12 +98,12 @@ export interface UserPaymentRow {
   id: string
   bidId: string
   status: string
-  method: string | null
+  method?: string | null
   amountCents: number
   commissionCents: number
   currency: string
   createdAt: string
-  payoutHeldAt: string | null
+  payoutHeldAt?: string | null
   beneficiaryHeld: boolean
   /** PAYER | BENEFICIARY */
   role: string
@@ -116,14 +117,14 @@ export interface UserDisputeRow {
   /** SENDER | TRAVELER | REPORTER */
   role: string
   createdAt: string
-  resolvedAt: string | null
+  resolvedAt?: string | null
 }
 
 export interface UserCancellationRow {
   id: string
   bidId: string
-  reason: string | null
-  scope: string | null
+  reason?: string | null
+  scope?: string | null
   status: string
   /** Faux quand l'utilisateur a subi l'annulation. */
   declaredByUser: boolean
@@ -144,7 +145,7 @@ export interface UserRatingRow {
   id: string
   bidId: string
   stars: number
-  comment: string | null
+  comment?: string | null
   flagged: boolean
   createdAt: string
 }
@@ -153,8 +154,8 @@ export interface UserAuditRow {
   id: number
   action: string
   /** E-mail pour un administrateur ; null si l'acteur est inconnu. */
-  actorName: string | null
-  actorId: string | null
-  reason: string | null
+  actorName?: string | null
+  actorId?: string | null
+  reason?: string | null
   createdAt: string
 }

@@ -43,4 +43,10 @@ describe('UserKpiGrid', () => {
     expect(w.get('[data-test="kpi-rating"]').text()).toContain('5,0 / 5')
     expect(w.get('[data-test="kpi-reports"]').text()).not.toContain('en attente')
   })
+
+  it('clés absentes (JSON NON_NULL, compte neuf) : aucun plantage, seules les cartes présentes s’affichent', () => {
+    const w = mount(UserKpiGrid, { props: { kpis: { parcelsInProgress: 1, openDisputes: 0 } as unknown as UserOverviewKpis } })
+    expect(cards(w)).toEqual(['kpi-parcels', 'kpi-disputes'])
+    expect(w.find('[data-test="kpi-rating"]').exists()).toBe(false)
+  })
 })

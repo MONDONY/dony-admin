@@ -18,14 +18,14 @@ export function buildAlerts(
   if (user.deletionScheduledFor || user.status === 'PENDING_DELETION') {
     alerts.push({ id: 'deletion', text: 'Suppression du compte demandée' })
   }
-  if (kpis.openDisputes !== null && kpis.openDisputes > 0) {
+  if (kpis.openDisputes != null && kpis.openDisputes > 0) {
     alerts.push({ id: 'disputes', text: plural(kpis.openDisputes, 'litige ouvert', 'litiges ouverts') })
   }
   if (kpis.heldByCurrency && kpis.heldByCurrency.length > 0) {
     const parts = kpis.heldByCurrency.map(m => formatAmount(m.amountCents, m.currency))
     alerts.push({ id: 'held', text: `Argent retenu : ${parts.join(', ')}` })
   }
-  if (kpis.reportsPending !== null && kpis.reportsPending > 0) {
+  if (kpis.reportsPending != null && kpis.reportsPending > 0) {
     alerts.push({ id: 'reports', text: plural(kpis.reportsPending, 'signalement à traiter', 'signalements à traiter') })
   }
   return alerts

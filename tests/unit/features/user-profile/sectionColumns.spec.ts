@@ -145,4 +145,29 @@ describe('sectionColumns', () => {
     expect(disputeLink({ id: 'd1' } as never)).toBe('/incidents?open=d1')
     expect(reportLink({ id: 'r1' } as never)).toBe('/signalements?open=r1')
   })
+
+  it('lignes dont les champs nuls sont ABSENTS du JSON (NON_NULL) : tirets, jamais « undefined »', () => {
+    const parcel = { id: 'abcdef123', corridor: 'A → B', role: 'SENDER', status: 'DELIVERED', createdAt: '2026-10-20T10:00:00Z' }
+    expect(txt(parcelColumns, 'trackingNumber', parcel)).toBe('abcdef12')
+    expect(txt(parcelColumns, 'deliveredAt', parcel)).toBe('—')
+    expect(txt(parcelColumns, 'amount', parcel)).toBe('—')
+
+    const payment = { id: 'p', bidId: 'b', status: 'HELD', amountCents: 4200, commissionCents: 500, currency: 'EUR', createdAt: '2026-10-20T10:00:00Z', beneficiaryHeld: true, role: 'PAYER' }
+    expect(txt(paymentColumns, 'method', payment)).toBe('—')
+    expect(txt(paymentColumns, 'beneficiaryHeld', payment)).toBe('Retenu')
+
+    const audit = { id: 1, action: 'USER_SUSPENDED', createdAt: '2026-10-20T10:00:00Z' }
+    expect(txt(auditColumns, 'actorName', audit)).toBe('—')
+    expect(txt(auditColumns, 'reason', audit)).toBe('—')
+
+    const request = { id: 'r', corridor: 'A → B', status: 'OPEN', createdAt: '2026-10-20T10:00:00Z', openNegotiationCount: 0 }
+    expect(txt(requestColumns, 'weightKg', request)).toBe('—')
+    expect(txt(requestColumns, 'desiredDate', request)).toBe('—')
+
+    expect(txt(disputeColumns, 'resolvedAt', { id: 'd', type: 'X', status: 'OPEN', role: 'SENDER', createdAt: '2026-10-20T10:00:00Z' })).toBe('—')
+    expect(txt(cancellationColumns, 'reason', { id: 'c', declaredByUser: true, status: 'RESOLVED', createdAt: '2026-10-20T10:00:00Z' })).toBe('—')
+    expect(txt(cancellationColumns, 'scope', { id: 'c', declaredByUser: true, status: 'RESOLVED', createdAt: '2026-10-20T10:00:00Z' })).toBe('—')
+    expect(txt(ratingColumns, 'comment', { id: 'r', stars: 4, flagged: false, createdAt: '2026-10-20T10:00:00Z' })).toBe('—')
+    expect(txt(tripColumns, 'tripLegIndex', { id: 't', status: 'ACTIVE', corridor: 'A → B', departureDate: '2026-10-25', availableKg: 1, pricePerKg: 2 })).toBe('—')
+  })
 })
