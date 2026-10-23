@@ -31,7 +31,7 @@ describe('useBidSuggestions', () => {
     expect(svc.suggest).toHaveBeenCalledTimes(1)
   })
   it('query_ignoresStaleResponse', async () => {
-    let resolveFirst!: (v: unknown) => void
+    let resolveFirst!: (_v: unknown) => void
     svc.suggest.mockReturnValueOnce(new Promise(r => { resolveFirst = r }))
     svc.suggest.mockResolvedValueOnce(sug('Nouveau'))
     const s = useBidSuggestions()

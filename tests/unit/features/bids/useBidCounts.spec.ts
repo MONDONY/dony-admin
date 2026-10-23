@@ -32,7 +32,7 @@ describe('useBidCounts', () => {
     expect(c.counts.value?.all).toBe(15); expect(c.error.value).toBeTruthy(); expect(c.unavailable.value).toBe(false)
   })
   it('reload_ignoresStaleResponse', async () => {
-    let resolveFirst!: (v: unknown) => void
+    let resolveFirst!: (_v: unknown) => void
     svc.counts.mockReturnValueOnce(new Promise(r => { resolveFirst = r }))
     svc.counts.mockResolvedValueOnce(counts(2))
     const c = useBidCounts(filters())

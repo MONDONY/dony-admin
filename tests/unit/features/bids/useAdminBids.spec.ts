@@ -80,7 +80,7 @@ describe('useAdminBids', () => {
     expect(svc.listBids).toHaveBeenCalledTimes(10)
   })
   it('fetchBids_ignoresStaleResponse', async () => {
-    let resolveFirst!: (v: unknown) => void
+    let resolveFirst!: (_v: unknown) => void
     svc.listBids.mockReturnValueOnce(new Promise(r => { resolveFirst = r }))
     svc.listBids.mockResolvedValueOnce({ ...emptyPage, content: [{ id: 'new' }] })
     const b = useAdminBids()
