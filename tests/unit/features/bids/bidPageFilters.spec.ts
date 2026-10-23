@@ -1,11 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { BID_SEARCH_SCOPES, bidActiveChips, bidDrawerSection, bidEmptyState, bidInitialView, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
+import { readFilters } from '@/lib/urlFilters'
+import { BID_PAYMENT_METHODS, BID_URL_FILTERS, BID_SEARCH_SCOPES, bidActiveChips, bidDrawerSection, bidEmptyState, bidInitialView, exactParcelId, searchFromSuggestion } from '@/features/bids/lib/bidPageFilters'
 import type { AdminBidSuggest, BidsFilterState } from '@/features/bids/types/index'
 
 const base = (): BidsFilterState => ({ status: 'TOUS', announcementId: null, query: '', scope: 'ALL', view: 'ALL', paymentMethod: null, content: '', alert: null, dateFrom: null, dateTo: null })
 const suggest = (parcels: AdminBidSuggest['parcels']): AdminBidSuggest => ({ senders: [], travelers: [], recipients: [], trips: [], parcels })
 
 describe('bidPageFilters', () => {
+  it('BID_PAYMENT_METHODS : exactement l’enum PaymentMethod du back, PAWAPAY (un rail) exclu', () => {
+    expect([...BID_PAYMENT_METHODS].sort()).toEqual(['CASH', 'MOBILE_MONEY', 'ORANGE_MONEY', 'STRIPE', 'WAVE'])
+  })
+  it('?paymentMethod=PAWAPAY ignoré, MOBILE_MONEY accepté', () => {
+    expect(readFilters({ paymentMethod: 'PAWAPAY' }, BID_URL_FILTERS).paymentMethod ?? null).toBeNull()
+    expect(readFilters({ paymentMethod: 'MOBILE_MONEY' }, BID_URL_FILTERS).paymentMethod).toBe('MOBILE_MONEY')
+  })
   it('bidDrawerSection : seuls les onglets non par défaut du tiroir passent, Résumé et inconnus donnent null', () => {
     expect(['tracking', 'money', 'chat', 'incidents'].map(bidDrawerSection)).toEqual(['tracking', 'money', 'chat', 'incidents'])
     expect(bidDrawerSection('summary')).toBeNull()

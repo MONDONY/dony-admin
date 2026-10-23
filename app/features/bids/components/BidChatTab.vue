@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ImageOff, RotateCw } from 'lucide-vue-next'
 import PhotoViewer, { type PhotoViewerItem } from '@/components/ui/PhotoViewer.vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
@@ -27,8 +27,8 @@ async function run(fn: () => Promise<void>) {
   await fn()
   if (id === props.conversationId && !error.value) emit('loaded', messages.value.length)
 }
+// Une autre conversation remonte le composant (`:key` dans le tiroir) : messages, visionneuse et échecs repartent de zéro.
 onMounted(() => { void run(load) })
-watch(() => props.conversationId, () => { viewerIndex.value = null; failed.value = new Set(); void run(load) })
 
 const isDeleted = (m: AdminMessage) => m.deleted || !!m.deletedAt
 const when = (m: AdminMessage) => formatInstant(serverDateIso(m.createdAt))
@@ -75,7 +75,11 @@ async function reloadFromThumb() {
       >Ouvrir dans la modération</NuxtLink>
     </div>
 
-    <div v-if="messages.length > 0" class="flex flex-col gap-2" role="log" aria-label="Messages de la conversation">
+    <p
+      v-if="isLoading && messages.length > 0" data-test="chat-reloading" role="status"
+      class="text-xs text-text-muted"
+    >Actualisation de la conversation…</p>
+    <div v-if="messages.length > 0" class="flex flex-col gap-2" role="log" aria-live="off" aria-label="Messages de la conversation">
       <article
         v-for="m in messages" :key="m.id" :data-test="`chat-message-${m.id}`"
         :class="['rounded-card border p-3', isDeleted(m) ? 'border-dashed border-border bg-surface-elevated' : 'border-border bg-surface']"

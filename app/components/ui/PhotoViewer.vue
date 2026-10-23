@@ -145,14 +145,19 @@ function fileName(item: PhotoViewerItem, i: number, type: string): string {
 
 /**
  * `download` est ignoré pour une URL d'une autre origine (R2 présignée) : on télécharge le
- * fichier puis on l'enregistre depuis une URL objet. Échec (CORS, réseau) : ouverture dans un
- * nouvel onglet. Un clic avec modificateur reste au navigateur.
+ * fichier puis on l'enregistre depuis une URL objet. Échec (CORS, réseau) : la photo s'ouvre dans
+ * un onglet. Cet onglet de repli est ouvert tout de suite, dans le geste : ouvert après le `fetch`,
+ * un bloqueur de fenêtres le refuserait. `noopener` ferait renvoyer `null` à `window.open` : on
+ * coupe donc `opener` à la main. Onglet refusé quand même : repli d'avant, ouverture après coup.
+ * Un clic avec modificateur reste au navigateur.
  */
 async function onDownload(e: MouseEvent) {
   const item = current.value
   if (!item || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
   e.preventDefault()
   const i = index.value
+  const tab = window.open('', '_blank')
+  if (tab) tab.opener = null
   try {
     const res = await fetch(item.url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -165,8 +170,10 @@ async function onDownload(e: MouseEvent) {
     a.click()
     a.remove()
     setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+    tab?.close()
   } catch {
-    window.open(item.url, '_blank', 'noopener,noreferrer')
+    if (tab) tab.location.href = item.url
+    else window.open(item.url, '_blank', 'noopener,noreferrer')
   }
 }
 

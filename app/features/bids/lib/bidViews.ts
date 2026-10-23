@@ -10,10 +10,6 @@ export const BID_VIEWS: { id: BidView; label: string; countKey: keyof AdminBidCo
   { id: 'ALL', label: 'Tous', countKey: 'all' },
 ]
 
-export function isBidView(v: unknown): v is BidView {
-  return typeof v === 'string' && BID_VIEWS.some(view => view.id === v)
-}
-
 /** `label` : libellé complet ; `shortLabel` : étiquette de ligne dans le tableau. */
 export const BID_ALERTS: Record<BidAlertCode, { label: string; shortLabel: string; tone: 'danger' | 'warning' }> = {
   DISPUTE_OPEN: { label: 'Litige ouvert', shortLabel: 'Litige', tone: 'danger' },

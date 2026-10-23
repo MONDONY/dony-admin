@@ -89,6 +89,12 @@ const tabs = computed<TabItem<BidDrawerTab>[]>(() => {
 const requested = ref<string>(props.section ?? 'summary')
 watch(() => props.section, (s) => { requested.value = s ?? 'summary' })
 const active = computed<BidDrawerTab>(() => tabs.value.find(t => t.id === requested.value)?.id ?? 'summary')
+// Onglet demandé indisponible (inconnu, masqué par un droit) : l'onglet affiché est renvoyé, l'URL suit.
+watch([requested, active], ([wanted, shown]) => {
+  if (wanted === shown) return
+  requested.value = shown
+  emit('update:section', shown)
+}, { immediate: true })
 function selectTab(id: BidDrawerTab) {
   requested.value = id
   emit('update:section', id)

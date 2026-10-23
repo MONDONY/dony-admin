@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { BID_ALERTS, BID_VIEWS, alertMeta, defaultViewFor, isBidView } from '@/features/bids/lib/bidViews'
+import { BID_ALERTS, BID_VIEWS, alertMeta, defaultViewFor } from '@/features/bids/lib/bidViews'
 
 describe('bidViews', () => {
   it('ordre et libellés des vues', () => {
@@ -11,14 +11,6 @@ describe('bidViews', () => {
       ['CLOSED', 'Annulés / refusés', 'closed'],
       ['ALL', 'Tous', 'all'],
     ])
-  })
-
-  it('isBidView', () => {
-    expect(isBidView('TODO')).toBe(true)
-    expect(isBidView('ALL')).toBe(true)
-    expect(isBidView('todo')).toBe(false)
-    expect(isBidView(undefined)).toBe(false)
-    expect(isBidView(3)).toBe(false)
   })
 
   it('alertes : libellés et tons', () => {

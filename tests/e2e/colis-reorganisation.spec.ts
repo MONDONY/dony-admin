@@ -383,6 +383,7 @@ test('legacyBackend_countsSuggestPhotos404_stillUsable', async ({ page }) => {
   await expect(page.locator('[data-test="filter-status"]')).toBeVisible()
   // Recherche à Entrée, sans suggestions.
   await page.locator('[data-test="search"]').fill('jean')
+  // Assertion négative : laisser passer la pause des suggestions (200 ms) avant de vérifier qu'aucune liste n'apparaît.
   await page.waitForTimeout(400)
   await expect(page.getByRole('listbox', { name: 'Suggestions' })).toHaveCount(0)
   await page.locator('[data-test="search"]').press('Enter')
@@ -426,6 +427,8 @@ test('supportRole_noChatTabWithoutModerationView', async ({ page }) => {
   // Le lien ?section=chat retombe sur Résumé, rien de la conversation n'est montré.
   await expect(page.locator('[data-test="bid-panel-summary"]')).toBeVisible()
   await expect(page.locator('[data-test="bid-chat-tab"]')).toHaveCount(0)
+  // L'URL suit l'onglet réellement affiché.
+  await expect(page).not.toHaveURL(/section=/)
 })
 
 test('announcementsAndDemandesTabs_untouched', async ({ page }) => {

@@ -46,13 +46,17 @@ async function mountPage() {
   return w
 }
 const lastList = () => bids.listBids.mock.lastCall![0]
-const pause = (ms: number) => new Promise(r => setTimeout(r, ms))
-
+/** Frappe dans la recherche puis pause des suggestions (200 ms) sur faux minuteurs : aucune attente réelle. */
 async function typeSearch(w: Awaited<ReturnType<typeof mountPage>>, text: string) {
-  const input = w.find('[data-test="search"]')
-  await input.setValue(text)
-  await input.trigger('input')
-  await pause(250)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  try {
+    const input = w.find('[data-test="search"]')
+    await input.setValue(text)
+    await input.trigger('input')
+    await vi.advanceTimersByTimeAsync(250)
+  } finally {
+    vi.useRealTimers()
+  }
   await flushPromises()
 }
 

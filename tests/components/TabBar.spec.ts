@@ -63,6 +63,8 @@ describe('TabBar', () => {
   it('variante soulignée et préfixe de data-test personnalisés', () => {
     const w = mountBar('a', { variant: 'underline', testPrefix: 'sig-tab' })
     expect(w.find('[data-test="sig-tab-a"]').classes()).toContain('border-primary')
+    // Cible tactile ≥ 40 px.
+    expect(w.find('[data-test="sig-tab-a"]').classes()).toContain('min-h-10')
     expect(w.attributes('class')).toContain('border-b')
     w.unmount()
   })

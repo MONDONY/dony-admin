@@ -41,6 +41,41 @@ describe('BidChatTab', () => {
     expect(t.text()).not.toContain('secret')
   })
 
+  it('chatTab_deletedMessageWithImage_noImage', async () => {
+    svc.getMessages.mockResolvedValue([msg('a', { deleted: true, type: 'IMAGE', content: '', imageUrl: 'https://r2/full.jpg', thumbUrl: 'https://r2/thumb.jpg' })])
+    const t = await mountTab()
+    expect(t.find('[data-test="chat-message-a"]').text()).toContain('Message supprimé')
+    expect(t.find('[data-test="chat-message-a"] img').exists()).toBe(false)
+    expect(t.find('[data-test^="chat-image-"]').exists()).toBe(false)
+  })
+
+  it('chatTab_deletedAtOnly_placeholderWithoutBody', async () => {
+    svc.getMessages.mockResolvedValue([msg('a', { deleted: false, deletedAt: '2026-10-07T10:00:00Z', content: 'corps' })])
+    const t = await mountTab()
+    expect(t.find('[data-test="chat-message-a"]').text()).toContain('Message supprimé')
+    expect(t.text()).not.toContain('corps')
+  })
+
+  it('chatTab_logIsNotLive', async () => {
+    svc.getMessages.mockResolvedValue([msg('a')])
+    const t = await mountTab()
+    expect(t.find('[role="log"]').attributes('aria-live')).toBe('off')
+  })
+
+  it('chatTab_reloadWithMessages_showsLoadingIndicator', async () => {
+    svc.getMessages.mockResolvedValueOnce([msg('a', { type: 'IMAGE', content: '', imageUrl: 'https://r2/full.jpg', thumbUrl: 'https://r2/thumb.jpg' })])
+    const t = await mountTab()
+    expect(t.find('[data-test="chat-reloading"]').exists()).toBe(false)
+    let resolve!: (_v: unknown) => void
+    svc.getMessages.mockReturnValueOnce(new Promise(r => { resolve = r }))
+    await t.find('[data-test="chat-image-a"] img').trigger('error')
+    await t.find('[data-test="chat-image-a-reload"]').trigger('click')
+    expect(t.find('[data-test="chat-reloading"]').text()).toContain('Actualisation')
+    expect(t.find('[data-test="chat-message-a"]').exists()).toBe(true)
+    resolve([msg('a')]); await flushPromises()
+    expect(t.find('[data-test="chat-reloading"]').exists()).toBe(false)
+  })
+
   it('chatTab_noDeleteButton', async () => {
     svc.getMessages.mockResolvedValue([msg('a'), msg('b', { deleted: true, deletedByAdmin: true })])
     const t = await mountTab()

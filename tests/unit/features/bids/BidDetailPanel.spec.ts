@@ -497,6 +497,21 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="incident-dispute"]').exists()).toBe(true)
     })
 
+    it('panel_chatTab_otherConversation_resetsMessages : nouvelle conversation, messages relus de zéro', async () => {
+      const get = vi.fn()
+        .mockResolvedValueOnce([{ id: 'm1', conversationId: 'fs-42', senderName: 'Awa', content: 'Ancien', flagged: false, deleted: false, createdAt: '2026-10-06T18:53:35' }])
+        .mockResolvedValueOnce([{ id: 'm9', conversationId: 'fs-43', senderName: 'Moussa', content: 'Nouveau', flagged: false, deleted: false, createdAt: '2026-10-06T18:54:35' }])
+      ;(moderationService as any).getMessages = get
+      const w = mountPanel(fullBid, { section: 'chat' })
+      await flushPromises()
+      expect(w.find('[data-test="chat-message-m1"]').exists()).toBe(true)
+      await w.setProps({ bid: { ...fullBid, links: { ...fullBid.links!, conversationId: 'fs-43' } } })
+      await flushPromises()
+      expect(get).toHaveBeenLastCalledWith('fs-43')
+      expect(w.find('[data-test="chat-message-m1"]').exists()).toBe(false)
+      expect(w.find('[data-test="chat-message-m9"]').exists()).toBe(true)
+    })
+
     it('panel_chatTabLoadsOnlyWhenOpened', async () => {
       const get = vi.fn().mockResolvedValue([
         { id: 'm1', conversationId: 'fs-42', senderName: 'Awa', content: 'Bonjour', flagged: false, deleted: false, createdAt: '2026-10-06T18:53:35' },
@@ -549,6 +564,16 @@ describe('BidDetailPanel', () => {
       expect(money.find('[data-test="section-timeline"]').exists()).toBe(true)
       await money.setProps({ section: undefined })
       expect(money.find('[data-test="section-trip"]').exists()).toBe(true)
+    })
+
+    it('shell_unavailableSection_emitsDisplayedTab : ?section=chat sans MODERATION_VIEW, l’URL est corrigée', () => {
+      seedAuth('ADMIN', { MODERATION_VIEW: false })
+      const w = mountPanel(fullBid, { section: 'chat' })
+      expect(w.find('[data-test="bid-panel-summary"]').exists()).toBe(true)
+      expect(w.emitted('update:section')).toEqual([['summary']])
+      // Onglet disponible : rien à corriger.
+      const ok = mountPanel(fullBid, { section: 'money' })
+      expect(ok.emitted('update:section')).toBeUndefined()
     })
 
     it('shell_resetsOnBidChange : onglet, menu et copie réinitialisés', async () => {

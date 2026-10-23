@@ -15,8 +15,15 @@ export const BID_SEARCH_SCOPES: { value: BidSearchScope; label: string }[] = [
   { value: 'TRIP', label: 'Trajet' },
 ]
 
-/** Modes de paiement proposés par le filtre (et seuls acceptés depuis l'URL). */
-export const BID_PAYMENT_METHODS = ['STRIPE', 'CASH', 'WAVE', 'ORANGE_MONEY', 'MOBILE_MONEY', 'PAWAPAY']
+/**
+ * Modes de paiement proposés par le filtre (et seuls acceptés depuis l'URL) : exactement l'enum
+ * `com.yadony.api.payments.cash.PaymentMethod` du back. PAWAPAY est un rail (`PaymentRail`), pas un
+ * mode : le back répondrait 400.
+ */
+export const BID_CURRENT_PAYMENT_METHODS = ['STRIPE', 'CASH', 'MOBILE_MONEY'] as const
+/** Anciens modes, encore portés par des colis passés (regroupés à part dans le filtre). */
+export const BID_LEGACY_PAYMENT_METHODS = ['WAVE', 'ORANGE_MONEY'] as const
+export const BID_PAYMENT_METHODS: readonly string[] = [...BID_CURRENT_PAYMENT_METHODS, ...BID_LEGACY_PAYMENT_METHODS]
 
 export type BidChipKey = 'search' | 'status' | 'period' | 'payment' | 'content' | 'alert'
 export interface BidChip { key: BidChipKey; label: string }

@@ -8,7 +8,6 @@ import { extractProblemMessage } from '@/lib/problemDetail'
 export function useBidCounts(filters: BidsFilterState) {
   const counts = ref<AdminBidCounts | null>(null)
   const unavailable = ref(false)
-  const isLoading = ref(false)
   const error = ref<string | null>(null)
   /** Une première réponse est arrivée (nombres, endpoint absent ou erreur). */
   const settled = ref(false)
@@ -21,7 +20,6 @@ export function useBidCounts(filters: BidsFilterState) {
   async function reload(): Promise<void> {
     lastKey = keyOf()
     const my = ++seq
-    isLoading.value = true
     error.value = null
     try {
       const res = await bidsAdminService.counts(filters)
@@ -37,7 +35,7 @@ export function useBidCounts(filters: BidsFilterState) {
         lastKey = null
       }
     } finally {
-      if (my === seq) { isLoading.value = false; settled.value = true }
+      if (my === seq) settled.value = true
     }
   }
 
@@ -47,5 +45,5 @@ export function useBidCounts(filters: BidsFilterState) {
     await reload()
   }
 
-  return { counts, unavailable, isLoading, error, settled, reload, sync }
+  return { counts, unavailable, error, settled, reload, sync }
 }

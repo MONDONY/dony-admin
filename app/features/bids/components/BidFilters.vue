@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { bidStatusMeta } from './bidStatus'
 import { bidPaymentMethodLabel } from '@/features/bids/lib/bidLabels'
-import { BID_PAYMENT_METHODS } from '@/features/bids/lib/bidPageFilters'
+import { BID_CURRENT_PAYMENT_METHODS, BID_LEGACY_PAYMENT_METHODS } from '@/features/bids/lib/bidPageFilters'
 import type { BidsFilterState, BidStatus, BidStatusFilter } from '@/features/bids/types/index'
 
 const props = defineProps<{ filters: BidsFilterState; viewsAvailable: boolean }>()
@@ -19,8 +19,9 @@ const STATUSES: BidStatus[] = [
   'COMPLETED', 'REJECTED', 'CANCELLED', 'NO_SHOW', 'PARCEL_REFUSED', 'EXPIRED',
 ]
 const statusOptions = STATUSES.map(value => ({ value, label: bidStatusMeta(value).label }))
-// Valeurs de `PaymentMethod` côté back.
-const paymentOptions = BID_PAYMENT_METHODS.map(value => ({ value, label: bidPaymentMethodLabel(value) }))
+// Valeurs de `PaymentMethod` côté back ; les anciens modes à part.
+const paymentOptions = BID_CURRENT_PAYMENT_METHODS.map(value => ({ value, label: bidPaymentMethodLabel(value) }))
+const legacyPaymentOptions = BID_LEGACY_PAYMENT_METHODS.map(value => ({ value, label: bidPaymentMethodLabel(value) }))
 
 // Les champs suivent les filtres : ils peuvent venir de l'URL, d'une puce retirée ou d'une réinitialisation.
 const dateFrom = ref(props.filters.dateFrom ?? '')
@@ -86,6 +87,9 @@ const field = 'min-h-10 rounded-btn border border-border bg-surface px-3 text-sm
         >
           <option value="">Tous les modes</option>
           <option v-for="p in paymentOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
+          <optgroup label="Anciens modes">
+            <option v-for="p in legacyPaymentOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
+          </optgroup>
         </select>
       </label>
 

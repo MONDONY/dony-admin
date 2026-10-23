@@ -28,7 +28,6 @@ export function useAdminBids() {
   }
   async function goToPage(p: number) { currentPage.value = p; await fetchBids() }
   async function setStatusFilter(s: BidStatusFilter) { filters.status = s; currentPage.value = 0; await fetchBids() }
-  async function setSearch(q: string) { filters.query = q; currentPage.value = 0; await fetchBids() }
   /** Colis d'un même trajet (« autres colis sur ce trajet ») ; null pour tous. */
   async function setAnnouncementFilter(id: string | null) { filters.announcementId = id; currentPage.value = 0; await fetchBids() }
   async function setDateRange(from: string | null, to: string | null) { filters.dateFrom = from; filters.dateTo = to; currentPage.value = 0; await fetchBids() }
@@ -63,5 +62,5 @@ export function useAdminBids() {
     currentPage.value = 0; await fetchBids()
   }
 
-  return { bids, isLoading, error, totalPages, currentPage, pageSize, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter, setView, search, setScope, setPaymentMethod, setContent, setAlert, resetFilters }
+  return { bids, isLoading, error, totalPages, currentPage, pageSize, filters, fetchBids, goToPage, setStatusFilter, setDateRange, setAnnouncementFilter, setView, search, setScope, setPaymentMethod, setContent, setAlert, resetFilters }
 }

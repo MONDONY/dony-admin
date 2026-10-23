@@ -63,7 +63,7 @@ function onKey(e: KeyboardEvent, index: number) {
 
 const indexOf = (id: string) => props.tabs.findIndex(t => t.id === id)
 const cls = (active: boolean) => props.variant === 'underline'
-  ? ['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+  ? ['inline-flex min-h-10 items-center px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
     active ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text']
   : ['rounded-full px-3 py-1.5 text-sm transition-colors',
     active ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']

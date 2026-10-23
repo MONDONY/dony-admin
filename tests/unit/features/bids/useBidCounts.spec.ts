@@ -38,7 +38,7 @@ describe('useBidCounts', () => {
     const c = useBidCounts(filters())
     const first = c.reload(); const second = c.reload()
     await second; resolveFirst(counts(1)); await first
-    expect(c.counts.value?.all).toBe(2); expect(c.isLoading.value).toBe(false)
+    expect(c.counts.value?.all).toBe(2)
   })
   it('sync_reloadsOnlyWhenCommonFiltersChange', async () => {
     svc.counts.mockResolvedValue(counts(3))

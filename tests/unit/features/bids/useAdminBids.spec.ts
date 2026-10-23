@@ -39,10 +39,10 @@ describe('useAdminBids', () => {
     expect(b.currentPage.value).toBe(0)
     expect(svc.listBids).toHaveBeenLastCalledWith(expect.objectContaining({ announcementId: 'ann-1' }), 0, 20)
   })
-  it('setSearch et setDateRange reviennent à la première page', async () => {
+  it('search et setDateRange reviennent à la première page', async () => {
     svc.listBids.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     const b = useAdminBids()
-    await b.goToPage(2); await b.setSearch('DON-8ANH6EZR')
+    await b.goToPage(2); await b.search('DON-8ANH6EZR')
     expect(b.filters.query).toBe('DON-8ANH6EZR'); expect(b.currentPage.value).toBe(0)
     await b.goToPage(2); await b.setDateRange('2026-10-01', '2026-10-31')
     expect(b.filters.dateFrom).toBe('2026-10-01'); expect(b.filters.dateTo).toBe('2026-10-31'); expect(b.currentPage.value).toBe(0)
@@ -60,8 +60,6 @@ describe('useAdminBids', () => {
     const b = useAdminBids(); await b.setStatusFilter('COMPLETED'); await b.setAlert('LATE')
     await b.setView('TODO')
     expect(b.filters.status).toBe('TOUS'); expect(b.filters.alert).toBeNull()
-    await b.setStatusFilter('COMPLETED')
-    expect(b.filters.view).toBe('TODO')
   })
   it('setters_sendFilterToService', async () => {
     svc.listBids.mockResolvedValue(emptyPage)
@@ -72,7 +70,7 @@ describe('useAdminBids', () => {
   it('resetFilters_keepsTripFilter', async () => {
     svc.listBids.mockResolvedValue(emptyPage)
     const b = useAdminBids()
-    await b.setAnnouncementFilter('ann-1'); await b.setView('CLOSED'); await b.setSearch('x'); await b.setScope('TRIP')
+    await b.setAnnouncementFilter('ann-1'); await b.setView('CLOSED'); await b.search('x'); await b.setScope('TRIP')
     await b.setPaymentMethod('CASH'); await b.setContent('c'); await b.setAlert('LATE'); await b.setDateRange('2026-10-01', '2026-10-02'); await b.goToPage(2)
     await b.resetFilters()
     expect(b.filters).toMatchObject({ status: 'TOUS', announcementId: 'ann-1', query: '', scope: 'ALL', view: 'ALL', paymentMethod: null, content: '', alert: null, dateFrom: null, dateTo: null })

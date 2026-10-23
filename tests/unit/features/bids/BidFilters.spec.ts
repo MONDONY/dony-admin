@@ -90,7 +90,13 @@ describe('BidFilters', () => {
   it('paiement : toutes les méthodes du back, libellés de bidPaymentMethodLabel', () => {
     const w = mountFilters()
     const opts = w.findAll('[data-test="filter-payment"] option')
-    expect(opts.map(o => o.element.getAttribute('value'))).toEqual(['', 'STRIPE', 'CASH', 'WAVE', 'ORANGE_MONEY', 'MOBILE_MONEY', 'PAWAPAY'])
+    expect(opts.map(o => o.element.getAttribute('value'))).toEqual(['', 'STRIPE', 'CASH', 'MOBILE_MONEY', 'WAVE', 'ORANGE_MONEY'])
+    // Chaque libellé une seule fois ; les anciens modes regroupés à part.
+    const labels = opts.map(o => o.text())
+    expect(new Set(labels).size).toBe(labels.length)
+    const legacy = w.find('[data-test="filter-payment"] optgroup')
+    expect(legacy.attributes('label')).toBe('Anciens modes')
+    expect(legacy.findAll('option').map(o => o.element.getAttribute('value'))).toEqual(['WAVE', 'ORANGE_MONEY'])
   })
 
   it('Contenu : Entrée sans changement de valeur, aucun événement', async () => {

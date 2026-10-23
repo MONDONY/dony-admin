@@ -10,7 +10,6 @@ const MIN_QUERY = 2
 export function useBidSuggestions() {
   const suggestions = ref<AdminBidSuggest | null>(null)
   const unavailable = ref(false)
-  const isLoading = ref(false)
   let generation = 0
   let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -20,7 +19,6 @@ export function useBidSuggestions() {
 
   async function run(q: string) {
     const current = ++generation
-    isLoading.value = true
     try {
       const res = await bidsAdminService.suggest(q)
       if (current !== generation) return
@@ -30,8 +28,6 @@ export function useBidSuggestions() {
       if (current !== generation) return
       suggestions.value = null
       if (isEndpointMissing(e)) unavailable.value = true
-    } finally {
-      if (current === generation) isLoading.value = false
     }
   }
 
@@ -39,17 +35,18 @@ export function useBidSuggestions() {
     stopTimer()
     generation++
     suggestions.value = null
-    isLoading.value = false
   }
 
   function query(q: string) {
     const value = q.trim()
     if (value.length < MIN_QUERY) { clear(); return }
     stopTimer()
+    // Nouvelle frappe : une réponse encore en vol pour l'ancien texte ne s'affichera pas.
+    generation++
     timer = setTimeout(() => { timer = null; void run(value) }, DEBOUNCE_MS)
   }
 
   if (getCurrentScope()) onScopeDispose(stopTimer)
 
-  return { suggestions, unavailable, isLoading, query, clear }
+  return { suggestions, unavailable, query, clear }
 }

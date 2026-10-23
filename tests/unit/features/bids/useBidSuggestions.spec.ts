@@ -19,7 +19,7 @@ describe('useBidSuggestions', () => {
     expect(svc.suggest).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(svc.suggest).toHaveBeenCalledTimes(1); expect(svc.suggest).toHaveBeenCalledWith('awa')
-    expect(s.suggestions.value?.senders[0]?.name).toBe('Awa'); expect(s.isLoading.value).toBe(false)
+    expect(s.suggestions.value?.senders[0]?.name).toBe('Awa')
   })
   it('query_shorterThanTwo_clears', async () => {
     svc.suggest.mockResolvedValue(sug('Awa'))
@@ -38,7 +38,19 @@ describe('useBidSuggestions', () => {
     s.query('ab'); await vi.advanceTimersByTimeAsync(200)
     s.query('abc'); await vi.advanceTimersByTimeAsync(200)
     resolveFirst(sug('Ancien')); await vi.advanceTimersByTimeAsync(0)
-    expect(s.suggestions.value?.senders[0]?.name).toBe('Nouveau'); expect(s.isLoading.value).toBe(false)
+    expect(s.suggestions.value?.senders[0]?.name).toBe('Nouveau')
+  })
+  it('query_newKeystroke_dropsInFlightResponse : la réponse pour « Aw » ne s’affiche pas après la frappe « Awa »', async () => {
+    let resolveFirst!: (_v: unknown) => void
+    svc.suggest.mockReturnValueOnce(new Promise(r => { resolveFirst = r }))
+    svc.suggest.mockResolvedValueOnce(sug('Awa'))
+    const s = useBidSuggestions()
+    s.query('aw'); await vi.advanceTimersByTimeAsync(200)
+    s.query('awa')
+    resolveFirst(sug('Aw')); await vi.advanceTimersByTimeAsync(0)
+    expect(s.suggestions.value).toBeNull()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(s.suggestions.value?.senders[0]?.name).toBe('Awa')
   })
   it('query_missingEndpoint_marksUnavailable', async () => {
     svc.suggest.mockRejectedValue(Object.assign(new Error('nf'), { statusCode: 405, data: {} }))
