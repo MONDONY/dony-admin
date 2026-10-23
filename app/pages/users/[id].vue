@@ -11,6 +11,10 @@ import UserIncidentsTab from '@/features/user-profile/components/UserIncidentsTa
 import UserIdentityTab from '@/features/user-profile/components/UserIdentityTab.vue'
 import UserSupportTab from '@/features/user-profile/components/UserSupportTab.vue'
 import UserKpiGrid from '@/features/user-profile/components/UserKpiGrid.vue'
+import UserActionsMenu from '@/features/user-profile/components/UserActionsMenu.vue'
+import UserAccountBanners from '@/features/user-profile/components/UserAccountBanners.vue'
+import UserManageTab from '@/features/user-profile/components/UserManageTab.vue'
+import { useAccountActions } from '@/features/user-profile/composables/useAccountActions'
 import { useUserOverview } from '@/features/user-profile/composables/useUserOverview'
 import { buildAlerts } from '@/features/user-profile/lib/userProfileAlerts'
 import { visibleTabs, type ProfileTab } from '@/features/user-profile/lib/userProfileTabs'
@@ -54,6 +58,12 @@ const tab = computed<ProfileTab>(() => {
 function selectTab(id: ProfileTab) {
   void router.replace({ query: { ...route.query, tab: id } })
 }
+
+// Gestes sur le compte : la fiche renvoyée remplace `user` seulement si ce compte est encore affiché.
+const actions = useAccountActions({
+  getId: () => (unmounted ? null : user.value?.id ?? null),
+  onUpdate: (detail) => { if (!unmounted && detail.id === user.value?.id) user.value = detail },
+})
 
 const alerts = computed(() => user.value ? buildAlerts(user.value, ov.overview.value?.kpis ?? NO_KPIS) : [])
 
@@ -103,6 +113,7 @@ async function loadOverview() {
 }
 
 async function loadAll() {
+  actions.reset()
   user.value = null
   detailError.value = null
   redirected = false
@@ -132,14 +143,32 @@ onBeforeUnmount(() => { unmounted = true })
     <StateBlock v-else-if="!user" :loading="detailLoading" :error="detailError" @retry="loadDetail()" />
 
     <template v-else>
-      <UserProfileHeader :user="user" />
+      <UserProfileHeader :user="user">
+        <template #actions>
+          <UserActionsMenu
+            :key="user.id" :user="user" :busy="actions.busy.value"
+            @suspend="actions.suspend" @ban="actions.ban" @unsuspend="actions.unsuspend"
+            @suspend-publishing="actions.suspendPublishing" @lift-publishing="actions.liftPublishing"
+            @mute-messaging="actions.muteMessaging" @unmute-messaging="actions.unmuteMessaging"
+          />
+        </template>
+      </UserProfileHeader>
+      <p
+        v-if="actions.error.value" data-test="account-action-error" role="alert"
+        class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
+      >{{ actions.error.value }}</p>
+      <UserAccountBanners
+        :key="user.id" :user="user" :busy="actions.busy.value" :error="actions.error.value"
+        :cancel-deletion-unavailable="actions.cancelDeletionUnavailable.value"
+        :cancel-deletion-reason-error="actions.cancelDeletionReasonError.value"
+        @cancel-deletion="actions.cancelDeletion"
+      />
       <UserAlertBand :alerts="alerts" />
       <StateBlock v-if="ov.isLoading.value || ov.error.value" :loading="ov.isLoading.value" :error="ov.error.value" @retry="loadOverview" />
       <UserKpiGrid v-if="ov.overview.value" :kpis="ov.overview.value.kpis" />
 
       <TabBar :tabs="tabs" :model-value="tab" variant="underline" id-prefix="profile-tab" aria-label="Sections de la fiche" @update:model-value="selectTab" />
 
-      <!-- Emplacements des onglets : remplis par les tâches suivantes. -->
       <section v-if="tab === 'overview'" id="profile-panel-overview" role="tabpanel" aria-labelledby="profile-tab-overview" data-test="tab-content-overview">
         <UserOverviewTab v-if="ov.overview.value" :in-progress="ov.overview.value.inProgress" :timeline="ov.overview.value.timeline" />
       </section>
@@ -158,7 +187,13 @@ onBeforeUnmount(() => { unmounted = true })
       <section v-else-if="tab === 'support'" id="profile-panel-support" role="tabpanel" aria-labelledby="profile-tab-support" data-test="tab-content-support">
         <UserSupportTab :key="user.id" :user-id="user.id" />
       </section>
-      <section v-else-if="tab === 'manage'" id="profile-panel-manage" role="tabpanel" aria-labelledby="profile-tab-manage" data-test="tab-content-manage" />
+      <section v-else-if="tab === 'manage'" id="profile-panel-manage" role="tabpanel" aria-labelledby="profile-tab-manage" data-test="tab-content-manage">
+        <UserManageTab
+          :key="user.id" :user="user" :busy="actions.busy.value"
+          @set-commission="actions.setCommissionRate" @grant-pro="actions.grantPro" @revoke-pro="actions.revokePro"
+          @changed="refreshDetail"
+        />
+      </section>
     </template>
   </div>
 </template>

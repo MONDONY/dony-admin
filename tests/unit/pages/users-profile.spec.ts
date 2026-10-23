@@ -14,8 +14,18 @@ vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApi
 
 const getMock = vi.fn()
 const getKycMock = vi.fn()
+const suspendMock = vi.fn()
+const cancelDeletionMock = vi.fn()
+const setCommissionMock = vi.fn()
+const impactMock = vi.fn()
+const deleteUserMock = vi.fn()
 vi.mock('@/features/users/services/usersService', () => ({
-  usersService: { get: (...a: unknown[]) => getMock(...a), getKyc: (...a: unknown[]) => getKycMock(...a) },
+  usersService: {
+    get: (...a: unknown[]) => getMock(...a), getKyc: (...a: unknown[]) => getKycMock(...a),
+    suspend: (...a: unknown[]) => suspendMock(...a), cancelDeletion: (...a: unknown[]) => cancelDeletionMock(...a),
+    setCommissionRate: (...a: unknown[]) => setCommissionMock(...a),
+    getDeletionImpact: (...a: unknown[]) => impactMock(...a), deleteUser: (...a: unknown[]) => deleteUserMock(...a),
+  },
 }))
 const overviewMock = vi.fn()
 const sectionMock = vi.fn()
@@ -53,6 +63,7 @@ async function mountPage(query: Record<string, string> = {}, id: string = ID, ro
 describe('users/[id].vue', () => {
   beforeEach(() => {
     navigateToMock.mockReset(); replaceMock.mockReset(); getMock.mockReset(); overviewMock.mockReset(); sectionMock.mockReset(); getKycMock.mockReset()
+    suspendMock.mockReset(); cancelDeletionMock.mockReset(); setCommissionMock.mockReset(); impactMock.mockReset(); deleteUserMock.mockReset()
     sectionMock.mockResolvedValue({ content: [], totalPages: 0, number: 0, totalElements: 0 })
     getMock.mockResolvedValue(USER)
     overviewMock.mockResolvedValue({ kpis: { ...NULLS, parcelsInProgress: 2 }, inProgress: [], timeline: [] })
@@ -272,5 +283,174 @@ describe('users/[id].vue', () => {
     getMock.mockResolvedValue({ ...USER, kycStatus: 'WEIRD' })
     const w = await mountPage()
     expect(w.get('[data-test="profile-header"]').text()).toContain('WEIRD')
+  })
+
+  describe('actions du compte', () => {
+    const openMenu = async (w: Awaited<ReturnType<typeof mountPage>>) => { await w.get('[data-test="actions-trigger"]').trigger('click'); await flushPromises() }
+
+    it('le menu est dans l’en-tête et suspendre met la fiche à jour sur place', async () => {
+      suspendMock.mockResolvedValue({ ...USER, status: 'SUSPENDED' })
+      const w = await mountPage()
+      expect(w.get('[data-test="profile-actions-slot"]').find('[data-test="actions-trigger"]').exists()).toBe(true)
+      await openMenu(w)
+      await w.get('[data-test="menu-suspend"]').trigger('click')
+      await w.get('[data-test="reason"]').setValue('Fraude')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(suspendMock).toHaveBeenCalledWith(ID, 'Fraude')
+      expect(getMock).toHaveBeenCalledTimes(1)
+      expect(w.get('[data-test="profile-header"]').text()).toContain('Suspendu')
+      expect(w.find('[data-test="account-action-error"]').exists()).toBe(false)
+    })
+
+    it('échec : message dans un bandeau d’alerte, menu de nouveau utilisable', async () => {
+      suspendMock.mockRejectedValue({ data: { detail: 'Compte déjà traité' } })
+      const w = await mountPage()
+      await openMenu(w)
+      await w.get('[data-test="menu-suspend"]').trigger('click')
+      await w.get('[data-test="reason"]').setValue('Fraude')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      const alert = w.get('[data-test="account-action-error"]')
+      expect(alert.attributes('role')).toBe('alert')
+      expect(alert.text()).toBe('Compte déjà traité')
+      await openMenu(w)
+      expect(w.get('[data-test="menu-ban"]').attributes('disabled')).toBeUndefined()
+    })
+
+    it('pendant le geste : éléments du menu désactivés', async () => {
+      const d = Promise.withResolvers<unknown>()
+      suspendMock.mockReturnValue(d.promise)
+      const w = await mountPage()
+      await openMenu(w)
+      await w.get('[data-test="menu-suspend"]').trigger('click')
+      await w.get('[data-test="reason"]').setValue('Fraude')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await openMenu(w)
+      expect(w.get('[data-test="menu-ban"]').attributes('disabled')).toBeDefined()
+      d.resolve({ ...USER, status: 'SUSPENDED' }); await flushPromises()
+    })
+
+    it('SUPPORT : « Écrire » seulement, pas d’onglet Gestion', async () => {
+      const w = await mountPage({}, ID, 'SUPPORT')
+      await openMenu(w)
+      expect(w.findAll('[role="menuitem"]').map(i => i.attributes('data-test'))).toEqual(['menu-writeSupport'])
+      expect(w.find('[data-test="tab-manage"]').exists()).toBe(false)
+    })
+
+    it('geste terminé après un changement de compte : la fiche du nouveau compte n’est pas écrasée', async () => {
+      const { reactive } = await import('vue')
+      seedAuth('ADMIN')
+      const route = reactive({ params: { id: ID } as Record<string, string>, query: {} as Record<string, string> })
+      vi.stubGlobal('useRoute', () => route)
+      vi.resetModules()
+      const mod = await import('@/pages/users/[id].vue')
+      const w = mount(mod.default, { attachTo: document.body, global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
+      await flushPromises()
+      const d = Promise.withResolvers<unknown>()
+      suspendMock.mockReturnValue(d.promise)
+      await w.get('[data-test="actions-trigger"]').trigger('click')
+      await w.get('[data-test="menu-suspend"]').trigger('click')
+      await w.get('[data-test="reason"]').setValue('Fraude')
+      await w.get('[data-test="confirm"]').trigger('click')
+      const OTHER = '9a9a9a9a-2222-4333-8444-aaaaaaaaaaaa'
+      getMock.mockResolvedValue({ ...USER, id: OTHER, firstName: 'Moussa', lastName: 'Kane' })
+      route.params.id = OTHER
+      await flushPromises()
+      d.resolve({ ...USER, status: 'SUSPENDED' }); await flushPromises()
+      expect(w.get('[data-test="profile-name"]').text()).toBe('Moussa Kane')
+      expect(w.get('[data-test="profile-header"]').text()).not.toContain('Suspendu')
+      w.unmount()
+    })
+  })
+
+  describe('bandeaux d’en-tête', () => {
+    const PD = { ...USER, status: 'PENDING_DELETION', deletionScheduledFor: '2026-11-15T12:00:00Z' }
+
+    it('suppression demandée : annuler avec motif remplace la fiche', async () => {
+      getMock.mockResolvedValue(PD)
+      cancelDeletionMock.mockResolvedValue({ ...USER, status: 'ACTIVE' })
+      const w = await mountPage()
+      expect(w.get('[data-test="user-pending-deletion"]').text()).toContain('Suppression prévue le')
+      await w.get('[data-test="action-cancel-deletion"]').trigger('click')
+      await w.get('[data-test="restore-reason"]').setValue('Demande confirmée par téléphone')
+      await w.get('[data-test="restore-confirm"]').trigger('click')
+      await flushPromises()
+      expect(cancelDeletionMock).toHaveBeenCalledWith(ID, 'Demande confirmée par téléphone')
+      expect(w.find('[data-test="user-pending-deletion"]').exists()).toBe(false)
+      expect(w.find('[data-test="restore-dialog"]').exists()).toBe(false)
+    })
+
+    it('422 : le dialogue reste ouvert avec le message', async () => {
+      getMock.mockResolvedValue(PD)
+      cancelDeletionMock.mockRejectedValue({ statusCode: 422, data: { violations: { reason: 'Motif trop court' } } })
+      const w = await mountPage()
+      await w.get('[data-test="action-cancel-deletion"]').trigger('click')
+      await w.get('[data-test="restore-reason"]').setValue('Demande confirmée par téléphone')
+      await w.get('[data-test="restore-confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="restore-error"]').text()).toBe('Motif trop court')
+    })
+
+    it('endpoint absent : texte à la place du bouton, dialogue fermé', async () => {
+      getMock.mockResolvedValue(PD)
+      cancelDeletionMock.mockRejectedValue({ statusCode: 404 })
+      const w = await mountPage()
+      await w.get('[data-test="action-cancel-deletion"]').trigger('click')
+      await w.get('[data-test="restore-reason"]').setValue('Demande confirmée par téléphone')
+      await w.get('[data-test="restore-confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="restore-dialog"]').exists()).toBe(false)
+      expect(w.find('[data-test="action-cancel-deletion"]').exists()).toBe(false)
+      expect(w.get('[data-test="cancel-deletion-unavailable"]').exists()).toBe(true)
+    })
+
+    it('versements retenus : bandeau et lien selon PAYMENT_VIEW', async () => {
+      getMock.mockResolvedValue({ ...USER, status: 'BANNED', payoutsHeldReasons: ['BANNED'], heldPaymentsCount: 2 })
+      let w = await mountPage()
+      expect(w.get('[data-test="user-payouts-held"]').attributes('role')).toBe('status')
+      expect(w.get('[data-test="user-payouts-held-link"]').attributes('href')).toBe('/transactions?held=true')
+      seedAuth('ADMIN', { PAYMENT_VIEW: false })
+      vi.resetModules()
+      const mod = await import('@/pages/users/[id].vue')
+      w = mount(mod.default, { global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
+      await flushPromises()
+      expect(w.find('[data-test="user-payouts-held"]').exists()).toBe(true)
+      expect(w.find('[data-test="user-payouts-held-link"]').exists()).toBe(false)
+    })
+  })
+
+  describe('onglet Gestion', () => {
+    it('commission : 8 donne 0,08 et la fiche reflète la réponse', async () => {
+      setCommissionMock.mockResolvedValue({ ...USER, commissionRateOverride: 0.08 })
+      const w = await mountPage({ tab: 'manage' })
+      await w.get('[data-test="commission-input"]').setValue('8')
+      await w.get('[data-test="commission-apply"]').trigger('click')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(setCommissionMock).toHaveBeenCalledWith(ID, 0.08)
+      expect(w.get('[data-test="commission-state"]').text()).toContain('8.0 %')
+    })
+
+    it('suppression : analyse d’impact, confirmation, redirection vers /users', async () => {
+      impactMock.mockResolvedValue({ blocked: false, findings: [] })
+      deleteUserMock.mockResolvedValue(undefined)
+      const w = await mountPage({ tab: 'manage' })
+      await w.get('[data-test="action-delete"]').trigger('click')
+      await flushPromises()
+      expect(impactMock).toHaveBeenCalledWith(ID)
+      w.getComponent({ name: 'UserDeletionDialog' }).vm.$emit('confirm', 'FRAUD', 'Fraude')
+      await flushPromises()
+      expect(deleteUserMock).toHaveBeenCalledWith(ID, 'FRAUD', 'Fraude')
+      expect(navigateToMock).toHaveBeenCalledWith('/users')
+    })
+
+    it('GP Pro relu : le détail est rechargé en silence', async () => {
+      const w = await mountPage({ tab: 'manage' })
+      getMock.mockResolvedValue({ ...USER, gpPro: false })
+      w.getComponent({ name: 'UserGpProSection' }).vm.$emit('changed')
+      await flushPromises()
+      expect(getMock).toHaveBeenCalledTimes(2)
+    })
   })
 })

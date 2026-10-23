@@ -79,6 +79,6 @@ async function copyId() {
         </div>
       </div>
     </div>
-    <div data-test="profile-actions-slot" class="flex flex-wrap gap-2" />
+    <div data-test="profile-actions-slot" class="flex flex-wrap gap-2"><slot name="actions" /></div>
   </section>
 </template>
