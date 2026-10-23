@@ -60,12 +60,15 @@ test('admin navigates across the 11 modules', async ({ page }) => {
   }
 })
 
-test('le rail allume le domaine de la page et l’en-tête le nomme', async ({ page }) => {
+test('le rail allume le domaine de la page et le fil d’Ariane le nomme', async ({ page }) => {
   await fakeLogin(page)
   await page.goto('/colis')
   await expect(page.locator('[data-test="nav-rail-activity"]')).toHaveAttribute('aria-current', 'true')
   await expect(page.locator('[data-test="nav-rail-money"]')).not.toHaveAttribute('aria-current', 'true')
-  await expect(page.locator('[data-test="topbar-section"]')).toHaveText('Activité')
+  const crumbs = page.locator('[data-test="breadcrumb"]')
+  await expect(crumbs).toContainText('Activité')
+  await expect(crumbs.locator('[aria-current="page"]')).toHaveText('Colis')
+  await expect(page.locator('[data-test="topbar-back"]')).toHaveCount(0)
 })
 
 test('le panneau s’ouvre au survol et se referme après le clic', async ({ page }) => {

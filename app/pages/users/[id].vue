@@ -22,6 +22,7 @@ import { usersService } from '@/features/users/services/usersService'
 import { useAuthStore } from '@/stores/auth'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { uuidParam } from '@/lib/safeInput'
+import { useBreadcrumbLabel } from '@/composables/useBreadcrumbLabel'
 import type { AdminUserDetail } from '@/features/users/types/index'
 import type { UserOverviewKpis } from '@/features/user-profile/types/index'
 
@@ -41,6 +42,11 @@ const user = ref<AdminUserDetail | null>(null)
 const detailLoading = ref(true)
 const detailError = ref<string | null>(null)
 const notFound = ref(false)
+// Dernier maillon du fil d'Ariane : le nom du compte, ou son numéro à défaut.
+const crumb = useBreadcrumbLabel()
+watch(user, (u) => {
+  crumb.set(u ? [u.firstName, u.lastName].filter(Boolean).join(' ') || u.phoneNumber : null)
+}, { immediate: true })
 // Une liaison de synthèse par identifiant : jamais de reste d'un autre compte.
 const ovBinding = shallowRef(useUserOverview(''))
 const ov = {
@@ -134,15 +140,11 @@ async function loadAll() {
 
 onMounted(loadAll)
 watch(userId, () => { void loadAll() })
-onBeforeUnmount(() => { unmounted = true })
+onBeforeUnmount(() => { unmounted = true; crumb.clear() })
 </script>
 
 <template>
   <div class="flex flex-col gap-5">
-    <nav aria-label="Fil d’Ariane" class="text-sm text-text-muted">
-      <NuxtLink to="/users" class="hover:underline">Utilisateurs</NuxtLink>
-    </nav>
-
     <div v-if="notFound" data-test="user-not-found" class="flex flex-col items-center gap-3 rounded-card border border-border bg-surface p-10 text-center">
       <p class="text-lg font-semibold">Utilisateur introuvable</p>
       <NuxtLink to="/users" data-test="back-to-users" class="rounded-btn border border-border px-3 py-1.5 text-sm hover:bg-surface-elevated">Retour aux utilisateurs</NuxtLink>

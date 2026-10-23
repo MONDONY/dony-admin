@@ -267,6 +267,21 @@ test.describe('admin', () => {
     await expect(page.locator('[data-test="profile-name"]')).toHaveText('Jean Dupont')
   })
 
+  test('fiche : fil d’Ariane avec le nom du compte et bouton Retour vers la liste', async ({ page }) => {
+    await mockBackend(page)
+    await page.goto(`/users/${ID}`)
+    await expect(page.locator('[data-test="profile-name"]')).toHaveText('Jean Dupont')
+
+    const crumbs = page.locator('[data-test="breadcrumb"]')
+    await expect(crumbs.locator('[aria-current="page"]')).toHaveText('Jean Dupont')
+    await expect(crumbs.getByRole('link', { name: 'Utilisateurs' })).toHaveAttribute('href', /\/users$/)
+
+    // Lien ouvert à froid : aucune page précédente dans l'admin, le Retour mène à la liste.
+    await page.locator('[data-test="topbar-back"]').click()
+    await expect(page).toHaveURL(/\/users$/)
+    await expect(page.locator('[data-test="topbar-back"]')).toHaveCount(0)
+  })
+
   test('utilisateur introuvable : message et lien de retour', async ({ page }) => {
     await mockBackend(page)
     await page.goto(`/users/${UNKNOWN_ID}`)
