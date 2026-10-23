@@ -47,13 +47,18 @@ describe('AppSidebar : rail d’icônes et panneaux', () => {
   })
   afterEach(() => { wrapper?.unmount(); wrapper = null; vi.useRealTimers() })
 
+  it('le rail ne contient aucun titre h2 : les pages en ont besoin pour leurs propres panneaux (`aside h2`)', async () => {
+    await mountSidebar()
+    expect(wrapper!.find('aside h2').exists()).toBe(false)
+  })
+
   it('un bouton par domaine, l’accueil en tête, toutes les pages dans les panneaux', async () => {
     await mountSidebar()
     expect(NAV_GROUPS.map(g => g.id)).toEqual(['accounts', 'money', 'activity', 'community', 'system'])
     for (const g of NAV_GROUPS) {
       expect(railBtn(g.id).exists()).toBe(true)
       expect(railBtn(g.id).text()).toContain(g.railLabel)
-      expect(panel(g.id).find('h2').text()).toBe(g.label)
+      expect(panel(g.id).find('[data-test="nav-panel-title"]').text()).toBe(g.label)
     }
     expect(hrefs()[0]).toBe(HOME_ENTRY.to)
     expect(hrefs()).toHaveLength(ALL_NAV_ENTRIES.length)

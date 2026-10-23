@@ -161,7 +161,7 @@ const railBtnOn = 'bg-primary/10 font-semibold text-primary before:absolute befo
             :class="shut ? '!hidden' : ''"
           >
             <div class="flex h-topbar shrink-0 items-center border-b border-border px-5">
-              <h2 class="font-display text-base font-bold">{{ g.label }}</h2>
+              <p data-test="nav-panel-title" class="font-display text-base font-bold">{{ g.label }}</p>
             </div>
             <div class="space-y-1 overflow-y-auto p-3">
               <NavItem
