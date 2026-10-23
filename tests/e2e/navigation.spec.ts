@@ -34,25 +34,51 @@ test('admin navigates across the 11 modules', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('h1').first()).toContainText(/Vue d.ensemble/)
 
-  const sections: [string, RegExp, RegExp][] = [
-    ['Utilisateurs', /Utilisateurs/, /\/users$/],
-    ['Transactions', /Transactions/, /\/transactions$/],
-    ['Colis', /Colis/, /\/colis$/],
-    ['Incidents', /Incidents/, /\/incidents$/],
-    ['Alertes', /Alertes/, /\/alertes$/],
-    ['Modération', /Modération/, /\/moderation$/],
-    ['Codes promo', /Codes promo/, /\/promo$/],
-    ['Codes de recharge', /Codes de recharge/, /\/topup-codes$/],
-    ['Audit', /Audit/, /\/audit$/],
-    ['Exports', /Exports/, /\/exports$/],
-    ['Signalements', /Signalements/, /\/signalements$/],
+  // [lien, domaine du rail, titre de la page, URL]
+  const sections: [string, string, RegExp, RegExp][] = [
+    ['Utilisateurs', 'accounts', /Utilisateurs/, /\/users$/],
+    ['Transactions', 'money', /Transactions/, /\/transactions$/],
+    ['Colis', 'activity', /Colis/, /\/colis$/],
+    ['Incidents', 'activity', /Incidents/, /\/incidents$/],
+    ['Alertes', 'activity', /Alertes/, /\/alertes$/],
+    ['Modération', 'community', /Modération/, /\/moderation$/],
+    ['Codes promo', 'money', /Codes promo/, /\/promo$/],
+    ['Codes de recharge', 'money', /Codes de recharge/, /\/topup-codes$/],
+    ['Audit', 'system', /Audit/, /\/audit$/],
+    ['Exports', 'system', /Exports/, /\/exports$/],
+    ['Signalements', 'activity', /Signalements/, /\/signalements$/],
   ]
-  for (const [link, title, url] of sections) {
+  for (const [link, group, title, url] of sections) {
+    // Un seul geste : survoler l'icône du domaine ouvre son panneau, un clic ouvre la page.
+    await page.locator(`[data-test="nav-rail-${group}"]`).hover()
     await page.getByRole('link', { name: link }).first().click()
     // Attendre la fin de la navigation (URL + titre) avant le clic suivant :
-    // la sidebar se re-render au changement de route, sinon le lien suivant
+    // la nav se re-render au changement de route, sinon le lien suivant
     // peut être détaché du DOM pendant le clic (flake).
     await expect(page).toHaveURL(url)
     await expect(page.locator('h1').first()).toContainText(title)
   }
+})
+
+test('le rail allume le domaine de la page et le fil d’Ariane le nomme', async ({ page }) => {
+  await fakeLogin(page)
+  await page.goto('/colis')
+  await expect(page.locator('[data-test="nav-rail-activity"]')).toHaveAttribute('aria-current', 'true')
+  await expect(page.locator('[data-test="nav-rail-money"]')).not.toHaveAttribute('aria-current', 'true')
+  const crumbs = page.locator('[data-test="breadcrumb"]')
+  await expect(crumbs).toContainText('Activité')
+  await expect(crumbs.locator('[aria-current="page"]')).toHaveText('Colis')
+  await expect(page.locator('[data-test="topbar-back"]')).toHaveCount(0)
+})
+
+test('le panneau s’ouvre au survol et se referme après le clic', async ({ page }) => {
+  await fakeLogin(page)
+  await page.goto('/')
+  const panel = page.locator('[data-test="nav-panel-money"]')
+  await expect(panel).toBeHidden()
+  await page.locator('[data-test="nav-rail-money"]').hover()
+  await expect(panel).toBeVisible()
+  await panel.getByRole('link', { name: 'Transactions' }).click()
+  await expect(page).toHaveURL(/\/transactions$/)
+  await expect(panel).toBeHidden()
 })

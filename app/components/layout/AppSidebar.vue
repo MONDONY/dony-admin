@@ -7,9 +7,7 @@ import { useAuthStore, type AdminPermission } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { navBadges } from '@/features/notifications/lib/navBadges'
 import NavItem from './NavItem.vue'
-import NavGroup from './NavGroup.vue'
-import { HOME_ENTRY, NAV_GROUPS, type NavEntry } from './navConfig'
-import { useNavCollapse } from './useNavCollapse'
+import { HOME_ENTRY, NAV_GROUPS, resolveActiveEntry, type NavEntry } from './navConfig'
 import { useShortcutsHelp } from '@/composables/useShortcuts'
 
 const auth = useAuthStore()
@@ -26,28 +24,36 @@ const badgeProps = (to: string) => {
   return b ? { badge: b.count, badgeTone: b.tone } : {}
 }
 
-// Groupes du menu : n'affichent que les entrées autorisées ; un groupe sans entrée disparaît.
+// Domaines du rail : n'affichent que les entrées autorisées ; un domaine sans entrée disparaît.
 const visibleGroups = computed(() =>
   NAV_GROUPS
     .map(g => ({ ...g, entries: g.entries.filter(e => can(e.permission)) }))
     .filter(g => g.entries.length > 0),
 )
+
+// Une seule entrée est « courante » : la plus spécifique (/users/rgpd et non /users).
 const route = inject(routeLocationKey, null)
-const isActive = (e: NavEntry) => {
-  const path = route?.path
-  if (!path) return false
-  return e.to === '/' ? path === '/' : path === e.to || path.startsWith(`${e.to}/`)
-}
-const { isOpen, toggle } = useNavCollapse()
-const groupOpen = (g: { id: string; entries: NavEntry[] }) => isOpen(g.id) || g.entries.some(isActive)
+const activeEntry = computed(() => resolveActiveEntry(route?.path))
+const isActive = (e: NavEntry) => activeEntry.value?.to === e.to
+const homeActive = computed(() => isActive(HOME_ENTRY))
+
 const groupBadge = (g: { entries: NavEntry[] }) => {
   const list = g.entries.map(e => badges.value[e.to]).filter((b): b is NonNullable<typeof b> => !!b)
   return {
-    badge: list.reduce((n, b) => n + b.count, 0),
-    badgeTone: list.some(b => b.tone === 'danger') ? ('danger' as const) : ('neutral' as const),
+    count: list.reduce((n, b) => n + b.count, 0),
+    tone: list.some(b => b.tone === 'danger') ? ('danger' as const) : ('neutral' as const),
   }
 }
 const shortcutsHelp = useShortcutsHelp()
+
+// Le panneau d'un domaine s'ouvre au survol (ou au focus clavier, ou au toucher) et se referme
+// de lui-même ; après un clic sur une page il reste fermé jusqu'à ce que la souris quitte le rail,
+// sinon il resterait collé sur la page qu'on vient d'ouvrir.
+const shut = ref(false)
+function onPick() {
+  shut.value = true
+  ;(document.activeElement as HTMLElement | null)?.blur()
+}
 
 let unsubscribeNotifications: (() => void) | null = null
 
@@ -78,60 +84,141 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onDocumentKeydown)
 })
+
+// Bouton du rail : icône + nom court. Allumé (fond bleu + liseré) quand la page affichée est dans ce domaine.
+const railBtn = 'relative flex h-[52px] w-[48px] flex-col items-center justify-center gap-0.5 rounded-btn text-[10px] font-medium leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary'
+const railBtnIdle = 'text-text-muted hover:bg-surface-elevated hover:text-text group-hover/dm:bg-surface-elevated group-hover/dm:text-text group-focus-within/dm:bg-surface-elevated group-focus-within/dm:text-text'
+const railBtnOn = 'bg-primary/10 font-semibold text-primary before:absolute before:-left-2 before:bottom-3 before:top-3 before:w-[3px] before:rounded-r before:bg-primary'
 </script>
 
 <template>
-  <aside class="w-sidebar shrink-0 bg-surface border-r border-border flex flex-col">
-    <div class="px-6 py-5 border-b border-border">
-      <NuxtLink to="/" class="flex items-center gap-2">
-        <img src="/logos/logo-yadony.png" alt="Yadony" class="h-7 w-auto" />
-        <span class="text-text">ADMIN</span>
+  <aside
+    class="relative z-20 flex w-sidebar shrink-0 flex-col border-r border-border bg-surface"
+    :data-shut="shut"
+    @mouseleave="shut = false"
+    @focusin="shut = false"
+  >
+    <div class="flex h-topbar shrink-0 items-center justify-center border-b border-border">
+      <NuxtLink to="/" aria-label="Yadony ADMIN, accueil" class="flex rounded-btn focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+        <img src="/logos/logo-yadony-mark.png" alt="Yadony" class="h-8 w-auto" />
       </NuxtLink>
     </div>
 
+    <!--
+      Sous ClientOnly : `can()` dépend de `auth.user`, que seul le plugin Firebase côté client
+      peuple. Au rendu serveur, toutes les permissions sont donc fausses et la nav sortait VIDE
+      dans le HTML servi, avant que l'hydratation n'ajoute les entrées : décalage d'hydratation
+      à chaque chargement et navigation absente au premier paint.
+    -->
     <ClientOnly>
-      <div ref="profileMenuRef" class="relative border-b border-border">
+      <template #fallback>
+        <nav class="flex flex-1 flex-col items-center gap-2 py-3" aria-hidden="true">
+          <div v-for="i in 6" :key="i" class="h-[52px] w-[48px] animate-pulse rounded-btn bg-border/40" />
+        </nav>
+      </template>
+      <nav class="flex flex-1 flex-col items-center gap-1 py-3" aria-label="Navigation principale">
+        <NuxtLink
+          v-if="can(HOME_ENTRY.permission)"
+          :to="HOME_ENTRY.to"
+          data-test="nav-rail-home"
+          :aria-current="homeActive ? 'page' : undefined"
+          :class="[railBtn, homeActive ? railBtnOn : 'text-text-muted hover:bg-surface-elevated hover:text-text']"
+        >
+          <component :is="HOME_ENTRY.icon" class="h-5 w-5" />
+          <span>Accueil</span>
+        </NuxtLink>
+
+        <div
+          v-for="g in visibleGroups" :key="g.id"
+          class="group/dm flex w-full justify-center py-0.5"
+          :data-test="`nav-group-${g.id}`"
+        >
+          <button
+            type="button"
+            :data-test="`nav-rail-${g.id}`"
+            :aria-label="g.label"
+            aria-haspopup="true"
+            :aria-current="g.entries.some(isActive) ? 'true' : undefined"
+            :class="[railBtn, g.entries.some(isActive) ? railBtnOn : railBtnIdle]"
+          >
+            <component :is="g.icon" class="h-5 w-5" />
+            <span>{{ g.railLabel }}</span>
+            <span
+              v-if="groupBadge(g).count > 0"
+              data-test="nav-rail-badge"
+              :data-tone="groupBadge(g).tone"
+              class="absolute right-1.5 top-1 h-2.5 w-2.5 rounded-full border-2 border-surface"
+              :class="groupBadge(g).tone === 'danger' ? 'bg-danger' : 'bg-text-muted'"
+            ><span class="sr-only">{{ groupBadge(g).count }} à traiter</span></span>
+          </button>
+
+          <!-- Panneau du domaine : ancré au bord du rail, sous la barre du haut il la prolonge. -->
+          <div
+            role="group"
+            :aria-label="g.label"
+            :data-test="`nav-panel-${g.id}`"
+            class="nav-panel absolute bottom-0 left-full top-0 hidden w-60 flex-col border-r border-border bg-surface shadow-lg group-focus-within/dm:flex group-hover/dm:flex"
+            :class="shut ? '!hidden' : ''"
+          >
+            <div class="flex h-topbar shrink-0 items-center border-b border-border px-5">
+              <p data-test="nav-panel-title" class="font-display text-base font-bold">{{ g.label }}</p>
+            </div>
+            <div class="space-y-1 overflow-y-auto p-3">
+              <NavItem
+                v-for="e in g.entries" :key="e.to" :to="e.to" :label="e.label"
+                :active="isActive(e)" v-bind="badgeProps(e.to)" @click="onPick"
+              >
+                <template #icon><component :is="e.icon" class="h-4 w-4" /></template>
+              </NavItem>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </ClientOnly>
+
+    <ClientOnly>
+      <div ref="profileMenuRef" class="relative flex shrink-0 justify-center border-t border-border py-3">
         <button
           type="button" data-test="profile-menu-trigger"
-          class="w-full px-4 py-4 flex items-center gap-3 text-left hover:bg-surface-elevated transition-colors"
-          aria-haspopup="menu" :aria-expanded="showProfileMenu"
+          class="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          aria-haspopup="menu" :aria-expanded="showProfileMenu" :aria-label="`Mon compte, ${auth.user?.email ?? ''}`"
           @click="showProfileMenu = !showProfileMenu"
         >
           <Avatar>
-            <AvatarFallback class="bg-primary text-white text-sm">{{ initials }}</AvatarFallback>
+            <AvatarFallback class="bg-primary text-sm text-white">{{ initials }}</AvatarFallback>
           </Avatar>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium truncate">{{ auth.user?.email }}</p>
-            <span class="text-xs bg-danger/20 text-danger px-1.5 py-0.5 rounded">{{ auth.user?.role }}</span>
-          </div>
         </button>
 
         <Transition
           enter-active-class="transition duration-100 ease-out"
-          enter-from-class="opacity-0 -translate-y-1"
-          enter-to-class="opacity-100 translate-y-0"
+          enter-from-class="opacity-0 translate-x-1"
+          enter-to-class="opacity-100 translate-x-0"
           leave-active-class="transition duration-75 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
-          leave-to-class="opacity-0 -translate-y-1"
+          leave-from-class="opacity-100 translate-x-0"
+          leave-to-class="opacity-0 translate-x-1"
         >
           <div
             v-if="showProfileMenu" role="menu" data-test="profile-menu"
-            class="absolute left-2 right-2 top-full z-10 mt-1 rounded-card border border-border bg-surface shadow-lg overflow-hidden"
+            class="absolute bottom-2 left-full z-30 ml-2 w-64 overflow-hidden rounded-card border border-border bg-surface shadow-lg"
           >
+            <div class="border-b border-border px-3 py-3">
+              <p class="truncate text-sm font-medium">{{ auth.user?.email }}</p>
+              <span class="mt-1 inline-block rounded bg-danger/20 px-1.5 py-0.5 text-xs text-danger">{{ auth.user?.role }}</span>
+            </div>
             <NuxtLink
               to="/change-password" role="menuitem" data-test="profile-change-password"
-              class="flex items-center gap-2 px-3 py-2 text-sm text-text hover:bg-surface-elevated transition-colors"
+              class="flex items-center gap-2 px-3 py-2 text-sm text-text transition-colors hover:bg-surface-elevated"
               @click="closeProfileMenu"
             >
-              <KeyRound class="w-4 h-4" />
+              <KeyRound class="h-4 w-4" />
               Changer mon mot de passe
             </NuxtLink>
             <button
               type="button" role="menuitem" data-test="profile-shortcuts"
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text hover:bg-surface-elevated transition-colors"
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-elevated"
               @click="closeProfileMenu(); shortcutsHelp.show()"
             >
-              <Keyboard class="w-4 h-4" />
+              <Keyboard class="h-4 w-4" />
               Raccourcis clavier
               <kbd class="ml-auto rounded border border-border px-1.5 text-[11px] text-text-muted">?</kbd>
             </button>
@@ -139,43 +226,21 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
       <template #fallback>
-        <div class="px-4 py-4 border-b border-border flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-primary/20 animate-pulse" />
-          <div class="flex-1 space-y-1">
-            <div class="h-3 bg-border rounded w-24 animate-pulse" />
-            <div class="h-3 bg-border rounded w-8 animate-pulse" />
-          </div>
+        <div class="flex justify-center border-t border-border py-3">
+          <div class="h-10 w-10 animate-pulse rounded-full bg-primary/20" />
         </div>
       </template>
     </ClientOnly>
-
-    <!--
-      Sous ClientOnly, comme le bloc profil juste au-dessus : `can()` dépend de `auth.user`,
-      que seul le plugin Firebase côté client peuple. Au rendu serveur, toutes les
-      permissions sont donc fausses et la nav sortait VIDE dans le HTML servi, avant que
-      l'hydratation n'ajoute les quinze entrées — décalage d'hydratation à chaque chargement
-      et navigation absente au premier paint.
-    -->
-    <ClientOnly>
-      <template #fallback>
-        <nav class="flex-1 px-3 py-4 space-y-1" aria-hidden="true">
-          <div v-for="i in 8" :key="i" class="h-9 rounded-btn bg-border/40 animate-pulse" />
-        </nav>
-      </template>
-    <nav class="flex-1 px-3 py-4 space-y-3 overflow-y-auto" aria-label="Navigation principale">
-      <NavItem v-if="can(HOME_ENTRY.permission)" :to="HOME_ENTRY.to" :label="HOME_ENTRY.label">
-        <template #icon><component :is="HOME_ENTRY.icon" class="w-4 h-4" /></template>
-      </NavItem>
-      <NavGroup
-        v-for="g in visibleGroups" :id="g.id" :key="g.id" :label="g.label"
-        :open="groupOpen(g)" :active="g.entries.some(isActive)"
-        v-bind="groupBadge(g)" @toggle="toggle(g.id)"
-      >
-        <NavItem v-for="e in g.entries" :key="e.to" :to="e.to" v-bind="badgeProps(e.to)" :label="e.label">
-          <template #icon><component :is="e.icon" class="w-4 h-4" /></template>
-        </NavItem>
-      </NavGroup>
-    </nav>
-    </ClientOnly>
   </aside>
 </template>
+
+<style scoped>
+.nav-panel { animation: nav-panel-in 140ms ease-out; }
+@keyframes nav-panel-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-panel { animation: none; }
+}
+</style>

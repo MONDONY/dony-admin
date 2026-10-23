@@ -47,7 +47,7 @@ export default {
         full:  '999px',
       },
       spacing: {
-        sidebar: '220px',
+        sidebar: '64px',
         topbar:  '64px',
       },
     },

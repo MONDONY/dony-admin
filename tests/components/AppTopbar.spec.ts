@@ -32,6 +32,39 @@ describe('AppTopbar', () => {
     expect(wrapper.text()).toContain('Gestion')
   })
 
+  const NuxtLinkStub = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
+  const CRUMBS = [
+    { label: 'Accueil', to: '/' },
+    { label: 'Comptes' },
+    { label: 'Utilisateurs', to: '/users' },
+    { label: 'Awa Diallo' },
+  ]
+
+  it('affiche le fil d’Ariane : liens cliquables, domaine et page courante en texte', () => {
+    const wrapper = mount(AppTopbar, { props: { title: 'Utilisateur', crumbs: CRUMBS }, global: { stubs: { NuxtLink: NuxtLinkStub } } })
+    const nav = wrapper.get('[data-test="breadcrumb"]')
+    expect(nav.attributes('aria-label')).toBe('Fil d’Ariane')
+    expect(nav.findAll('a').map(a => a.attributes('href'))).toEqual(['/', '/users'])
+    expect(nav.text()).toContain('Comptes')
+    const current = nav.find('[aria-current="page"]')
+    expect(current.text()).toBe('Awa Diallo')
+    expect(current.element.tagName).toBe('SPAN')
+  })
+
+  it('aucun fil d’Ariane sans maillons', () => {
+    expect(mount(AppTopbar, { props: { title: 'Vue d’ensemble' } }).find('[data-test="breadcrumb"]').exists()).toBe(false)
+    expect(mount(AppTopbar, { props: { title: 'x', crumbs: [] } }).find('[data-test="breadcrumb"]').exists()).toBe(false)
+  })
+
+  it('bouton Retour seulement quand backTo est fourni, il émet « back »', async () => {
+    expect(mount(AppTopbar, { props: { title: 'Colis' } }).find('[data-test="topbar-back"]').exists()).toBe(false)
+    const wrapper = mount(AppTopbar, { props: { title: 'Utilisateur', backTo: '/users' } })
+    const btn = wrapper.get('[data-test="topbar-back"]')
+    expect(btn.attributes('aria-label')).toBe('Retour')
+    await btn.trigger('click')
+    expect(wrapper.emitted('back')).toHaveLength(1)
+  })
+
   it('renders title without subtitle when subtitle is not provided', () => {
     const wrapper = mount(AppTopbar, { props: { title: 'Dashboard' } })
     expect(wrapper.text()).toContain('Dashboard')

@@ -8,7 +8,12 @@ const props = withDefaults(defineProps<{
   badge?: number
   /** `danger` : l'attente coûte (alerte, versement retenu). */
   badgeTone?: 'neutral' | 'danger'
-}>(), { badge: 0, badgeTone: 'neutral' })
+  /**
+   * Page courante, décidée par l'appelant. Absent : on laisse le routeur décider (préfixe),
+   * ce qui allume « Utilisateurs » et « Demandes RGPD » ensemble sur /users/rgpd.
+   */
+  active?: boolean
+}>(), { badge: 0, badgeTone: 'neutral', active: undefined })
 
 const badgeText = computed(() => badgeLabel(props.badge))
 </script>
@@ -16,8 +21,10 @@ const badgeText = computed(() => badgeLabel(props.badge))
 <template>
   <NuxtLink
     :to="to"
-    class="flex items-center gap-3 px-4 py-2.5 rounded-btn text-text-muted hover:text-text hover:bg-surface-elevated transition-colors"
-    active-class="bg-primary/10 text-primary"
+    class="flex items-center gap-3 px-4 py-2.5 rounded-btn transition-colors"
+    :class="active === undefined ? 'text-text-muted hover:text-text hover:bg-surface-elevated' : active ? 'bg-primary/10 text-primary' : 'text-text-muted hover:text-text hover:bg-surface-elevated'"
+    :active-class="active === undefined ? 'bg-primary/10 text-primary' : ''"
+    :aria-current="active ? 'page' : undefined"
   >
     <slot name="icon" />
     <span class="flex-1 text-sm font-medium">{{ label }}</span>
