@@ -82,8 +82,7 @@ test('admin consulte le KYC d\'un utilisateur puis le réinitialise', async ({ p
     return route.fulfill({ json: LIST_PAGE })
   })
 
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   // Attendre que la fiche soit rendue avant de basculer d'onglet : sans ce point
   // d'ancrage, le clic part avant l'hydratation et l'onglet ne bascule pas (fde633a).
   await expect(page.locator('[data-test="action-suspend"]')).toBeVisible()
@@ -116,8 +115,7 @@ test('Stripe indisponible : le KYC local reste affiché avec un avertissement', 
     return route.fulfill({ json: LIST_PAGE })
   })
 
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await expect(page.locator('[data-test="action-suspend"]')).toBeVisible()
   await page.locator('[data-test="tab-kyc"]').click()
 

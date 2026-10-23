@@ -195,7 +195,7 @@ test('annuler une suppression de compte demandée', async ({ page }) => {
   await expect(page.locator(`[data-test="row-${USER_ID}"]`)).toBeVisible()
   await page.locator('[data-test="chip-PENDING_DELETION"]').click()
   await expect.poll(() => listUrls.some((u) => u.includes('status=PENDING_DELETION'))).toBe(true)
-  await page.locator(`[data-test="row-${USER_ID}"]`).click()
+  await page.goto(`/users?open=${USER_ID}&legacy=1`) // tiroir de repli
   await expect(page.locator('[data-test="user-pending-deletion"]')).toContainText('Suppression prévue le 01/10/2026')
   await page.locator('[data-test="action-cancel-deletion"]').click()
   await expect(page.locator('[data-test="restore-notice"]')).toContainText('prévenu')
@@ -230,7 +230,7 @@ test('fiche utilisateur → Envoyer une notification → composer pré-rempli �
   })
 
   await page.goto('/users')
-  await page.locator(`[data-test="row-${USER_ID}"]`).click()
+  await page.goto(`/users?open=${USER_ID}&legacy=1`) // tiroir de repli
   await page.locator('[data-test="action-notify"]').click()
   await expect(page).toHaveURL(new RegExp(`/communications\\?target=USER&userId=${USER_ID}`))
   await expect(page.locator('[data-test="broadcast-target"]')).toHaveValue('USER')
