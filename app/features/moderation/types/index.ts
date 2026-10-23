@@ -19,6 +19,11 @@ export interface AdminMessage {
   /** Nouveau back (NON_NULL) : date de suppression, et `true` si un admin l'a supprimé. */
   deletedAt?: string | null
   deletedByAdmin?: boolean
+  /** `TEXT` ou `IMAGE` ; absent sur un ancien back. */
+  type?: string
+  /** Photo (URL présignée, 15 min) et sa vignette ; null si purgée ou absente. */
+  imageUrl?: string | null
+  thumbUrl?: string | null
   createdAt: string
 }
 

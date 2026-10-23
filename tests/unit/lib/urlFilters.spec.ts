@@ -53,6 +53,19 @@ describe('writeFilters', () => {
   it('part d’une query vide quand il n’y en a pas', () => {
     expect(writeFilters(undefined, { ...defaults }, specs)).toEqual({})
   })
+
+  // Vue des colis : « À traiter » sans autre paramètre, « Tous » dès qu'un filtre est posé.
+  const viewSpecs: FilterSpecs<'view' | 'status'> = {
+    view: { default: 'ALL', defaultFrom: q => (q.status ? 'ALL' : 'TODO') },
+    status: { default: 'TOUS' },
+  }
+  it('defaultFrom : le défaut se calcule sur la query écrite, sans le paramètre lui-même', () => {
+    expect(writeFilters({}, { view: 'TODO', status: 'TOUS' }, viewSpecs)).toEqual({})
+    expect(writeFilters({}, { view: 'ALL', status: 'TOUS' }, viewSpecs)).toEqual({ view: 'ALL' })
+    expect(writeFilters({}, { view: 'ALL', status: 'IN_TRANSIT' }, viewSpecs)).toEqual({ status: 'IN_TRANSIT' })
+    expect(writeFilters({}, { view: 'TODO', status: 'IN_TRANSIT' }, viewSpecs)).toEqual({ status: 'IN_TRANSIT', view: 'TODO' })
+    expect(writeFilters({ view: 'ALL', status: 'IN_TRANSIT' }, { view: 'TODO', status: 'TOUS' }, viewSpecs)).toEqual({})
+  })
 })
 
 describe('sameQuery', () => {

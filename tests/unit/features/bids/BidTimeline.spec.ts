@@ -63,3 +63,28 @@ describe('BidTimeline', () => {
     expect(w.html()).not.toContain('javascript:')
   })
 })
+
+describe('BidTimeline : heure de Paris et pastille photo', () => {
+  it('timeline_hoursInParis : 22:30 UTC sans Z s’affiche 00:30 le lendemain', () => {
+    const w = mount(BidTimeline, { props: { timeline: { bidId: 'b1', entries: [
+      { at: '2026-10-23T22:30:00', kind: 'EVENT' as const, label: 'BID_CREATED' },
+    ] } } })
+    expect(w.find('[data-test="timeline-entry"]').text()).toContain('24/10/2026 00:30')
+  })
+  it('galleryActive : pastille « Photo » à la place de l’image', () => {
+    const w = mount(BidTimeline, { props: { galleryActive: true, timeline } })
+    const items = w.findAll('[data-test="timeline-entry"]')
+    expect(items[1]!.find('img').exists()).toBe(false)
+    expect(items[1]!.find('[data-test="timeline-photo-pill"]').text()).toBe('Photo')
+    expect(items[0]!.find('[data-test="timeline-photo-pill"]').exists()).toBe(false)
+  })
+
+  it.each([
+    ['2026-10-23T22:30:00.123456', '24/10/2026 00:30'],
+    ['2026-03-29T00:30:00', '29/03/2026 01:30'],
+    ['2026-03-29T01:30:00', '29/03/2026 03:30'],
+  ])('timeline_parisHours %s -> %s (microsecondes, passage à l’heure d’été)', (at, expected) => {
+    const w = mount(BidTimeline, { props: { timeline: { bidId: 'b1', entries: [{ at, kind: 'EVENT' as const, label: 'BID_CREATED' }] } } })
+    expect(w.find('[data-test="timeline-entry"]').text()).toContain(expected)
+  })
+})

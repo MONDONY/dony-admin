@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AdminBidTimeline, BidTimelineEntry } from '@/features/bids/types/index'
-import { bidTimelineLabel, bidTimelineTone, formatDateTime } from '@/features/bids/lib/bidLabels'
+import { bidTimelineLabel, bidTimelineTone } from '@/features/bids/lib/bidLabels'
+import { formatInstant } from '@/features/user-profile/lib/formatInstant'
+import { parseServerDate } from '@/lib/serverDate'
 import { safeHttpsUrl } from '@/lib/safeInput'
 
 /**
  * Chronologie du colis : scans, journal d'audit, paiement. `error` : chargement échoué (la fiche
  * reste lisible) ; liste vide : état explicite, jamais une section blanche.
  */
-const props = defineProps<{ timeline: AdminBidTimeline | null; loading?: boolean; error?: string | null }>()
+const props = defineProps<{
+  timeline: AdminBidTimeline | null; loading?: boolean; error?: string | null
+  /** Galerie de photos affichée au-dessus : une pastille « Photo » remplace la miniature (pas de doublon). */
+  galleryActive?: boolean
+}>()
 
 const entries = computed(() => props.timeline?.entries ?? [])
 
@@ -24,6 +30,8 @@ function actor(e: BidTimelineEntry): string | null {
 }
 /** Photo de scan : URL présignée `https:` seulement, jamais `javascript:` ni `data:`. */
 function photo(e: BidTimelineEntry): string | null { return safeHttpsUrl(e.photoUrl) }
+/** Heure du serveur (UTC sans fuseau) affichée à Paris ; « — » si illisible. */
+const at = (e: BidTimelineEntry) => formatInstant(Number.isNaN(parseServerDate(e.at)) ? null : new Date(parseServerDate(e.at)).toISOString())
 function detail(e: BidTimelineEntry): string | null {
   if (!e.detail) return null
   // Les notations arrivent en « 5/5 » : en clair pour l'admin.
@@ -50,11 +58,15 @@ function detail(e: BidTimelineEntry): string | null {
         <span :class="['absolute -left-[26px] top-1.5 h-3 w-3 rounded-full border-2 border-surface', dot(e)]" />
         <p class="text-sm font-medium text-text text-pretty">{{ bidTimelineLabel(e.label) }}</p>
         <p class="text-xs text-text-muted tabular-nums">
-          {{ formatDateTime(e.at) ?? '—' }}<span v-if="actor(e)" data-test="timeline-actor"> · {{ actor(e) }}</span>
+          {{ at(e) }}<span v-if="actor(e)" data-test="timeline-actor"> · {{ actor(e) }}</span>
         </p>
         <p v-if="detail(e)" class="text-xs text-text-muted break-words">{{ detail(e) }}</p>
         <p v-if="e.gpsLat != null && e.gpsLon != null" class="text-xs text-text-muted tabular-nums">GPS {{ e.gpsLat }}, {{ e.gpsLon }}</p>
-        <a v-if="photo(e)" :href="photo(e)!" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block">
+        <span
+          v-if="galleryActive && photo(e)" data-test="timeline-photo-pill"
+          class="mt-1 inline-flex rounded-full bg-border/40 px-2 py-0.5 text-xs font-medium text-text-muted"
+        >Photo</span>
+        <a v-else-if="photo(e)" :href="photo(e)!" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block">
           <img
             :src="photo(e)!" alt="Photo du scan"
             class="h-20 rounded-xs object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"

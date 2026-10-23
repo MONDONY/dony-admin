@@ -24,15 +24,20 @@ export function useUrlFilters<F extends object, K extends keyof F & string>(
     return keys.length > 0
   }
 
-  function sync() {
+  /** `query` complétée des filtres courants : pour une page qui réécrit elle-même la query (onglet, fiche). */
+  function apply(query: Record<string, unknown> | undefined): Record<string, unknown> {
     const values = {} as Record<K, FilterValue>
     for (const k of Object.keys(specs) as K[]) values[k] = (filters as Record<K, FilterValue>)[k]
-    const next = writeFilters(route?.query as Record<string, unknown> | undefined, values, specs)
+    return writeFilters(query, values, specs)
+  }
+
+  function sync() {
+    const next = apply(route?.query as Record<string, unknown> | undefined)
     if (sameQuery(route?.query as Record<string, unknown> | undefined, next)) return
     void router?.replace?.({ query: next as LocationQueryRaw })
   }
 
   watch(() => Object.keys(specs).map(k => (filters as Record<string, unknown>)[k]), sync)
 
-  return { restore, sync }
+  return { restore, sync, apply }
 }

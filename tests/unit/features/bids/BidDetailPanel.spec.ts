@@ -1,9 +1,12 @@
 /**
- * Fiche colis : chaque section (en-tête, trajet, personnes, colis, argent, chronologie,
- * actions, identifiants), chaque statut, actions selon les droits, et ancien back.
+ * Fiche colis : coquille en onglets (Résumé, Suivi, Argent, Échanges, Incidents), chaque
+ * section (en-tête, trajet, personnes, colis, argent, chronologie, actions, identifiants),
+ * chaque statut, actions selon les droits, et ancien back.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+vi.mock('@/features/moderation/services/moderationService')
+import { moderationService } from '@/features/moderation/services/moderationService'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import type { AdminBidDetail, BidStatus } from '@/features/bids/types/index'
@@ -12,8 +15,12 @@ import { seedAuth } from '~/tests/helpers/auth'
 const NuxtLink = { props: ['to'], template: '<a :data-to="JSON.stringify(to)"><slot /></a>' }
 const stubs = {
   NuxtLink,
+  BidPhotoGallery: { props: ['bid', 'timeline'], emits: ['unavailable', 'reload-bid'], template: '<div data-test="gallery-stub"><button data-test="gallery-reload" @click="$emit(\'reload-bid\')" /></div>' },
   StripeResyncPanel: { props: ['paymentId', 'currency'], template: '<div data-test="resync-stub">{{ paymentId }}</div>' },
-  StartSupportConversationDialog: { props: ['open', 'recipient'], template: '<div v-if="open" data-test="support-dialog">{{ recipient?.name }}</div>' },
+  StartSupportConversationDialog: {
+    props: ['open', 'recipient'], emits: ['close'],
+    template: '<div v-if="open" data-test="support-dialog">{{ recipient?.name }}<button data-test="support-close" @click="$emit(\'close\')" /></div>',
+  },
 }
 
 /** Ancien back : uniquement les champs historiques. */
@@ -63,6 +70,18 @@ const timeline = { bidId: legacyBid.id, entries: [
 
 function mountPanel(bid: AdminBidDetail = fullBid, extra: Record<string, unknown> = {}) {
   return mount(BidDetailPanel, { props: { bid, timeline, open: true, ...extra }, global: { stubs } })
+}
+/** Ouvre un onglet du tiroir. */
+async function tab(w: VueWrapper, id: string) { await w.find(`[data-test="bid-tab-${id}"]`).trigger('click') }
+/** Ouvre le menu « Actions ». */
+async function menu(w: VueWrapper) { await w.find('[data-test="bid-actions-menu"]').trigger('click') }
+const tabIds = (w: VueWrapper) => w.findAll('[data-test^="bid-tab-"]').map(b => b.attributes('data-test'))
+const incidents = {
+  disputes: [
+    { id: 'dsp-1', type: 'DAMAGED', status: 'OPEN', createdAt: null, resolvedAt: null, resolutionType: null },
+    { id: 'dsp-0', type: 'LOST', status: 'RESOLVED', createdAt: null, resolvedAt: null, resolutionType: null },
+  ],
+  cancellations: [{ id: 'c-1', scope: 'BID', noShowStatus: null, reason: null, createdAt: null }],
 }
 
 describe('BidDetailPanel', () => {
@@ -173,7 +192,7 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="party-sender"]').text()).toContain('Awa Ndiaye')
       expect(w.find('[data-test="party-sender"]').text()).toContain('@awa')
       expect(w.find('[data-test="party-sender-phone"]').text()).toBe('•••• 5678')
-      expect(w.find('[data-test="party-sender-link"]').attributes('data-to')).toContain('"open":"u-s"')
+      expect(JSON.parse(w.find('[data-test="party-sender-link"]').attributes('data-to')!)).toEqual({ path: '/users/u-s' })
       expect(w.find('[data-test="party-traveler-kyc"]').text()).toContain('Validée')
       expect(w.find('[data-test="party-traveler-stripe"]').text()).toContain('Utilisable')
       expect(w.find('[data-test="party-traveler-stripe"]').text()).toContain('Compte actif')
@@ -199,23 +218,40 @@ describe('BidDetailPanel', () => {
       // Valeur déclarée : non enregistrée (décision propriétaire), la ligne n'existe plus.
       expect(w.find('[data-test="parcel-declared"]').exists()).toBe(false)
       expect(w.text()).not.toContain('Valeur déclarée')
-      expect(w.find('[data-test="parcel-photos"] img').attributes('src')).toBe('https://r2.test/p1?sig=1')
+      expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
       expect(w.text()).toContain('Gare de Lyon')
     })
 
-    it('pas de code, pas de photo, livré et rendu datés', () => {
+    it('photos du colis : galerie dans l’onglet Suivi, plus de bloc d’origine', async () => {
+      const w = mountPanel()
+      await tab(w, 'tracking')
+      expect(w.find('[data-test="gallery-stub"]').exists()).toBe(true)
+      expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
+      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(false)
+    })
+
+    it('galerie en ancien back : « Recharger » relaie resynced pour renouveler les URL', async () => {
+      const w = mountPanel(fullBid, { section: 'tracking' })
+      await w.find('[data-test="gallery-reload"]').trigger('click')
+      expect(w.emitted('resynced')).toHaveLength(1)
+    })
+
+    it('pas de code, pas de photo, livré et rendu datés', async () => {
       const w = mountPanel({ ...fullBid, confirmationCodePresent: false, photoUrls: [],
         milestones: { ...fullBid.milestones!, deliveredAt: '2026-10-14T10:00:00', returnedAt: '2026-10-15T10:00:00' } })
       expect(w.find('[data-test="parcel-code"]').text()).toContain('Pas encore généré')
-      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(true)
       expect(w.text()).toContain('Livré le')
       expect(w.text()).toContain('Rendu le')
     })
   })
 
   describe('argent', () => {
-    it('montants, statut en français, encaissé, versé, lien vers le paiement', () => {
+    it('montants, statut en français, encaissé, versé, lien vers le paiement', async () => {
       const w = mountPanel()
+      expect(w.find('[data-test="section-money"]').exists()).toBe(false)
+      await tab(w, 'money')
+      expect(w.find('[role="region"]').attributes('aria-labelledby')).toBe('bid-tab-money')
+      expect(w.find('[role="tabpanel"]').exists()).toBe(false)
       expect(w.find('[data-test="money-amount"]').text()).toBe('48,00 EUR')
       expect(w.find('[data-test="money-commission"]').text()).toBe('5,76 EUR')
       expect(w.find('[data-test="bid-detail-net"]').text()).toBe('40,00 EUR')
@@ -224,12 +260,14 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="money-status"]').text()).toBe('Sous séquestre')
       expect(w.find('[data-test="money-captured"]').text()).toContain('Oui, le')
       expect(w.find('[data-test="money-released"]').text()).toContain('Pas encore')
+      await menu(w)
       expect(w.find('[data-test="action-payment"]').attributes('data-to')).toContain('"open":"pay-1"')
     })
 
-    it('non encaissé, versé, remboursé, retenu, litige bancaire, statut inconnu', () => {
+    it('non encaissé, versé, remboursé, retenu, litige bancaire, statut inconnu', async () => {
       const w = mountPanel({ ...fullBid, money: { ...fullBid.money!, status: 'WEIRD', capturedAt: null,
         escrowReleasedAt: '2026-10-14T10:00:00', refundedCents: 1000, payoutHeldAt: '2026-10-14T10:00:00', disputed: true } })
+      await tab(w, 'money')
       expect(w.find('[data-test="money-captured"]').text()).toContain('Non')
       expect(w.find('[data-test="money-released"]').text()).toContain('Le ')
       expect(w.find('[data-test="money-status"]').text()).toBe('WEIRD')
@@ -238,44 +276,53 @@ describe('BidDetailPanel', () => {
       expect(w.text()).toContain('Litige bancaire')
     })
 
-    it('mobile money : pas de ligne « Encaissé »', () => {
+    it('mobile money : pas de ligne « Encaissé »', async () => {
       const w = mountPanel({ ...fullBid, paymentMethod: 'MOBILE_MONEY', money: { ...fullBid.money!, rail: 'PAWAPAY', status: null } })
+      await tab(w, 'money')
       expect(w.find('[data-test="money-captured"]').exists()).toBe(false)
       expect(w.find('[data-test="money-method"]').text()).toBe('Mobile money')
       expect(w.find('[data-test="action-resync"]').exists()).toBe(false)
     })
 
-    it('net dans la devise du colis (XOF), jamais en euros', () => {
+    it('net dans la devise du colis (XOF), jamais en euros', async () => {
       const w = mountPanel({ ...fullBid, netEur: 6000, currency: 'XOF', money: null })
+      await tab(w, 'money')
       expect(w.find('[data-test="bid-detail-net"]').text()).toBe(formatMajorAmount(6000, 'XOF'))
       expect(w.text()).not.toContain('€')
     })
 
-    it('espèces : aucun paiement en ligne, taux de commission affiché', () => {
+    it('espèces : aucun paiement en ligne, taux de commission affiché', async () => {
       const w = mountPanel({ ...fullBid, paymentMethod: 'CASH', money: null })
+      await tab(w, 'money')
       expect(w.find('[data-test="money-empty"]').text()).toContain('espèces')
       expect(w.text()).toContain('12 %')
+      await menu(w)
       expect(w.find('[data-test="action-payment"]').exists()).toBe(false)
     })
 
-    it('carte sans paiement : aucun paiement enregistré', () => {
+    it('carte sans paiement : aucun paiement enregistré', async () => {
       const w = mountPanel({ ...fullBid, money: null, commissionRate: null })
+      await tab(w, 'money')
       expect(w.find('[data-test="money-empty"]').text()).toBe('Aucun paiement en ligne enregistré pour ce colis.')
     })
   })
 
   describe('chronologie', () => {
-    it('libellés en français avec auteur', () => {
+    it('libellés en français avec auteur, dans l’onglet Suivi', async () => {
       const w = mountPanel()
+      expect(w.find('[data-test="section-timeline"]').exists()).toBe(false)
+      await tab(w, 'tracking')
       const s = w.find('[data-test="section-timeline"]')
       expect(s.findAll('[data-test="timeline-entry"]')).toHaveLength(2)
       expect(s.text()).toContain('Colis créé depuis la négociation')
       expect(s.text()).toContain('Présence confirmée par le voyageur')
       expect(s.text()).toContain('par Moussa Diallo')
     })
-    it('chargement et erreur transmis', () => {
-      expect(mountPanel(fullBid, { timeline: null, timelineLoading: true }).find('[data-test="timeline-loading"]').exists()).toBe(true)
-      expect(mountPanel(fullBid, { timeline: null, timelineError: 'Boom' }).find('[data-test="timeline-error"]').text()).toBe('Boom')
+    it('chargement et erreur transmis', async () => {
+      const loading = mountPanel(fullBid, { timeline: null, timelineLoading: true, section: 'tracking' })
+      expect(loading.find('[data-test="timeline-loading"]').exists()).toBe(true)
+      const failed = mountPanel(fullBid, { timeline: null, timelineError: 'Boom', section: 'tracking' })
+      expect(failed.find('[data-test="timeline-error"]').text()).toBe('Boom')
     })
   })
 
@@ -284,12 +331,14 @@ describe('BidDetailPanel', () => {
       const writeText = vi.fn().mockResolvedValue(undefined)
       Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
       const w = mountPanel()
-      expect(w.find('[data-test="action-payment"]').exists()).toBe(true)
+      await tab(w, 'money')
       expect(w.find('[data-test="resync-stub"]').text()).toBe('pay-1')
+      await menu(w)
+      expect(w.find('[data-test="action-payment"]').exists()).toBe(true)
       expect(w.find('[data-test="action-conversation"]').attributes('data-to')).toContain('"open":"fs-42"')
       expect(w.find('[data-test="action-dispute"]').exists()).toBe(false)
-      expect(w.find('[data-test="action-cancel"]').attributes('disabled')).toBeUndefined()
-      expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeUndefined()
+      expect(w.find('[data-test="action-cancel"]').attributes('aria-disabled')).toBeUndefined()
+      expect(w.find('[data-test="action-open-dispute"]').attributes('aria-disabled')).toBeUndefined()
       expect(w.find('[data-test="unavailable-dispute"]').exists()).toBe(false)
       expect(w.find('[data-test="unavailable-cancel"]').exists()).toBe(false)
       expect(w.text()).not.toContain('pas d’endpoint')
@@ -302,6 +351,7 @@ describe('BidDetailPanel', () => {
       expect(copied).toContain('Paiement : pay-1')
       expect(copied).toContain('Fil de négociation : thr-1')
       expect(w.find('[data-test="action-copy-ids"]').text()).toBe('Identifiants copiés')
+      await tab(w, 'summary')
       await w.find('[data-test="copy-payment"]').trigger('click')
       await Promise.resolve()
       expect(writeText).toHaveBeenLastCalledWith('pay-1')
@@ -315,32 +365,36 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="copy-bid"]').text()).toBe('Copier')
     })
 
-    it('litige existant : lien vers le litige avec son statut', () => {
+    it('litige existant : lien vers le litige avec son statut', async () => {
       const w = mountPanel({ ...fullBid, links: { ...fullBid.links!, disputeId: 'dsp-1', disputeStatus: 'OPEN' } })
+      await menu(w)
       expect(w.find('[data-test="action-dispute"]').text()).toBe('Voir le litige (ouvert)')
       expect(w.find('[data-test="action-dispute"]').attributes('data-to')).toContain('"open":"dsp-1"')
-      expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeDefined()
+      expect(w.find('[data-test="action-open-dispute"]').attributes('aria-disabled')).toBe('true')
       expect(w.find('[data-test="dispute-disabled-reason"]').text()).toContain('déjà ouvert')
     })
 
-    it('absence signalée : lien vers le no-show', () => {
+    it('absence signalée : lien vers le no-show', async () => {
       const w = mountPanel({ ...fullBid, status: 'NO_SHOW', links: { ...fullBid.links!, cancellationId: 'c-1' } })
+      await menu(w)
       expect(w.find('[data-test="action-noshow"]').attributes('data-to')).toContain('"tab":"noshows"')
     })
 
-    it('admin sans droits fins : actions masquées, explication du support', () => {
+    it('admin sans droits fins : actions masquées, explication du support', async () => {
       seedAuth('SUPPORT', { PAYMENT_VIEW: false, DISPUTE_VIEW: false, MODERATION_VIEW: false, USER_VIEW: false, SUPPORT_TICKET_MANAGE: false })
       const w = mountPanel({ ...fullBid, status: 'NO_SHOW', money: null,
         links: { ...fullBid.links!, disputeId: 'dsp-1', cancellationId: 'c-1' } })
-      expect(w.find('[data-test="action-payment"]').exists()).toBe(false)
+      expect(w.find('[data-test="party-sender-link"]').exists()).toBe(false)
+      expect(w.find('[data-test="party-sender-contact"]').exists()).toBe(false)
+      await tab(w, 'money')
       expect(w.find('[data-test="action-resync"]').exists()).toBe(false)
+      expect(w.find('[data-test="money-empty"]').text()).toContain('réservés aux admins')
+      await menu(w)
+      expect(w.find('[data-test="action-payment"]').exists()).toBe(false)
       expect(w.find('[data-test="action-dispute"]').exists()).toBe(false)
       expect(w.find('[data-test="action-noshow"]').exists()).toBe(false)
       expect(w.find('[data-test="action-conversation"]').exists()).toBe(false)
-      expect(w.find('[data-test="party-sender-link"]').exists()).toBe(false)
-      expect(w.find('[data-test="party-sender-contact"]').exists()).toBe(false)
       expect(w.find('[data-test="unavailable-support"]').exists()).toBe(true)
-      expect(w.find('[data-test="money-empty"]').text()).toContain('réservés aux admins')
     })
 
     it('fiche réduite par le back (sans USER_VIEW) : statuts annoncés comme réservés', () => {
@@ -350,25 +404,33 @@ describe('BidDetailPanel', () => {
 
     it('resynchronisation faite : la fiche demande à être relue', async () => {
       const Resync = { props: ['paymentId'], emits: ['done'], template: '<button data-test="resync-stub" @click="$emit(\'done\')" />' }
-      const w = mount(BidDetailPanel, { props: { bid: fullBid, timeline, open: true }, global: { stubs: { ...stubs, StripeResyncPanel: Resync } } })
+      const w = mount(BidDetailPanel, { props: { bid: fullBid, timeline, open: true, section: 'money' }, global: { stubs: { ...stubs, StripeResyncPanel: Resync } } })
       await w.find('[data-test="resync-stub"]').trigger('click')
       expect(w.emitted('resynced')).toBeTruthy()
     })
   })
 
   describe('ancien back', () => {
-    it('sections présentes, « non disponible » au lieu de vide', () => {
+    it('shell_legacyBackend_showsBanner_andStillRendersSummary : sections présentes, « non disponible » au lieu de vide', async () => {
       const w = mountPanel(legacyBid)
+      expect(w.find('[data-test="section-trip"]').exists()).toBe(true)
+      expect(w.find('[data-test="section-parcel"]').exists()).toBe(true)
+      expect(w.find('[data-test="bid-alert-banner"]').exists()).toBe(false)
+      expect(tabIds(w)).toEqual(['bid-tab-summary', 'bid-tab-tracking', 'bid-tab-money'])
       expect(w.find('[data-test="bid-legacy"]').exists()).toBe(true)
       expect(w.find('[data-test="trip-unavailable"]').text()).toBe('Non disponible pour l’instant.')
       expect(w.find('[data-test="party-sender"]').text()).toContain('Awa Ndiaye')
       expect(w.find('[data-test="party-traveler"]').text()).toContain('Moussa Diallo')
       expect(w.find('[data-test="party-recipient"]').text()).toContain('Fatou')
+      expect(w.find('[data-test="parcel-code"]').exists()).toBe(false)
+      expect(w.find('[data-test="id-bid"]').exists()).toBe(true)
+      await tab(w, 'money')
       expect(w.find('[data-test="money-empty"]').text()).toBe('Détail du paiement non disponible pour l’instant.')
       expect(w.find('[data-test="bid-detail-net"]').text()).toBe('40,00 EUR')
-      expect(w.find('[data-test="parcel-code"]').exists()).toBe(false)
+      await tab(w, 'tracking')
       expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
-      expect(w.find('[data-test="id-bid"]').exists()).toBe(true)
+      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(false)
+      expect(w.find('[data-test="section-timeline"]').exists()).toBe(true)
     })
 
     it('noms absents : tirets', () => {
@@ -392,7 +454,7 @@ describe('BidDetailPanel', () => {
   })
 
   describe('valeurs malveillantes', () => {
-    it('noms, contenu et motifs en texte brut ; photos non https écartées', () => {
+    it('noms, contenu et motifs en texte brut', async () => {
       const payload = '<img src=x onerror="alert(1)">'
       const w = mountPanel({ ...fullBid, description: payload, contentCategory: payload, refusalReason: payload, status: 'REJECTED',
         sender: { ...fullBid.sender!, name: payload, username: payload },
@@ -401,16 +463,198 @@ describe('BidDetailPanel', () => {
       expect(w.find('img[onerror]').exists()).toBe(false)
       expect(w.find('[data-test="parcel-description"]').text()).toBe(payload)
       expect(w.find('[data-test="party-sender"]').text()).toContain(payload)
-      const imgs = w.findAll('[data-test="parcel-photos"] img')
-      expect(imgs).toHaveLength(1)
-      expect(imgs[0].attributes('src')).toBe('https://r2.test/ok.jpg')
-      expect(w.find('[data-test="parcel-photos"] a').attributes('rel')).toBe('noopener noreferrer')
+      await tab(w, 'tracking')
       expect(w.html()).not.toContain('javascript:')
     })
-    it('aucune photo sûre : « Aucune photo du colis »', () => {
-      const w = mountPanel({ ...fullBid, photoUrls: ['javascript:alert(1)'] })
-      expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
-      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(true)
+  })
+
+  describe('coquille en onglets', () => {
+    it('shell_showsFiveTabs_forAdmin : cinq onglets, Résumé par défaut, pastille rouge des incidents', async () => {
+      const w = mountPanel({ ...fullBid, incidents })
+      expect(tabIds(w)).toEqual(['bid-tab-summary', 'bid-tab-tracking', 'bid-tab-money', 'bid-tab-chat', 'bid-tab-incidents'])
+      expect(w.findAll('[data-test^="bid-tab-"]').map(b => b.text().replace(/\s+/g, ' ').trim()))
+        .toEqual(['Résumé', 'Suivi', 'Argent', 'Échanges', 'Incidents 2'])
+      expect(w.find('[data-test="bid-tab-incidents"] [data-test="tab-count"]').classes()).toContain('text-danger')
+      expect(w.find('[data-test="bid-tab-summary"]').attributes('aria-pressed')).toBe('true')
+      const panel = w.find('[role="region"][data-test="bid-panel-summary"]')
+      expect(panel.attributes('aria-labelledby')).toBe('bid-tab-summary')
+      expect(panel.find('[data-test="section-trip"]').exists()).toBe(true)
+      // Les personnes, l'étape et le menu restent visibles hors des onglets.
+      expect(w.find('[data-test="section-people"]').exists()).toBe(true)
+      expect(w.find('[data-test="bid-stepper"]').exists()).toBe(true)
+      expect(w.find('[data-test="section-actions"]').exists()).toBe(true)
+      await tab(w, 'tracking')
+      expect(w.emitted('update:section')?.[0]).toEqual(['tracking'])
+      expect(w.find('[data-test="section-trip"]').exists()).toBe(false)
+      expect(w.find('[data-test="section-timeline"]').exists()).toBe(true)
+      // Le service est simulé automatiquement (réponse `undefined`) : une conversation vide, comme le back.
+      ;(moderationService as any).getMessages = vi.fn().mockResolvedValue([])
+      await tab(w, 'chat')
+      await flushPromises()
+      expect(w.find('[data-test="bid-chat-tab"]').exists()).toBe(true)
+      await tab(w, 'incidents')
+      expect(w.find('[data-test="bid-tab-placeholder-incidents"]').exists()).toBe(false)
+      expect(w.find('[data-test="incident-dispute"]').exists()).toBe(true)
+    })
+
+    it('panel_chatTab_otherConversation_resetsMessages : nouvelle conversation, messages relus de zéro', async () => {
+      const get = vi.fn()
+        .mockResolvedValueOnce([{ id: 'm1', conversationId: 'fs-42', senderName: 'Awa', content: 'Ancien', flagged: false, deleted: false, createdAt: '2026-10-06T18:53:35' }])
+        .mockResolvedValueOnce([{ id: 'm9', conversationId: 'fs-43', senderName: 'Moussa', content: 'Nouveau', flagged: false, deleted: false, createdAt: '2026-10-06T18:54:35' }])
+      ;(moderationService as any).getMessages = get
+      const w = mountPanel(fullBid, { section: 'chat' })
+      await flushPromises()
+      expect(w.find('[data-test="chat-message-m1"]').exists()).toBe(true)
+      await w.setProps({ bid: { ...fullBid, links: { ...fullBid.links!, conversationId: 'fs-43' } } })
+      await flushPromises()
+      expect(get).toHaveBeenLastCalledWith('fs-43')
+      expect(w.find('[data-test="chat-message-m1"]').exists()).toBe(false)
+      expect(w.find('[data-test="chat-message-m9"]').exists()).toBe(true)
+    })
+
+    it('panel_chatTabLoadsOnlyWhenOpened', async () => {
+      const get = vi.fn().mockResolvedValue([
+        { id: 'm1', conversationId: 'fs-42', senderName: 'Awa', content: 'Bonjour', flagged: false, deleted: false, createdAt: '2026-10-06T18:53:35' },
+        { id: 'm2', conversationId: 'fs-42', senderName: 'Moussa', content: 'Salut', flagged: false, deleted: false, createdAt: '2026-10-06T18:54:35' },
+      ])
+      ;(moderationService as any).getMessages = get
+      const w = mountPanel()
+      await flushPromises()
+      expect(get).not.toHaveBeenCalled()
+      expect(w.find('[data-test="bid-tab-chat"] [data-test="tab-count"]').exists()).toBe(false)
+      await tab(w, 'chat')
+      await flushPromises()
+      expect(get).toHaveBeenCalledTimes(1)
+      expect(get).toHaveBeenCalledWith('fs-42')
+      expect(w.find('[data-test="bid-tab-chat"] [data-test="tab-count"]').text()).toBe('2')
+    })
+
+    it('incidents sans litige ouvert ni annulation : pas de pastille', () => {
+      const w = mountPanel({ ...fullBid, incidents: { disputes: [incidents.disputes[1]!], cancellations: [] } })
+      expect(w.find('[data-test="bid-tab-incidents"]').exists()).toBe(true)
+      expect(w.find('[data-test="bid-tab-incidents"] [data-test="tab-count"]').exists()).toBe(false)
+    })
+
+    it('shell_hidesChatTab_withoutModerationView', () => {
+      seedAuth('ADMIN', { MODERATION_VIEW: false, DISPUTE_VIEW: true })
+      expect(tabIds(mountPanel({ ...fullBid, incidents }))).not.toContain('bid-tab-chat')
+    })
+
+    it('shell_hidesChatTab_withoutConversationId', () => {
+      const w = mountPanel({ ...fullBid, links: { ...fullBid.links!, conversationId: null } })
+      expect(tabIds(w)).not.toContain('bid-tab-chat')
+    })
+
+    it('shell_hidesIncidentsTab_whenFieldAbsent : absent (ancien back), null (sans DISPUTE_VIEW), ou droit retiré', () => {
+      expect(tabIds(mountPanel(fullBid))).not.toContain('bid-tab-incidents')
+      expect(tabIds(mountPanel({ ...fullBid, incidents: null }))).not.toContain('bid-tab-incidents')
+      seedAuth('ADMIN', { DISPUTE_VIEW: false })
+      expect(tabIds(mountPanel({ ...fullBid, incidents }))).not.toContain('bid-tab-incidents')
+    })
+
+    it('shell_unknownSection_fallsBackToSummary : onglet inconnu ou masqué, puis section suivie', async () => {
+      const unknown = mountPanel(fullBid, { section: 'nope' })
+      expect(unknown.find('[data-test="bid-tab-summary"]').attributes('aria-pressed')).toBe('true')
+      expect(unknown.find('[data-test="section-trip"]').exists()).toBe(true)
+      const hidden = mountPanel(fullBid, { section: 'incidents' })
+      expect(hidden.find('[data-test="section-trip"]').exists()).toBe(true)
+      const money = mountPanel(fullBid, { section: 'money' })
+      expect(money.find('[data-test="section-money"]').exists()).toBe(true)
+      await money.setProps({ section: 'tracking' })
+      expect(money.find('[data-test="section-timeline"]').exists()).toBe(true)
+      await money.setProps({ section: undefined })
+      expect(money.find('[data-test="section-trip"]').exists()).toBe(true)
+    })
+
+    it('shell_unavailableSection_emitsDisplayedTab : ?section=chat sans MODERATION_VIEW, l’URL est corrigée', () => {
+      seedAuth('ADMIN', { MODERATION_VIEW: false })
+      const w = mountPanel(fullBid, { section: 'chat' })
+      expect(w.find('[data-test="bid-panel-summary"]').exists()).toBe(true)
+      expect(w.emitted('update:section')).toEqual([['summary']])
+      // Onglet disponible : rien à corriger.
+      const ok = mountPanel(fullBid, { section: 'money' })
+      expect(ok.emitted('update:section')).toBeUndefined()
+    })
+
+    it('shell_resetsOnBidChange : onglet, menu et copie réinitialisés', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      const w = mountPanel()
+      await w.find('[data-test="bid-copy-tracking"]').trigger('click')
+      await Promise.resolve()
+      expect(w.find('[data-test="bid-copy-tracking"]').text()).toBe('Copié')
+      await tab(w, 'money')
+      await w.setProps({ bid: { ...fullBid, id: 'db1c5742-1a56-4a66-a729-47ab29987b99' } })
+      expect(w.find('[data-test="section-trip"]').exists()).toBe(true)
+      expect(w.find('[data-test="bid-copy-tracking"]').text()).toBe('Copier')
+      expect(w.emitted('update:section')?.at(-1)).toEqual(['summary'])
+    })
+
+    it('alerte du back affichée en bandeau, frise d’étapes', () => {
+      const w = mountPanel({ ...fullBid, alert: 'LATE' })
+      expect(w.find('[data-test="bid-alert-banner"]').text()).toContain('Livraison en retard')
+      expect(w.find('[data-test="step-handed"]').attributes('aria-current')).toBe('step')
+    })
+  })
+
+  describe('Échap, focus et changement de colis', () => {
+    const attached: VueWrapper[] = []
+    const mountAttached = (bid: AdminBidDetail = fullBid, extra: Record<string, unknown> = {}, more: Record<string, unknown> = {}) => {
+      const w = mount(BidDetailPanel, { props: { bid, timeline, open: true, ...extra }, global: { stubs: { ...stubs, ...more } }, attachTo: document.body })
+      attached.push(w)
+      return w
+    }
+    const esc = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    afterEach(() => { while (attached.length) attached.pop()!.unmount() })
+
+    it('drawer_escapeCloses : le tiroir, lui-même modal, se ferme sur Échap', () => {
+      const w = mountAttached()
+      esc()
+      expect(w.emitted('close')).toHaveLength(1)
+    })
+
+    it('drawer_escapeWithViewerOpen : seule la visionneuse (modale dans le tiroir) est concernée', () => {
+      const Viewer = { props: ['bid', 'timeline'], template: '<div role="dialog" aria-modal="true" data-test="viewer-stub" />' }
+      const w = mountAttached(fullBid, { section: 'tracking' }, { BidPhotoGallery: Viewer })
+      expect(w.find('[data-test="viewer-stub"]').exists()).toBe(true)
+      esc()
+      expect(w.emitted('close')).toBeUndefined()
+    })
+
+    it('drawer_escapeWithConfirmOpen : la modale d’annulation ouverte, le tiroir reste', async () => {
+      const w = mountAttached()
+      await menu(w)
+      await w.find('[data-test="action-cancel"]').trigger('click')
+      expect(w.find('[data-test="cancel-dialog"]').exists()).toBe(true)
+      esc()
+      expect(w.emitted('close')).toBeUndefined()
+    })
+
+    it('dialogFocus_returnsToActions : modale annulée puis fenêtre support fermée, focus sur « Actions »', async () => {
+      const w = mountAttached()
+      const actionsBtn = w.find('[data-test="bid-actions-menu"]').element
+      await menu(w)
+      await w.find('[data-test="action-cancel"]').trigger('click')
+      await w.find('[data-test="cancel-dismiss"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="cancel-dialog"]').exists()).toBe(false)
+      expect(document.activeElement).toBe(actionsBtn)
+      ;(document.activeElement as HTMLElement).blur()
+      await w.find('[data-test="party-traveler-contact"]').trigger('click')
+      await w.find('[data-test="support-close"]').trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(actionsBtn)
+    })
+
+    it('bidChange_closesMenuAndSupport : menu fermé, destinataire du support remis à zéro', async () => {
+      const w = mountPanel()
+      await menu(w)
+      expect(w.find('[role="menu"]').exists()).toBe(true)
+      await w.find('[data-test="party-traveler-contact"]').trigger('click')
+      expect(w.find('[data-test="support-dialog"]').exists()).toBe(true)
+      await w.setProps({ bid: { ...fullBid, id: 'db1c5742-1a56-4a66-a729-47ab29987b98' } })
+      expect(w.find('[role="menu"]').exists()).toBe(false)
+      expect(w.find('[data-test="support-dialog"]').exists()).toBe(false)
     })
   })
 })

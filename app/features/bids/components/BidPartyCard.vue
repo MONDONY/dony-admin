@@ -31,8 +31,9 @@ const isTraveler = computed(() => props.role === 'traveler')
     <p class="text-xs font-medium text-text-muted">{{ title }}</p>
     <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2">
       <NuxtLink
-        v-if="canOpen && party" :to="{ path: '/users', query: { query: party.id, open: party.id } }"
-        :data-test="`party-${role}-link`" class="font-medium text-primary hover:underline"
+        v-if="canOpen && party" :to="{ path: `/users/${party.id}` }"
+        :data-test="`party-${role}-link`" :aria-label="`Voir le compte de ${name ?? party.id.slice(0, 8)}`"
+        class="font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
       >{{ name ?? party.id.slice(0, 8) }}</NuxtLink>
       <span v-else class="font-medium">{{ name ?? '—' }}</span>
       <span v-if="party?.username" class="text-xs text-text-muted">@{{ party.username }}</span>

@@ -15,12 +15,13 @@ vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
 const svc = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), remove: vi.fn(), restore: vi.fn() }))
 vi.mock('@/features/package-requests/services/packageRequestsService', () => ({ packageRequestsService: svc }))
 const bids = vi.hoisted(() => ({
-  listBids: vi.fn(), getBid: vi.fn(), getTimeline: vi.fn(), listAnnouncements: vi.fn(),
+  listBids: vi.fn(), counts: vi.fn(), suggest: vi.fn(), getBid: vi.fn(), getTimeline: vi.fn(), listAnnouncements: vi.fn(),
   removeAnnouncement: vi.fn(), restoreAnnouncement: vi.fn(),
 }))
 vi.mock('@/features/bids/services/bidsAdminService', () => ({ bidsAdminService: bids }))
 
 const EMPTY = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
+const COUNTS = { todo: 0, active: 0, recent: 0, completed: 0, closed: 0, all: 0, alerts: { disputeOpen: 0, noShow: 0, paymentPending: 0, late: 0 } }
 const row = { id: 'b1', status: 'ACCEPTED', announcementId: '2a2a0000-0000-4000-8000-0000000000a1', senderName: 'Awa', travelerName: 'Moussa',
   corridor: 'Paris → Bamako', weightKg: 5, netEur: 40, currency: 'EUR', paymentMethod: 'STRIPE', createdAt: '2026-10-06T18:53:35' }
 const detail = { ...row, contentCategory: null, recipientName: null, trackingNumber: 'DON-8ANH6EZR', commissionRate: 0.12,
@@ -45,6 +46,8 @@ describe('/colis, fiche colis', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     seedAuth('ADMIN')
+    bids.counts.mockResolvedValue(COUNTS)
+    bids.suggest.mockResolvedValue({ senders: [], travelers: [], recipients: [], trips: [], parcels: [] })
     query = {}
     bids.listBids.mockResolvedValue({ ...EMPTY, content: [row], totalElements: 1, totalPages: 1 })
     bids.listAnnouncements.mockResolvedValue({ ...EMPTY, content: [ann], totalElements: 1, totalPages: 1 })
@@ -63,6 +66,7 @@ describe('/colis, fiche colis', () => {
     await flushPromises()
     expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'b1' } })
     expect(w.find('[data-test="bid-detail"]').exists()).toBe(true)
+    await w.find('[data-test="bid-tab-tracking"]').trigger('click')
     expect(w.find('[data-test="timeline-empty"]').exists()).toBe(true)
     await w.find('[data-test="bid-close"]').trigger('click')
     expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })
@@ -139,6 +143,54 @@ describe('/colis, fiche colis', () => {
     await mountPage()
     expect(bids.listAnnouncements).toHaveBeenCalledWith(0, 20)
   })
+  it('section_param_selectsTab : ?open=&section=money ouvre la fiche sur l’onglet Argent', async () => {
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1', section: 'money' }
+    const w = await mountPage()
+    expect(w.find('[data-test="bid-panel-money"]').exists()).toBe(true)
+  })
+
+  it('section_invalid_ignored : ?section= inconnu, la fiche s’ouvre sur Résumé', async () => {
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1', section: 'javascript:x' }
+    const w = await mountPage()
+    expect(w.find('[data-test="bid-panel-summary"]').exists()).toBe(true)
+    await w.find('[data-test="bid-tab-tracking"]').trigger('click')
+    await flushPromises()
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: '1c1a0000-0000-4000-8000-0000000000b1', section: 'tracking' } })
+  })
+
+  it('tabChange_rewritesUrl : chaque onglet réécrit ?section=, Résumé l’enlève, les autres clés restent', async () => {
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1', status: 'ACCEPTED' }
+    const w = await mountPage()
+    await w.find('[data-test="bid-tab-money"]').trigger('click')
+    await flushPromises()
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: expect.objectContaining({ open: '1c1a0000-0000-4000-8000-0000000000b1', section: 'money', status: 'ACCEPTED' }) })
+    expect(w.find('[data-test="bid-panel-money"]').exists()).toBe(true)
+    await w.find('[data-test="bid-tab-summary"]').trigger('click')
+    await flushPromises()
+    const last = replaceMock.mock.lastCall?.[0] as { query: Record<string, string> }
+    expect(last.query.section).toBeUndefined()
+    expect(last.query.open).toBe('1c1a0000-0000-4000-8000-0000000000b1')
+    await w.find('[data-test="bid-tab-tracking"]').trigger('click')
+    await w.find('[data-test="bid-close"]').trigger('click')
+    await flushPromises()
+    const closed = replaceMock.mock.lastCall?.[0] as { query: Record<string, string> }
+    expect(closed.query.section).toBeUndefined()
+    expect(closed.query.open).toBeUndefined()
+  })
+
+  it('openingAnotherBid_dropsSection : un autre colis s’ouvre sur Résumé et ?section= disparaît', async () => {
+    query = { open: '1c1a0000-0000-4000-8000-0000000000b1', section: 'tracking' }
+    const other = { ...detail, id: 'b2' }
+    bids.listBids.mockResolvedValue({ ...EMPTY, content: [row, { ...row, id: 'b2' }], totalElements: 2, totalPages: 1 })
+    const w = await mountPage()
+    expect(w.find('[data-test="bid-panel-tracking"]').exists()).toBe(true)
+    bids.getBid.mockResolvedValue(other)
+    await w.find('[data-test="bid-row-b2"]').trigger('click')
+    await flushPromises()
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'b2' } })
+    expect(w.find('[data-test="bid-panel-summary"]').exists()).toBe(true)
+  })
+
   it('?tab=demandes&open= malveillant : la fiche ne s’ouvre pas', async () => {
     svc.list.mockResolvedValue(EMPTY)
     query = { tab: 'demandes', open: '../../admin/x' }

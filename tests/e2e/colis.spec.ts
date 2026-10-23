@@ -27,6 +27,8 @@ const TIMELINE = { bidId: 'b1', entries: [
   { at: '2026-06-01T08:00:00Z', kind: 'SCAN', label: 'DEPART', detail: 'Paris CDG', photoUrl: null, gpsLat: 49.0, gpsLon: 2.5 },
   { at: '2026-06-02T08:00:00Z', kind: 'SCAN', label: 'ARRIVEE', detail: 'Dakar', photoUrl: null },
 ] }
+// Ancien back : les endpoints neufs (nombres, suggestions, photos) n'existent pas, 404 sans `code`.
+const MISSING = { status: 404, contentType: 'application/problem+json', json: { status: 404, title: 'Not Found' } }
 const ANNS = { content: [{ id: 'an1', status: 'ACTIVE', travelerName: 'Awa', corridor: 'Lyon → Abidjan', departureDate: '2026-07-01', availableKg: 10, pricePerKg: 8 }], totalElements: 1, totalPages: 1, number: 0, size: 20 }
 
 test.beforeEach(async ({ page }) => {
@@ -36,6 +38,9 @@ test.beforeEach(async ({ page }) => {
   // Branches on URL to avoid multi-route ordering/precedence issues.
   await page.route('**/api/v1/admin/bids**', (route) => {
     const url = route.request().url()
+    if (/\/bids\/(counts|suggest)(\?|$)/.test(url) || /\/photos(\?|$)/.test(url)) {
+      return route.fulfill(MISSING)
+    }
     if (url.includes('/b1/timeline')) {
       return route.fulfill({ json: TIMELINE })
     }
@@ -67,11 +72,13 @@ test('admin opens a bid detail with transaction timeline', async ({ page }) => {
   await page.goto('/colis')
   await page.locator('[data-test="bid-row-b1"]').click()
   await expect(page.locator('[data-test="bid-tracking"]')).toHaveText('YADONY12345678')
-  await expect(page.locator('[data-test="timeline-entry"]')).toHaveCount(2)
-  await expect(page.getByText('Scan de départ')).toBeVisible()
   // Ancien back : sections présentes, détail annoncé comme non disponible.
   await expect(page.locator('[data-test="bid-legacy"]')).toBeVisible()
   await expect(page.locator('[data-test="trip-unavailable"]')).toBeVisible()
+  // La chronologie vit dans l'onglet Suivi du tiroir.
+  await page.locator('[data-test="bid-tab-tracking"]').click()
+  await expect(page.locator('[data-test="timeline-entry"]')).toHaveCount(2)
+  await expect(page.getByText('Scan de départ')).toBeVisible()
 })
 
 test('fiche colis complète : trajet, personnes, argent, chronologie, actions', async ({ page }) => {
@@ -80,12 +87,19 @@ test('fiche colis complète : trajet, personnes, argent, chronologie, actions', 
   await expect(page.locator('[data-test="bid-phrase"]')).toHaveText('Accepté par le voyageur, en attente de la remise du colis.')
   await expect(page.locator('[data-test="trip-departure"]')).toHaveText('lundi 12 octobre 2026 à 09:30')
   await expect(page.locator('[data-test="party-traveler-stripe"]')).toContainText('Utilisable')
-  await expect(page.locator('[data-test="money-status"]')).toHaveText('Sous séquestre')
-  await expect(page.getByText('Présence confirmée par le voyageur')).toBeVisible()
+  // Liens et gestes : dans le menu « Actions » de l'en-tête.
+  await page.locator('[data-test="bid-actions-menu"]').click()
   await expect(page.locator('[data-test="action-payment"]')).toBeVisible()
-  // Rôle ADMIN (sans ADMIN_MANAGE) : gestes super-admin visibles mais désactivés, avec la raison.
-  await expect(page.locator('[data-test="action-cancel"]')).toBeDisabled()
+  // Rôle ADMIN (sans ADMIN_MANAGE) : gestes super-admin visibles mais bloqués, avec la raison.
+  await expect(page.locator('[data-test="action-cancel"]')).toHaveAttribute('aria-disabled', 'true')
   await expect(page.locator('[data-test="cancel-disabled-reason"]')).toContainText('Réservé aux super-administrateurs')
+  await page.locator('[data-test="bid-actions-menu"]').click()
+  await expect(page.locator('[data-test="action-payment"]')).toHaveCount(0)
+  await page.locator('[data-test="bid-tab-money"]').click()
+  await expect(page.locator('[data-test="money-status"]')).toHaveText('Sous séquestre')
+  await page.locator('[data-test="bid-tab-tracking"]').click()
+  await expect(page.getByText('Présence confirmée par le voyageur')).toBeVisible()
+  await page.locator('[data-test="bid-tab-summary"]').click()
   await page.locator('[data-test="trip-open-announcement"]').click()
   await expect(page.locator('[data-test="announcement-focus"]')).toBeVisible()
   await expect(page.locator('[data-test="ann-row-an1"]')).toBeVisible()
@@ -109,6 +123,7 @@ test('super-admin annule un colis : effet argent confirmé, fiche relue', async 
       : BID_FULL })
   })
   await page.goto('/colis?open=1c1a0000-0000-4000-8000-0000000000b2')
+  await page.locator('[data-test="bid-actions-menu"]').click()
   await page.locator('[data-test="action-cancel"]').click()
   await expect(page.locator('[data-test="cancel-money-effect"]')).toContainText('L’expéditeur sera remboursé de 34,00 EUR ; aucun versement au voyageur.')
   await page.locator('[data-test="cancel-reason"]').selectOption('SENDER_REQUEST')
@@ -117,6 +132,8 @@ test('super-admin annule un colis : effet argent confirmé, fiche relue', async 
   await page.locator('[data-test="cancel-confirm"]').click()
   await expect(page.locator('[data-test="action-success"]')).toContainText('Remboursement de 34,00 EUR lancé')
   await expect(page.locator('[data-test="bid-status"]')).toHaveText('Annulé')
+  await page.locator('[data-test="bid-actions-menu"]').click()
+  await expect(page.locator('[data-test="action-cancel"]')).toHaveAttribute('aria-disabled', 'true')
   await expect(page.locator('[data-test="cancel-disabled-reason"]')).toContainText('Colis déjà annulé.')
   expect(calls).toEqual([{ reason: 'SENDER_REQUEST', note: null }])
 })

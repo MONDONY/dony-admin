@@ -57,4 +57,11 @@ describe('useUrlFilters', () => {
     await nextTick()
     expect(replace).toHaveBeenCalledWith({ query: {} })
   })
+
+  it('apply complète une query donnée avec les filtres courants, sans appeler replace', () => {
+    const filters = reactive({ status: 'ESCROW', query: '' })
+    const { apply } = useUrlFilters(filters, specs)
+    expect(apply({ tab: 'x', query: 'old' })).toEqual({ tab: 'x', status: 'ESCROW' })
+    expect(replace).not.toHaveBeenCalled()
+  })
 })

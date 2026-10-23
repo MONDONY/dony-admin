@@ -13,6 +13,12 @@ export interface FilterSpec {
   allowed?: readonly string[]
   /** Nom du paramètre d'URL si différent de la clé du filtre. */
   param?: string
+  /**
+   * Défaut qui dépend des autres paramètres (ex. vue « À traiter » sans filtre, « Tous » sinon) :
+   * calculé sur la query écrite, privée de ce paramètre. Remplace `default` à l'écriture.
+   */
+  // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+  defaultFrom?: (query: Record<string, unknown>) => FilterValue
 }
 
 export type FilterSpecs<K extends string = string> = Record<K, FilterSpec>
@@ -58,12 +64,17 @@ export function writeFilters<K extends string>(
   specs: FilterSpecs<K>,
 ): Record<string, unknown> {
   const next: Record<string, unknown> = { ...(query ?? {}) }
-  for (const key of Object.keys(specs) as K[]) {
+  const keys = Object.keys(specs) as K[]
+  // Les défauts calculés se lisent sur la query finale : on les écrit en dernier.
+  const ordered = [...keys.filter(k => !specs[k].defaultFrom), ...keys.filter(k => specs[k].defaultFrom)]
+  for (const key of ordered) {
     const spec = specs[key]
     const param = paramOf(key, spec)
     const value = values[key]
-    if (value === spec.default || value === '' || value === null || value === undefined) delete next[param]
-    else next[param] = String(value)
+    delete next[param]
+    const def = spec.defaultFrom ? spec.defaultFrom(next) : spec.default
+    if (value === def || value === '' || value === null || value === undefined) continue
+    next[param] = String(value)
   }
   return next
 }
