@@ -1,7 +1,7 @@
 /**
  * Onglet Colis : statut, recherche et dates vivent dans l'URL, à côté de tab/open/announcementId.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { seedAuth } from '~/tests/helpers/auth'
 
@@ -12,7 +12,7 @@ let query: Record<string, string> = {}
 vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
 
 const bids = vi.hoisted(() => ({
-  listBids: vi.fn(), getBid: vi.fn(), getTimeline: vi.fn(), listAnnouncements: vi.fn(),
+  listBids: vi.fn(), counts: vi.fn(), suggest: vi.fn(), getBid: vi.fn(), getTimeline: vi.fn(), listAnnouncements: vi.fn(),
   removeAnnouncement: vi.fn(), restoreAnnouncement: vi.fn(),
 }))
 vi.mock('@/features/bids/services/bidsAdminService', () => ({ bidsAdminService: bids }))
@@ -21,6 +21,7 @@ vi.mock('@/features/package-requests/services/packageRequestsService', () => ({
 }))
 
 const EMPTY = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
+const COUNTS = { todo: 0, active: 0, recent: 0, completed: 0, closed: 0, all: 0, alerts: { disputeOpen: 0, noShow: 0, paymentPending: 0, late: 0 } }
 
 async function mountPage() {
   const mod = await import('@/pages/colis/index.vue')
@@ -30,9 +31,14 @@ async function mountPage() {
 }
 
 describe('/colis : filtres dans l’URL', () => {
+  // Premier import de la page à froid : lent quand toute la suite tourne en parallèle.
+  beforeAll(async () => { await import('@/pages/colis/index.vue') }, 30_000)
+
   beforeEach(() => {
     vi.clearAllMocks()
     seedAuth('ADMIN')
+    bids.counts.mockResolvedValue(COUNTS)
+    bids.suggest.mockResolvedValue({ senders: [], travelers: [], recipients: [], trips: [], parcels: [] })
     query = {}
     bids.listBids.mockResolvedValue(EMPTY)
     bids.listAnnouncements.mockResolvedValue(EMPTY)
@@ -57,7 +63,17 @@ describe('/colis : filtres dans l’URL', () => {
     const w = await mountPage()
     await w.find('[data-test="filter-status"]').setValue('COMPLETED')
     await flushPromises()
-    expect(replaceMock).toHaveBeenCalledWith({ query: { status: 'COMPLETED' } })
+    // La vue « À traiter » (défaut sans paramètre) n'est plus le défaut dès qu'un statut est posé : elle est écrite.
+    expect(replaceMock).toHaveBeenCalledWith({ query: { status: 'COMPLETED', view: 'TODO' } })
+  })
+
+  it('un lien ?status= montre la vue « Tous » et un statut choisi depuis « Tous » ne l’écrit pas', async () => {
+    query = { status: 'IN_TRANSIT' }
+    const w = await mountPage()
+    expect(bids.listBids.mock.calls[0][0].view).toBe('ALL')
+    await w.find('[data-test="filter-status"]').setValue('COMPLETED')
+    await flushPromises()
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { status: 'COMPLETED' } })
   })
 
   it('une erreur de chargement des colis est montrée avec « Réessayer »', async () => {

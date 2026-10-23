@@ -8,7 +8,9 @@ import { formatMajorAmount } from '@/features/finance/types/index'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminBidListItem } from '@/features/bids/types/index'
 
-defineProps<{ bids: AdminBidListItem[]; loading: boolean; error?: string | null }>()
+withDefaults(defineProps<{ bids: AdminBidListItem[]; loading: boolean; error?: string | null; emptyLabel?: string; emptyHint?: string }>(), {
+  error: null, emptyLabel: 'Aucun colis', emptyHint: undefined,
+})
 const emit = defineEmits<{ select: [id: string]; retry: [] }>()
 
 const auth = useAuthStore()
@@ -81,6 +83,6 @@ const link = 'text-primary hover:underline focus-visible:outline focus-visible:o
         </tr>
       </tbody>
     </table>
-    <StateBlock :loading="loading" :error="error" :empty="bids.length === 0" empty-label="Aucun colis" @retry="emit('retry')" />
+    <StateBlock :loading="loading" :error="error" :empty="bids.length === 0" :empty-label="emptyLabel" :hint="emptyHint" @retry="emit('retry')" />
   </div>
 </template>

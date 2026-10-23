@@ -48,6 +48,11 @@ describe('BidsTable', () => {
   it('empty state', () => {
     expect(mountTable({ bids: [] }).text()).toMatch(/Aucun colis/i)
   })
+  it('BidsTable_customEmptyLabelAndHint', () => {
+    const w = mountTable({ bids: [], emptyLabel: 'Rien à traiter pour l’instant.', emptyHint: 'Tout est en ordre.' })
+    expect(w.find('[data-test="state-empty"]').text()).toContain('Rien à traiter pour l’instant.')
+    expect(w.find('[data-test="state-empty"]').text()).toContain('Tout est en ordre.')
+  })
   it('loading state', () => {
     expect(mountTable({ bids: [], loading: true }).text()).toMatch(/Chargement/i)
   })

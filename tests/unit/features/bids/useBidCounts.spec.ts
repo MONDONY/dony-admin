@@ -40,4 +40,18 @@ describe('useBidCounts', () => {
     await second; resolveFirst(counts(1)); await first
     expect(c.counts.value?.all).toBe(2); expect(c.isLoading.value).toBe(false)
   })
+  it('sync_reloadsOnlyWhenCommonFiltersChange', async () => {
+    svc.counts.mockResolvedValue(counts(3))
+    const f = filters(); const c = useBidCounts(f)
+    await c.sync(); await c.sync()
+    expect(svc.counts).toHaveBeenCalledTimes(1)
+    f.view = 'TODO'; f.status = 'COMPLETED'; f.alert = 'LATE'
+    await c.sync()
+    expect(svc.counts).toHaveBeenCalledTimes(1)
+    f.query = 'Awa'
+    await c.sync()
+    expect(svc.counts).toHaveBeenCalledTimes(2)
+    await c.reload()
+    expect(svc.counts).toHaveBeenCalledTimes(3)
+  })
 })

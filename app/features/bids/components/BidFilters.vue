@@ -20,8 +20,7 @@ const STATUSES: BidStatus[] = [
 ]
 const statusOptions = STATUSES.map(value => ({ value, label: bidStatusMeta(value).label }))
 // Valeurs de `PaymentMethod` côté back.
-const PAYMENTS = ['STRIPE', 'CASH', 'WAVE', 'ORANGE_MONEY', 'MOBILE_MONEY', 'PAWAPAY']
-const paymentOptions = PAYMENTS.map(value => ({ value, label: bidPaymentMethodLabel(value) }))
+const paymentOptions = BID_PAYMENT_METHODS.map(value => ({ value, label: bidPaymentMethodLabel(value) }))
 
 // Les champs suivent les filtres : ils peuvent venir de l'URL, d'une puce retirée ou d'une réinitialisation.
 const dateFrom = ref(props.filters.dateFrom ?? '')

@@ -15,12 +15,13 @@ vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
 const svc = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), remove: vi.fn(), restore: vi.fn() }))
 vi.mock('@/features/package-requests/services/packageRequestsService', () => ({ packageRequestsService: svc }))
 const bids = vi.hoisted(() => ({
-  listBids: vi.fn(), getBid: vi.fn(), getTimeline: vi.fn(), listAnnouncements: vi.fn(),
+  listBids: vi.fn(), counts: vi.fn(), suggest: vi.fn(), getBid: vi.fn(), getTimeline: vi.fn(), listAnnouncements: vi.fn(),
   removeAnnouncement: vi.fn(), restoreAnnouncement: vi.fn(),
 }))
 vi.mock('@/features/bids/services/bidsAdminService', () => ({ bidsAdminService: bids }))
 
 const EMPTY = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
+const COUNTS = { todo: 0, active: 0, recent: 0, completed: 0, closed: 0, all: 0, alerts: { disputeOpen: 0, noShow: 0, paymentPending: 0, late: 0 } }
 const row = { id: 'b1', status: 'ACCEPTED', announcementId: '2a2a0000-0000-4000-8000-0000000000a1', senderName: 'Awa', travelerName: 'Moussa',
   corridor: 'Paris → Bamako', weightKg: 5, netEur: 40, currency: 'EUR', paymentMethod: 'STRIPE', createdAt: '2026-10-06T18:53:35' }
 const detail = { ...row, contentCategory: null, recipientName: null, trackingNumber: 'DON-8ANH6EZR', commissionRate: 0.12,
@@ -45,6 +46,8 @@ describe('/colis, fiche colis', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     seedAuth('ADMIN')
+    bids.counts.mockResolvedValue(COUNTS)
+    bids.suggest.mockResolvedValue({ senders: [], travelers: [], recipients: [], trips: [], parcels: [] })
     query = {}
     bids.listBids.mockResolvedValue({ ...EMPTY, content: [row], totalElements: 1, totalPages: 1 })
     bids.listAnnouncements.mockResolvedValue({ ...EMPTY, content: [ann], totalElements: 1, totalPages: 1 })

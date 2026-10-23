@@ -11,8 +11,13 @@ export function useBidCounts(filters: BidsFilterState) {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   let seq = 0
+  let lastKey: string | null = null
+
+  /** Filtres dont dépendent les nombres (ni la vue, ni le statut, ni l'alerte). */
+  const keyOf = () => JSON.stringify([filters.announcementId, filters.query.trim(), filters.scope, filters.paymentMethod, filters.content.trim(), filters.dateFrom, filters.dateTo])
 
   async function reload(): Promise<void> {
+    lastKey = keyOf()
     const my = ++seq
     isLoading.value = true
     error.value = null
@@ -30,5 +35,11 @@ export function useBidCounts(filters: BidsFilterState) {
     }
   }
 
-  return { counts, unavailable, isLoading, error, reload }
+  /** Recharge seulement si un filtre qui compte a changé depuis le dernier chargement. */
+  async function sync(): Promise<void> {
+    if (keyOf() === lastKey) return
+    await reload()
+  }
+
+  return { counts, unavailable, isLoading, error, reload, sync }
 }
