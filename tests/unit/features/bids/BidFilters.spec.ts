@@ -79,4 +79,17 @@ describe('BidFilters', () => {
     expect(w.find('[data-test="filter-content"]').exists()).toBe(false)
     expect(w.find('[data-test="filter-status"]').exists()).toBe(true)
   })
+
+  it('Contenu : s’applique aussi au blur', async () => {
+    const w = mountFilters()
+    await w.find('[data-test="filter-content"]').setValue('livres')
+    await w.find('[data-test="filter-content"]').trigger('blur')
+    expect(w.emitted('update:content')![0]).toEqual(['livres'])
+  })
+
+  it('paiement : toutes les méthodes du back, libellés de bidPaymentMethodLabel', () => {
+    const w = mountFilters()
+    const opts = w.findAll('[data-test="filter-payment"] option')
+    expect(opts.map(o => o.element.getAttribute('value'))).toEqual(['', 'STRIPE', 'CASH', 'WAVE', 'ORANGE_MONEY', 'MOBILE_MONEY', 'PAWAPAY'])
+  })
 })

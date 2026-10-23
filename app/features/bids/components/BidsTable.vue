@@ -46,7 +46,7 @@ const link = 'text-primary hover:underline focus-visible:outline focus-visible:o
             <div class="text-xs text-text-muted tabular-nums">Créé le {{ fmtCreated(b.createdAt) }}</div>
           </td>
           <td class="px-4 py-3 text-sm tabular-nums">
-            <div :data-test="`bid-content-${b.id}`">{{ b.contentCategory ?? '—' }}</div>
+            <div :data-test="`bid-content-${b.id}`" class="max-w-[200px] truncate" :title="b.contentCategory ?? undefined">{{ b.contentCategory || '—' }}</div>
             <div class="text-xs text-text-muted">{{ b.weightKg }} kg</div>
           </td>
           <td class="px-4 py-3 text-sm">

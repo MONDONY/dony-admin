@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import BidSearchBox from '@/features/bids/components/BidSearchBox.vue'
 import type { AdminBidSuggest } from '@/features/bids/types/index'
@@ -121,5 +122,61 @@ describe('BidSearchBox', () => {
     expect((input(w).element as HTMLInputElement).value).toBe('YD-1')
     await w.setProps({ modelQuery: '' })
     expect((input(w).element as HTMLInputElement).value).toBe('')
+  })
+
+  it('le blur du champ ferme la liste', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('a')
+    expect(w.find('[role="listbox"]').exists()).toBe(true)
+    await input(w).trigger('blur')
+    expect(w.find('[role="listbox"]').exists()).toBe(false)
+  })
+
+  it('mousedown sur une option ne ferme pas la liste avant le pick', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('a')
+    const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    w.find('[data-test="suggestion-sender-0"]').element.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+    expect(w.find('[role="listbox"]').exists()).toBe(true)
+  })
+
+  it('un clic extérieur ferme la liste', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('a')
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[role="listbox"]').exists()).toBe(false)
+  })
+
+  it('Échap appelle preventDefault quand la liste est ouverte', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('a')
+    const ev = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    input(w).element.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+  })
+
+  it('aria-controls absent liste fermée, présent et unique par instance liste ouverte', async () => {
+    // Deux instances dans la même application : useId() leur donne des ids distincts.
+    const props = { modelQuery: '', modelScope: 'ALL' as const, suggestions, suggestionsDisabled: false }
+    const Two = defineComponent({ components: { BidSearchBox }, setup: () => ({ props }), template: '<div><BidSearchBox v-bind="props" /><BidSearchBox v-bind="props" /></div>' })
+    const w = mount(Two, { attachTo: document.body })
+    const inputs = w.findAll('[data-test="search"]')
+    expect(inputs[0]!.attributes('aria-controls')).toBeUndefined()
+    await inputs[0]!.setValue('a')
+    await inputs[1]!.setValue('a')
+    const ids = inputs.map(i => i.attributes('aria-controls'))
+    expect(ids[0]).toBeTruthy()
+    expect(ids[0]).not.toBe(ids[1])
+    expect(w.findAll('[role="listbox"]').map(l => l.attributes('id'))).toEqual(ids)
+  })
+
+  it('après un pick, si le parent réécrit modelQuery le champ suit', async () => {
+    const w = mountBox({ suggestions })
+    await input(w).setValue('je')
+    await w.find('[data-test="suggestion-sender-0"]').trigger('click')
+    await w.setProps({ modelQuery: 'Jean Dupont' })
+    expect((input(w).element as HTMLInputElement).value).toBe('Jean Dupont')
   })
 })

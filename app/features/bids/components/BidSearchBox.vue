@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { bidStatusMeta } from './bidStatus'
+import { BID_SEARCH_SCOPES } from '@/features/bids/lib/bidPageFilters'
 import type { AdminBidSuggest, BidSearchScope, BidStatus } from '@/features/bids/types/index'
 
 export type BidSuggestionKind = 'sender' | 'traveler' | 'recipient' | 'trip' | 'parcel'
@@ -19,19 +20,21 @@ const emit = defineEmits<{
   pick: [BidSuggestionKind, Payload]
 }>()
 
-const SCOPES: { value: BidSearchScope; label: string }[] = [
-  { value: 'ALL', label: 'Tout' },
-  { value: 'TRACKING', label: 'N° de suivi' },
-  { value: 'SENDER', label: 'Expéditeur' },
-  { value: 'TRAVELER', label: 'Voyageur' },
-  { value: 'RECIPIENT', label: 'Destinataire' },
-  { value: 'TRIP', label: 'Trajet' },
-]
+const SCOPES = BID_SEARCH_SCOPES
 
 const q = ref(props.modelQuery ?? '')
 watch(() => props.modelQuery, v => { q.value = v ?? '' })
 
 const open = ref(false)
+const listId = `bid-suggestions-${useId()}`
+const root = ref<HTMLElement | null>(null)
+
+// Clic extérieur : ferme la liste (les options gardent le focus du champ via mousedown.prevent).
+function onDocDown(e: MouseEvent) {
+  if (root.value && !root.value.contains(e.target as Node)) open.value = false
+}
+onMounted(() => document.addEventListener('mousedown', onDocDown))
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocDown))
 const active = ref(-1)
 
 interface Item { kind: BidSuggestionKind; index: number; title: string; sub: string | null; count: number | null; payload: Payload }
@@ -82,6 +85,8 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault()
     active.value = active.value <= 0 ? n - 1 : active.value - 1
   } else if (e.key === 'Escape') {
+    // Liste ouverte : Échap ne doit pas aussi vider le champ `type="search"`.
+    if (showList.value) e.preventDefault()
     open.value = false
     active.value = -1
   } else if (e.key === 'Enter') {
@@ -94,7 +99,7 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="relative">
+  <div ref="root" class="relative">
     <div class="flex flex-wrap items-center gap-2">
       <select
         data-test="search-scope" aria-label="Portée de la recherche" :value="modelScope"
@@ -106,10 +111,10 @@ function onKey(e: KeyboardEvent) {
       <input
         v-model="q" type="search" data-test="search" role="combobox" autocomplete="off"
         aria-label="Rechercher un colis" aria-autocomplete="list" aria-haspopup="listbox"
-        :aria-expanded="showList" aria-controls="bid-suggestions" :aria-activedescendant="activeId"
+        :aria-expanded="showList" :aria-controls="showList ? listId : undefined" :aria-activedescendant="activeId"
         placeholder="N° de suivi, personne, trajet…"
         class="min-h-10 min-w-[240px] flex-1 rounded-btn border border-border bg-surface px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-        @input="onInput" @keydown="onKey" @focus="open = !!q"
+        @input="onInput" @keydown="onKey" @focus="open = !!q" @blur="open = false"
       >
       <button
         type="button" data-test="search-submit"
@@ -119,7 +124,7 @@ function onKey(e: KeyboardEvent) {
     </div>
 
     <div
-      v-if="showList" id="bid-suggestions" role="listbox" aria-label="Suggestions"
+      v-if="showList" :id="listId" role="listbox" aria-label="Suggestions"
       class="absolute left-0 right-0 z-20 mt-1 max-h-96 overflow-auto rounded-card border border-border bg-surface py-1 shadow-lg"
     >
       <div v-for="g in groups" :key="g.kind" role="group" :aria-label="g.label">

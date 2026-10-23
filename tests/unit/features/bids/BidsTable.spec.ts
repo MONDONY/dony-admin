@@ -95,4 +95,17 @@ describe('BidsTable', () => {
     const w = mountTable({ bids: [{ ...bid, alert: 'DISPUTE_OPEN' }] })
     expect(w.find('[data-test="bid-alert"]').text()).toBe('Litige')
   })
+
+  it('contenu multi-catégories : tronqué avec le texte complet en title', () => {
+    const w = mountTable({ bids: [{ ...bid, contentCategory: 'Vêtements, Chaussures, Livres' }] })
+    const c = w.find('[data-test="bid-content-b1"]')
+    expect(c.text()).toBe('Vêtements, Chaussures, Livres')
+    expect(c.attributes('title')).toBe('Vêtements, Chaussures, Livres')
+    expect(c.classes()).toContain('truncate')
+  })
+
+  it('n° de suivi affiché en monospace', () => {
+    const w = mountTable({ bids: [{ ...bid, trackingNumber: 'YD-42' }] })
+    expect(w.find('[data-test="bid-tracking-b1"]').text()).toBe('YD-42')
+  })
 })

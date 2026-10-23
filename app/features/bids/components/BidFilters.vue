@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { bidStatusMeta } from './bidStatus'
 import { bidPaymentMethodLabel } from '@/features/bids/lib/bidLabels'
+import { BID_PAYMENT_METHODS } from '@/features/bids/lib/bidPageFilters'
 import type { BidsFilterState, BidStatus, BidStatusFilter } from '@/features/bids/types/index'
 
 const props = defineProps<{ filters: BidsFilterState; viewsAvailable: boolean }>()
@@ -18,8 +19,9 @@ const STATUSES: BidStatus[] = [
   'COMPLETED', 'REJECTED', 'CANCELLED', 'NO_SHOW', 'PARCEL_REFUSED', 'EXPIRED',
 ]
 const statusOptions = STATUSES.map(value => ({ value, label: bidStatusMeta(value).label }))
-const PAYMENTS = ['STRIPE', 'CASH', 'MOBILE_MONEY', 'WAVE', 'ORANGE_MONEY']
-const paymentOptions = PAYMENTS.map(value => ({ value, label: value === 'STRIPE' ? 'Carte' : value === 'CASH' ? 'Espèces à la remise' : bidPaymentMethodLabel(value) }))
+// Valeurs de `PaymentMethod` côté back.
+const PAYMENTS = ['STRIPE', 'CASH', 'WAVE', 'ORANGE_MONEY', 'MOBILE_MONEY', 'PAWAPAY']
+const paymentOptions = PAYMENTS.map(value => ({ value, label: bidPaymentMethodLabel(value) }))
 
 // Les champs suivent les filtres : ils peuvent venir de l'URL, d'une puce retirée ou d'une réinitialisation.
 const dateFrom = ref(props.filters.dateFrom ?? '')
@@ -32,6 +34,11 @@ watch(() => props.filters.content, v => { content.value = v ?? '' })
 const isActive = computed(() => props.filters.status !== 'TOUS' || !!props.filters.dateFrom || !!props.filters.dateTo
   || !!props.filters.paymentMethod || !!props.filters.content)
 
+// Au blur : n'émet que si la valeur a changé (Entrée suivie d'un blur ne recharge pas deux fois).
+function applyContent() {
+  const v = content.value.trim()
+  if (v !== (props.filters.content ?? '')) emit('update:content', v)
+}
 function applyDates() {
   emit('update:dateRange', dateFrom.value || null, dateTo.value || null)
 }
@@ -87,7 +94,7 @@ const field = 'min-h-10 rounded-btn border border-border bg-surface px-3 text-sm
         Contenu
         <input
           v-model="content" type="search" data-test="filter-content" aria-label="Contenu" placeholder="Ex. vêtements" :class="[field, 'min-w-[180px] text-text']"
-          @keydown.enter.prevent="emit('update:content', content.trim())" @search="emit('update:content', content.trim())"
+          @keydown.enter.prevent="emit('update:content', content.trim())" @blur="applyContent" @search="emit('update:content', content.trim())"
         >
       </label>
     </template>
