@@ -93,6 +93,14 @@ describe('UserListSection', () => {
     expect(links[0]!.attributes('aria-label')).toContain('Awa')
   })
 
+  it('tone qui renvoie null : texte simple, sans badge', async () => {
+    sectionMock.mockResolvedValue(page([{ id: 'a', name: 'Awa' }]))
+    const w = mountIt({ columns: [{ key: 'name', label: 'Nom', tone: () => null }] })
+    await flushPromises()
+    expect(w.find('span.rounded-full').exists()).toBe(false)
+    expect(w.get('[data-test="section-row"]').text()).toBe('Awa')
+  })
+
   it('sans linkFor : pas de colonne Ouvrir ; titre et indication affichés ; slot action', async () => {
     sectionMock.mockResolvedValue(page([{ id: 'a', name: 'Awa' }]))
     const w = mount(UserListSection, {

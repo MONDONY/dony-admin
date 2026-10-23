@@ -62,7 +62,7 @@ onMounted(list.load)
         <tbody>
           <tr v-for="(row, i) in list.rows.value" :key="String(row.id ?? i)" data-test="section-row" class="border-t border-border">
             <td v-for="c in columns" :key="c.key" class="py-2 pr-3 align-top">
-              <StatusBadge v-if="c.tone" :label="cell(c, row)" :tone="c.tone(row)" />
+              <StatusBadge v-if="c.tone && c.tone(row)" :label="cell(c, row)" :tone="c.tone(row)!" />
               <template v-else>{{ cell(c, row) }}</template>
             </td>
             <td v-if="linkFor" class="py-2">
