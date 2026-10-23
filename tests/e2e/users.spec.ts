@@ -112,15 +112,13 @@ test('admin sees the user list', async ({ page }) => {
 })
 
 test('admin opens a user detail', async ({ page }) => {
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await expect(page.getByText('jean@x.fr')).toBeVisible()
   await expect(page.locator('[data-test="action-suspend"]')).toBeVisible()
 })
 
 test('admin suspends a user with a reason', async ({ page }) => {
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await page.locator('[data-test="action-suspend"]').click()
   await page.locator('[data-test="reason"]').fill('contenu frauduleux')
   await page.locator('[data-test="confirm"]').click()
@@ -130,8 +128,7 @@ test('admin suspends a user with a reason', async ({ page }) => {
 })
 
 test('admin suspend la publication depuis la fiche user', async ({ page }) => {
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await page.locator('[data-test="action-suspend-publishing"]').click()
   await page.locator('[data-test="reason"]').fill('annonces frauduleuses')
   await page.locator('[data-test="confirm"]').click()
@@ -163,8 +160,7 @@ test('admin coupe la messagerie avec une durée choisie puis la rétablit', asyn
     return route.fulfill({ json: LIST_PAGE })
   })
 
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await expect(page.locator('[data-test="messaging-status"]')).toContainText('Autorisée')
 
   // La mise en sourdine vit dans l'onglet Gestion ; le statut de messagerie, dans le Profil.

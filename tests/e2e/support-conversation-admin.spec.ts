@@ -78,8 +78,7 @@ test.beforeEach(async ({ page }) => {
 
 test('fiche utilisateur : écrire à l’utilisateur ouvre le fil sur la page Support', async ({ page }) => {
   const state = await mockBackend(page)
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
 
   // Section « Conversations support » : les tickets de ce compte, avec lien vers la liste filtrée.
   const section = page.locator('[data-test="user-support-section"]')
@@ -150,8 +149,7 @@ test('page Support : filtre ?userId= avec bandeau et retrait du filtre', async (
 
 test('ancien back : envoi indisponible et section de fiche masquée', async ({ page }) => {
   await mockBackend(page, { oldBack: true })
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await expect(page.locator('aside').getByText('jean@x.fr')).toBeVisible()
   // ?userId= ignoré : la file entière revient, la section n'aurait aucun sens.
   await expect(page.locator('[data-test="user-support-section"]')).toHaveCount(0)

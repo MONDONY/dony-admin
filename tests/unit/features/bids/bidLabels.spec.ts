@@ -67,6 +67,8 @@ describe('bidLabels', () => {
     expect(bidStatusMeta('PAYMENT_ESCROWED').label).toBe('Payé (séquestre)')
     expect(bidStatusMeta('NO_SHOW').label).toBe('Absence (no-show)')
     expect(bidStatusPhrase('IN_TRANSIT')).toContain('en route')
+    expect(bidStatusMeta('ARRIVED')).toEqual({ label: 'Arrivé', tone: 'info' })
+    expect(bidStatusPhrase('ARRIVED')).toContain('arrivé')
     expect(bidStatusPhrase('X' as never)).toBeNull()
   })
 })

@@ -10,7 +10,8 @@ const ADMIN = {
   status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {},
 }
 
-const USER_ID = 'u-42'
+// Vrai UUID : prouve que le repli `legacy=1` empêche la redirection vers /users/<id>.
+const USER_ID = '5d1f7a3c-2b4e-4c6d-9e8f-0a1b2c3d4e5f'
 
 const userDetail = {
   id: USER_ID, firstName: 'Jean', lastName: 'Dupont', email: 'jean@x.fr',
@@ -54,8 +55,7 @@ test('un escrow actif empêche la confirmation et explique pourquoi', async ({ p
     })
   })
 
-  await page.goto('/users')
-  await page.click(`[data-test="row-${USER_ID}"]`)
+  await page.goto(`/users?open=${USER_ID}&legacy=1`) // tiroir de repli
   // Attendre que la fiche soit rendue avant d'interagir
   // La zone de danger vit dans l'onglet Gestion de la fiche.
   await page.click('[data-test="tab-gestion"]')
@@ -105,8 +105,7 @@ test('un rapport propre permet de supprimer après double confirmation', async (
     })
   })
 
-  await page.goto('/users')
-  await page.click(`[data-test="row-${USER_ID}"]`)
+  await page.goto(`/users?open=${USER_ID}&legacy=1`) // tiroir de repli
   // La zone de danger vit dans l'onglet Gestion de la fiche.
   await page.click('[data-test="tab-gestion"]')
   await expect(page.locator('[data-test="action-delete"]')).toBeVisible()
@@ -164,8 +163,7 @@ test('un refus du back laisse le dialogue ouvert avec le message', async ({ page
     })
   })
 
-  await page.goto('/users')
-  await page.click(`[data-test="row-${USER_ID}"]`)
+  await page.goto(`/users?open=${USER_ID}&legacy=1`) // tiroir de repli
   // La zone de danger vit dans l'onglet Gestion de la fiche.
   await page.click('[data-test="tab-gestion"]')
   await expect(page.locator('[data-test="action-delete"]')).toBeVisible()

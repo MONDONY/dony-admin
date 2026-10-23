@@ -254,7 +254,7 @@ describe('paymentLabels', () => {
     expect(routeLabel(insight({ departureCity: null, arrivalCity: null }))).toBeNull()
     expect(routeLabel(null)).toBeNull()
     expect(bidStatusLabel('COMPLETED')).toBe('Livré')
-    expect(bidStatusLabel('ARRIVED')).toBe('ARRIVED')
+    expect(bidStatusLabel('ARRIVED')).toBe('Arrivé')
     expect(bidStatusLabel(null)).toBeNull()
     expect(shortId(null)).toBe('—')
   })

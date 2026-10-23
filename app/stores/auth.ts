@@ -103,7 +103,7 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
  * Permissions de base par rôle — miroir de AdminRole.permissions() côté backend :
  * - SUPER_ADMIN : toutes
  * - ADMIN : toutes sauf ADMIN_MANAGE
- * - SUPPORT : 18 permissions lecture + actions limitées
+ * - SUPPORT : 15 permissions, lecture + actions limitées (ni suspendre, ni bannir, ni couper la messagerie)
  */
 const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,
@@ -111,8 +111,6 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
   SUPPORT: [
     'METRICS_VIEW',
     'USER_VIEW',
-    'USER_SUSPEND',
-    'USER_BAN',
     'USER_KYC',
     'PAYMENT_VIEW',
     'BID_VIEW',
@@ -121,8 +119,6 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
     'ALERT_RESOLVE',
     'MODERATION_VIEW',
     'MESSAGE_DELETE',
-    // Lot C : le support peut deja bannir, geste bien plus severe.
-    'USER_MESSAGE_MUTE',
     'REPORT_VIEW',
     'REPORT_RESOLVE',
     'RATING_MODERATE',

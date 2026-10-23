@@ -72,8 +72,7 @@ async function mockBackend(
 }
 
 async function openWalletTab(page: Page) {
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await page.locator('[data-test="tab-wallet"]').click()
   await expect(page.locator('[data-test="wallet-account-EUR"]')).toContainText('12,50 EUR')
 }
@@ -121,8 +120,7 @@ test('part remboursable non calculable (null côté back) : mention discrète', 
 
 test('ancien back sans endpoint portefeuille : mention discrète et aucune correction', async ({ page }) => {
   await mockBackend(page, { walletMissing: true })
-  await page.goto('/users')
-  await page.locator('[data-test="row-u1"]').click()
+  await page.goto('/users?open=u1&legacy=1') // tiroir de repli
   await page.locator('[data-test="tab-wallet"]').click()
   await expect(page.locator('[data-test="wallet-unavailable"]')).toHaveText('Portefeuille indisponible pour le moment')
   await expect(page.locator('[data-test="wallet-error"]')).toHaveCount(0)

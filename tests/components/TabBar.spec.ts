@@ -66,4 +66,13 @@ describe('TabBar', () => {
     expect(w.attributes('class')).toContain('border-b')
     w.unmount()
   })
+
+  it('idPrefix pose un id sur chaque bouton, sinon aucun', () => {
+    const w = mountBar('a', { idPrefix: 'p-tab' })
+    expect(w.find('[data-test="tab-a"]').attributes('id')).toBe('p-tab-a')
+    w.unmount()
+    const w2 = mountBar('a')
+    expect(w2.find('[data-test="tab-a"]').attributes('id')).toBeUndefined()
+    w2.unmount()
+  })
 })

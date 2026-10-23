@@ -119,16 +119,23 @@ describe('useAuthStore (admin)', () => {
     expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
   })
 
-  // Lot C : USER_MESSAGE_MUTE a été accordée au support sur décision du propriétaire
-  // du produit — il peut déjà bannir, geste bien plus sévère. CONTENT_REMOVE et
-  // RATING_DELETE lui restent fermées.
-  it('SUPPORT can mute messaging but cannot remove content nor delete ratings', () => {
+  it('SUPPORT n’a plus suspendre, bannir ni couper la messagerie', () => {
     seedAuth('SUPPORT')
     const auth = useAuthStore()
-    expect(auth.can('USER_MESSAGE_MUTE')).toBe(true)
+    expect(auth.can('USER_SUSPEND')).toBe(false)
+    expect(auth.can('USER_BAN')).toBe(false)
+    expect(auth.can('USER_MESSAGE_MUTE')).toBe(false)
+    for (const p of ['USER_KYC', 'SUPPORT_TICKET_VIEW', 'SUPPORT_TICKET_MANAGE', 'REPORT_RESOLVE', 'ALERT_RESOLVE', 'MESSAGE_DELETE', 'RATING_MODERATE'] as const) {
+      expect(auth.can(p)).toBe(true)
+    }
+    expect(effectivePermissions('SUPPORT', {}).size).toBe(15)
+  })
+
+  it('SUPPORT ne peut ni retirer un contenu ni supprimer un avis', () => {
+    seedAuth('SUPPORT')
+    const auth = useAuthStore()
     expect(auth.can('CONTENT_REMOVE')).toBe(false)
     expect(auth.can('RATING_DELETE')).toBe(false)
-    expect(auth.can('RATING_MODERATE')).toBe(true)
   })
 
   it('SUPPORT can receive CONTENT_REMOVE via an override', () => {

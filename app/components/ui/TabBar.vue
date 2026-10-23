@@ -18,7 +18,9 @@ const props = withDefaults(defineProps<{
   variant?: 'pill' | 'underline'
   /** Préfixe des `data-test` : `${testPrefix}-${id}`. */
   testPrefix?: string
-}>(), { ariaLabel: 'Sections', variant: 'pill', testPrefix: 'tab' })
+  /** Si fourni, chaque bouton reçoit `id="${idPrefix}-${id}"` (pour `aria-labelledby` des panneaux). */
+  idPrefix?: string
+}>(), { ariaLabel: 'Sections', variant: 'pill', testPrefix: 'tab', idPrefix: undefined })
 const emit = defineEmits<{ 'update:modelValue': [id: T] }>()
 
 const root = ref<HTMLElement | null>(null)
@@ -73,7 +75,7 @@ const cls = (active: boolean) => props.variant === 'underline'
       <div class="flex gap-1">
         <button
           v-for="t in b.tabs" :key="t.id" type="button"
-          :data-test="`${testPrefix}-${t.id}`" :data-tab-id="t.id" :aria-pressed="modelValue === t.id"
+          :id="idPrefix ? `${idPrefix}-${t.id}` : undefined" :data-test="`${testPrefix}-${t.id}`" :data-tab-id="t.id" :aria-pressed="modelValue === t.id"
           :class="cls(modelValue === t.id)"
           @click="select(t.id)" @keydown="onKey($event, indexOf(t.id))"
         >
