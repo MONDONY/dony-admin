@@ -325,4 +325,11 @@ describe('users/index.vue — mode recette en masse', () => {
     expect(navigateTo).toHaveBeenCalledWith(`/users/${id}`, { replace: true })
     expect(detailOpenMock).not.toHaveBeenCalled()
   })
+
+  it('?open invalide (pas un UUID) : aucune redirection, la liste reste', async () => {
+    vi.mocked(navigateTo).mockClear()
+    await mountUsersPage(undefined, '../admin/x')
+    expect(navigateTo).not.toHaveBeenCalled()
+    expect(listMock).toHaveBeenCalled()
+  })
 })

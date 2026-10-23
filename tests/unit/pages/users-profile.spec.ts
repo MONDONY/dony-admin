@@ -60,7 +60,7 @@ describe('users/[id].vue', () => {
 
   it('pas de bande d’alerte sans alerte, bande avec un compte suspendu', async () => {
     let w = await mountPage()
-    expect(w.find('[role="status"][data-test="alert-band"]').exists()).toBe(false)
+    expect(w.find('[data-test="alert-band-content"]').exists()).toBe(false)
     getMock.mockResolvedValue({ ...USER, status: 'SUSPENDED' })
     w = await mountPage()
     expect(w.get('[data-test="alert-band"]').text()).toContain('Compte suspendu')
@@ -146,5 +146,64 @@ describe('users/[id].vue', () => {
     getMock.mockResolvedValue({ ...USER, firstName: null, lastName: null, email: null, city: null, country: null })
     const w = await mountPage()
     expect(w.get('[data-test="profile-name"]').text()).toBe(ID.slice(0, 8))
+  })
+
+  it('panneaux d’onglet reliés à leur bouton', async () => {
+    const w = await mountPage({ tab: 'money' })
+    const panel = w.get('[data-test="tab-content-money"]')
+    expect(panel.attributes('role')).toBe('tabpanel')
+    expect(panel.attributes('aria-labelledby')).toBe('profile-tab-money')
+    expect(w.find('#profile-tab-money').exists()).toBe(true)
+  })
+
+  it('changement de l’identifiant de la route : recharge et efface le compte précédent', async () => {
+    const { reactive } = await import('vue')
+    const ID_B = '11111111-2222-4333-8444-555555555555'
+    seedAuth('ADMIN')
+    const route = reactive({ params: { id: ID } as Record<string, string>, query: {} as Record<string, string> })
+    vi.stubGlobal('useRoute', () => route)
+    vi.resetModules()
+    getMock.mockImplementation(async (id: string) => ({ ...USER, id, firstName: id === ID ? 'Awa' : 'Bob', lastName: 'X' }))
+    const mod = await import('@/pages/users/[id].vue')
+    const w = mount(mod.default, { global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
+    await flushPromises()
+    expect(w.get('[data-test="profile-name"]').text()).toBe('Awa X')
+    route.params.id = ID_B
+    await flushPromises()
+    expect(getMock).toHaveBeenLastCalledWith(ID_B)
+    expect(overviewMock).toHaveBeenLastCalledWith(ID_B)
+    expect(w.get('[data-test="profile-name"]').text()).toBe('Bob X')
+    expect(w.text()).not.toContain('Awa')
+  })
+
+  it('changement vers un identifiant invalide : état introuvable, plus de données', async () => {
+    const { reactive } = await import('vue')
+    seedAuth('ADMIN')
+    const route = reactive({ params: { id: ID } as Record<string, string>, query: {} as Record<string, string> })
+    vi.stubGlobal('useRoute', () => route)
+    vi.resetModules()
+    const mod = await import('@/pages/users/[id].vue')
+    const w = mount(mod.default, { global: { stubs: { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
+    await flushPromises()
+    route.params.id = 'pas-un-uuid'
+    await flushPromises()
+    expect(w.text()).toContain('Utilisateur introuvable')
+    expect(w.find('[data-test="profile-name"]').exists()).toBe(false)
+  })
+
+  it('démontée pendant la synthèse : pas de redirection tardive', async () => {
+    const pending = Promise.withResolvers<never>()
+    overviewMock.mockReturnValue(pending.promise)
+    const w = await mountPage()
+    w.unmount()
+    pending.reject({ statusCode: 404 })
+    await flushPromises()
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('statut KYC inconnu : jamais un badge vide', async () => {
+    getMock.mockResolvedValue({ ...USER, kycStatus: 'WEIRD' })
+    const w = await mountPage()
+    expect(w.get('[data-test="profile-header"]').text()).toContain('WEIRD')
   })
 })

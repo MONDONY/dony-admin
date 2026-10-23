@@ -10,6 +10,7 @@ import { useUsers } from '@/features/users/composables/useUsers'
 import { useUserDetail } from '@/features/users/composables/useUserDetail'
 import { useUserKyc } from '@/features/users/composables/useUserKyc'
 import { useUserDeletion } from '@/features/users/composables/useUserDeletion'
+import { uuidParam } from '@/lib/safeInput'
 import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useRecetteBulk } from '@/features/users/composables/useRecetteBulk'
 import type { AdminDeletionReasonCode, AdminKycDetail, UserStatusFilter } from '@/features/users/types/index'
@@ -54,8 +55,9 @@ async function openLegacy(id: string) { await detail.open(id) }
 
 /** Ancien lien `?open=<id>` : redirigé vers la fiche, sauf `legacy=1` (repli vers le tiroir). */
 function redirectLegacyOpen(openId: unknown): boolean {
-  if (typeof openId !== 'string' || !openId || route.query?.legacy === '1') return false
-  void navigateTo(`/users/${openId}`, { replace: true })
+  const id = uuidParam(openId)
+  if (!id || route.query?.legacy === '1') return false
+  void navigateTo(`/users/${id}`, { replace: true })
   return true
 }
 async function afterAction() { await fetchUsers() }

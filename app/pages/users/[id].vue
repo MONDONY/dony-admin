@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
 import TabBar from '@/components/ui/TabBar.vue'
 import UserProfileHeader from '@/features/user-profile/components/UserProfileHeader.vue'
@@ -26,12 +26,19 @@ const NO_KPIS: UserOverviewKpis = {
   reportsReceived: null, reportsSent: null, reportsPending: null, averageRating: null, ratingCount: null,
 }
 
-const userId = uuidParam(route.params?.id)
+const userId = computed(() => uuidParam(route.params?.id))
 const user = ref<AdminUserDetail | null>(null)
-const detailLoading = ref(false)
+const detailLoading = ref(true)
 const detailError = ref<string | null>(null)
-const notFound = ref(userId === null)
-const ov = useUserOverview(userId ?? '')
+const notFound = ref(false)
+// Une liaison de synthèse par identifiant : jamais de reste d'un autre compte.
+const ovBinding = shallowRef(useUserOverview(''))
+const ov = {
+  overview: computed(() => ovBinding.value.overview.value),
+  isLoading: computed(() => ovBinding.value.isLoading.value),
+  error: computed(() => ovBinding.value.error.value),
+  unavailable: computed(() => ovBinding.value.unavailable.value),
+}
 
 const tabs = computed(() => visibleTabs(p => auth.can(p)))
 const tab = computed<ProfileTab>(() => {
@@ -44,35 +51,55 @@ function selectTab(id: ProfileTab) {
 
 const alerts = computed(() => user.value ? buildAlerts(user.value, ov.overview.value?.kpis ?? NO_KPIS) : [])
 
+let unmounted = false
+let redirected = false
+/** Vrai tant que la page est montée ET affiche encore ce compte (réponses tardives ignorées). */
+const isCurrent = (id: string) => !unmounted && userId.value === id
+
 async function loadDetail() {
-  if (!userId) return
+  const id = userId.value
+  if (!id) return
   detailLoading.value = true
   detailError.value = null
   try {
-    user.value = await usersService.get(userId)
+    const res = await usersService.get(id)
+    if (isCurrent(id)) user.value = res
   } catch (e) {
+    if (!isCurrent(id)) return
     const status = (e as { statusCode?: number, status?: number, response?: { status?: number } })
     if ((status.statusCode ?? status.status ?? status.response?.status) === 404) notFound.value = true
     else detailError.value = extractProblemMessage(e, 'Impossible de charger l’utilisateur')
   } finally {
-    detailLoading.value = false
+    if (isCurrent(id)) detailLoading.value = false
   }
 }
 
-let redirected = false
 async function loadOverview() {
-  await ov.load()
-  // Backend plus ancien : retour à l'ancien tiroir, une seule fois, sans empiler l'historique.
-  if (ov.unavailable.value && !redirected) {
+  const id = userId.value
+  if (!id) return
+  await ovBinding.value.load()
+  // Backend plus ancien : retour à l'ancien tiroir, une seule fois, sans empiler l'historique,
+  // et seulement si l'admin est encore sur cette fiche.
+  if (isCurrent(id) && ovBinding.value.unavailable.value && !redirected) {
     redirected = true
-    await navigateTo(`/users?open=${userId}&legacy=1`, { replace: true })
+    await navigateTo(`/users?open=${id}&legacy=1`, { replace: true })
   }
 }
 
-onMounted(async () => {
-  if (!userId) return
+async function loadAll() {
+  user.value = null
+  detailError.value = null
+  redirected = false
+  const id = userId.value
+  notFound.value = id === null
+  ovBinding.value = useUserOverview(id ?? '')
+  if (!id) { detailLoading.value = false; return }
   await Promise.all([loadDetail(), loadOverview()])
-})
+}
+
+onMounted(loadAll)
+watch(userId, () => { void loadAll() })
+onBeforeUnmount(() => { unmounted = true })
 </script>
 
 <template>
@@ -94,16 +121,16 @@ onMounted(async () => {
       <StateBlock v-if="ov.isLoading.value || ov.error.value" :loading="ov.isLoading.value" :error="ov.error.value" @retry="loadOverview" />
       <UserKpiGrid v-if="ov.overview.value" :kpis="ov.overview.value.kpis" />
 
-      <TabBar :tabs="tabs" :model-value="tab" variant="underline" aria-label="Sections de la fiche" @update:model-value="selectTab" />
+      <TabBar :tabs="tabs" :model-value="tab" variant="underline" id-prefix="profile-tab" aria-label="Sections de la fiche" @update:model-value="selectTab" />
 
       <!-- Emplacements des onglets : remplis par les tâches suivantes. -->
-      <section v-if="tab === 'overview'" data-test="tab-content-overview" />
-      <section v-else-if="tab === 'parcels'" data-test="tab-content-parcels" />
-      <section v-else-if="tab === 'money'" data-test="tab-content-money" />
-      <section v-else-if="tab === 'incidents'" data-test="tab-content-incidents" />
-      <section v-else-if="tab === 'identity'" data-test="tab-content-identity" />
-      <section v-else-if="tab === 'support'" data-test="tab-content-support" />
-      <section v-else-if="tab === 'manage'" data-test="tab-content-manage" />
+      <section v-if="tab === 'overview'" id="profile-panel-overview" role="tabpanel" aria-labelledby="profile-tab-overview" data-test="tab-content-overview" />
+      <section v-else-if="tab === 'parcels'" id="profile-panel-parcels" role="tabpanel" aria-labelledby="profile-tab-parcels" data-test="tab-content-parcels" />
+      <section v-else-if="tab === 'money'" id="profile-panel-money" role="tabpanel" aria-labelledby="profile-tab-money" data-test="tab-content-money" />
+      <section v-else-if="tab === 'incidents'" id="profile-panel-incidents" role="tabpanel" aria-labelledby="profile-tab-incidents" data-test="tab-content-incidents" />
+      <section v-else-if="tab === 'identity'" id="profile-panel-identity" role="tabpanel" aria-labelledby="profile-tab-identity" data-test="tab-content-identity" />
+      <section v-else-if="tab === 'support'" id="profile-panel-support" role="tabpanel" aria-labelledby="profile-tab-support" data-test="tab-content-support" />
+      <section v-else-if="tab === 'manage'" id="profile-panel-manage" role="tabpanel" aria-labelledby="profile-tab-manage" data-test="tab-content-manage" />
     </template>
   </div>
 </template>

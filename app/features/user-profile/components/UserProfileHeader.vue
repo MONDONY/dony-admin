@@ -12,12 +12,13 @@ const initials = computed(() => {
   const letters = [props.user.firstName, props.user.lastName].map(s => s?.trim().charAt(0) ?? '').join('').toUpperCase()
   return letters || displayName.value.charAt(0).toUpperCase()
 })
-const kycLabel = computed(() => ({
+const KYC_LABELS = {
   VERIFIED: { label: 'Identité vérifiée', tone: 'success' as const },
   PENDING: { label: 'Identité en cours', tone: 'warning' as const },
   REJECTED: { label: 'Identité refusée', tone: 'danger' as const },
   NOT_STARTED: { label: 'Identité non vérifiée', tone: 'neutral' as const },
-}[props.user.kycStatus]))
+} as Record<string, { label: string, tone: 'success' | 'warning' | 'danger' | 'neutral' }>
+const kycLabel = computed(() => KYC_LABELS[props.user.kycStatus] ?? { label: props.user.kycStatus || 'Identité inconnue', tone: 'neutral' as const })
 const roleLabel = computed(() => {
   const sender = props.user.roles.includes('ROLE_SENDER')
   const traveler = props.user.roles.includes('ROLE_TRAVELER')
@@ -67,6 +68,7 @@ async function copyId() {
         <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-text-muted">
           <span class="inline-flex items-center gap-2">
             <span class="break-all">ID : {{ user.id }}</span>
+            <span class="sr-only" aria-live="polite">{{ copied ? 'ID copié' : '' }}</span>
             <button
               type="button" data-test="copy-id"
               class="rounded-btn border border-border px-2 py-0.5 transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96]"
