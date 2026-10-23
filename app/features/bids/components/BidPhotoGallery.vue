@@ -15,9 +15,16 @@ import { serverDateIso } from '@/lib/serverDate'
  * `bid.photoUrls` et les photos des scans de la chronologie. Seules les URL `https:` passent.
  */
 const props = defineProps<{ bid: AdminBidDetail; timeline: AdminBidTimeline | null }>()
+const emit = defineEmits<{
+  /** Ancien back (endpoint des photos absent) : la chronologie garde alors ses miniatures. */
+  unavailable: [value: boolean]
+  /** Ancien back : la fiche est à relire pour renouveler les URL présignées de repli. */
+  'reload-bid': []
+}>()
 
 const { photos, isLoading, error, unavailable, load, reload } = useBidPhotos(() => props.bid.id)
 onMounted(() => { void load() })
+watch(unavailable, v => emit('unavailable', v))
 watch(() => props.bid.id, () => { viewerIndex.value = null; void load() })
 
 const source = computed(() => safePhotos(unavailable.value ? fallbackPhotos(props.bid, props.timeline) : photos.value))
@@ -62,6 +69,8 @@ function openAt(stage: PhotoStage, i: number, e: MouseEvent) {
 async function onViewerReload(i: number) {
   const id = props.bid.id
   viewerIndex.value = null
+  // Ancien back : les URL viennent de la fiche et de la chronologie, pas de l'endpoint des photos.
+  if (unavailable.value) { emit('reload-bid'); return }
   await reload()
   if (props.bid.id !== id || error.value) return
   const n = flat.value.length

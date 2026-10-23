@@ -13,6 +13,7 @@ import { seedAuth } from '~/tests/helpers/auth'
 const NuxtLink = { props: ['to'], template: '<a :data-to="JSON.stringify(to)"><slot /></a>' }
 const stubs = {
   NuxtLink,
+  BidPhotoGallery: { props: ['bid', 'timeline'], emits: ['unavailable', 'reload-bid'], template: '<div data-test="gallery-stub"><button data-test="gallery-reload" @click="$emit(\'reload-bid\')" /></div>' },
   StripeResyncPanel: { props: ['paymentId', 'currency'], template: '<div data-test="resync-stub">{{ paymentId }}</div>' },
   StartSupportConversationDialog: { props: ['open', 'recipient'], template: '<div v-if="open" data-test="support-dialog">{{ recipient?.name }}</div>' },
 }
@@ -216,10 +217,18 @@ describe('BidDetailPanel', () => {
       expect(w.text()).toContain('Gare de Lyon')
     })
 
-    it('photos du colis : dans l’onglet Suivi', async () => {
+    it('photos du colis : galerie dans l’onglet Suivi, plus de bloc d’origine', async () => {
       const w = mountPanel()
       await tab(w, 'tracking')
-      expect(w.find('[data-test="parcel-photos"] img').attributes('src')).toBe('https://r2.test/p1?sig=1')
+      expect(w.find('[data-test="gallery-stub"]').exists()).toBe(true)
+      expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
+      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(false)
+    })
+
+    it('galerie en ancien back : « Recharger » relaie resynced pour renouveler les URL', async () => {
+      const w = mountPanel(fullBid, { section: 'tracking' })
+      await w.find('[data-test="gallery-reload"]').trigger('click')
+      expect(w.emitted('resynced')).toHaveLength(1)
     })
 
     it('pas de code, pas de photo, livré et rendu datés', async () => {
@@ -228,8 +237,6 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="parcel-code"]').text()).toContain('Pas encore généré')
       expect(w.text()).toContain('Livré le')
       expect(w.text()).toContain('Rendu le')
-      await tab(w, 'tracking')
-      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(true)
     })
   })
 
@@ -238,7 +245,8 @@ describe('BidDetailPanel', () => {
       const w = mountPanel()
       expect(w.find('[data-test="section-money"]').exists()).toBe(false)
       await tab(w, 'money')
-      expect(w.find('[role="tabpanel"]').attributes('aria-labelledby')).toBe('bid-tab-money')
+      expect(w.find('[role="region"]').attributes('aria-labelledby')).toBe('bid-tab-money')
+      expect(w.find('[role="tabpanel"]').exists()).toBe(false)
       expect(w.find('[data-test="money-amount"]').text()).toBe('48,00 EUR')
       expect(w.find('[data-test="money-commission"]').text()).toBe('5,76 EUR')
       expect(w.find('[data-test="bid-detail-net"]').text()).toBe('40,00 EUR')
@@ -417,6 +425,7 @@ describe('BidDetailPanel', () => {
       await tab(w, 'tracking')
       expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
       expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(false)
+      expect(w.find('[data-test="section-timeline"]').exists()).toBe(true)
     })
 
     it('noms absents : tirets', () => {
@@ -440,7 +449,7 @@ describe('BidDetailPanel', () => {
   })
 
   describe('valeurs malveillantes', () => {
-    it('noms, contenu et motifs en texte brut ; photos non https écartées', async () => {
+    it('noms, contenu et motifs en texte brut', async () => {
       const payload = '<img src=x onerror="alert(1)">'
       const w = mountPanel({ ...fullBid, description: payload, contentCategory: payload, refusalReason: payload, status: 'REJECTED',
         sender: { ...fullBid.sender!, name: payload, username: payload },
@@ -450,16 +459,7 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="parcel-description"]').text()).toBe(payload)
       expect(w.find('[data-test="party-sender"]').text()).toContain(payload)
       await tab(w, 'tracking')
-      const imgs = w.findAll('[data-test="parcel-photos"] img')
-      expect(imgs).toHaveLength(1)
-      expect(imgs[0].attributes('src')).toBe('https://r2.test/ok.jpg')
-      expect(w.find('[data-test="parcel-photos"] a').attributes('rel')).toBe('noopener noreferrer')
       expect(w.html()).not.toContain('javascript:')
-    })
-    it('aucune photo sûre : « Aucune photo du colis »', () => {
-      const w = mountPanel({ ...fullBid, photoUrls: ['javascript:alert(1)'] }, { section: 'tracking' })
-      expect(w.find('[data-test="parcel-photos"]').exists()).toBe(false)
-      expect(w.find('[data-test="parcel-no-photos"]').exists()).toBe(true)
     })
   })
 
@@ -471,7 +471,7 @@ describe('BidDetailPanel', () => {
         .toEqual(['Résumé', 'Suivi', 'Argent', 'Échanges', 'Incidents 2'])
       expect(w.find('[data-test="bid-tab-incidents"] [data-test="tab-count"]').classes()).toContain('text-danger')
       expect(w.find('[data-test="bid-tab-summary"]').attributes('aria-pressed')).toBe('true')
-      const panel = w.find('[role="tabpanel"]')
+      const panel = w.find('[role="region"][data-test="bid-panel-summary"]')
       expect(panel.attributes('aria-labelledby')).toBe('bid-tab-summary')
       expect(panel.find('[data-test="section-trip"]').exists()).toBe(true)
       // Les personnes, l'étape et le menu restent visibles hors des onglets.
@@ -485,7 +485,8 @@ describe('BidDetailPanel', () => {
       await tab(w, 'chat')
       expect(w.find('[data-test="bid-tab-placeholder-chat"]').text()).toContain('Contenu à venir')
       await tab(w, 'incidents')
-      expect(w.find('[data-test="bid-tab-placeholder-incidents"]').text()).toContain('Contenu à venir')
+      expect(w.find('[data-test="bid-tab-placeholder-incidents"]').exists()).toBe(false)
+      expect(w.find('[data-test="incident-dispute"]').exists()).toBe(true)
     })
 
     it('incidents sans litige ouvert ni annulation : pas de pastille', () => {

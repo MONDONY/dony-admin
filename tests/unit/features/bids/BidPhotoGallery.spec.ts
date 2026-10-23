@@ -216,4 +216,24 @@ describe('BidPhotoGallery', () => {
     resolveReload({ bidId: 'b1', photos: [photo('d1', 'DEPART')] }); await flushPromises()
     expect(document.querySelector('[data-test="photo-viewer"]')).toBeNull()
   })
+
+  it('legacyBackend_emitsUnavailable_andReloadAsksForFreshBid', async () => {
+    svc.photos.mockRejectedValue(Object.assign(new Error('nf'), { statusCode: 404, data: {} }))
+    const w = mountGallery({ bid: bid({ photoUrls: ['https://r2/created.jpg'] }) }); await flushPromises()
+    expect(w.emitted('unavailable')?.at(-1)).toEqual([true])
+    await w.find('[data-test="photo-CREATION-0"]').trigger('click')
+    document.querySelector('[data-test="photo-main"]')!.dispatchEvent(new Event('error'))
+    await flushPromises()
+    ;(document.querySelector('[data-test="photo-reload"]') as HTMLElement).click()
+    await flushPromises()
+    expect(w.emitted('reload-bid')).toHaveLength(1)
+    expect(document.querySelector('[data-test="photo-viewer"]')).toBeNull()
+  })
+
+  it('endpointAvailable_doesNotEmitUnavailable', async () => {
+    svc.photos.mockResolvedValue({ bidId: 'b1', photos: [photo('d1', 'DEPART')] })
+    const w = mountGallery(); await flushPromises()
+    expect(w.emitted('unavailable')?.some(a => a[0] === true) ?? false).toBe(false)
+    expect(w.emitted('reload-bid')).toBeUndefined()
+  })
 })

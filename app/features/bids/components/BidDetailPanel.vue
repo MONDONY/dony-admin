@@ -1,30 +1,25 @@
 <script setup lang="ts">
 import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
-import StatusBadge from '@/components/ui/StatusBadge.vue'
 import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
-import BidTimeline from './BidTimeline.vue'
+import BidTrackingTab from './BidTrackingTab.vue'
+import BidMoneyTab from './BidMoneyTab.vue'
+import BidIncidentsTab from './BidIncidentsTab.vue'
 import BidDrawerHeader from './BidDrawerHeader.vue'
 import BidAlertBanner from './BidAlertBanner.vue'
 import BidStepper from './BidStepper.vue'
 import BidPartiesRow from './BidPartiesRow.vue'
 import BidActionsMenu from './BidActionsMenu.vue'
 import BidSummaryTab, { type BidIdentifierRow } from './BidSummaryTab.vue'
-import StripeResyncPanel from '@/features/payments/components/StripeResyncPanel.vue'
 import StartSupportConversationDialog from '@/features/support/components/StartSupportConversationDialog.vue'
 import BidCancelDialog from './BidCancelDialog.vue'
 import BidDisputeDialog from './BidDisputeDialog.vue'
 import { useBidAdminActions } from '@/features/bids/composables/useBidAdminActions'
 import { cancelMoneyEffect, disputeMoneyEffect, parcelWithTraveler } from '@/features/bids/lib/bidActions'
 import type { AdminBidCancelReason, AdminDisputeReason, DisputeParty } from '@/features/bids/lib/bidActions'
-import { paymentStatusMeta } from '@/features/payments/components/paymentStatus'
-import { formatMajorAmount } from '@/features/finance/types/index'
-import { formatMoney } from '@/features/payments/types/index'
-import type { PaymentStatus } from '@/features/payments/types/index'
 import type { AdminBidDetail, AdminBidTimeline } from '@/features/bids/types/index'
-import { bidPaymentMethodLabel, formatDateTime, placeLabel } from '@/features/bids/lib/bidLabels'
+import { placeLabel } from '@/features/bids/lib/bidLabels'
 import { useAuthStore } from '@/stores/auth'
-import { safeHttpsUrl } from '@/lib/safeInput'
 
 export type BidDrawerTab = 'summary' | 'tracking' | 'money' | 'chat' | 'incidents'
 
@@ -93,29 +88,6 @@ function selectTab(id: BidDrawerTab) {
   requested.value = id
   emit('update:section', id)
 }
-
-/** Photos présignées : seules les URL `https:` deviennent un lien ou une image. */
-const photos = computed<string[] | null>(() => props.bid.photoUrls
-  ? props.bid.photoUrls.map(safeHttpsUrl).filter((u): u is string => u !== null)
-  : null)
-
-// ---- Argent ----
-const isCash = computed(() => props.bid.paymentMethod === 'CASH')
-const canSeePayments = computed(() => auth.can('PAYMENT_VIEW'))
-const payStatus = computed(() => {
-  const s = money.value?.status
-  if (!s) return null
-  return paymentStatusMeta(s as PaymentStatus) ?? { label: s, tone: 'neutral' as const }
-})
-const moneyEmpty = computed(() => {
-  if (!canSeePayments.value) return 'Montants du paiement réservés aux admins qui consultent les transactions.'
-  if (isCash.value) return 'Paiement en espèces à la remise : aucun paiement en ligne pour ce colis.'
-  return 'Aucun paiement en ligne enregistré pour ce colis.'
-})
-const commissionRate = computed(() => (props.bid.commissionRate != null
-  ? `${(props.bid.commissionRate * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
-  : null))
-const canResync = computed(() => canSeePayments.value && money.value?.rail === 'STRIPE')
 
 const supportRecipient = ref<{ id: string; name: string } | null>(null)
 
@@ -189,74 +161,22 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
             variant="underline" test-prefix="bid-tab" id-prefix="bid-tab" aria-label="Sections de la fiche colis"
             :tabs="tabs" :model-value="active" @update:model-value="selectTab"
           />
-          <div :id="`bid-panel-${active}`" role="tabpanel" :aria-labelledby="`bid-tab-${active}`" class="pt-5" :data-test="`bid-panel-${active}`">
+          <div :id="`bid-panel-${active}`" role="region" :aria-labelledby="`bid-tab-${active}`" class="pt-5" :data-test="`bid-panel-${active}`">
             <BidSummaryTab
               v-if="active === 'summary'" :bid="bid" :identifiers="identifiers" :copied="copied"
               @show-announcement="emit('show-announcement', $event)" @show-trip-bids="emit('show-trip-bids', $event)" @copy="copy"
             />
 
-            <!-- Suivi (provisoire, remplacé par la galerie par étape en Task 8) -->
-            <template v-else-if="active === 'tracking'">
-              <section class="mb-6" data-test="section-timeline" aria-labelledby="bid-timeline-title">
-                <h3 id="bid-timeline-title" class="mb-2 text-sm font-semibold">Chronologie</h3>
-                <BidTimeline :timeline="timeline" :loading="timelineLoading" :error="timelineError" />
-              </section>
-              <section v-if="photos" class="mb-6" data-test="section-photos" aria-labelledby="bid-photos-title">
-                <h3 id="bid-photos-title" class="mb-2 text-sm font-semibold">Photos du colis</h3>
-                <ul v-if="photos.length" class="flex flex-wrap gap-2" data-test="parcel-photos">
-                  <li v-for="(url, i) in photos" :key="url">
-                    <a :href="url" target="_blank" rel="noopener noreferrer" class="block rounded-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                      <img
-                        :src="url" :alt="`Photo du colis ${i + 1}`"
-                        class="h-20 w-20 rounded-xs object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
-                      >
-                    </a>
-                  </li>
-                </ul>
-                <p v-else class="text-xs text-text-muted" data-test="parcel-no-photos">Aucune photo du colis.</p>
-              </section>
-            </template>
+            <BidTrackingTab
+              v-else-if="active === 'tracking'" :bid="bid" :timeline="timeline" :loading="timelineLoading" :error="timelineError"
+              @reload-bid="emit('resynced')"
+            />
+            <BidMoneyTab v-else-if="active === 'money'" :bid="bid" @resynced="emit('resynced')" />
+            <BidIncidentsTab v-else-if="active === 'incidents'" :bid="bid" />
 
-            <!-- Argent (provisoire, enrichi en Task 8) -->
-            <template v-else-if="active === 'money'">
-              <section class="mb-6" data-test="section-money" aria-labelledby="bid-money-title">
-                <h3 id="bid-money-title" class="mb-2 text-sm font-semibold">Argent</h3>
-                <dl class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                  <template v-if="money">
-                    <div><dt class="text-text-muted">Payé par l’expéditeur</dt><dd class="tabular-nums" data-test="money-amount">{{ formatMoney(money.amountCents, money.currency ?? undefined) }}</dd></div>
-                    <div><dt class="text-text-muted">Commission Yadony</dt><dd class="tabular-nums" data-test="money-commission">{{ formatMoney(money.commissionCents, money.currency ?? undefined) }}</dd></div>
-                  </template>
-                  <div><dt class="text-text-muted">Net voyageur</dt><dd class="tabular-nums font-medium" data-test="bid-detail-net">{{ formatMajorAmount(bid.netEur, bid.currency) }}</dd></div>
-                  <div><dt class="text-text-muted">Devise</dt><dd data-test="bid-detail-currency">{{ bid.currency ?? money?.currency ?? '—' }}</dd></div>
-                  <div><dt class="text-text-muted">Méthode</dt><dd data-test="money-method">{{ bidPaymentMethodLabel(bid.paymentMethod) }}</dd></div>
-                  <div v-if="!money && commissionRate"><dt class="text-text-muted">Taux de commission</dt><dd class="tabular-nums">{{ commissionRate }}</dd></div>
-                  <template v-if="money">
-                    <div><dt class="text-text-muted">Statut du paiement</dt><dd><StatusBadge v-if="payStatus" v-bind="payStatus" data-test="money-status" /><span v-else>—</span></dd></div>
-                    <div v-if="money.rail === 'STRIPE'" data-test="money-captured">
-                      <dt class="text-text-muted">Encaissé</dt>
-                      <dd class="tabular-nums">{{ money.capturedAt && formatDateTime(money.capturedAt) ? `Oui, le ${formatDateTime(money.capturedAt)}` : 'Non' }}</dd>
-                    </div>
-                    <div data-test="money-released">
-                      <dt class="text-text-muted">Versé au voyageur</dt>
-                      <dd class="tabular-nums">{{ money.escrowReleasedAt ? `Le ${formatDateTime(money.escrowReleasedAt)}` : 'Pas encore' }}</dd>
-                    </div>
-                    <div v-if="money.refundedCents > 0"><dt class="text-text-muted">Remboursé</dt><dd class="tabular-nums">{{ formatMoney(money.refundedCents, money.currency ?? undefined) }}</dd></div>
-                    <div v-if="money.payoutHeldAt" class="sm:col-span-2"><dt class="text-danger">Versement retenu</dt><dd class="tabular-nums">Depuis le {{ formatDateTime(money.payoutHeldAt) }}</dd></div>
-                    <div v-if="money.disputed" class="sm:col-span-2"><dt class="text-danger">Litige bancaire</dt><dd>Ouvert chez la banque de l’expéditeur</dd></div>
-                  </template>
-                </dl>
-                <p v-if="!money" class="mt-2 text-sm text-text-muted text-pretty" data-test="money-empty">
-                  {{ legacy ? 'Détail du paiement non disponible pour l’instant.' : moneyEmpty }}
-                </p>
-              </section>
-              <div v-if="canResync && money" class="mb-6" data-test="action-resync">
-                <StripeResyncPanel :payment-id="money.paymentId" :currency="money.currency" @done="emit('resynced')" />
-              </div>
-            </template>
-
-            <!-- Échanges et Incidents : contenu branché en Task 9 -->
-            <p v-else class="rounded-card border border-dashed border-border px-4 py-6 text-center text-sm text-text-muted text-pretty" :data-test="`bid-tab-placeholder-${active}`">
-              Contenu à venir. En attendant, le menu « Actions » mène {{ active === 'chat' ? 'à la conversation' : 'au litige ou à l’absence signalée' }}.
+            <!-- Échanges : contenu branché en Task 9 -->
+            <p v-else class="rounded-card border border-dashed border-border px-4 py-6 text-center text-sm text-text-muted text-pretty" data-test="bid-tab-placeholder-chat">
+              Contenu à venir. En attendant, le menu « Actions » mène à la conversation.
             </p>
           </div>
         </div>

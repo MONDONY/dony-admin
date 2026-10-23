@@ -134,7 +134,7 @@ const CANCELLATION_REASONS: Record<string, string> = {
   TRAVELER_ACCOUNT_DELETED: 'Compte du voyageur supprimé',
   TRIP_RESCHEDULE_WITHDRAWN: 'Report de trajet retiré',
 }
-const cancellationReasonLabel = (c: string | null | undefined): string =>
+export const cancellationReasonLabel = (c: string | null | undefined): string =>
   c ? (CANCELLATION_REASONS[c] ?? unlisted('Motif', c)) : '—'
 const reportReason = (c: string): string => (REPORT_REASON_LABELS[c] ?? unlisted('Motif', c))
 const reportTarget = (c: string): string => REPORT_TARGET_TYPE_LABELS[c as keyof typeof REPORT_TARGET_TYPE_LABELS] ?? unlisted('Type', c)
