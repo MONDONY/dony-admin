@@ -9,7 +9,7 @@ import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatTabTitle } from '@/features/notifications/lib/format'
 
-defineProps<{ title: string; subtitle?: string }>()
+defineProps<{ title: string; subtitle?: string; /** Domaine de la page (Comptes, Argent…), affiché au-dessus du titre. */ section?: string }>()
 
 const DEFAULT_TITLE = 'Yadony ADMIN'
 const notifications = useNotificationsStore()
@@ -32,8 +32,11 @@ async function logout() {
 <template>
   <header class="h-topbar shrink-0 bg-surface border-b border-border flex items-center justify-between px-6">
     <div class="min-w-0">
-      <h1 class="font-display text-xl font-bold">{{ title }}</h1>
-      <p v-if="subtitle" class="text-sm text-text-muted">{{ subtitle }}</p>
+      <p v-if="section" data-test="topbar-section" class="text-[11px] font-semibold uppercase leading-tight tracking-wider text-primary">{{ section }}</p>
+      <div class="flex items-baseline gap-3">
+        <h1 class="font-display text-xl font-bold leading-tight">{{ title }}</h1>
+        <p v-if="subtitle" class="hidden truncate text-sm text-text-muted lg:block">{{ subtitle }}</p>
+      </div>
     </div>
     <div class="flex items-center gap-2">
       <ClientOnly><GlobalSearch /></ClientOnly>
