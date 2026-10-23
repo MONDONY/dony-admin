@@ -102,4 +102,26 @@ describe('UserOverviewTab', () => {
     const w = mountTab(null, [ev({ at: '2026-10-20T22:30:00Z' })])
     expect(w.get('[data-test="timeline-entry"]').text()).toMatch(/21\/10\/2026/)
   })
+
+  it('le type de chaque entrée est nommé en texte, pas seulement par la couleur', () => {
+    const w = mountTab(null, [
+      ev(), ev({ kind: 'PAYMENT' }), ev({ kind: 'DISPUTE' }), ev({ kind: 'REPORT' }),
+    ])
+    expect(w.findAll('[data-test="timeline-kind"]').map(k => k.text()))
+      .toEqual(['Colis', 'Paiement', 'Litige', 'Signalement'])
+  })
+
+  it('type inconnu : point neutre et libellé brut', () => {
+    const w = mountTab(null, [ev({ kind: 'MYSTERY' as never, refType: null })])
+    expect(w.get('[data-test="timeline-dot"]').classes()).toContain('bg-border')
+    expect(w.get('[data-test="timeline-kind"]').text()).toBe('MYSTERY')
+  })
+
+  it('liens Ouvrir nommés avec la référence ou le titre, tableau nommé, colonnes scope=col', () => {
+    const w = mountTab([item()], [ev({ title: 'Colis remis' })])
+    expect(w.get('[data-test="in-progress-row"] a').attributes('aria-label')).toBe('Ouvrir DNY-001')
+    expect(w.get('[data-test="timeline-entry"] a').attributes('aria-label')).toBe('Ouvrir Colis remis')
+    expect(w.get('table').attributes('aria-label')).toContain('en cours')
+    expect(w.findAll('th').every(h => h.attributes('scope') === 'col')).toBe(true)
+  })
 })

@@ -22,17 +22,17 @@ const when = (iso: string) => dateFmt.format(new Date(iso))
     <h2 class="text-base font-semibold">En cours et livrés depuis 3 jours</h2>
     <p v-if="items.length === 0" data-test="in-progress-empty" class="text-sm text-text-muted">Rien en cours ni livré depuis 3 jours</p>
     <div v-else class="overflow-x-auto">
-      <table class="w-full min-w-[40rem] text-left text-sm">
+      <table aria-label="Colis et trajets en cours ou livrés depuis 3 jours" class="w-full min-w-[40rem] text-left text-sm">
         <thead>
           <tr class="text-xs text-text-muted">
-            <th class="py-2 pr-3 font-semibold">Type</th>
-            <th class="py-2 pr-3 font-semibold">Référence</th>
-            <th class="py-2 pr-3 font-semibold">Trajet</th>
-            <th class="py-2 pr-3 font-semibold">Rôle</th>
-            <th class="py-2 pr-3 font-semibold">Statut</th>
-            <th class="py-2 pr-3 font-semibold">Mise à jour</th>
-            <th class="py-2 pr-3 text-right font-semibold">Montant</th>
-            <th class="py-2 font-semibold"><span class="sr-only">Ouvrir</span></th>
+            <th scope="col" class="py-2 pr-3 font-semibold">Type</th>
+            <th scope="col" class="py-2 pr-3 font-semibold">Référence</th>
+            <th scope="col" class="py-2 pr-3 font-semibold">Trajet</th>
+            <th scope="col" class="py-2 pr-3 font-semibold">Rôle</th>
+            <th scope="col" class="py-2 pr-3 font-semibold">Statut</th>
+            <th scope="col" class="py-2 pr-3 font-semibold">Mise à jour</th>
+            <th scope="col" class="py-2 pr-3 text-right font-semibold">Montant</th>
+            <th scope="col" class="py-2 font-semibold"><span class="sr-only">Ouvrir</span></th>
           </tr>
         </thead>
         <tbody>
@@ -45,7 +45,7 @@ const when = (iso: string) => dateFmt.format(new Date(iso))
             <td class="py-2 pr-3 tabular-nums">{{ when(i.updatedAt) }}</td>
             <td class="py-2 pr-3 text-right tabular-nums">{{ i.amount ? formatAmount(i.amount.amountCents, i.amount.currency) : '—' }}</td>
             <td class="py-2">
-              <NuxtLink v-if="linkForItem(i)" :to="linkForItem(i)!" class="text-primary hover:underline">Ouvrir</NuxtLink>
+              <NuxtLink v-if="linkForItem(i)" :aria-label="`Ouvrir ${i.reference}`" :to="linkForItem(i)!" class="text-primary hover:underline">Ouvrir</NuxtLink>
             </td>
           </tr>
         </tbody>
