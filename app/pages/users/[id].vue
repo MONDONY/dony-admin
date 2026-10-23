@@ -4,6 +4,7 @@ import StateBlock from '@/components/ui/StateBlock.vue'
 import TabBar from '@/components/ui/TabBar.vue'
 import UserProfileHeader from '@/features/user-profile/components/UserProfileHeader.vue'
 import UserAlertBand from '@/features/user-profile/components/UserAlertBand.vue'
+import UserOverviewTab from '@/features/user-profile/components/UserOverviewTab.vue'
 import UserKpiGrid from '@/features/user-profile/components/UserKpiGrid.vue'
 import { useUserOverview } from '@/features/user-profile/composables/useUserOverview'
 import { buildAlerts } from '@/features/user-profile/lib/userProfileAlerts'
@@ -124,7 +125,9 @@ onBeforeUnmount(() => { unmounted = true })
       <TabBar :tabs="tabs" :model-value="tab" variant="underline" id-prefix="profile-tab" aria-label="Sections de la fiche" @update:model-value="selectTab" />
 
       <!-- Emplacements des onglets : remplis par les tâches suivantes. -->
-      <section v-if="tab === 'overview'" id="profile-panel-overview" role="tabpanel" aria-labelledby="profile-tab-overview" data-test="tab-content-overview" />
+      <section v-if="tab === 'overview'" id="profile-panel-overview" role="tabpanel" aria-labelledby="profile-tab-overview" data-test="tab-content-overview">
+        <UserOverviewTab v-if="ov.overview.value" :in-progress="ov.overview.value.inProgress" :timeline="ov.overview.value.timeline" />
+      </section>
       <section v-else-if="tab === 'parcels'" id="profile-panel-parcels" role="tabpanel" aria-labelledby="profile-tab-parcels" data-test="tab-content-parcels" />
       <section v-else-if="tab === 'money'" id="profile-panel-money" role="tabpanel" aria-labelledby="profile-tab-money" data-test="tab-content-money" />
       <section v-else-if="tab === 'incidents'" id="profile-panel-incidents" role="tabpanel" aria-labelledby="profile-tab-incidents" data-test="tab-content-incidents" />

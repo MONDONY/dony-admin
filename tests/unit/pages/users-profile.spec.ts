@@ -58,6 +58,17 @@ describe('users/[id].vue', () => {
     expect(overviewMock).toHaveBeenCalledWith(ID)
   })
 
+  it('l’onglet Vue d’ensemble rend les éléments en cours et la frise', async () => {
+    overviewMock.mockResolvedValue({
+      kpis: NULLS,
+      inProgress: [{ kind: 'PARCEL', id: 'b1', reference: 'DNY-001', corridor: 'Paris → Dakar', role: 'SENDER', status: 'IN_TRANSIT', updatedAt: '2026-10-20T10:00:00Z', amount: null }],
+      timeline: [{ kind: 'PARCEL', title: 'Colis remis', detail: 'DNY-001', at: '2026-10-20T10:00:00Z', refType: 'PARCEL', refId: 'b1' }],
+    })
+    const w = await mountPage()
+    expect(w.get('[data-test="tab-content-overview"]').findAll('[data-test="in-progress-row"]')).toHaveLength(1)
+    expect(w.get('[data-test="tab-content-overview"]').findAll('[data-test="timeline-entry"]')).toHaveLength(1)
+  })
+
   it('pas de bande d’alerte sans alerte, bande avec un compte suspendu', async () => {
     let w = await mountPage()
     expect(w.find('[data-test="alert-band-content"]').exists()).toBe(false)
