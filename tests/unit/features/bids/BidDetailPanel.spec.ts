@@ -5,6 +5,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+vi.mock('@/features/moderation/services/moderationService')
+import { moderationService } from '@/features/moderation/services/moderationService'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import type { AdminBidDetail, BidStatus } from '@/features/bids/types/index'
@@ -486,10 +488,28 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="section-trip"]').exists()).toBe(false)
       expect(w.find('[data-test="section-timeline"]').exists()).toBe(true)
       await tab(w, 'chat')
-      expect(w.find('[data-test="bid-tab-placeholder-chat"]').text()).toContain('Contenu à venir')
+      await flushPromises()
+      expect(w.find('[data-test="bid-chat-tab"]').exists()).toBe(true)
       await tab(w, 'incidents')
       expect(w.find('[data-test="bid-tab-placeholder-incidents"]').exists()).toBe(false)
       expect(w.find('[data-test="incident-dispute"]').exists()).toBe(true)
+    })
+
+    it('panel_chatTabLoadsOnlyWhenOpened', async () => {
+      const get = vi.fn().mockResolvedValue([
+        { id: 'm1', conversationId: 'fs-42', senderName: 'Awa', content: 'Bonjour', flagged: false, deleted: false, createdAt: '2026-10-06T18:53:35' },
+        { id: 'm2', conversationId: 'fs-42', senderName: 'Moussa', content: 'Salut', flagged: false, deleted: false, createdAt: '2026-10-06T18:54:35' },
+      ])
+      ;(moderationService as any).getMessages = get
+      const w = mountPanel()
+      await flushPromises()
+      expect(get).not.toHaveBeenCalled()
+      expect(w.find('[data-test="bid-tab-chat"] [data-test="tab-count"]').exists()).toBe(false)
+      await tab(w, 'chat')
+      await flushPromises()
+      expect(get).toHaveBeenCalledTimes(1)
+      expect(get).toHaveBeenCalledWith('fs-42')
+      expect(w.find('[data-test="bid-tab-chat"] [data-test="tab-count"]').text()).toBe('2')
     })
 
     it('incidents sans litige ouvert ni annulation : pas de pastille', () => {

@@ -5,6 +5,7 @@ import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
 import BidTrackingTab from './BidTrackingTab.vue'
 import BidMoneyTab from './BidMoneyTab.vue'
 import BidIncidentsTab from './BidIncidentsTab.vue'
+import BidChatTab from './BidChatTab.vue'
 import BidDrawerHeader from './BidDrawerHeader.vue'
 import BidAlertBanner from './BidAlertBanner.vue'
 import BidStepper from './BidStepper.vue'
@@ -68,13 +69,15 @@ const countries = computed(() => {
 })
 
 // ---- Onglets ----
+const chatCount = ref<number | null>(null)
 const tabs = computed<TabItem<BidDrawerTab>[]>(() => {
   const out: TabItem<BidDrawerTab>[] = [
     { id: 'summary', label: 'Résumé' },
     { id: 'tracking', label: 'Suivi' },
     { id: 'money', label: 'Argent' },
   ]
-  if (auth.can('MODERATION_VIEW') && links.value?.conversationId) out.push({ id: 'chat', label: 'Échanges' })
+  // Pastille : seulement une fois les messages chargés (à l'ouverture de l'onglet).
+  if (auth.can('MODERATION_VIEW') && links.value?.conversationId) out.push({ id: 'chat', label: 'Échanges', count: chatCount.value ?? undefined })
   // `null` : pas le droit DISPUTE_VIEW ; `undefined` : ancien back. Dans les deux cas, pas d'onglet.
   const inc = props.bid.incidents
   if (inc != null && auth.can('DISPUTE_VIEW')) {
@@ -118,7 +121,7 @@ async function confirmDispute(party: DisputeParty, reason: AdminDisputeReason, d
 
 const copied = ref<string | null>(null)
 watch(() => props.bid.id, () => {
-  copied.value = null; supportRecipient.value = null; dialog.value = null; actions.reset()
+  copied.value = null; supportRecipient.value = null; dialog.value = null; actions.reset(); chatCount.value = null
   const reset = props.section ?? 'summary'
   if (requested.value !== reset) { requested.value = reset; emit('update:section', active.value) }
 })
@@ -187,10 +190,10 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
             <BidMoneyTab v-else-if="active === 'money'" :bid="bid" @resynced="emit('resynced')" />
             <BidIncidentsTab v-else-if="active === 'incidents'" :bid="bid" />
 
-            <!-- Échanges : contenu branché en Task 9 -->
-            <p v-else class="rounded-card border border-dashed border-border px-4 py-6 text-center text-sm text-text-muted text-pretty" data-test="bid-tab-placeholder-chat">
-              Contenu à venir. En attendant, le menu « Actions » mène à la conversation.
-            </p>
+            <BidChatTab
+              v-else-if="links?.conversationId" :key="links.conversationId" :conversation-id="links.conversationId"
+              @loaded="chatCount = $event"
+            />
           </div>
         </div>
 
