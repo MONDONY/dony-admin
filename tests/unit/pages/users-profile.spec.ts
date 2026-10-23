@@ -69,6 +69,21 @@ describe('users/[id].vue', () => {
     overviewMock.mockResolvedValue({ kpis: { ...NULLS, parcelsInProgress: 2 }, inProgress: [], timeline: [] })
   })
 
+  it('renseigne le fil d’Ariane avec le nom du compte, et le retire à la fermeture de la fiche', async () => {
+    const w = await mountPage()
+    const { useBreadcrumbLabel } = await import('@/composables/useBreadcrumbLabel')
+    expect(useBreadcrumbLabel().label.value).toBe('Awa Diallo')
+    w.unmount()
+    expect(useBreadcrumbLabel().label.value).toBeNull()
+  }, 20000)
+
+  it('sans nom : le numéro de téléphone sert de libellé', async () => {
+    getMock.mockResolvedValue({ ...USER, firstName: null, lastName: null })
+    await mountPage()
+    const { useBreadcrumbLabel } = await import('@/composables/useBreadcrumbLabel')
+    expect(useBreadcrumbLabel().label.value).toBe('+33612345678')
+  })
+
   it('rend l’en-tête, les chiffres et l’onglet Vue d’ensemble', async () => {
     const w = await mountPage()
     expect(w.get('[data-test="profile-name"]').text()).toBe('Awa Diallo')
