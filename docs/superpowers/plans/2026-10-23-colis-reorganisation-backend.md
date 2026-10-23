@@ -76,7 +76,7 @@ Nouveaux champs de `AdminBidListItemResponse`, ajoutés à la suite de `tracking
   - Constantes publiques `ACCENT_FROM`, `ACCENT_TO` (réutilisées par `AdminBidSql`, Task 2).
 - Les méthodes existantes `uuid` et `like` ne changent pas.
 
-- [ ] **Step 1: Write the failing tests** : `fold_lowercasesAndRemovesFrenchAccents` (`"ÀÂÄ Çé"` → `"aaa ce"` ; `"Aïcha"` → `"aicha"` ; `"Cœur"` → `"cour"`, car `œ` devient une seule lettre `o`), `fold_collapsesSpaces`, `fold_null_returnsNull`, `tokens_splitsOnSpacesAndStripsPatternChars` (`"Paris  Dakar"` → `["paris","dakar"]` ; `"100%_x"` → `["100x"]`), `tokens_limitsToMax` (max 4), `tokens_blank_returnsEmpty`, `likeFolded_wrapsWithPercent`, `digitsOnly_keepsDigits` (`"+33 6 12-34"` → `"33612"` ; `"12"` → `null`).
+- [ ] **Step 1: Write the failing tests** : `fold_lowercasesAndRemovesFrenchAccents` (`"ÀÂÄ Çé"` → `"aaa ce"` ; `"Aïcha"` → `"aicha"` ; `"Cœur"` → `"cour"`, car `œ` devient une seule lettre `o`), `fold_collapsesSpaces`, `fold_null_returnsNull`, `tokens_splitsOnSpacesAndStripsPatternChars` (`"Paris  Dakar"` → `["paris","dakar"]` ; `"100%_x"` → `["100x"]`), `tokens_limitsToMax` (max 4), `tokens_blank_returnsEmpty`, `likeFolded_wrapsWithPercent`, `digitsOnly_keepsDigits` (`"+33 6 12-34"` → `"3361234"` ; `"12"` → `null`).
 - [ ] **Step 2: Run** `./mvnw test -Dtest=AdminSearchTermsTest` → FAIL (méthodes absentes).
 - [ ] **Step 3: Implement** les méthodes ci-dessus dans `AdminSearchTerms` (javadoc en français, courte).
 - [ ] **Step 4: Run** → PASS.
