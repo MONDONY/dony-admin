@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import BidsTable from '@/features/bids/components/BidsTable.vue'
 import BidFilters from '@/features/bids/components/BidFilters.vue'
+import BidSearchBox from '@/features/bids/components/BidSearchBox.vue'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
 import AnnouncementsTable from '@/features/bids/components/AnnouncementsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -35,7 +36,7 @@ const tabItems = computed<TabItem<Tab>[]>(() => [
   { id: 'announcements', label: 'Annonces' },
   ...(canSeeRequests.value ? [{ id: 'demandes' as const, label: 'Demandes' }] : []),
 ])
-const { bids, isLoading, error: bidsError, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter } = useAdminBids()
+const { bids, isLoading, error: bidsError, totalPages, currentPage, filters, fetchBids, goToPage, setStatusFilter, setSearch, setDateRange, setAnnouncementFilter, setScope, resetFilters } = useAdminBids()
 // Filtres de l'onglet Colis dans l'URL (?status=IN_TRANSIT&query=…), à côté de tab/open/announcementId.
 const urlFilters = useUrlFilters(filters, {
   status: {
@@ -217,15 +218,19 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
     <TabBar class="mb-4" :tabs="tabItems" :model-value="tab" aria-label="Sections des colis" @update:model-value="switchTab" />
 
     <template v-if="tab === 'bids'">
-      <BidFilters
-        :model-status="filters.status"
-        :model-query="filters.query"
-        :model-date-from="filters.dateFrom"
-        :model-date-to="filters.dateTo"
-        @update:status="setStatusFilter"
-        @update:query="setSearch"
-        @update:date-range="(from, to) => setDateRange(from, to)"
-      />
+      <!-- Raccordement minimal avant la Task 5 : mêmes filtres qu'avant, sans suggestions ni vues. -->
+      <div class="mb-4 space-y-3">
+        <BidSearchBox
+          :model-query="filters.query" :model-scope="filters.scope" :suggestions="null" :suggestions-disabled="true"
+          @update:query="setSearch" @update:scope="setScope"
+        />
+        <BidFilters
+          :filters="filters" :views-available="false"
+          @update:status="setStatusFilter"
+          @update:date-range="(from, to) => setDateRange(from, to)"
+          @reset="resetFilters"
+        />
+      </div>
       <div
         v-if="filters.announcementId" data-test="trip-filter" role="status"
         class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-primary/30 bg-primary/5 px-4 py-2 text-sm"

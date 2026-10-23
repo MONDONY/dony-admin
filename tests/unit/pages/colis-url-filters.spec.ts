@@ -55,7 +55,7 @@ describe('/colis : filtres dans l’URL', () => {
 
   it('choisir un statut réécrit l’URL', async () => {
     const w = await mountPage()
-    await w.find('[data-test="chip-status-COMPLETED"]').trigger('click')
+    await w.find('[data-test="filter-status"]').setValue('COMPLETED')
     await flushPromises()
     expect(replaceMock).toHaveBeenCalledWith({ query: { status: 'COMPLETED' } })
   })

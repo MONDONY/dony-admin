@@ -8,6 +8,10 @@ export interface TabItem<Id extends string = string> {
   group?: string
   /** Pastille (ex. file d'attente) ; masquée à zéro. */
   count?: number
+  /** Pastille d'alerte (rouge) plutôt que neutre. */
+  alert?: boolean
+  /** Affiche la pastille même à zéro. */
+  showZero?: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -81,8 +85,8 @@ const cls = (active: boolean) => props.variant === 'underline'
         >
           {{ t.label }}
           <span
-            v-if="t.count && t.count > 0" data-test="tab-count"
-            class="ml-1.5 rounded-full bg-black/10 px-1.5 text-xs tabular-nums"
+            v-if="t.count != null && (t.count > 0 || t.showZero)" data-test="tab-count"
+            :class="['ml-1.5 rounded-full px-1.5 text-xs tabular-nums', t.alert ? 'bg-danger/10 text-danger' : 'bg-black/10']"
           >{{ t.count > 99 ? '99+' : t.count }}</span>
         </button>
       </div>

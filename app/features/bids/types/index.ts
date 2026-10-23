@@ -17,6 +17,8 @@ export interface AdminBidListItem {
   senderId?: string | null; travelerId?: string | null; recipientName?: string | null
   departureDate?: string | null; updatedAt?: string | null
   alert?: BidAlertCode | null
+  /** N° de suivi et contenu du colis, si le back les expose dans la liste (sinon la table affiche « — »). */
+  trackingNumber?: string | null; contentCategory?: string | null
 }
 /** Trajet du colis : l'annonce du voyageur (back yadony-back « fiche colis »). */
 export interface AdminBidTrip {
