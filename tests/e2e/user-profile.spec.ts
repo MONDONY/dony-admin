@@ -40,7 +40,7 @@ interface Mocks {
   detail: Record<string, unknown>
 }
 interface Opts {
-  overview?: 'ok' | 'missing' | 'not-found'
+  overview?: 'ok' | 'missing' | 'not-found' | 'sparse'
   detailStatus?: 404
   deletionBlocked?: boolean
 }
@@ -87,6 +87,15 @@ async function mockBackend(page: Page, opts: Opts = {}): Promise<Mocks> {
         return route.fulfill({ json: mocks.detail })
       case 'overview':
         if (opts.overview === 'missing') return route.fulfill(problem(404, { title: 'Not Found', detail: 'No endpoint matches this path' }))
+        // Comme Jackson NON_NULL : compte neuf sans avis, droits partiels, clés nulles OMISES (pas de null).
+        if (opts.overview === 'sparse') {
+          return route.fulfill({
+            json: {
+              kpis: { parcelsInProgress: 0, activeTrips: 0, openDisputes: 0, totalDisputes: 0, reportsReceived: 0, reportsPending: 0, ratingCount: 0 },
+              inProgress: [{ kind: 'TRIP', id: 't1', corridor: 'Paris → Dakar', role: 'TRAVELER', status: 'PUBLISHED', updatedAt: '2026-10-20T10:00:00Z' }],
+            },
+          })
+        }
         if (opts.overview === 'not-found') return route.fulfill(problem(404, { code: 'user-not-found' }))
         return route.fulfill({ json: OVERVIEW })
       case 'wallet':
@@ -272,6 +281,30 @@ test.describe('admin', () => {
     await page.goto('/users/pas-un-uuid')
     await expect(page.locator('[data-test="user-not-found"]')).toContainText('Utilisateur introuvable')
   })
+})
+
+test('synthèse aux clés nulles omises (JSON NON_NULL) : la fiche s’affiche, les cartes absentes sont masquées', async ({ page }) => {
+  await seed(page, SUPPORT)
+  const errors: string[] = []
+  page.on('pageerror', e => errors.push(e.message))
+  await mockBackend(page, { overview: 'sparse' })
+  await page.goto(`/users/${ID}`)
+
+  await expect(page.locator('[data-test="profile-name"]')).toHaveText('Jean Dupont')
+  await expect(page.locator('[data-test="kpi-parcels"]')).toContainText('0')
+  await expect(page.locator('[data-test="kpi-disputes"]')).toContainText('0')
+  // Note moyenne et argent retenu absents : cartes masquées, jamais « 0 » ni « Aucun ».
+  await expect(page.locator('[data-test="kpi-rating"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="kpi-held"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="alert-band-content"]')).toHaveCount(0)
+  // Le trajet en cours n'a pas de référence : libellé de repli et lien nommé d'après le trajet.
+  const row = page.locator('[data-test="in-progress-row"]')
+  await expect(row).toContainText('Paris → Dakar')
+  await expect(row).not.toContainText('undefined')
+  await expect(row.getByRole('link')).toHaveAttribute('aria-label', 'Ouvrir le trajet Paris → Dakar')
+  // Frise absente (permission) : carte masquée.
+  await expect(page.locator('[data-test="timeline-card"]')).toHaveCount(0)
+  expect(errors).toEqual([])
 })
 
 test('SUPPORT ne voit ni Gestion ni les gestes de modération mais peut écrire à l’utilisateur', async ({ page }) => {

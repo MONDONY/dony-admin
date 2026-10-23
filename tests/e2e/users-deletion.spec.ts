@@ -10,7 +10,8 @@ const ADMIN = {
   status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {},
 }
 
-const USER_ID = 'u-42'
+// Vrai UUID : prouve que le repli `legacy=1` empêche la redirection vers /users/<id>.
+const USER_ID = '5d1f7a3c-2b4e-4c6d-9e8f-0a1b2c3d4e5f'
 
 const userDetail = {
   id: USER_ID, firstName: 'Jean', lastName: 'Dupont', email: 'jean@x.fr',
