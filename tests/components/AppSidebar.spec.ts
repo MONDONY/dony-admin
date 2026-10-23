@@ -29,7 +29,7 @@ describe('AppSidebar', () => {
     useAuthStore().setSession('token', makeAdmin('ADMIN'))
     const wrapper = mountSidebar()
     const labels = [
-      'Vue d’ensemble', 'Utilisateurs', 'Transactions', 'Colis',
+      'Accueil', 'Utilisateurs', 'Transactions', 'Colis',
       'Incidents', 'Alertes', 'Modération', 'Support', 'Codes promo',
       'Audit', 'Exports', 'Signalements',
     ]

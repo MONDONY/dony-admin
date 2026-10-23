@@ -77,6 +77,8 @@ test('super admin sees the Administrateurs link in the sidebar', async ({ page }
   await seedAdmin(page, SUPER_ADMIN)
   await page.route('**/api/v1/admin/admins**', (route) => route.fulfill({ json: EMPTY_PAGE }))
   await page.goto('/administrateurs')
+  // Le lien vit dans le panneau du domaine Système, qui s'ouvre au survol du rail.
+  await page.locator('[data-test="nav-rail-system"]').hover()
   await expect(page.getByRole('link', { name: 'Administrateurs' })).toBeVisible()
 })
 
