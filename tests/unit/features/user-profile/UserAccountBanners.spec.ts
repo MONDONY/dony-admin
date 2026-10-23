@@ -61,6 +61,13 @@ describe('UserAccountBanners', () => {
     expect(w.find('[data-test="user-payouts-held-link"]').exists()).toBe(false)
   })
 
+  it('dates sans fuseau : jour de Paris, quel que soit le fuseau du navigateur', () => {
+    const held = mountB({ payoutsHeldSince: '2026-10-31T23:30:00Z', payoutsHeldReasons: ['BANNED'], heldPaymentsCount: 1 })
+    expect(held.get('[data-test="user-payouts-held"]').text()).toContain('depuis le 01/11/2026')
+    const del = mountB({ status: 'PENDING_DELETION', deletionRequestedAt: '2026-10-31T23:30:00Z' })
+    expect(del.get('[data-test="user-pending-deletion"]').text()).toContain('Suppression demandée le 01/11/2026')
+  })
+
   describe('suppression demandée', () => {
     const PD = { status: 'PENDING_DELETION', deletionScheduledFor: '2026-11-15T12:00:00Z' }
 

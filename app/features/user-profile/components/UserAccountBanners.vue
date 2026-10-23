@@ -17,6 +17,8 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ cancelDeletion: [reason: string] }>()
 const auth = useAuthStore()
+// Dates sans fuseau côté back : toujours l'heure de Paris, quel que soit le navigateur.
+const PARIS = { timeZone: 'Europe/Paris' } as const
 
 // Versements retenus (compte banni ou identité révoquée) : l'argent reste chez Yadony et ne
 // repart pas tout seul quand le compte est rétabli, d'où ce bandeau.
@@ -32,7 +34,7 @@ const payoutsHeld = computed(() => !payoutsRestored.value
   && (props.user.payoutsHeldSince != null || heldReasons.value.length > 0 || heldCount.value > 0))
 const payoutsHeldText = computed(() => {
   const since = props.user.payoutsHeldSince
-    ? ` depuis le ${new Date(props.user.payoutsHeldSince).toLocaleDateString('fr-FR')}`
+    ? ` depuis le ${new Date(props.user.payoutsHeldSince).toLocaleDateString('fr-FR', PARIS)}`
     : ''
   const reason = holdReasonsLabel(heldReasons.value)
   const n = heldCount.value
@@ -47,7 +49,7 @@ const payoutsRestoredText = computed(() => {
 // Suppression demandée (délai de rétractation) : l'admin peut l'annuler, motif à l'appui.
 const pendingDeletion = computed(() => props.user.status === 'PENDING_DELETION')
 const pendingDeletionText = computed(() => {
-  const d = (iso: string) => new Date(iso).toLocaleDateString('fr-FR')
+  const d = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', PARIS)
   if (props.user.deletionScheduledFor) return `Suppression prévue le ${d(props.user.deletionScheduledFor)}`
   if (props.user.deletionRequestedAt) return `Suppression demandée le ${d(props.user.deletionRequestedAt)}`
   return 'Suppression demandée'

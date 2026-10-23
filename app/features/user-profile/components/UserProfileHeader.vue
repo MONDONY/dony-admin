@@ -28,10 +28,11 @@ const roleLabel = computed(() => {
   return null
 })
 const place = computed(() => (props.user.city || props.user.country) ? placeLabel(props.user.city, props.user.country) : null)
-const created = computed(() => new Date(props.user.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }))
-const commission = computed(() => props.user.commissionRateOverride === null || props.user.commissionRateOverride === undefined
+const created = computed(() => new Date(props.user.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }))
+// Le taux est une fraction (0,08 = 8 %), affiché avec une décimale et la virgule française.
+const commission = computed(() => props.user.commissionRateOverride == null
   ? 'taux global'
-  : `${props.user.commissionRateOverride} %`)
+  : `${(props.user.commissionRateOverride * 100).toFixed(1).replace('.', ',')} %`)
 
 const copied = ref(false)
 async function copyId() {
