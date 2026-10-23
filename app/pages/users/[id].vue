@@ -62,6 +62,16 @@ let redirected = false
 /** Vrai tant que la page est montée ET affiche encore ce compte (réponses tardives ignorées). */
 const isCurrent = (id: string) => !unmounted && userId.value === id
 
+/** Relecture silencieuse (après un geste KYC) : la fiche reste affichée, un échec garde les données connues. */
+async function refreshDetail() {
+  const id = userId.value
+  if (!id) return
+  try {
+    const res = await usersService.get(id)
+    if (isCurrent(id)) user.value = res
+  } catch { /* données affichées conservées */ }
+}
+
 async function loadDetail() {
   const id = userId.value
   if (!id) return
@@ -119,7 +129,7 @@ onBeforeUnmount(() => { unmounted = true })
       <NuxtLink to="/users" data-test="back-to-users" class="rounded-btn border border-border px-3 py-1.5 text-sm hover:bg-surface-elevated">Retour aux utilisateurs</NuxtLink>
     </div>
 
-    <StateBlock v-else-if="!user" :loading="detailLoading" :error="detailError" @retry="loadDetail" />
+    <StateBlock v-else-if="!user" :loading="detailLoading" :error="detailError" @retry="loadDetail()" />
 
     <template v-else>
       <UserProfileHeader :user="user" />
@@ -143,7 +153,7 @@ onBeforeUnmount(() => { unmounted = true })
         <UserIncidentsTab :key="user.id" :user-id="user.id" />
       </section>
       <section v-else-if="tab === 'identity'" id="profile-panel-identity" role="tabpanel" aria-labelledby="profile-tab-identity" data-test="tab-content-identity">
-        <UserIdentityTab :key="user.id" :user="user" @refresh="loadDetail" />
+        <UserIdentityTab :key="user.id" :user="user" @refresh="refreshDetail" />
       </section>
       <section v-else-if="tab === 'support'" id="profile-panel-support" role="tabpanel" aria-labelledby="profile-tab-support" data-test="tab-content-support">
         <UserSupportTab :key="user.id" :user-id="user.id" />

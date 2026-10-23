@@ -52,6 +52,16 @@ describe('UserIdentityTab', () => {
     expect(w.get('[data-test="kyc-stub"]').text()).toContain('NONE')
   })
 
+  it('reset en échec : pas de rafraîchissement, erreur transmise', async () => {
+    resetKyc.mockRejectedValue(new Error('boom'))
+    const w = mountTab()
+    await flushPromises()
+    w.getComponent(KycStub).vm.$emit('reset', 'Motif')
+    await flushPromises()
+    expect(w.emitted('refresh')).toBeUndefined()
+    expect(w.getComponent(KycStub).props('error')).toBeTruthy()
+  })
+
   it('decided : remplace le KYC et rafraîchit le détail', async () => {
     const w = mountTab()
     await flushPromises()

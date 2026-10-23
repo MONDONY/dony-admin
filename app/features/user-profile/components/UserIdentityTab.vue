@@ -17,7 +17,8 @@ onMounted(() => { void kyc.load(props.user.id) })
 
 async function onReset(reason: string) {
   await kyc.reset(props.user.id, reason)
-  emit('refresh')
+  // Échec : l'erreur reste affichée et le détail n'a pas changé.
+  if (!kyc.error.value) emit('refresh')
 }
 function onDecided(updated: AdminKycDetail) {
   kyc.set(updated)

@@ -111,16 +111,32 @@ describe('users/[id].vue', () => {
 
   it('onglets identité et support : KYC chargé à l’ouverture, journal des gestes', async () => {
     getKycMock.mockResolvedValue({ kycStatus: 'VERIFIED' })
-    const w = await mountPage()
-    expect(getKycMock).not.toHaveBeenCalled()
     const id = await mountPage({ tab: 'identity' })
     expect(getKycMock).toHaveBeenCalledWith(ID)
     expect(id.find('[data-test="tab-content-identity"]').exists()).toBe(true)
-    expect(w.exists()).toBe(true)
     sectionMock.mockClear()
     const sup = await mountPage({ tab: 'support' })
     expect(sup.get('[data-test="tab-content-support"]').find('[data-test="section-audit"]').exists()).toBe(true)
     expect(sectionMock).toHaveBeenCalledWith(ID, 'audit', 0, 20, undefined)
+  })
+
+  it('refresh de l’onglet identité : détail relu en silence, onglet non remonté', async () => {
+    getKycMock.mockResolvedValue({ kycStatus: 'VERIFIED' })
+    const w = await mountPage({ tab: 'identity' })
+    const panel = w.get('[data-test="tab-content-identity"]').element
+    expect(getMock).toHaveBeenCalledTimes(1)
+    getMock.mockResolvedValue({ ...USER, firstName: 'Awa2' })
+    w.getComponent({ name: 'UserIdentityTab' }).vm.$emit('refresh')
+    await flushPromises()
+    expect(getMock).toHaveBeenCalledTimes(2)
+    expect(w.get('[data-test="tab-content-identity"]').element).toBe(panel)
+    expect(getKycMock).toHaveBeenCalledTimes(1)
+    expect(w.get('[data-test="profile-name"]').text()).toContain('Awa2')
+    getMock.mockRejectedValue({ statusCode: 404 })
+    w.getComponent({ name: 'UserIdentityTab' }).vm.$emit('refresh')
+    await flushPromises()
+    expect(w.find('[data-test="user-not-found"]').exists()).toBe(false)
+    expect(w.get('[data-test="profile-name"]').text()).toContain('Awa2')
   })
 
   it('SUPPORT : pas d’onglet Gestion, ?tab=manage retombe sur la vue d’ensemble', async () => {

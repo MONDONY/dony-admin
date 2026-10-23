@@ -39,7 +39,9 @@ describe('auditActionLabels', () => {
     expect(auditActionLabel(null)).toBe('—')
   })
 
-  it('aucun libellé en double sans raison, tous les codes de la table sont couverts', () => {
+  it('tous les codes de la table sont testés et aucun libellé n’est partagé', () => {
     for (const c of LISTED) expect(AUDIT_ACTION_CODES).toContain(c)
+    const labels = AUDIT_ACTION_CODES.map(c => auditActionLabel(c))
+    expect(new Set(labels).size).toBe(labels.length)
   })
 })
