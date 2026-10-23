@@ -66,6 +66,7 @@ describe('/colis, fiche colis', () => {
     await flushPromises()
     expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'b1' } })
     expect(w.find('[data-test="bid-detail"]').exists()).toBe(true)
+    await w.find('[data-test="bid-tab-tracking"]').trigger('click')
     expect(w.find('[data-test="timeline-empty"]').exists()).toBe(true)
     await w.find('[data-test="bid-close"]').trigger('click')
     expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })

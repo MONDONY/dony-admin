@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import BidPartyCard from '@/features/bids/components/BidPartyCard.vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
-const stubs = { NuxtLink: { props: ['to'], template: '<a><slot /></a>' } }
+const stubs = { NuxtLink: { props: ['to'], template: '<a :data-to="JSON.stringify(to)"><slot /></a>' } }
 const traveler = {
   id: 'u-t-12345678', name: null, username: null, phoneMasked: null, status: null, kycStatus: 'PENDING',
   stripeAccountStatus: 'PENDING_ONBOARDING', stripeConnectUsable: false, mobileMoneyStatus: 'ACTIVE', mobileMoneyUsable: true,
@@ -29,6 +29,13 @@ describe('BidPartyCard', () => {
     expect(w.find('[data-test="party-sender-link"]').exists()).toBe(false)
     expect(w.find('[data-test="party-sender-restricted"]').exists()).toBe(false)
     expect(w.find('[data-test="party-sender-contact"]').exists()).toBe(false)
+  })
+
+  it('partyCard_linksToUsersId : le nom mène à la fiche /users/<id>', () => {
+    const w = mount(BidPartyCard, { props: { role: 'traveler', title: 'Voyageur', party: { ...traveler, name: 'Moussa' } }, global: { stubs } })
+    const link = w.find('[data-test="party-traveler-link"]')
+    expect(JSON.parse(link.attributes('data-to')!)).toEqual({ path: '/users/u-t-12345678' })
+    expect(link.attributes('aria-label')).toBe('Voir le compte de Moussa')
   })
 
   it('sans USER_VIEW : nom sans lien', () => {
