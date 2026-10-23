@@ -10,7 +10,7 @@ export function useAdminBids() {
   const totalPages = ref(0)
   const currentPage = ref(0)
   const pageSize = ref(20)
-  const filters = reactive<BidsFilterState>({ status: 'TOUS', announcementId: null, query: '', dateFrom: null, dateTo: null })
+  const filters = reactive<BidsFilterState>({ status: 'TOUS', announcementId: null, query: '', scope: 'ALL', view: 'ALL', paymentMethod: null, content: '', alert: null, dateFrom: null, dateTo: null })
 
   async function fetchBids() {
     isLoading.value = true; error.value = null

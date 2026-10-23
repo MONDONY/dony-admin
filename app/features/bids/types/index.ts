@@ -1,6 +1,11 @@
 export type BidStatus = 'AWAITING_PAYMENT' | 'PENDING' | 'PAYMENT_ESCROWED' | 'ACCEPTED' | 'HANDED_OVER' | 'IN_TRANSIT' | 'ARRIVED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW' | 'PARCEL_REFUSED' | 'EXPIRED'
 export type BidStatusFilter = 'TOUS' | BidStatus
 export type AnnouncementStatus = 'ACTIVE' | 'FULL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'REMOVED_BY_ADMIN'
+/** Onglets de vue de la page Colis. */
+export type BidView = 'ALL' | 'TODO' | 'ACTIVE' | 'RECENT' | 'COMPLETED' | 'CLOSED'
+export type BidSearchScope = 'ALL' | 'TRACKING' | 'SENDER' | 'TRAVELER' | 'RECIPIENT' | 'TRIP'
+export type BidAlertCode = 'DISPUTE_OPEN' | 'NO_SHOW' | 'PAYMENT_PENDING' | 'LATE'
+export type PhotoStage = 'CREATION' | 'DEPART' | 'TRANSIT' | 'ARRIVEE' | 'REFUSAL' | 'DISPUTE'
 export type TimelineKind = 'SCAN' | 'PHOTO' | 'PAYMENT' | 'EVENT'
 
 export interface AdminBidListItem {
@@ -8,6 +13,10 @@ export interface AdminBidListItem {
   senderName: string | null; travelerName: string | null; corridor: string
   /** netEur est dans `currency` (devise de l'annonce), null pour une demande sans prix négocié. */
   weightKg: number; netEur: number | null; currency: string | null; paymentMethod: string; createdAt: string
+  /** Back « réorganisation Colis » : absents (`undefined`) face à un ancien back, null si non renseignés. */
+  senderId?: string | null; travelerId?: string | null; recipientName?: string | null
+  departureDate?: string | null; updatedAt?: string | null
+  alert?: BidAlertCode | null
 }
 /** Trajet du colis : l'annonce du voyageur (back yadony-back « fiche colis »). */
 export interface AdminBidTrip {
@@ -66,7 +75,18 @@ export interface AdminBidDetail extends AdminBidListItem {
   confirmationCodePresent?: boolean | null
   photoUrls?: string[] | null
   milestones?: AdminBidMilestones | null
+  /** null : pas le droit DISPUTE_VIEW ; undefined : ancien back. */
+  incidents?: AdminBidIncidents | null
+  alert?: BidAlertCode | null
 }
+export interface AdminBidDisputeIncident {
+  id: string; type: string | null; status: string | null; createdAt: string | null
+  resolvedAt: string | null; resolutionType: string | null
+}
+export interface AdminBidCancellationIncident {
+  id: string; scope: string | null; noShowStatus: string | null; reason: string | null; createdAt: string | null
+}
+export interface AdminBidIncidents { disputes: AdminBidDisputeIncident[]; cancellations: AdminBidCancellationIncident[] }
 export interface BidTimelineEntry {
   at: string; kind: TimelineKind; label: string
   detail?: string | null; photoUrl?: string | null; gpsLat?: number | null; gpsLon?: number | null
@@ -90,4 +110,21 @@ export interface AdminAnnouncementListItem {
 }
 export interface AdminBidPage { content: AdminBidListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminAnnouncementPage { content: AdminAnnouncementListItem[]; totalElements: number; totalPages: number; number: number; size: number }
-export interface BidsFilterState { status: BidStatusFilter; announcementId: string | null; query: string; dateFrom: string | null; dateTo: string | null }
+export interface BidsFilterState {
+  status: BidStatusFilter; announcementId: string | null; query: string; scope: BidSearchScope
+  view: BidView; paymentMethod: string | null; content: string; alert: BidAlertCode | null
+  dateFrom: string | null; dateTo: string | null
+}
+export interface AdminBidCounts {
+  todo: number; active: number; recent: number; completed: number; closed: number; all: number
+  alerts: { disputeOpen: number; noShow: number; paymentPending: number; late: number }
+}
+export interface SuggestPerson { id: string; name: string; count: number }
+export interface AdminBidSuggest {
+  senders: SuggestPerson[]; travelers: SuggestPerson[]
+  recipients: { name: string; count: number }[]
+  trips: { label: string; departureCity: string | null; arrivalCity: string | null; count: number }[]
+  parcels: { bidId: string; trackingNumber: string | null; status: string; content: string | null }[]
+}
+export interface AdminBidPhoto { id: string; stage: PhotoStage; label: string; at: string; url: string; gpsLabel?: string | null }
+export interface AdminBidPhotos { bidId: string; photos: AdminBidPhoto[] }
