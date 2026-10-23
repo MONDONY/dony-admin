@@ -47,7 +47,17 @@ async function applyRecette(enabled: boolean) { if (await recette.apply(enabled)
 watch(recetteAvailable, (ok) => { if (!ok && filters.recetteTester) void setRecetteFilter(null) })
 onBeforeUnmount(recette.dispose)
 
-async function openUser(id: string) { await detail.open(id) }
+// Clic sur une ligne : la fiche complète. Le tiroir ne sert plus qu'au repli `legacy=1`
+// (backend sans l'endpoint de synthèse) et à la sélection en masse.
+async function openUser(id: string) { await navigateTo(`/users/${id}`) }
+async function openLegacy(id: string) { await detail.open(id) }
+
+/** Ancien lien `?open=<id>` : redirigé vers la fiche, sauf `legacy=1` (repli vers le tiroir). */
+function redirectLegacyOpen(openId: unknown): boolean {
+  if (typeof openId !== 'string' || !openId || route.query?.legacy === '1') return false
+  void navigateTo(`/users/${openId}`, { replace: true })
+  return true
+}
 async function afterAction() { await fetchUsers() }
 
 /** Décision KYC : la fiche KYC est remplacée, puis la fiche et la liste relues (statut KYC). */
@@ -81,6 +91,7 @@ async function confirmDeletion(reasonCode: AdminDeletionReasonCode, reason: stri
 }
 
 onMounted(async () => {
+  if (redirectLegacyOpen(route.query?.open)) return
   void recette.load()
   // Initialise le filtre de recherche depuis le paramètre d'URL ?query=<uuid>
   // afin que les liens de contreparties dans UserDeletionDialog ouvrent la liste filtrée.
@@ -94,14 +105,15 @@ onMounted(async () => {
   }
   // ?open=<uuid> (lien depuis l'onglet Portefeuilles des transactions) : ouvre la fiche.
   const openId = route.query?.open
-  if (openId && typeof openId === 'string') await openUser(openId)
+  if (openId && typeof openId === 'string') await openLegacy(openId)
 })
 // Page déjà ouverte : la recherche globale (barre du haut) ne change que la query.
 watch(() => route.query?.open, async (openId) => {
+  if (redirectLegacyOpen(openId)) return
   if (typeof openId !== 'string' || !openId || openId === detail.user.value?.id) return
   const q = route.query?.query
   if (typeof q === 'string' && q && q !== filters.query) await setSearch(q)
-  await openUser(openId)
+  await openLegacy(openId)
 })
 </script>
 

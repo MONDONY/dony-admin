@@ -151,12 +151,32 @@ describe("users/index.vue — lecture du paramètre d'URL", () => {
 
   // Lien depuis l'onglet Portefeuilles des transactions : la liste est filtrée ET la fiche
   // s'ouvre directement, sans second clic sur l'unique ligne.
-  it('ouvre directement la fiche quand ?open=<id> est fourni', async () => {
+  it('ouvre directement le tiroir quand ?open=<id>&legacy=1 est fourni', async () => {
     detailOpenMock.mockReset()
+    vi.mocked(navigateTo).mockClear()
     const uuid = 'a1b2c3d4-0000-0000-0000-000000000000'
-    await mountUsersPage(uuid, uuid)
+    await mountUsersPage(uuid, uuid, { legacy: '1' })
+    expect(navigateTo).not.toHaveBeenCalled()
     expect(listMock.mock.calls[0][0].query).toBe(uuid)
     expect(detailOpenMock).toHaveBeenCalledWith(uuid)
+  })
+
+  it('redirige un ancien lien ?open=<id> vers /users/<id> en remplaçant l’entrée', async () => {
+    detailOpenMock.mockReset()
+    vi.mocked(navigateTo).mockClear()
+    const uuid = 'a1b2c3d4-0000-0000-0000-000000000000'
+    await mountUsersPage(uuid, uuid)
+    expect(navigateTo).toHaveBeenCalledTimes(1)
+    expect(navigateTo).toHaveBeenCalledWith(`/users/${uuid}`, { replace: true })
+    expect(detailOpenMock).not.toHaveBeenCalled()
+  })
+
+  it('un clic sur une ligne ouvre la fiche /users/<id>', async () => {
+    vi.mocked(navigateTo).mockClear()
+    const w = await mountUsersPage()
+    w.findComponent({ name: 'UserTable' }).vm.$emit('select', 'abc')
+    await flushPromises()
+    expect(navigateTo).toHaveBeenCalledWith('/users/abc')
   })
 })
 
@@ -279,14 +299,30 @@ describe('users/index.vue — mode recette en masse', () => {
     detailOpenMock.mockClear()
     listMock.mockClear()
     const id = 'f0f0f0f0-0000-4000-8000-000000000001'
-    route.query = { query: id, open: id }
+    route.query = { query: id, open: id, legacy: '1' }
     await flushPromises()
     expect(listMock.mock.calls.at(-1)?.[0].query).toBe(id)
     expect(detailOpenMock).toHaveBeenCalledWith(id)
     userRef.value = { id }
     detailOpenMock.mockClear()
-    route.query = { query: id, open: id, x: '1' }
+    route.query = { query: id, open: id, legacy: '1', x: '1' }
     await flushPromises()
+    expect(detailOpenMock).not.toHaveBeenCalled()
+  })
+
+  it('recherche globale sans legacy : redirige vers la fiche', async () => {
+    const { reactive } = await import('vue')
+    const route = reactive({ meta: { middleware: 'admin-only', permission: 'USER_VIEW' }, query: {} as Record<string, string> })
+    vi.stubGlobal('useRoute', () => route)
+    const mod = await import('@/pages/users/index.vue')
+    mount(mod.default, { global: { stubs: { NuxtLink: NuxtLinkStub, UserFilters: true, UserTable: true, UserDetailPanel: true, UserDeletionDialog: true, PaginationControls: true } } })
+    await flushPromises()
+    vi.mocked(navigateTo).mockClear()
+    detailOpenMock.mockClear()
+    const id = 'f0f0f0f0-0000-4000-8000-000000000002'
+    route.query = { query: id, open: id }
+    await flushPromises()
+    expect(navigateTo).toHaveBeenCalledWith(`/users/${id}`, { replace: true })
     expect(detailOpenMock).not.toHaveBeenCalled()
   })
 })
