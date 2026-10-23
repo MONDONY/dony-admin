@@ -5,6 +5,9 @@ import TabBar from '@/components/ui/TabBar.vue'
 import UserProfileHeader from '@/features/user-profile/components/UserProfileHeader.vue'
 import UserAlertBand from '@/features/user-profile/components/UserAlertBand.vue'
 import UserOverviewTab from '@/features/user-profile/components/UserOverviewTab.vue'
+import UserParcelsTab from '@/features/user-profile/components/UserParcelsTab.vue'
+import UserMoneyTab from '@/features/user-profile/components/UserMoneyTab.vue'
+import UserIncidentsTab from '@/features/user-profile/components/UserIncidentsTab.vue'
 import UserKpiGrid from '@/features/user-profile/components/UserKpiGrid.vue'
 import { useUserOverview } from '@/features/user-profile/composables/useUserOverview'
 import { buildAlerts } from '@/features/user-profile/lib/userProfileAlerts'
@@ -128,9 +131,15 @@ onBeforeUnmount(() => { unmounted = true })
       <section v-if="tab === 'overview'" id="profile-panel-overview" role="tabpanel" aria-labelledby="profile-tab-overview" data-test="tab-content-overview">
         <UserOverviewTab v-if="ov.overview.value" :in-progress="ov.overview.value.inProgress" :timeline="ov.overview.value.timeline" />
       </section>
-      <section v-else-if="tab === 'parcels'" id="profile-panel-parcels" role="tabpanel" aria-labelledby="profile-tab-parcels" data-test="tab-content-parcels" />
-      <section v-else-if="tab === 'money'" id="profile-panel-money" role="tabpanel" aria-labelledby="profile-tab-money" data-test="tab-content-money" />
-      <section v-else-if="tab === 'incidents'" id="profile-panel-incidents" role="tabpanel" aria-labelledby="profile-tab-incidents" data-test="tab-content-incidents" />
+      <section v-else-if="tab === 'parcels'" id="profile-panel-parcels" role="tabpanel" aria-labelledby="profile-tab-parcels" data-test="tab-content-parcels">
+        <UserParcelsTab :key="user.id" :user-id="user.id" />
+      </section>
+      <section v-else-if="tab === 'money'" id="profile-panel-money" role="tabpanel" aria-labelledby="profile-tab-money" data-test="tab-content-money">
+        <UserMoneyTab :key="user.id" :user-id="user.id" />
+      </section>
+      <section v-else-if="tab === 'incidents'" id="profile-panel-incidents" role="tabpanel" aria-labelledby="profile-tab-incidents" data-test="tab-content-incidents">
+        <UserIncidentsTab :key="user.id" :user-id="user.id" />
+      </section>
       <section v-else-if="tab === 'identity'" id="profile-panel-identity" role="tabpanel" aria-labelledby="profile-tab-identity" data-test="tab-content-identity" />
       <section v-else-if="tab === 'support'" id="profile-panel-support" role="tabpanel" aria-labelledby="profile-tab-support" data-test="tab-content-support" />
       <section v-else-if="tab === 'manage'" id="profile-panel-manage" role="tabpanel" aria-labelledby="profile-tab-manage" data-test="tab-content-manage" />

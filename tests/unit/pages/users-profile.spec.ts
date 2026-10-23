@@ -15,8 +15,15 @@ vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApi
 const getMock = vi.fn()
 vi.mock('@/features/users/services/usersService', () => ({ usersService: { get: (...a: unknown[]) => getMock(...a) } }))
 const overviewMock = vi.fn()
+const sectionMock = vi.fn()
 vi.mock('@/features/user-profile/services/userProfileService', () => ({
-  userProfileService: { overview: (...a: unknown[]) => overviewMock(...a) },
+  userProfileService: {
+    overview: (...a: unknown[]) => overviewMock(...a),
+    section: (...a: unknown[]) => sectionMock(...a),
+  },
+}))
+vi.mock('@/features/wallet/components/UserWalletTab.vue', () => ({
+  default: { props: ['userId'], template: '<div data-test="wallet-tab">{{ userId }}</div>' },
 }))
 
 const NULLS = {
@@ -42,7 +49,8 @@ async function mountPage(query: Record<string, string> = {}, id: string = ID, ro
 
 describe('users/[id].vue', () => {
   beforeEach(() => {
-    navigateToMock.mockReset(); replaceMock.mockReset(); getMock.mockReset(); overviewMock.mockReset()
+    navigateToMock.mockReset(); replaceMock.mockReset(); getMock.mockReset(); overviewMock.mockReset(); sectionMock.mockReset()
+    sectionMock.mockResolvedValue({ content: [], totalPages: 0, number: 0, totalElements: 0 })
     getMock.mockResolvedValue(USER)
     overviewMock.mockResolvedValue({ kpis: { ...NULLS, parcelsInProgress: 2 }, inProgress: [], timeline: [] })
   })
@@ -81,6 +89,21 @@ describe('users/[id].vue', () => {
     const w = await mountPage({ tab: 'money' })
     expect(w.find('[data-test="tab-content-money"]').exists()).toBe(true)
     expect(w.find('[data-test="tab-content-overview"]').exists()).toBe(false)
+  })
+
+  it('les onglets de listes sont branchés avec l’identifiant du compte', async () => {
+    let w = await mountPage({ tab: 'parcels' })
+    expect(sectionMock.mock.calls.map(c => c[1]).sort()).toEqual(['parcels', 'requests', 'trips'])
+    expect(sectionMock.mock.calls.every(c => c[0] === ID)).toBe(true)
+    expect(w.get('[data-test="tab-content-parcels"]').find('[data-test="section-trips"]').exists()).toBe(true)
+    sectionMock.mockClear()
+    w = await mountPage({ tab: 'money' })
+    expect(w.get('[data-test="tab-content-money"]').get('[data-test="wallet-tab"]').text()).toBe(ID)
+    expect(sectionMock).toHaveBeenCalledWith(ID, 'payments', 0, 20, undefined)
+    sectionMock.mockClear()
+    w = await mountPage({ tab: 'incidents' })
+    expect(w.get('[data-test="tab-content-incidents"]').find('[data-test="section-reports-received"]').exists()).toBe(true)
+    expect(sectionMock).toHaveBeenCalledTimes(5)
   })
 
   it('SUPPORT : pas d’onglet Gestion, ?tab=manage retombe sur la vue d’ensemble', async () => {
