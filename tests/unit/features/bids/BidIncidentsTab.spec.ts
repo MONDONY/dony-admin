@@ -82,6 +82,12 @@ describe('BidIncidentsTab', () => {
     expect(w.findAll('[data-test="incident-dispute"]')).toHaveLength(2)
   })
 
+  it('incidentsTab_microsecondsAndDst', () => {
+    const w = mountTab({ disputes: [{ id: 'd-5', type: 'OTHER', status: 'OPEN', createdAt: '2026-10-23T22:30:00.123456', resolvedAt: '2026-03-29T01:30:00', resolutionType: null }], cancellations: [] })
+    expect(w.text()).toContain('24/10/2026 00:30')
+    expect(w.text()).toContain('29/03/2026 03:30')
+  })
+
   it('incidentsTab_absentField_showsEmpty', () => {
     expect(mountTab(undefined).find('[data-test="incidents-empty"]').exists()).toBe(true)
   })

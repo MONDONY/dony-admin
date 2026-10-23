@@ -16,15 +16,18 @@ import { serverDateIso } from '@/lib/serverDate'
  */
 const props = defineProps<{ bid: AdminBidDetail; timeline: AdminBidTimeline | null }>()
 const emit = defineEmits<{
-  /** Ancien back (endpoint des photos absent) : la chronologie garde alors ses miniatures. */
-  unavailable: [value: boolean]
+  /** Vrai seulement quand la galerie montre réellement les photos (chargées, sans erreur, endpoint présent). */
+  'update:displayed': [value: boolean]
   /** Ancien back : la fiche est à relire pour renouveler les URL présignées de repli. */
   'reload-bid': []
 }>()
 
 const { photos, isLoading, error, unavailable, load, reload } = useBidPhotos(() => props.bid.id)
 onMounted(() => { void load() })
-watch(unavailable, v => emit('unavailable', v))
+const started = ref(false)
+watch(isLoading, (v) => { if (v) started.value = true })
+const displayed = computed(() => started.value && !isLoading.value && !error.value && !unavailable.value)
+watch(displayed, v => emit('update:displayed', v), { immediate: true })
 watch(() => props.bid.id, () => { viewerIndex.value = null; void load() })
 
 const source = computed(() => safePhotos(unavailable.value ? fallbackPhotos(props.bid, props.timeline) : photos.value))

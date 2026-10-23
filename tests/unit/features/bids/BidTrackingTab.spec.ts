@@ -53,4 +53,18 @@ describe('BidTrackingTab', () => {
     expect(w.emitted('reload-bid')).toHaveLength(1)
     w.unmount()
   })
+
+  it('trackingTab_photosEndpointError500_keepsTimelineThumbnails', async () => {
+    svc.photos.mockRejectedValue(Object.assign(new Error('boom'), { statusCode: 500, data: {} }))
+    const w = mountTab(); await flushPromises()
+    expect(w.find('[data-test="timeline-photo-pill"]').exists()).toBe(false)
+    expect(w.find('[data-test="timeline-entry"] img').exists()).toBe(true)
+  })
+
+  it('trackingTab_loading_keepsTimelineThumbnails', async () => {
+    svc.photos.mockReturnValue(new Promise(() => {}))
+    const w = mountTab(); await flushPromises()
+    expect(w.find('[data-test="timeline-photo-pill"]').exists()).toBe(false)
+    expect(w.find('[data-test="timeline-entry"] img').exists()).toBe(true)
+  })
 })

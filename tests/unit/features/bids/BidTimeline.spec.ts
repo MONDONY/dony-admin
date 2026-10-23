@@ -78,4 +78,13 @@ describe('BidTimeline : heure de Paris et pastille photo', () => {
     expect(items[1]!.find('[data-test="timeline-photo-pill"]').text()).toBe('Photo')
     expect(items[0]!.find('[data-test="timeline-photo-pill"]').exists()).toBe(false)
   })
+
+  it.each([
+    ['2026-10-23T22:30:00.123456', '24/10/2026 00:30'],
+    ['2026-03-29T00:30:00', '29/03/2026 01:30'],
+    ['2026-03-29T01:30:00', '29/03/2026 03:30'],
+  ])('timeline_parisHours %s -> %s (microsecondes, passage à l’heure d’été)', (at, expected) => {
+    const w = mount(BidTimeline, { props: { timeline: { bidId: 'b1', entries: [{ at, kind: 'EVENT' as const, label: 'BID_CREATED' }] } } })
+    expect(w.find('[data-test="timeline-entry"]').text()).toContain(expected)
+  })
 })

@@ -7,7 +7,7 @@ import { cancellationReasonLabel, disputeTypeLabel, scopeLabel } from '@/feature
 import { formatInstant } from '@/features/user-profile/lib/formatInstant'
 import { noShowStatusMeta } from '@/features/incidents/components/noShowLabels'
 import type { NoShowStatus } from '@/features/incidents/types/index'
-import { serverDateIso } from '@/lib/serverDate'
+import { parseServerDate } from '@/lib/serverDate'
 import { useAuthStore } from '@/stores/auth'
 
 /** Onglet Incidents : litiges et absences du colis, avec un lien vers leur file de traitement. */
@@ -18,7 +18,10 @@ const disputes = computed(() => props.bid.incidents?.disputes ?? [])
 const cancellations = computed(() => props.bid.incidents?.cancellations ?? [])
 const canOpen = computed(() => auth.can('DISPUTE_VIEW'))
 
-const date = (at: string | null) => (at ? formatInstant(serverDateIso(at)) : '—')
+const date = (at: string | null) => {
+  const ms = parseServerDate(at)
+  return Number.isNaN(ms) ? '—' : formatInstant(new Date(ms).toISOString())
+}
 /** État d'une absence : libellé connu, sinon le code brut en neutre (`noShowStatusMeta`). */
 const noShow = (s: string | null) => (s ? noShowStatusMeta(s as NoShowStatus) : null)
 const linkClass = 'inline-flex min-h-10 items-center text-sm font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary'

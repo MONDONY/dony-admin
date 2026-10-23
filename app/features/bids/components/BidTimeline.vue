@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { AdminBidTimeline, BidTimelineEntry } from '@/features/bids/types/index'
 import { bidTimelineLabel, bidTimelineTone } from '@/features/bids/lib/bidLabels'
 import { formatInstant } from '@/features/user-profile/lib/formatInstant'
-import { serverDateIso } from '@/lib/serverDate'
+import { parseServerDate } from '@/lib/serverDate'
 import { safeHttpsUrl } from '@/lib/safeInput'
 
 /**
@@ -31,7 +31,7 @@ function actor(e: BidTimelineEntry): string | null {
 /** Photo de scan : URL présignée `https:` seulement, jamais `javascript:` ni `data:`. */
 function photo(e: BidTimelineEntry): string | null { return safeHttpsUrl(e.photoUrl) }
 /** Heure du serveur (UTC sans fuseau) affichée à Paris ; « — » si illisible. */
-const at = (e: BidTimelineEntry) => formatInstant(serverDateIso(e.at))
+const at = (e: BidTimelineEntry) => formatInstant(Number.isNaN(parseServerDate(e.at)) ? null : new Date(parseServerDate(e.at)).toISOString())
 function detail(e: BidTimelineEntry): string | null {
   if (!e.detail) return null
   // Les notations arrivent en « 5/5 » : en clair pour l'admin.

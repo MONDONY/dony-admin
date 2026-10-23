@@ -217,10 +217,10 @@ describe('BidPhotoGallery', () => {
     expect(document.querySelector('[data-test="photo-viewer"]')).toBeNull()
   })
 
-  it('legacyBackend_emitsUnavailable_andReloadAsksForFreshBid', async () => {
+  it('legacyBackend_notDisplayed_andReloadAsksForFreshBid', async () => {
     svc.photos.mockRejectedValue(Object.assign(new Error('nf'), { statusCode: 404, data: {} }))
     const w = mountGallery({ bid: bid({ photoUrls: ['https://r2/created.jpg'] }) }); await flushPromises()
-    expect(w.emitted('unavailable')?.at(-1)).toEqual([true])
+    expect(w.emitted('update:displayed')?.at(-1)).toEqual([false])
     await w.find('[data-test="photo-CREATION-0"]').trigger('click')
     document.querySelector('[data-test="photo-main"]')!.dispatchEvent(new Event('error'))
     await flushPromises()
@@ -230,10 +230,22 @@ describe('BidPhotoGallery', () => {
     expect(document.querySelector('[data-test="photo-viewer"]')).toBeNull()
   })
 
-  it('endpointAvailable_doesNotEmitUnavailable', async () => {
+  it('endpointLoaded_emitsDisplayed', async () => {
     svc.photos.mockResolvedValue({ bidId: 'b1', photos: [photo('d1', 'DEPART')] })
     const w = mountGallery(); await flushPromises()
-    expect(w.emitted('unavailable')?.some(a => a[0] === true) ?? false).toBe(false)
+    expect(w.emitted('update:displayed')?.at(-1)).toEqual([true])
     expect(w.emitted('reload-bid')).toBeUndefined()
+  })
+
+  it('displayed : faux pendant le chargement, faux en erreur 500, vrai une fois chargée', async () => {
+    let resolve!: (value: unknown) => void
+    svc.photos.mockReturnValueOnce(new Promise(r => { resolve = r }))
+    const w = mountGallery(); await flushPromises()
+    expect(w.emitted('update:displayed')?.at(-1) ?? [false]).toEqual([false])
+    resolve({ bidId: 'b1', photos: [photo('d1', 'DEPART')] }); await flushPromises()
+    expect(w.emitted('update:displayed')?.at(-1)).toEqual([true])
+    svc.photos.mockRejectedValueOnce(Object.assign(new Error('boom'), { statusCode: 500, data: {} }))
+    const e = mountGallery(); await flushPromises()
+    expect(e.emitted('update:displayed')?.some(a => a[0] === true) ?? false).toBe(false)
   })
 })
