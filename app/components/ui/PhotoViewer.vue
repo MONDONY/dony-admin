@@ -22,12 +22,15 @@ const props = withDefaults(defineProps<{
   alt?: string
   items?: PhotoViewerItem[] | null
   startIndex?: number
+  /** Élément qui reprend le focus à la fermeture (Safari et Firefox macOS ne donnent pas le focus au bouton cliqué). */
+  returnFocusTo?: HTMLElement | null
 }>(), {
   urls: null,
   title: 'Captures jointes',
   alt: 'Capture d’écran jointe',
   items: null,
   startIndex: 0,
+  returnFocusTo: null,
 })
 const emit = defineEmits<{ close: []; reload: [index: number] }>()
 
@@ -39,7 +42,7 @@ const legacyOpen = computed(() => props.items == null && props.urls !== null)
 
 const index = ref(0)
 const zoom = ref(DEFAULT_ZOOM)
-const failed = ref(new Set<number>())
+const failed = ref(new Set<string>())
 const natural = ref<{ w: number; h: number } | null>(null)
 const stageSize = ref<{ w: number; h: number } | null>(null)
 
@@ -49,7 +52,7 @@ let trigger: HTMLElement | null = null
 
 const count = computed(() => props.items?.length ?? 0)
 const current = computed(() => props.items?.[index.value] ?? null)
-const currentFailed = computed(() => failed.value.has(index.value))
+const currentFailed = computed(() => current.value !== null && failed.value.has(current.value.url))
 const zoomLabel = computed(() => `${zoom.value}\u00a0%`)
 const canPrev = computed(() => index.value > 0)
 const canNext = computed(() => index.value < count.value - 1)
@@ -74,6 +77,7 @@ function show(i: number) {
   index.value = next
   zoom.value = DEFAULT_ZOOM
   natural.value = null
+  keepFocusInDialog()
 }
 const go = (step: number) => show(index.value + step)
 
@@ -85,6 +89,7 @@ function setZoom(value: number) {
   const cx = el && el.scrollWidth ? (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth : 0.5
   const cy = el && el.scrollHeight ? (el.scrollTop + el.clientHeight / 2) / el.scrollHeight : 0.5
   zoom.value = z
+  keepFocusInDialog()
   void nextTick(() => {
     if (!el) return
     el.scrollLeft = cx * el.scrollWidth - el.clientWidth / 2
@@ -96,10 +101,24 @@ function zoomStep(dir: 1 | -1) {
   if (next !== undefined) setZoom(next)
 }
 
+/**
+ * Ctrl+molette (et pincement du trackpad, qui arrive en Ctrl+molette par petits `deltaY`) :
+ * les deltas s'additionnent, un palier tous les `WHEEL_STEP` pixels, pour un zoom progressif.
+ */
+const WHEEL_STEP = 100
+const LINE_HEIGHT = 33
+let wheelAcc = 0
 function onWheel(e: WheelEvent) {
   if (!e.ctrlKey) return
   e.preventDefault()
-  zoomStep(e.deltaY < 0 ? 1 : -1)
+  const delta = e.deltaMode === 1 ? e.deltaY * LINE_HEIGHT : e.deltaY
+  if (delta === 0) return
+  if (Math.sign(delta) !== Math.sign(wheelAcc)) wheelAcc = 0
+  wheelAcc += delta
+  while (Math.abs(wheelAcc) >= WHEEL_STEP) {
+    zoomStep(wheelAcc < 0 ? 1 : -1)
+    wheelAcc -= Math.sign(wheelAcc) * WHEEL_STEP
+  }
 }
 
 function measureStage() {
@@ -111,21 +130,68 @@ function onImageLoad(e: Event) {
   natural.value = { w: img.naturalWidth, h: img.naturalHeight }
   measureStage()
 }
-function markFailed(i: number) {
-  if (failed.value.has(i)) return
-  failed.value = new Set(failed.value).add(i)
+function markFailed(url: string) {
+  if (failed.value.has(url)) return
+  failed.value = new Set(failed.value).add(url)
+}
+
+/** Nom de fichier tiré de la légende (« Remise du colis · 01/06/2026 12:00 » → remise-du-colis-01-06-2026-12-00). */
+function fileName(item: PhotoViewerItem, i: number, type: string): string {
+  const base = (item.caption ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `photo-${i + 1}`
+  const ext = ({ 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic' } as Record<string, string>)[type] ?? 'jpg'
+  return `${base}.${ext}`
+}
+
+/**
+ * `download` est ignoré pour une URL d'une autre origine (R2 présignée) : on télécharge le
+ * fichier puis on l'enregistre depuis une URL objet. Échec (CORS, réseau) : ouverture dans un
+ * nouvel onglet. Un clic avec modificateur reste au navigateur.
+ */
+async function onDownload(e: MouseEvent) {
+  const item = current.value
+  if (!item || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  const i = index.value
+  try {
+    const res = await fetch(item.url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = fileName(item, i, blob.type)
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+  } catch {
+    window.open(item.url, '_blank', 'noopener,noreferrer')
+  }
 }
 
 function focusables(): HTMLElement[] {
   return [...(dialogEl.value?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]') ?? [])]
 }
+/** Tab reste dans le dialogue, y compris quand le focus est tombé hors de lui (sur <body>). */
 function trapTab(e: KeyboardEvent) {
   const list = focusables()
   if (list.length === 0) return
   const first = list[0]!; const last = list[list.length - 1]!
   const active = document.activeElement
-  if (e.shiftKey && (active === first || active === dialogEl.value)) { e.preventDefault(); last.focus() }
-  else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+  const outside = !active || active === dialogEl.value || !dialogEl.value?.contains(active)
+  if (e.shiftKey && (outside || active === first)) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && (outside || active === last)) { e.preventDefault(); first.focus() }
+}
+
+/** Un bouton focalisé qui se désactive (dernière photo, zoom maximal) rend le focus au dialogue. */
+function keepFocusInDialog() {
+  void nextTick(() => {
+    const dialog = dialogEl.value
+    if (!dialog) return
+    const active = document.activeElement as HTMLButtonElement | null
+    if (!active || active === document.body || !dialog.contains(active) || active.disabled) dialog.focus()
+  })
 }
 
 function onKey(e: KeyboardEvent) {
@@ -154,7 +220,8 @@ function restoreFocus() {
 watch(richOpen, (open) => {
   if (typeof window === 'undefined') return
   if (open) {
-    trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = document.activeElement
+    trigger = props.returnFocusTo ?? (active instanceof HTMLElement && active !== document.body ? active : null)
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('resize', measureStage)
     void nextTick(() => dialogEl.value?.focus())
@@ -165,13 +232,21 @@ watch(richOpen, (open) => {
   }
 }, { immediate: true })
 
-// Nouvelle série ou nouvel index de départ : on repart de la photo demandée, sans zoom ni erreur.
-watch([() => props.items, () => props.startIndex], () => {
+function resetView() { natural.value = null; zoom.value = DEFAULT_ZOOM; wheelAcc = 0 }
+
+// Liste d'URL réellement changée (pas seulement un nouveau tableau) : on garde la photo affichée
+// si elle y est encore, sinon on va à `startIndex`. Les erreurs sont rattachées à l'URL.
+const urlKey = computed(() => (props.items ?? []).map(i => i.url).join('\n'))
+watch(urlKey, (_key, oldKey) => {
+  const shown = oldKey ? oldKey.split('\n')[index.value] : undefined
+  const at = shown === undefined ? -1 : (props.items ?? []).findIndex(i => i.url === shown)
+  if (at >= 0) { index.value = at; return }
   failed.value = new Set()
-  natural.value = null
-  zoom.value = DEFAULT_ZOOM
+  resetView()
   index.value = clampIndex(props.startIndex)
-}, { immediate: true })
+})
+watch(() => props.startIndex, () => { resetView(); index.value = clampIndex(props.startIndex) })
+index.value = clampIndex(props.startIndex)
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey, true)
@@ -230,7 +305,7 @@ const btn = 'inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 r
         <a :href="current.url" target="_blank" rel="noopener noreferrer" :class="btn" data-test="photo-open-tab">
           <ExternalLink class="h-4 w-4" aria-hidden="true" /><span>Ouvrir dans un onglet</span>
         </a>
-        <a :href="current.url" download target="_blank" rel="noopener noreferrer" :class="btn" data-test="photo-download">
+        <a :href="current.url" download target="_blank" rel="noopener noreferrer" :class="btn" data-test="photo-download" @click="onDownload">
           <Download class="h-4 w-4" aria-hidden="true" /><span>Télécharger</span>
         </a>
         <button type="button" :class="btn" data-test="photo-viewer-close" @click="emit('close')">
@@ -246,7 +321,7 @@ const btn = 'inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 r
           :key="current.url" :src="current.url" :alt="current.caption || alt" data-test="photo-main"
           class="m-auto max-w-none select-none rounded-xs object-contain outline outline-1 -outline-offset-1 outline-white/10"
           :style="imageStyle" :data-zoom="zoom" draggable="false"
-          @load="onImageLoad" @error="markFailed(index)"
+          @load="onImageLoad" @error="markFailed(current.url)"
         >
         <div v-else role="alert" class="m-auto flex max-w-sm flex-col items-center gap-3 text-center" data-test="photo-error">
           <ImageOff class="h-8 w-8 text-white/70" aria-hidden="true" />
@@ -275,8 +350,8 @@ const btn = 'inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 r
           :aria-label="`Photo ${i + 1} sur ${count}`" :aria-current="i === index ? 'true' : undefined"
           :data-test="`photo-thumb-${i}`" @click="show(i)"
         >
-          <ImageOff v-if="failed.has(i)" class="h-4 w-4 text-white/70" aria-hidden="true" />
-          <img v-else :src="item.url" alt="" loading="lazy" class="h-full w-full object-cover" @error="markFailed(i)">
+          <ImageOff v-if="failed.has(item.url)" class="h-4 w-4 text-white/70" aria-hidden="true" />
+          <img v-else :src="item.url" alt="" loading="lazy" class="h-full w-full object-cover" @error="markFailed(item.url)">
         </button>
       </div>
       <p class="mt-2 text-xs text-white/70">

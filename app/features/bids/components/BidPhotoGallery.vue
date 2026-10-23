@@ -47,12 +47,23 @@ const viewerItems = computed<PhotoViewerItem[] | null>(() => viewerIndex.value =
   subcaption: photo.gpsLabel ?? undefined,
 })))
 
-function openAt(stage: PhotoStage, i: number) { viewerIndex.value = offsets.value[stage] + i }
+/** Vignette cliquée : elle reprend le focus à la fermeture (Safari ne le lui donne pas au clic). */
+const returnFocusTo = ref<HTMLElement | null>(null)
+function openAt(stage: PhotoStage, i: number, e: MouseEvent) {
+  returnFocusTo.value = e.currentTarget instanceof HTMLElement ? e.currentTarget : null
+  viewerIndex.value = offsets.value[stage] + i
+}
 
-/** URL expirée : nouvelles URL présignées, puis retour à la même photo. */
+/**
+ * URL expirée : nouvelles URL présignées, puis retour à la même photo. Échec du rechargement :
+ * la visionneuse reste fermée (pas d'anciennes URL expirées), la galerie montre l'erreur. Colis
+ * changé entre-temps : rien à rouvrir.
+ */
 async function onViewerReload(i: number) {
+  const id = props.bid.id
   viewerIndex.value = null
   await reload()
+  if (props.bid.id !== id || error.value) return
   const n = flat.value.length
   viewerIndex.value = n > 0 ? Math.min(i, n - 1) : null
 }
@@ -92,7 +103,7 @@ const countLabel = (n: number) => n > 1 ? `${n} photos` : `${n} photo`
           <button
             v-for="(p, i) in g.photos" :key="p.id" type="button"
             class="group relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xs bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-[0.96] motion-safe:transition-[scale]"
-            :data-test="`photo-${g.stage}-${i}`" @click="openAt(g.stage, i)"
+            :data-test="`photo-${g.stage}-${i}`" @click="openAt(g.stage, i, $event)"
           >
             <span v-if="failedUrls.has(p.url)" class="flex flex-col items-center gap-1 px-2 text-center text-xs text-text-muted">
               <ImageOff class="h-4 w-4" aria-hidden="true" />
@@ -118,7 +129,7 @@ const countLabel = (n: number) => n > 1 ? `${n} photos` : `${n} photo`
 
     <Teleport to="body">
       <PhotoViewer
-        :items="viewerItems" :start-index="viewerIndex ?? 0" title="Photos du colis" alt="Photo du colis"
+        :items="viewerItems" :start-index="viewerIndex ?? 0" :return-focus-to="returnFocusTo" title="Photos du colis" alt="Photo du colis"
         @close="viewerIndex = null" @reload="onViewerReload"
       />
     </Teleport>

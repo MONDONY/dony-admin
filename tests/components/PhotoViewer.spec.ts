@@ -215,4 +215,214 @@ describe('PhotoViewer', () => {
     await w.find('[data-test="photo-viewer"]').trigger('click')
     expect(w.emitted('close')).toHaveLength(1)
   })
+  describe('focus', () => {
+    const tab = (shiftKey = false) => {
+      const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true })
+      ;(document.activeElement ?? document.body).dispatchEvent(e)
+      return e
+    }
+
+    it('tab_cyclesInsideDialog', async () => {
+      const w = mountViewer({ urls: null, items })
+      await nextTick()
+      const dialog = w.find('[data-test="photo-viewer"]').element as HTMLElement
+      const list = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')]
+      list[list.length - 1]!.focus()
+      expect(tab().defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(list[0])
+      expect(tab(true).defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(list[list.length - 1])
+    })
+
+    it('tab_fromBody_returnsIntoDialog', async () => {
+      const w = mountViewer({ urls: null, items })
+      await nextTick()
+      const dialog = w.find('[data-test="photo-viewer"]').element as HTMLElement
+      const list = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')]
+      ;(document.activeElement as HTMLElement).blur()
+      expect(document.activeElement).toBe(document.body)
+      expect(tab().defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(list[0])
+      ;(document.activeElement as HTMLElement).blur()
+      expect(tab(true).defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(list[list.length - 1])
+    })
+
+    it('disabledButton_movesFocusToDialog', async () => {
+      const w = mountViewer({ urls: null, items, startIndex: 1 })
+      await nextTick()
+      const dialog = w.find('[data-test="photo-viewer"]').element
+      const next = w.find('[data-test="photo-next"]')
+      ;(next.element as HTMLElement).focus()
+      await next.trigger('click'); await nextTick()
+      expect(next.attributes('disabled')).toBeDefined()
+      expect(document.activeElement).toBe(dialog)
+      const zin = w.find('[data-test="photo-zoom-in"]')
+      ;(zin.element as HTMLElement).focus()
+      for (let i = 0; i < 10; i++) await zin.trigger('click')
+      await nextTick()
+      expect(document.activeElement).toBe(dialog)
+    })
+
+    it('focus kept on an enabled button', async () => {
+      const w = mountViewer({ urls: null, items })
+      await nextTick()
+      const next = w.find('[data-test="photo-next"]')
+      ;(next.element as HTMLElement).focus()
+      await next.trigger('click'); await nextTick()
+      expect(document.activeElement).toBe(next.element)
+    })
+
+    it('returnFocusTo_winsOverActiveElement', async () => {
+      const thumb = document.createElement('button')
+      const other = document.createElement('button')
+      document.body.append(thumb, other)
+      other.focus()
+      const w = mountViewer({ urls: null, items: null })
+      await w.setProps({ items, returnFocusTo: thumb })
+      await nextTick()
+      await w.setProps({ items: null })
+      await nextTick()
+      expect(document.activeElement).toBe(thumb)
+    })
+
+    it('trigger ignored when it is body', async () => {
+      const w = mountViewer({ urls: null, items: null })
+      await w.setProps({ items })
+      await nextTick()
+      await w.setProps({ items: null })
+      await nextTick()
+      expect(document.activeElement).toBe(document.body)
+    })
+  })
+
+  describe('photo conservée', () => {
+    it('sameUrls_newArray_keepsIndex', async () => {
+      const w = mountViewer({ urls: null, items })
+      await w.find('[data-test="photo-next"]').trigger('click')
+      await w.find('[data-test="photo-zoom-in"]').trigger('click')
+      await w.setProps({ items: items.map(i => ({ ...i })) })
+      expect(mainSrc(w)).toBe('https://r2/b.jpg')
+      expect(zoomText(w)).toBe('125 %')
+    })
+
+    it('urlsChanged_keepsCurrentPhotoIfStillThere', async () => {
+      const w = mountViewer({ urls: null, items })
+      await w.find('[data-test="photo-next"]').trigger('click')
+      await w.setProps({ items: [{ url: 'https://r2/new.jpg' }, ...items] })
+      expect(mainSrc(w)).toBe('https://r2/b.jpg')
+      expect(w.find('[data-test="photo-position"]').text()).toBe('3 sur 4')
+    })
+
+    it('urlsChanged_currentGone_goesToStartIndex', async () => {
+      const w = mountViewer({ urls: null, items, startIndex: 0 })
+      await w.find('[data-test="photo-next"]').trigger('click')
+      await w.setProps({ items: [items[0]!, items[2]!] })
+      expect(mainSrc(w)).toBe('https://r2/a.jpg')
+    })
+  })
+
+  describe('téléchargement', () => {
+    afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+    it('download_fetchesBlob_andRevokesObjectUrl', async () => {
+      const blob = new Blob(['x'], { type: 'image/png' })
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(blob) })
+      vi.stubGlobal('fetch', fetchMock)
+      const create = vi.fn(() => 'blob:fake'); const revoke = vi.fn()
+      vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }))
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      const w = mountViewer({ urls: null, items })
+      const a = w.find('[data-test="photo-download"]')
+      const ev = new MouseEvent('click', { bubbles: true, cancelable: true })
+      a.element.dispatchEvent(ev)
+      expect(ev.defaultPrevented).toBe(true)
+      await new Promise(r => setTimeout(r, 5))
+      expect(fetchMock).toHaveBeenCalledWith('https://r2/a.jpg')
+      expect(create).toHaveBeenCalledWith(blob)
+      const clicked = (click.mock.contexts as HTMLAnchorElement[]).map(a => ({ href: a.href, download: a.download }))
+      expect(clicked).toEqual([{ href: 'blob:fake', download: 'remise-du-colis-01-06-2026-12-00.png' }])
+      expect(revoke).toHaveBeenCalledWith('blob:fake')
+      expect(open).not.toHaveBeenCalled()
+    })
+
+    it('download_defaultJpgAndNameWithoutCaption', async () => {
+      const blob = new Blob(['x'])
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(blob) }))
+      vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }))
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+      const w = mountViewer({ urls: null, items: [{ url: 'https://r2/z.webp' }, { url: 'https://r2/y.jpg' }], startIndex: 1 })
+      await w.find('[data-test="photo-download"]').trigger('click')
+      await new Promise(r => setTimeout(r, 5))
+      expect((click.mock.contexts as HTMLAnchorElement[]).map(a => a.download)).toEqual(['photo-2.jpg'])
+    })
+
+    it('download_fetchFails_opensNewTab', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('CORS')))
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      const w = mountViewer({ urls: null, items })
+      await w.find('[data-test="photo-download"]').trigger('click')
+      await new Promise(r => setTimeout(r, 5))
+      expect(open).toHaveBeenCalledWith('https://r2/a.jpg', '_blank', 'noopener,noreferrer')
+    })
+
+    it('download_httpError_opensNewTab', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, blob: () => Promise.resolve(new Blob()) }))
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      const w = mountViewer({ urls: null, items })
+      await w.find('[data-test="photo-download"]').trigger('click')
+      await new Promise(r => setTimeout(r, 5))
+      expect(open).toHaveBeenCalledTimes(1)
+    })
+
+    it('download_modifierClick_leftToBrowser', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const w = mountViewer({ urls: null, items })
+      const ev = new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true })
+      w.find('[data-test="photo-download"]').element.dispatchEvent(ev)
+      expect(ev.defaultPrevented).toBe(false)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('zoom fin', () => {
+    const wheel = (w: VueWrapper, deltaY: number, ctrlKey = true) => {
+      const e = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true })
+      // happy-dom ignore `ctrlKey` dans l'init de WheelEvent.
+      Object.defineProperty(e, 'ctrlKey', { value: ctrlKey })
+      w.find('[data-test="photo-stage"]').element.dispatchEvent(e)
+      return e
+    }
+
+    it('pinch_smallDeltas_accumulate', async () => {
+      const w = mountViewer({ urls: null, items })
+      const e = wheel(w, -10)
+      expect(e.defaultPrevented).toBe(true)
+      for (let i = 0; i < 4; i++) wheel(w, -10)
+      await nextTick()
+      expect(zoomText(w)).toBe('100 %')
+      for (let i = 0; i < 5; i++) wheel(w, -10)
+      await nextTick()
+      expect(zoomText(w)).toBe('125 %')
+      // Changement de sens : on repart de zéro.
+      wheel(w, -60); wheel(w, 60); await nextTick()
+      expect(zoomText(w)).toBe('125 %')
+    })
+
+    it('wheel_withoutCtrl_notPrevented', () => {
+      const w = mountViewer({ urls: null, items })
+      expect(wheel(w, -100, false).defaultPrevented).toBe(false)
+    })
+
+    it('ctrlOrMetaKeys_doNotZoom', async () => {
+      const w = mountViewer({ urls: null, items })
+      key('+', { ctrlKey: true }); key('=', { metaKey: true }); key('-', { ctrlKey: true }); await nextTick()
+      expect(zoomText(w)).toBe('100 %')
+      await w.find('[data-test="photo-zoom-in"]').trigger('click')
+      key('0', { metaKey: true }); await nextTick()
+      expect(zoomText(w)).toBe('125 %')
+    })
+  })
 })
