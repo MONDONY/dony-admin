@@ -20,7 +20,7 @@ const identifiers = [{ key: 'bid', label: 'Colis', value: 'b1' }, { key: 'tracki
 
 describe('BidSummaryTab', () => {
   it('summary_hasTripParcelIds : trois sections, boutons du trajet, pas de photos', async () => {
-    const w = mount(BidSummaryTab, { props: { bid, identifiers, copied: null } })
+    const w = mount(BidSummaryTab, { props: { bid, identifiers, copied: null, legacy: false } })
     expect(w.find('[data-test="section-trip"]').text()).toContain('Paris (France)')
     expect(w.find('[data-test="trip-departure"]').text()).toBe('lundi 12 octobre 2026')
     expect(w.find('[data-test="section-parcel"]').text()).toContain('Vêtements')
@@ -37,9 +37,11 @@ describe('BidSummaryTab', () => {
     expect(w.find('[data-test="copy-tracking"]').text()).toBe('Copié')
   })
 
-  it('ancien back : trajet « non disponible »', () => {
-    const legacy = { ...bid, trip: undefined, photoUrls: undefined, description: undefined }
-    const w = mount(BidSummaryTab, { props: { bid: legacy, identifiers, copied: null } })
+  it('ancien back (prop `legacy` du tiroir) : trajet « non disponible » ; sinon annonce supprimée', () => {
+    const noTrip = { ...bid, trip: undefined, photoUrls: undefined, description: undefined }
+    const w = mount(BidSummaryTab, { props: { bid: noTrip, identifiers, copied: null, legacy: true } })
     expect(w.find('[data-test="trip-unavailable"]').text()).toBe('Non disponible pour l’instant.')
+    const gone = mount(BidSummaryTab, { props: { bid: { ...bid, trip: null }, identifiers, copied: null, legacy: false } })
+    expect(gone.find('[data-test="trip-unavailable"]').text()).toBe('L’annonce de ce colis n’existe plus.')
   })
 })

@@ -45,8 +45,14 @@ export const bidsAdminService = {
     const r = await useApi()<Partial<AdminBidPhotos>>(`/admin/bids/${id}/photos`)
     return { bidId: r.bidId ?? id, photos: r.photos ?? [] }
   },
-  getBid(id: string): Promise<AdminBidDetail> {
-    return useApi()<AdminBidDetail>(`/admin/bids/${encodeURIComponent(id)}`)
+  /** `incidents` présent : listes manquantes ramenées à `[]` ; `null` (sans DISPUTE_VIEW) et absent (ancien back) conservés. */
+  async getBid(id: string): Promise<AdminBidDetail> {
+    const bid = await useApi()<AdminBidDetail>(`/admin/bids/${encodeURIComponent(id)}`)
+    if (bid?.incidents) {
+      const inc = bid.incidents as Partial<NonNullable<AdminBidDetail['incidents']>>
+      bid.incidents = { disputes: inc.disputes ?? [], cancellations: inc.cancellations ?? [] }
+    }
+    return bid
   },
   getTimeline(id: string): Promise<AdminBidTimeline> {
     return useApi()<AdminBidTimeline>(`/admin/bids/${encodeURIComponent(id)}/timeline`)

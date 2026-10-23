@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useEscapeClose } from '@/composables/useEscapeClose'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
 import BidTrackingTab from './BidTrackingTab.vue'
 import BidMoneyTab from './BidMoneyTab.vue'
@@ -45,7 +45,9 @@ const emit = defineEmits<{
   /** Onglet choisi par l'admin. */
   'update:section': [section: BidDrawerTab]
 }>()
-useEscapeClose(() => emit('close'), () => props.open)
+/** Le tiroir est lui-même un dialogue modal : sa racine permet à Échap de le fermer (A-R8). */
+const drawer = ref<HTMLElement | null>(null)
+useEscapeClose(() => emit('close'), () => props.open, () => drawer.value)
 const auth = useAuthStore()
 
 /** Ancien back (sans les champs de la fiche détaillée) : sections en « non disponible ». */
@@ -90,10 +92,15 @@ function selectTab(id: BidDrawerTab) {
 }
 
 const supportRecipient = ref<{ id: string; name: string } | null>(null)
+watch(supportRecipient, (now, before) => { if (before && !now) refocusActions() })
 
 // ---- Annuler le colis / Ouvrir un litige (super-admin) ----
 const actions = useBidAdminActions()
 const dialog = ref<'cancel' | 'dispute' | null>(null)
+const actionsMenu = ref<{ focus: () => void } | null>(null)
+/** Modale fermée (annuler, litige, écrire) : le focus revient sur « Actions », jamais sur <body>. */
+function refocusActions() { void nextTick(() => actionsMenu.value?.focus()) }
+watch(dialog, (now, before) => { if (before && !now) refocusActions() })
 
 function openDialog(kind: 'cancel' | 'dispute') {
   actions.reset()
@@ -133,21 +140,27 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
 <template>
   <div v-if="open" class="fixed inset-0 z-40 flex justify-end bg-black/30" @click.self="emit('close')">
     <aside
+      ref="drawer"
       class="flex h-full w-full max-w-2xl flex-col overflow-y-auto border-l border-border bg-surface"
       role="dialog" aria-modal="true" aria-labelledby="bid-detail-title" data-test="bid-detail"
     >
       <BidDrawerHeader :bid="bid" :title="title" :countries="countries" :copied="copied" @copy="copy('tracking', $event)" @close="emit('close')">
         <template #actions>
           <BidActionsMenu
+            ref="actionsMenu"
             :bid="bid" :copied="copied" :identifiers-text="allIdentifiers" :busy="actions.busy.value"
             :cancel-unavailable="actions.cancelUnavailable.value" :dispute-unavailable="actions.disputeUnavailable.value"
-            :success="actions.success.value" :error="actions.error.value" :dialog-open="dialog !== null"
             @copy="copy" @open-dialog="openDialog"
           />
         </template>
       </BidDrawerHeader>
 
       <div class="flex flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
+        <!-- Résultat d'un geste : hors de l'en-tête collant pour ne pas manger sa hauteur. -->
+        <div v-if="actions.success.value || (actions.error.value && !dialog)" class="flex flex-col gap-2" data-test="bid-action-messages">
+          <p v-if="actions.success.value" role="status" data-test="action-success" class="rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-pretty">{{ actions.success.value }}</p>
+          <p v-if="actions.error.value && !dialog" role="alert" data-test="action-error" class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty">{{ actions.error.value }}</p>
+        </div>
         <p
           v-if="legacy" data-test="bid-legacy"
           class="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-pretty"
@@ -163,7 +176,7 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
           />
           <div :id="`bid-panel-${active}`" role="region" :aria-labelledby="`bid-tab-${active}`" class="pt-5" :data-test="`bid-panel-${active}`">
             <BidSummaryTab
-              v-if="active === 'summary'" :bid="bid" :identifiers="identifiers" :copied="copied"
+              v-if="active === 'summary'" :bid="bid" :identifiers="identifiers" :copied="copied" :legacy="legacy"
               @show-announcement="emit('show-announcement', $event)" @show-trip-bids="emit('show-trip-bids', $event)" @copy="copy"
             />
 

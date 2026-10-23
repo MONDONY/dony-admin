@@ -1,6 +1,6 @@
 /** Menu « Actions » du tiroir colis : mêmes gestes, mêmes garde-fous, mêmes `data-test` qu'avant. */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import BidActionsMenu from '@/features/bids/components/BidActionsMenu.vue'
 import type { AdminBidDetail } from '@/features/bids/types/index'
 import { seedAuth } from '~/tests/helpers/auth'
@@ -17,7 +17,7 @@ const wrappers: VueWrapper[] = []
 function mountMenu(props: Record<string, unknown> = {}) {
   const w = mount(BidActionsMenu, {
     props: { bid: bid(), copied: null, identifiersText: 'Colis : b1', busy: false, cancelUnavailable: false,
-      disputeUnavailable: false, success: null, error: null, ...props },
+      disputeUnavailable: false, ...props },
     global: { stubs: { NuxtLink } }, attachTo: document.body,
   })
   wrappers.push(w)
@@ -34,9 +34,12 @@ describe('BidActionsMenu', () => {
     const btn = w.find('[data-test="bid-actions-menu"]')
     expect(btn.attributes('aria-haspopup')).toBe('menu')
     expect(btn.attributes('aria-expanded')).toBe('false')
+    expect(btn.attributes('aria-controls')).toBeUndefined()
     expect(w.find('[role="menu"]').exists()).toBe(false)
     await open(w)
     expect(btn.attributes('aria-expanded')).toBe('true')
+    expect(btn.attributes('aria-controls')).toBe('bid-actions-list')
+    expect(w.find('#bid-actions-list').attributes('role')).toBe('menu')
     const menu = w.find('[role="menu"]')
     expect(menu.exists()).toBe(true)
     const items = menu.findAll('[role="menuitem"]')
@@ -58,6 +61,24 @@ describe('BidActionsMenu', () => {
     expect(esc.defaultPrevented).toBe(true)
     expect(w.find('[role="menu"]').exists()).toBe(false)
     expect(document.activeElement).toBe(btn.element)
+  })
+
+  it('flèches sur le bouton fermé : ↓ ouvre sur la première entrée, ↑ sur la dernière', async () => {
+    const w = mountMenu()
+    const btn = w.find('[data-test="bid-actions-menu"]')
+    await btn.trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+    expect(w.find('[role="menu"]').exists()).toBe(true)
+    expect(document.activeElement).toBe(w.find('[data-test="action-payment"]').element)
+    await w.find('[role="menu"]').trigger('keydown', { key: 'Escape' })
+    expect(w.find('[role="menu"]').exists()).toBe(false)
+    await btn.trigger('keydown', { key: 'ArrowUp' })
+    await flushPromises()
+    expect(document.activeElement).toBe(w.find('[data-test="action-open-dispute"]').element)
+    // Autre touche sur le bouton fermé : rien.
+    await w.find('[role="menu"]').trigger('keydown', { key: 'Escape' })
+    await btn.trigger('keydown', { key: 'x' })
+    expect(w.find('[role="menu"]').exists()).toBe(false)
   })
 
   it('clic à l’extérieur et second clic sur le bouton ferment le menu', async () => {
@@ -100,21 +121,31 @@ describe('BidActionsMenu', () => {
     expect(noMoney.find('[data-test="action-payment"]').exists()).toBe(false)
   })
 
-  it('menu_cancelDisabledReason_shown : sans ADMIN_MANAGE, entrées désactivées avec la raison', async () => {
+  it('menu_cancelDisabledReason_shown : sans ADMIN_MANAGE, entrées aria-disabled, raison dans le menu', async () => {
     seedAuth('ADMIN')
     const w = mountMenu()
     await open(w)
     const cancel = w.find('[data-test="action-cancel"]')
-    expect(cancel.attributes('disabled')).toBeDefined()
+    expect(cancel.attributes('aria-disabled')).toBe('true')
+    expect(cancel.attributes('disabled')).toBeUndefined()
     expect(cancel.attributes('aria-describedby')).toBe('bid-cancel-reason')
-    expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeDefined()
-    expect(w.find('#bid-cancel-reason').attributes('data-test')).toBe('cancel-disabled-reason')
+    expect(w.find('[data-test="action-open-dispute"]').attributes('aria-disabled')).toBe('true')
+    expect(w.find('[data-test="action-open-dispute"]').attributes('aria-describedby')).toBe('bid-dispute-reason')
+    const reason = w.find('[role="menu"] #bid-cancel-reason')
+    expect(reason.attributes('data-test')).toBe('cancel-disabled-reason')
+    expect(reason.attributes('role')).toBe('none')
+    expect(w.find('[role="menu"] [data-test="actions-unavailable"]').exists()).toBe(true)
+    // Entrée désactivée : cliquer ne demande aucune modale et le menu reste ouvert.
+    await cancel.trigger('click')
+    await w.find('[data-test="action-open-dispute"]').trigger('click')
+    expect(w.emitted('open-dialog')).toBeUndefined()
+    expect(w.find('[role="menu"]').exists()).toBe(true)
     expect(w.find('[data-test="cancel-disabled-reason"]').text()).toBe('Annuler le colis : Réservé aux super-administrateurs : demandez à l’un d’eux.')
     expect(w.find('[data-test="dispute-disabled-reason"]').text()).toContain('Réservé aux super-administrateurs')
-    // Les flèches sautent les entrées désactivées.
+    // Les entrées désactivées restent atteignables aux flèches (annoncées avec leur raison).
     const menu = w.find('[role="menu"]')
     await menu.trigger('keydown', { key: 'End' })
-    expect(document.activeElement).toBe(w.find('[data-test="action-copy-ids"]').element)
+    expect(document.activeElement).toBe(w.find('[data-test="action-open-dispute"]').element)
   })
 
   it('colis livré et versé : raisons du back ; occupé : entrées désactivées', async () => {
@@ -124,7 +155,10 @@ describe('BidActionsMenu', () => {
     expect(w.find('[data-test="dispute-disabled-reason"]').text()).toContain('déjà été payé')
     const busy = mountMenu({ busy: true })
     await open(busy)
-    expect(busy.find('[data-test="action-cancel"]').attributes('disabled')).toBeDefined()
+    expect(busy.find('[data-test="action-cancel"]').attributes('aria-disabled')).toBe('true')
+    expect(busy.find('[data-test="action-cancel"]').attributes('aria-describedby')).toBeUndefined()
+    await busy.find('[data-test="action-cancel"]').trigger('click')
+    expect(busy.emitted('open-dialog')).toBeUndefined()
     expect(busy.find('[data-test="cancel-disabled-reason"]').exists()).toBe(false)
   })
 
@@ -133,7 +167,7 @@ describe('BidActionsMenu', () => {
     await open(w)
     expect(w.find('[data-test="action-cancel"]').exists()).toBe(false)
     expect(w.find('[data-test="action-open-dispute"]').exists()).toBe(false)
-    expect(w.find('[data-test="unavailable-cancel"]').text()).toContain('Action indisponible sur cet environnement')
+    expect(w.find('[role="menu"] [data-test="unavailable-cancel"]').text()).toContain('Action indisponible sur cet environnement')
     expect(w.find('[data-test="unavailable-dispute"]').exists()).toBe(true)
   })
 
@@ -153,12 +187,10 @@ describe('BidActionsMenu', () => {
     expect(w.emitted('open-dialog')?.[1]).toEqual(['dispute'])
   })
 
-  it('messages de succès et d’erreur visibles menu fermé, erreur masquée pendant une modale', async () => {
-    const w = mountMenu({ success: 'Remboursement lancé', error: null })
-    expect(w.find('[data-test="action-success"]').text()).toBe('Remboursement lancé')
-    await w.setProps({ success: null, error: 'Refusé' })
-    expect(w.find('[data-test="action-error"]').text()).toBe('Refusé')
-    await w.setProps({ dialogOpen: true })
-    expect(w.find('[data-test="action-error"]').exists()).toBe(false)
+  it('focus() rend le focus au bouton « Actions »', () => {
+    const w = mountMenu()
+    ;(w.vm as unknown as { focus: () => void }).focus()
+    expect(document.activeElement).toBe(w.find('[data-test="bid-actions-menu"]').element)
+    expect(w.find('[data-test="action-success"]').exists()).toBe(false)
   })
 })

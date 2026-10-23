@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { AdminBidDetail, BidAlertCode } from '@/features/bids/types/index'
 import { alertMeta } from '@/features/bids/lib/bidViews'
 import { disputeStatusLabel } from '@/features/bids/lib/bidLabels'
+import { bidLinks } from '@/features/bids/lib/bidLinks'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -32,13 +33,9 @@ const detail = computed(() => {
   return code.value ? HINTS[code.value] ?? null : null
 })
 const link = computed(() => {
-  if (!auth.can('DISPUTE_VIEW') || !links.value) return null
-  if (code.value === 'DISPUTE_OPEN' && links.value.disputeId) {
-    return { to: { path: '/incidents', query: { open: links.value.disputeId } }, label: 'Voir l’incident' }
-  }
-  if (code.value === 'NO_SHOW' && links.value.cancellationId) {
-    return { to: { path: '/incidents', query: { tab: 'noshows', open: links.value.cancellationId } }, label: 'Voir l’absence signalée' }
-  }
+  const routes = bidLinks(props.bid, auth.can)
+  if (code.value === 'DISPUTE_OPEN' && routes.dispute) return { to: routes.dispute, label: 'Voir l’incident' }
+  if (code.value === 'NO_SHOW' && routes.noShow) return { to: routes.noShow, label: 'Voir l’absence signalée' }
   return null
 })
 </script>

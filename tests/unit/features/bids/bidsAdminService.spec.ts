@@ -29,6 +29,19 @@ describe('bidsAdminService', () => {
     await bidsAdminService.getBid('b1')
     expect(apiMock).toHaveBeenCalledWith('/admin/bids/b1')
   })
+  it('getBid_normalizesIncidents : listes manquantes → [], null et absent conservés', async () => {
+    apiMock.mockResolvedValueOnce({ id: 'b1', incidents: {} })
+    expect((await bidsAdminService.getBid('b1')).incidents).toEqual({ disputes: [], cancellations: [] })
+    const d = { id: 'd1', type: null, status: 'OPEN', createdAt: null, resolvedAt: null, resolutionType: null }
+    apiMock.mockResolvedValueOnce({ id: 'b1', incidents: { disputes: [d] } })
+    expect((await bidsAdminService.getBid('b1')).incidents).toEqual({ disputes: [d], cancellations: [] })
+    apiMock.mockResolvedValueOnce({ id: 'b1', incidents: null })
+    expect((await bidsAdminService.getBid('b1')).incidents).toBeNull()
+    apiMock.mockResolvedValueOnce({ id: 'b1' })
+    const legacy = await bidsAdminService.getBid('b1')
+    expect(legacy.incidents).toBeUndefined()
+    expect('incidents' in legacy).toBe(false)
+  })
   it('getTimeline GETs timeline', async () => {
     apiMock.mockResolvedValue({ bidId: 'b1', entries: [] })
     await bidsAdminService.getTimeline('b1')

@@ -52,6 +52,12 @@ describe('BidDetailPanel — gestes super-admin', () => {
     expect(w.emitted('changed')).toHaveLength(1)
     expect(w.find('[data-test="cancel-dialog"]').exists()).toBe(false)
     expect(w.find('[data-test="action-success"]').text()).toContain('Remboursement de 48,00 EUR lancé')
+    // Hors de l'en-tête collant, avant le bandeau d'alerte.
+    expect(w.find('header [data-test="action-success"]').exists()).toBe(false)
+    expect(w.find('[data-test="bid-action-messages"] [data-test="action-success"]').exists()).toBe(true)
+    // Changement de colis : message effacé.
+    await w.setProps({ bid: { ...bid, id: '1c1a0000-0000-4000-8000-0000000000b4' } })
+    expect(w.find('[data-test="action-success"]').exists()).toBe(false)
   })
 
   it('refus du back : message FR dans la modale, qui reste ouverte', async () => {
@@ -65,6 +71,9 @@ describe('BidDetailPanel — gestes super-admin', () => {
     await w.find('[data-test="cancel-dismiss"]').trigger('click')
     expect(w.find('[data-test="cancel-dialog"]').exists()).toBe(false)
     expect(w.find('[data-test="action-error"]').text()).toContain('déjà été payé')
+    expect(w.find('header [data-test="action-error"]').exists()).toBe(false)
+    await w.setProps({ bid: { ...bid, id: '1c1a0000-0000-4000-8000-0000000000b4' } })
+    expect(w.find('[data-test="action-error"]').exists()).toBe(false)
   })
 
   it('ancien back : bouton masqué, « action indisponible sur cet environnement »', async () => {
@@ -119,8 +128,8 @@ describe('BidDetailPanel — gestes super-admin', () => {
     seedAuth('ADMIN')
     const w = mountPanel()
     await menu(w)
-    expect(w.find('[data-test="action-cancel"]').attributes('disabled')).toBeDefined()
-    expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-test="action-cancel"]').attributes('aria-disabled')).toBe('true')
+    expect(w.find('[data-test="action-open-dispute"]').attributes('aria-disabled')).toBe('true')
     expect(w.find('[data-test="cancel-disabled-reason"]').text()).toContain('Réservé aux super-administrateurs')
     expect(w.find('[data-test="dispute-disabled-reason"]').text()).toContain('Réservé aux super-administrateurs')
   })

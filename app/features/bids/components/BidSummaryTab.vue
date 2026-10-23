@@ -14,6 +14,8 @@ const props = defineProps<{
   bid: AdminBidDetail
   identifiers: BidIdentifierRow[]
   copied: string | null
+  /** Ancien back (calculé une fois par le tiroir) : « non disponible » au lieu de vide. */
+  legacy: boolean
 }>()
 const emit = defineEmits<{
   'show-announcement': [announcementId: string]
@@ -21,8 +23,6 @@ const emit = defineEmits<{
   copy: [key: string, value: string]
 }>()
 
-/** Ancien back (sans les champs de la fiche détaillée) : « non disponible » au lieu de vide. */
-const legacy = computed(() => props.bid.trip === undefined && props.bid.money === undefined && props.bid.links === undefined)
 const trip = computed(() => props.bid.trip ?? null)
 
 function when(day: string | null | undefined, time: string | null | undefined): string | null {

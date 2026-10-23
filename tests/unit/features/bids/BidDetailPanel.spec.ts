@@ -3,8 +3,8 @@
  * section (en-tête, trajet, personnes, colis, argent, chronologie, actions, identifiants),
  * chaque statut, actions selon les droits, et ancien back.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import type { AdminBidDetail, BidStatus } from '@/features/bids/types/index'
@@ -15,7 +15,10 @@ const stubs = {
   NuxtLink,
   BidPhotoGallery: { props: ['bid', 'timeline'], emits: ['unavailable', 'reload-bid'], template: '<div data-test="gallery-stub"><button data-test="gallery-reload" @click="$emit(\'reload-bid\')" /></div>' },
   StripeResyncPanel: { props: ['paymentId', 'currency'], template: '<div data-test="resync-stub">{{ paymentId }}</div>' },
-  StartSupportConversationDialog: { props: ['open', 'recipient'], template: '<div v-if="open" data-test="support-dialog">{{ recipient?.name }}</div>' },
+  StartSupportConversationDialog: {
+    props: ['open', 'recipient'], emits: ['close'],
+    template: '<div v-if="open" data-test="support-dialog">{{ recipient?.name }}<button data-test="support-close" @click="$emit(\'close\')" /></div>',
+  },
 }
 
 /** Ancien back : uniquement les champs historiques. */
@@ -332,8 +335,8 @@ describe('BidDetailPanel', () => {
       expect(w.find('[data-test="action-payment"]').exists()).toBe(true)
       expect(w.find('[data-test="action-conversation"]').attributes('data-to')).toContain('"open":"fs-42"')
       expect(w.find('[data-test="action-dispute"]').exists()).toBe(false)
-      expect(w.find('[data-test="action-cancel"]').attributes('disabled')).toBeUndefined()
-      expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeUndefined()
+      expect(w.find('[data-test="action-cancel"]').attributes('aria-disabled')).toBeUndefined()
+      expect(w.find('[data-test="action-open-dispute"]').attributes('aria-disabled')).toBeUndefined()
       expect(w.find('[data-test="unavailable-dispute"]').exists()).toBe(false)
       expect(w.find('[data-test="unavailable-cancel"]').exists()).toBe(false)
       expect(w.text()).not.toContain('pas d’endpoint')
@@ -365,7 +368,7 @@ describe('BidDetailPanel', () => {
       await menu(w)
       expect(w.find('[data-test="action-dispute"]').text()).toBe('Voir le litige (ouvert)')
       expect(w.find('[data-test="action-dispute"]').attributes('data-to')).toContain('"open":"dsp-1"')
-      expect(w.find('[data-test="action-open-dispute"]').attributes('disabled')).toBeDefined()
+      expect(w.find('[data-test="action-open-dispute"]').attributes('aria-disabled')).toBe('true')
       expect(w.find('[data-test="dispute-disabled-reason"]').text()).toContain('déjà ouvert')
     })
 
@@ -544,6 +547,67 @@ describe('BidDetailPanel', () => {
       const w = mountPanel({ ...fullBid, alert: 'LATE' })
       expect(w.find('[data-test="bid-alert-banner"]').text()).toContain('Livraison en retard')
       expect(w.find('[data-test="step-handed"]').attributes('aria-current')).toBe('step')
+    })
+  })
+
+  describe('Échap, focus et changement de colis', () => {
+    const attached: VueWrapper[] = []
+    const mountAttached = (bid: AdminBidDetail = fullBid, extra: Record<string, unknown> = {}, more: Record<string, unknown> = {}) => {
+      const w = mount(BidDetailPanel, { props: { bid, timeline, open: true, ...extra }, global: { stubs: { ...stubs, ...more } }, attachTo: document.body })
+      attached.push(w)
+      return w
+    }
+    const esc = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    afterEach(() => { while (attached.length) attached.pop()!.unmount() })
+
+    it('drawer_escapeCloses : le tiroir, lui-même modal, se ferme sur Échap', () => {
+      const w = mountAttached()
+      esc()
+      expect(w.emitted('close')).toHaveLength(1)
+    })
+
+    it('drawer_escapeWithViewerOpen : seule la visionneuse (modale dans le tiroir) est concernée', () => {
+      const Viewer = { props: ['bid', 'timeline'], template: '<div role="dialog" aria-modal="true" data-test="viewer-stub" />' }
+      const w = mountAttached(fullBid, { section: 'tracking' }, { BidPhotoGallery: Viewer })
+      expect(w.find('[data-test="viewer-stub"]').exists()).toBe(true)
+      esc()
+      expect(w.emitted('close')).toBeUndefined()
+    })
+
+    it('drawer_escapeWithConfirmOpen : la modale d’annulation ouverte, le tiroir reste', async () => {
+      const w = mountAttached()
+      await menu(w)
+      await w.find('[data-test="action-cancel"]').trigger('click')
+      expect(w.find('[data-test="cancel-dialog"]').exists()).toBe(true)
+      esc()
+      expect(w.emitted('close')).toBeUndefined()
+    })
+
+    it('dialogFocus_returnsToActions : modale annulée puis fenêtre support fermée, focus sur « Actions »', async () => {
+      const w = mountAttached()
+      const actionsBtn = w.find('[data-test="bid-actions-menu"]').element
+      await menu(w)
+      await w.find('[data-test="action-cancel"]').trigger('click')
+      await w.find('[data-test="cancel-dismiss"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="cancel-dialog"]').exists()).toBe(false)
+      expect(document.activeElement).toBe(actionsBtn)
+      ;(document.activeElement as HTMLElement).blur()
+      await w.find('[data-test="party-traveler-contact"]').trigger('click')
+      await w.find('[data-test="support-close"]').trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(actionsBtn)
+    })
+
+    it('bidChange_closesMenuAndSupport : menu fermé, destinataire du support remis à zéro', async () => {
+      const w = mountPanel()
+      await menu(w)
+      expect(w.find('[role="menu"]').exists()).toBe(true)
+      await w.find('[data-test="party-traveler-contact"]').trigger('click')
+      expect(w.find('[data-test="support-dialog"]').exists()).toBe(true)
+      await w.setProps({ bid: { ...fullBid, id: 'db1c5742-1a56-4a66-a729-47ab29987b98' } })
+      expect(w.find('[role="menu"]').exists()).toBe(false)
+      expect(w.find('[data-test="support-dialog"]').exists()).toBe(false)
     })
   })
 })

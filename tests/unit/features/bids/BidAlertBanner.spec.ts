@@ -39,11 +39,11 @@ describe('BidAlertBanner', () => {
   })
 
   it('banner_noShow : absence signalée et lien vers le no-show', () => {
-    const w = mountBanner({ alert: 'NO_SHOW' })
+    const w = mountBanner({ alert: 'NO_SHOW', status: 'NO_SHOW' })
     expect(w.find('[data-test="bid-alert-banner"]').text()).toContain('Absence signalée')
     expect(JSON.parse(w.find('[data-test="bid-alert-link"]').attributes('data-to')!))
       .toEqual({ path: '/incidents', query: { tab: 'noshows', open: 'c-1' } })
-    expect(mountBanner({ alert: 'NO_SHOW', links: { ...links, cancellationId: null } }).find('[data-test="bid-alert-link"]').exists()).toBe(false)
+    expect(mountBanner({ alert: 'NO_SHOW', status: 'NO_SHOW', links: { ...links, cancellationId: null } }).find('[data-test="bid-alert-link"]').exists()).toBe(false)
   })
 
   it('banner_paymentPending', () => {
