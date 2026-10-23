@@ -124,4 +124,21 @@ describe('UserOverviewTab', () => {
     expect(w.get('table').attributes('aria-label')).toContain('en cours')
     expect(w.findAll('th').every(h => h.attributes('scope') === 'col')).toBe(true)
   })
+
+  it('listes absentes (undefined) : cartes masquées', () => {
+    const w = mount(UserOverviewTab, { props: { inProgress: undefined as never, timeline: undefined as never }, global: { stubs } })
+    expect(w.find('[data-test="in-progress-card"]').exists()).toBe(false)
+    expect(w.find('[data-test="timeline-card"]').exists()).toBe(false)
+  })
+
+  it('trajet sans référence : libellé de repli et lien nommé d’après le trajet', () => {
+    const trip = { ...item({ kind: 'TRIP', id: 't1', amount: undefined }), reference: undefined } as unknown as InProgressItem
+    const w = mountTab([trip], [])
+    const row = w.get('[data-test="in-progress-row"]')
+    expect(row.text()).not.toContain('undefined')
+    const cells = row.findAll('td')
+    expect(cells[1]!.text()).toBe('Trajet')
+    expect(row.get('a').attributes('aria-label')).toBe('Ouvrir le trajet Paris → Dakar')
+    expect(cells[6]!.text()).toBe('—')
+  })
 })
