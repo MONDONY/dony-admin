@@ -87,7 +87,13 @@ describe('alertLinks / entityLink', () => {
 
   it('ajoute l’onglet utile pour les règles INV-11 et INV-14', () => {
     expect(alertLinks(alert('MONEY_INVARIANT_INV-14'))[0].to.query).toEqual({ tab: 'wallet-refunds' })
-    expect(alertLinks(alert('MONEY_INVARIANT_INV-11'))[0].to.query).toEqual({ tab: 'mobile-money' })
+    expect(alertLinks(alert('MONEY_INVARIANT_INV-11'))[0].to).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+  })
+
+  it('MM_PAYOUT_ORPHAN_* : mobile money, vue Échecs', () => {
+    const links = alertLinks(alert('MM_PAYOUT_ORPHAN_123'))
+    expect(links.find(l => l.label === 'Opérations mobile money en échec')?.to)
+      .toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
   })
 
   it('colonnes SQL snake_case et valeurs non-UUID', () => {

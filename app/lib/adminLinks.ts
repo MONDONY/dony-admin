@@ -99,6 +99,12 @@ export function transactionsViewRoute(opts: { view?: TransactionsView; alert?: T
   return Object.keys(query).length ? { path: '/transactions', query } : { path: '/transactions' }
 }
 
+/**
+ * Mobile money, vue Échecs. `view` en minuscules : c'est la forme que la section écrit elle-même
+ * (`writeMobileMoneyQuery`), le lien n'est donc pas réécrit à l'arrivée.
+ */
+export const mobileMoneyFailedRoute = (): AdminRoute => ({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+
 /** Versements retenus : alias historique `?held=true`. */
 export const heldPayoutsRoute = (): AdminRoute => ({ path: '/transactions', query: { held: 'true' } })
 

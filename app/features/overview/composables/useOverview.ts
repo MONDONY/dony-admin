@@ -67,7 +67,9 @@ export function useOverview() {
     if (typeof q.heldPayouts === 'number') {
       cards.push({ id: 'heldPayouts', label: 'Versements retenus', count: q.heldPayouts, tone: 'danger', href: toHref(heldPayoutsRoute()) })
     }
-    cards.push({ id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: toHref(transactionsViewRoute()) })
+    // Même définition que l'alerte ESCROW_J48 de la vue « À traiter » : le nombre de la carte est
+    // celui de la liste où l'on arrive (et non la liste complète des paiements).
+    cards.push({ id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: toHref(transactionsViewRoute({ view: 'ATTENTION', alert: 'ESCROW_J48' })) })
     return cards
   })
 

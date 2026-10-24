@@ -7,6 +7,7 @@ import type { AdminAnnouncementListItem, AnnouncementStatus } from '@/features/b
 import { formatMajorAmount } from '@/features/finance/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { REMOVAL_REASONS } from '@/features/bids/removalReasons'
+import { gate, paymentsOfTripRoute, toHref } from '@/lib/adminLinks'
 
 defineProps<{ announcements: AdminAnnouncementListItem[]; loading: boolean; error?: string | null; busy?: boolean }>()
 const emit = defineEmits<{ remove: [id: string, publicReason: string, internalNote: string]; restore: [id: string] }>()
@@ -19,6 +20,12 @@ const annTone: Record<AnnouncementStatus, 'success' | 'info' | 'neutral' | 'dang
   COMPLETED: 'neutral',
   CANCELLED: 'danger',
   REMOVED_BY_ADMIN: 'danger',
+}
+
+/** « Paiements de ce trajet » : liste Transactions filtrée sur l'annonce (PAYMENT_VIEW). */
+function paymentsHref(id: string): string | null {
+  const route = gate(auth.can, 'PAYMENT_VIEW', paymentsOfTripRoute(id))
+  return route ? toHref(route) : null
 }
 
 function fmt(d: string) {
@@ -78,6 +85,10 @@ function confirmRemove(internalNote: string, publicReason?: string) {
               :title="`Voyage ${a.tripGroupId}`"
               class="ml-2 inline-flex items-center rounded-btn bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary tabular-nums"
             >Étape {{ a.tripLegIndex }}/{{ a.tripLegCount }} · voyage {{ a.tripGroupId.slice(0, 8) }}</span>
+            <NuxtLink
+              v-if="paymentsHref(a.id)" :to="paymentsHref(a.id)!" :data-test="`ann-payments-${a.id}`"
+              class="-ml-2 mt-0.5 flex min-h-10 w-fit items-center rounded-btn px-2 text-xs font-medium text-primary transition-[background-color,transform] hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.96] motion-reduce:active:scale-100"
+            >Paiements de ce trajet</NuxtLink>
           </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ a.travelerName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(a.departureDate) }}</td>

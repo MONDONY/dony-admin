@@ -61,3 +61,25 @@ describe('BidMoneyTab', () => {
       .toBe('Montants du paiement réservés aux admins qui consultent les transactions.')
   })
 })
+
+describe('BidMoneyTab : « Voir la retenue »', () => {
+  const P = '0a1b2c3d-1111-4222-8333-444455556666'
+  const Link = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+  const held = { ...fullBid, money: { ...fullBid.money!, paymentId: P, payoutHeldAt: '2026-10-08T09:00:00' } } as AdminBidDetail
+  const mountH = (bid: AdminBidDetail) => mount(BidMoneyTab, { props: { bid }, global: { stubs: { ...stubs, NuxtLink: Link } } })
+
+  it('versement retenu + PAYMENT_VIEW : lien vers l’onglet Incidents du tiroir paiement', () => {
+    seedAuth('ADMIN')
+    const a = mountH(held).get('[data-test="money-held-link"]')
+    expect(a.element.tagName).toBe('A')
+    expect(a.attributes('href')).toBe(`/transactions?open=${P}&section=incidents`)
+    expect(a.text()).toBe('Voir la retenue')
+  })
+
+  it('pas de retenue, ou sans PAYMENT_VIEW : aucun lien', () => {
+    seedAuth('ADMIN')
+    expect(mountH({ ...held, money: { ...held.money!, payoutHeldAt: null } } as AdminBidDetail).find('[data-test="money-held-link"]').exists()).toBe(false)
+    seedAuth('ADMIN', { PAYMENT_VIEW: false })
+    expect(mountH(held).find('[data-test="money-held-link"]').exists()).toBe(false)
+  })
+})

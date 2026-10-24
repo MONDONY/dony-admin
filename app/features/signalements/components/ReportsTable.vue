@@ -10,6 +10,7 @@ import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signal
 import { canReplyToReport, hasSupportConversation, supportConversationLink } from '@/features/signalements/reportReply'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
+import { gate, toHref, unchecked } from '@/lib/adminLinks'
 const props = withDefaults(defineProps<{
   reports: AdminReport[]
   loading: boolean
@@ -43,8 +44,9 @@ function deletedInfo(r: AdminReport): string {
 }
 /** Demande d'envoi signalée : lien profond vers sa fiche de modération dans /colis. */
 function requestLink(r: AdminReport): string | null {
-  if (r.targetType !== 'PACKAGE_REQUEST' || !r.targetId || !auth.can('BID_VIEW')) return null
-  return `/colis?tab=demandes&open=${encodeURIComponent(r.targetId)}`
+  if (r.targetType !== 'PACKAGE_REQUEST') return null
+  const route = gate(auth.can, 'BID_VIEW', unchecked.packageRequestRoute(r.targetId))
+  return route ? toHref(route) : null
 }
 /** Un avis ou une suggestion du scarabée n'est pas un « bug » : libellé neutre. */
 function reasonTitle(r: AdminReport): string {

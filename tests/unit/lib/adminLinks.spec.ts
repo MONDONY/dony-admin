@@ -46,6 +46,10 @@ describe('constructeurs : URL du contrat', () => {
     expect(L.transactionsViewRoute({ tab: 'mobile-money', view: 'FAILED' }))
       .toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'FAILED' } })
   })
+  it('mobile money, vue Échecs : `view` en minuscules, comme la page l’écrit', () => {
+    expect(L.mobileMoneyFailedRoute()).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+    expect(L.toHref(L.mobileMoneyFailedRoute())).toBe('/transactions?tab=mobile-money&view=failed')
+  })
   it('pages de liste', () => {
     expect(L.incidentsListRoute()).toEqual({ path: '/incidents' })
     expect(L.alertsListRoute()).toEqual({ path: '/alertes' })

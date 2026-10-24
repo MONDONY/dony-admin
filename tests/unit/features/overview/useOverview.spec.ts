@@ -83,7 +83,13 @@ describe('useOverview', () => {
     expect(href('disputes')).toBe('/incidents')
     expect(href('noshows')).toBe('/incidents')
     expect(href('alerts')).toBe('/alertes')
-    expect(href('escrowJ48')).toBe('/transactions')
+  })
+
+  it('carte Escrow J+48 : la vue « À traiter » filtrée sur l’alerte J+48, dont le nombre est celui de la carte', async () => {
+    fetchMock.mockResolvedValue(sample)
+    const o = useOverview()
+    await o.fetchOverview()
+    expect(o.queues.value.find(q => q.id === 'escrowJ48')?.href).toBe('/transactions?view=ATTENTION&alert=ESCROW_J48')
   })
 
   it('carte KYC : compteur en revue, cliquable vers /kyc', async () => {

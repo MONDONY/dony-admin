@@ -1,7 +1,7 @@
 import type { RouteLocationRaw } from 'vue-router'
 import type { AdminPermission } from '@/stores/auth'
 import { normalizeSearch } from './normalize'
-import { transactionsViewRoute } from '@/lib/adminLinks'
+import { mobileMoneyFailedRoute, transactionsViewRoute } from '@/lib/adminLinks'
 
 export interface SearchPage {
   key: string
@@ -26,6 +26,7 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { key: 'chargebacks', label: 'Litiges bancaires', parent: 'Transactions', keywords: 'chargeback contestation', to: transactionsViewRoute({ tab: 'chargebacks' }), permission: 'PAYMENT_VIEW' },
   { key: 'wallets', label: 'Portefeuilles', parent: 'Transactions', keywords: 'wallet solde', to: transactionsViewRoute({ tab: 'wallets' }), permission: 'PAYMENT_VIEW' },
   { key: 'mobile-money', label: 'Mobile money', parent: 'Transactions', keywords: 'pawapay orange wave', to: transactionsViewRoute({ tab: 'mobile-money' }), permission: 'PAYMENT_VIEW' },
+  { key: 'mobile-money-failed', label: 'Versements échoués', parent: 'Transactions', keywords: 'mobile money echecs pawapay paiements rates', to: mobileMoneyFailedRoute(), permission: 'PAYMENT_VIEW' },
   { key: 'mm-commissions', label: 'Commissions mobile money', parent: 'Transactions', to: transactionsViewRoute({ tab: 'mm-commissions' }), permission: 'PAYMENT_VIEW' },
   { key: 'cash-commissions', label: 'Commissions cash', parent: 'Transactions', keywords: 'especes', to: transactionsViewRoute({ tab: 'cash-commissions' }), permission: 'PAYMENT_VIEW' },
   { key: 'wallet-refunds', label: 'Remboursements wallet', parent: 'Transactions', keywords: 'remboursement suppression compte solde', to: transactionsViewRoute({ tab: 'wallet-refunds' }), permission: 'PAYMENT_VIEW' },

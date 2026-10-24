@@ -65,6 +65,18 @@ describe('matchPages', () => {
   })
 })
 
+describe('Transactions : Versements échoués', () => {
+  it('entrée « Versements échoués » vers mobile money, vue Échecs, avec PAYMENT_VIEW', () => {
+    const p = SEARCH_PAGES.find(x => x.key === 'mobile-money-failed')!
+    expect(p.label).toBe('Versements échoués')
+    expect(p.parent).toBe('Transactions')
+    expect(p.permission).toBe('PAYMENT_VIEW')
+    expect(p.to).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+    expect(matchPages('versements echoues', all)[0].key).toBe('mobile-money-failed')
+    expect(matchPages('versements', only('USER_VIEW')).map(x => x.key)).not.toContain('mobile-money-failed')
+  })
+})
+
 describe('normalize', () => {
   it('normalizeSearch retire accents et espaces', () => {
     expect(normalizeSearch('  Vérifications ')).toBe('verifications')

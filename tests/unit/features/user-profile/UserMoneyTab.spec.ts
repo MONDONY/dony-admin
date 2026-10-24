@@ -33,3 +33,33 @@ describe('UserMoneyTab', () => {
     expect(html.indexOf('wallet-stub')).toBeLessThan(html.indexOf('section-payments'))
   })
 })
+
+describe('UserMoneyTab : liens vers Transactions', () => {
+  const U = '0a1b2c3d-1111-4222-8333-444455556666'
+  beforeEach(() => { sectionMock.mockReset().mockResolvedValue({ content: [], totalPages: 0, number: 0, totalElements: 0 }) })
+
+  it('avec PAYMENT_VIEW : « Tous ses paiements » et « Son portefeuille »', async () => {
+    seedAuth('ADMIN')
+    const w = mount(UserMoneyTab, { props: { userId: U }, global: { stubs } })
+    await flushPromises()
+    const all = w.get('[data-test="user-payments-all-link"]')
+    expect(all.element.tagName).toBe('A')
+    expect(all.attributes('href')).toBe(`/transactions?partyId=${U}`)
+    expect(all.text()).toBe('Tous ses paiements')
+    const wallet = w.get('[data-test="user-wallet-link"]')
+    expect(wallet.attributes('href')).toBe(`/transactions?tab=wallets&partyId=${U}`)
+    expect(wallet.text()).toBe('Son portefeuille')
+  })
+
+  it('sans PAYMENT_VIEW, ou identifiant mal formé : aucun lien', async () => {
+    seedAuth('ADMIN', { PAYMENT_VIEW: false })
+    const w = mount(UserMoneyTab, { props: { userId: U }, global: { stubs } })
+    await flushPromises()
+    expect(w.find('[data-test="user-payments-all-link"]').exists()).toBe(false)
+    expect(w.find('[data-test="user-wallet-link"]').exists()).toBe(false)
+    seedAuth('ADMIN')
+    const w2 = mount(UserMoneyTab, { props: { userId: 'u1' }, global: { stubs } })
+    await flushPromises()
+    expect(w2.find('[data-test="user-payments-all-link"]').exists()).toBe(false)
+  })
+})
