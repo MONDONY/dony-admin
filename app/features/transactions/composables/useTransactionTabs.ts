@@ -55,6 +55,16 @@ export function useTransactionTabs(o: TransactionTabsOptions) {
   const visited = reactive(new Set<TransactionTab>())
   const listOf = (t: TransactionTab) => o.lists[t]
 
+  // Query demandée au routeur et pas encore appliquée : tant qu'elle est en cours, `route.query`
+  // est l'ancienne. Comparer à celle-ci ferait sauter une écriture (lien `?view=failed` : la vue
+  // retirée le temps des nombres, puis remise avant la fin de la première navigation, était perdue).
+  let pendingQuery: Query | null = null
+  function replaceQuery(next: Query) {
+    pendingQuery = next
+    void Promise.resolve(router.replace({ query: next as LocationQueryRaw }))
+      .finally(() => { if (pendingQuery === next) pendingQuery = null })
+  }
+
   /** Paramètres possédés par une section : jamais emportés dans une autre. `open` est traité à part. */
   const scoped = new Set<string>([...o.paymentParams, ...Object.values(o.lists).flatMap(l => l?.params ?? [])])
   scoped.delete('open')
@@ -71,7 +81,7 @@ export function useTransactionTabs(o: TransactionTabsOptions) {
     tab.value = t
     if (!fromUrl) {
       const query = queryForTab(t)
-      if (query.tab !== route?.query?.tab) void router.replace({ query: query as LocationQueryRaw })
+      if (query.tab !== route?.query?.tab) replaceQuery(query)
     }
     const list = listOf(t)
     if (list) {
@@ -108,11 +118,12 @@ export function useTransactionTabs(o: TransactionTabsOptions) {
       const t = tab.value
       const list = listOf(t)
       if (!list || !visited.has(t)) return
-      const base = copyQuery(route)
+      const current = pendingQuery ?? (route?.query as Query | undefined)
+      const base: Query = { ...(current ?? {}) }
       for (const k of [...scoped, 'open', 'section']) delete base[k]
       base.tab = t
       const next = list.applyUrl(base)
-      if (!sameQuery(route?.query as Query | undefined, next)) void router.replace({ query: next as LocationQueryRaw })
+      if (!sameQuery(current, next)) replaceQuery(next)
     },
   )
 

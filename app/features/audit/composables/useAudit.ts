@@ -4,7 +4,7 @@ import type { AdminAuditEntry, AuditFilterState } from '@/features/audit/types/i
 import { extractProblemMessage } from '@/lib/problemDetail'
 
 function emptyFilters(): AuditFilterState {
-  return { action: null, entityType: null, actorId: null, from: null, to: null }
+  return { action: null, entityType: null, entityId: null, actorId: null, from: null, to: null }
 }
 
 export function useAudit() {
@@ -32,11 +32,16 @@ export function useAudit() {
 
   async function goToPage(p: number) { currentPage.value = p; await fetchAudit() }
   async function applyFilters() { currentPage.value = 0; await fetchAudit() }
+  /** Filtres repris d'un lien (URL) : remplacent l'état courant, retour en première page. */
+  function restore(next: AuditFilterState) {
+    Object.assign(filters, emptyFilters(), next)
+    currentPage.value = 0
+  }
   async function reset() {
     Object.assign(filters, emptyFilters())
     currentPage.value = 0
     await fetchAudit()
   }
 
-  return { entries, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAudit, goToPage, applyFilters, reset }
+  return { entries, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAudit, goToPage, applyFilters, reset, restore }
 }

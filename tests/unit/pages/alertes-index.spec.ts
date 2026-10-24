@@ -1,11 +1,16 @@
 /** Page Alertes : filtre de sévérité et fiche détaillée d'une alerte. */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
 vi.stubGlobal('definePageMeta', vi.fn())
+const replaceMock = vi.fn()
+vi.stubGlobal('useRouter', () => ({ replace: replaceMock }))
+const route = reactive<{ path: string; query: Record<string, string> }>({ path: '/alertes', query: {} })
+vi.stubGlobal('useRoute', () => route)
 
-const svc = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), violations: vi.fn() }))
+const svc = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), violations: vi.fn(), get: vi.fn() }))
 vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc }))
 const paySvc = vi.hoisted(() => ({ get: vi.fn(), resyncStripe: vi.fn(), forceRelease: vi.fn() }))
 vi.mock('@/features/payments/services/paymentsService', () => ({ paymentsService: paySvc }))
@@ -27,15 +32,23 @@ const row = {
   payload: {}, resolved: false, resolvedAt: null, createdAt: '2026-10-06T12:00:00',
 }
 
+// Une page d'un test précédent encore montée réagirait aux changements de la route partagée.
+const mounted: VueWrapper[] = []
 async function mountPage() {
   const mod = await import('@/pages/alertes/index.vue')
   const w = mount(mod.default, { global: { stubs: { PaginationControls: true, NuxtLink: true } } })
+  mounted.push(w)
   await flushPromises()
   return w
 }
 
 describe('pages/alertes', () => {
+  afterEach(() => { mounted.splice(0).forEach(w => w.unmount()) })
   beforeEach(() => {
+    route.path = '/alertes'
+    route.query = {}
+    replaceMock.mockReset().mockImplementation(({ query }: { query: Record<string, string> }) => { route.query = query; return Promise.resolve() })
+    svc.get.mockReset()
     seedAuth('ADMIN')
     svc.list.mockReset().mockResolvedValue({ content: [row], totalElements: 1, totalPages: 1, number: 0, size: 20 })
     svc.resolve.mockReset().mockResolvedValue({ ...row, resolved: true })
@@ -95,5 +108,72 @@ describe('pages/alertes', () => {
     expect(paySvc.forceRelease).toHaveBeenCalledWith(P)
     expect(svc.list).toHaveBeenCalledTimes(2)
     expect(w.find('[data-test="alert-detail-summary"]').text()).toBe('rafraîchie')
+  })
+
+  describe('lien profond ?open=<alerte>', () => {
+    const A = '0a1b2c3d-1111-4222-8333-444455556666'
+    const far = { ...row, id: A, type: 'ESCROW_J48_TIMEOUT', detail: 'Hors de la page' }
+
+    it('page sans ?open : liste seule, aucune lecture par identifiant, URL intacte', async () => {
+      const w = await mountPage()
+      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+      expect(svc.get).not.toHaveBeenCalled()
+      expect(replaceMock).not.toHaveBeenCalled()
+    })
+
+    it('?open=<id> hors de la liste : lue via alertsService.get et ouverte dans le panneau', async () => {
+      svc.get.mockResolvedValue(far)
+      route.query = { open: A }
+      const w = await mountPage()
+      expect(svc.get).toHaveBeenCalledWith(A)
+      expect(w.get('[data-test="alert-detail-summary"]').text()).toBe('Hors de la page')
+    })
+
+    it('404 : « Alerte introuvable », la liste reste utilisable', async () => {
+      svc.get.mockRejectedValue(Object.assign(new Error('Not Found'), { statusCode: 404 }))
+      route.query = { open: A }
+      const w = await mountPage()
+      expect(w.get('[data-test="alert-open-error"]').text()).toContain('Alerte introuvable')
+      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+      expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+    })
+
+    it('fermer le panneau retire ?open de l’URL', async () => {
+      svc.get.mockResolvedValue(far)
+      route.query = { open: A, x: 'y' }
+      const w = await mountPage()
+      await w.get('[data-test="alert-detail"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { x: 'y' } })
+    })
+
+    it('page déjà ouverte : un changement de query seul ouvre l’alerte, son retrait la ferme', async () => {
+      svc.get.mockResolvedValue(far)
+      const w = await mountPage()
+      route.query = { open: A }
+      await flushPromises()
+      expect(w.find('[data-test="alert-detail"]').exists()).toBe(true)
+      route.query = {}
+      await flushPromises()
+      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+    })
+
+    it('page quittée : le ?open= de la page suivante (un paiement) n’est pas lu comme une alerte', async () => {
+      await mountPage()
+      route.path = '/transactions'
+      route.query = { open: A }
+      await flushPromises()
+      expect(svc.get).not.toHaveBeenCalled()
+      route.path = '/alertes'
+    })
+
+    it('ouvrir une alerte de la liste écrit ?open dans l’URL', async () => {
+      const w = await mountPage()
+      await w.get('[data-test="details-a1"]').trigger('click')
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'a1' } })
+      expect(svc.get).not.toHaveBeenCalled()
+    })
   })
 })

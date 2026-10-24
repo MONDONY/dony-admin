@@ -160,3 +160,32 @@ describe('useTransactionTabs', () => {
     expect(tabs.tab.value).toBe('payments')
   })
 })
+
+describe('useTransactionTabs : écriture de l’URL pendant une navigation en cours', () => {
+  afterEach(() => scope?.stop())
+
+  it('deux états successifs avant la fin du premier router.replace : le dernier état gagne (lien ?view=failed)', async () => {
+    // Le routeur n'applique la query qu'à la résolution : tant qu'elle est en cours, `route.query` est l'ancienne.
+    const resolvers: (() => void)[] = []
+    replace.mockReset().mockImplementation((to: { query: Record<string, unknown> }) => new Promise<void>((r) => {
+      resolvers.push(() => { route.query = to.query; r() })
+    }))
+    const list = fakeList(['view'])
+    let releaseLoad!: () => void
+    list.load = vi.fn(() => new Promise<void>((r) => { releaseLoad = r }))
+    const { tabs } = make({ tab: 'mobile-money', view: 'failed' }, { 'mobile-money': list })
+    void tabs.start()
+    await nextTick()
+    // Vue pas encore écrite (nombres en cours) : la première écriture retire `view`.
+    expect(replace).toHaveBeenLastCalledWith({ query: { tab: 'mobile-money' } })
+    // Les nombres arrivent avant que la première écriture soit appliquée : la vue est remise.
+    list.state.view = 'failed'
+    releaseLoad()
+    await nextTick()
+    expect(replace).toHaveBeenLastCalledWith({ query: { tab: 'mobile-money', view: 'failed' } })
+    resolvers.forEach(r => r())
+    await flushPromises()
+    expect(route.query).toEqual({ tab: 'mobile-money', view: 'failed' })
+    replace.mockReset().mockImplementation(async (to: { query: Record<string, unknown> }) => { route.query = to.query })
+  })
+})
