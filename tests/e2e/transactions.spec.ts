@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test'
 
+/** `href` exact, préfixe de l'application (`/siragbe`) compris : rien d'autre avant ni après. */
+const hrefIs = (path: string) => new RegExp(`^(/siragbe)?${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 const PAYMENTS = { content: [
   { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z' },
@@ -281,4 +284,43 @@ test('tiroir paiement : ouvert au clavier, onglet et fiche dans l’URL, Échap 
   await row.click()
   await expect(page.locator('[data-test="payment-panel-summary"]')).toBeVisible()
   await expect(page).not.toHaveURL(/section=/)
+})
+
+test('fiche paiement : chaque information ailleurs est un lien précis, et Retour revient à la fiche', async ({ page }) => {
+  const PAY = '0e0e0e0e-1111-4111-8111-000000000001'
+  const TRAVELER = '99999999-8888-4777-8666-555555555555'
+  const BID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+  const DISPUTE = 'dddddddd-1111-4222-8333-444444444444'
+  const CB = 'ffffffff-1111-4222-8333-444444444444'
+  const ALERT = '34343434-1111-4222-8333-444444444444'
+  const LINKED = {
+    ...DETAIL, id: PAY, bidId: BID, disputed: true, alert: 'HELD', travelerId: TRAVELER,
+    payoutHeldAt: '2026-10-19T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED',
+    links: { disputeId: DISPUTE, disputeStatus: 'OPEN', chargebackId: CB },
+    openAlerts: [{ id: ALERT, type: 'ESCROW_J48_TIMEOUT', severity: 'WARN' }],
+    chargeback: { id: CB, status: 'OPEN', reason: 'fraudulent', openedAt: '2026-10-20T08:00:00' },
+  }
+  await page.route(`**/api/v1/admin/payments/${PAY}`, (route) => route.fulfill({ json: LINKED }))
+  await page.route(`**/api/v1/admin/payments/${PAY}/timeline`, (route) => route.fulfill({ json: [] }))
+
+  // Onglet inconnu : la fiche s'ouvre sur Résumé et l'URL est corrigée.
+  await page.goto(`/transactions?open=${PAY}&section=pirate`)
+  await expect(page.locator('[data-test="payment-panel-summary"]')).toBeVisible({ timeout: 15000 })
+  await expect(page).not.toHaveURL(/section=/)
+  await expect(page).toHaveURL(new RegExp(`open=${PAY}`))
+
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', hrefIs(`/users/${TRAVELER}?tab=manage`))
+  await expect(page.locator('[data-test="payment-chargeback-link"]')).toHaveAttribute('href', hrefIs(`/transactions?tab=chargebacks&open=${CB}`))
+  await expect(page.locator(`[data-test="payment-open-alert-link-${ALERT}"]`)).toHaveAttribute('href', hrefIs(`/alertes?open=${ALERT}`))
+  await expect(page.locator('[data-test="payment-bid-incidents-link"]')).toHaveAttribute('href', hrefIs(`/colis?open=${BID}&section=incidents`))
+  const dispute = page.locator('[data-test="payment-dispute-link"]')
+  await expect(dispute).toHaveAttribute('href', hrefIs(`/incidents?open=${DISPUTE}`))
+
+  // Un vrai lien : la destination est dans l'historique, Retour revient sur la fiche et son onglet.
+  await dispute.click()
+  await expect(page).toHaveURL(new RegExp(`/incidents\\?open=${DISPUTE}`))
+  await page.goBack()
+  await expect(page).toHaveURL(new RegExp(`/transactions\\?.*section=incidents`))
+  await expect(page.locator('[data-test="payment-panel-incidents"]')).toBeVisible()
 })

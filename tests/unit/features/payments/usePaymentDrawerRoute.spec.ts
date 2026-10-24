@@ -162,4 +162,21 @@ describe('usePaymentDrawerRoute', () => {
     expect(api.tabQuery('wallets')).toEqual({ tab: 'wallets' })
     expect(api.tabQuery('payments')).toEqual({ open: P1, section: 'money' })
   })
+  it('?section= inconnu au chargement : la fiche s’ouvre sur Résumé et le paramètre est retiré de l’URL', async () => {
+    const { api, detail } = setup({ open: P1, section: 'pirate', view: 'ALL' })
+    await api.restore()
+    expect(detail.open).toHaveBeenCalledWith(P1)
+    expect(api.section.value).toBeNull()
+    expect(route.query).toEqual({ open: P1, view: 'ALL' })
+  })
+
+  it('?section= inconnu arrivé sur la fiche ouverte : retiré de l’URL, Résumé', async () => {
+    const { api, detail } = setup()
+    await api.openPayment(P1, 'money')
+    route.query = { open: P1, section: 'pirate' }
+    await flushPromises()
+    expect(api.section.value).toBeNull()
+    expect(route.query).toEqual({ open: P1 })
+    expect(detail.open).toHaveBeenCalledTimes(1)
+  })
 })

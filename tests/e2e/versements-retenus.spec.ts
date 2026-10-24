@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test'
 
+/** `href` exact, préfixe de l'application (`/siragbe`) compris : rien d'autre avant ni après. */
+const hrefIs = (path: string) => new RegExp(`^(/siragbe)?${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+
 /**
  * Versements retenus d'un voyageur banni ou dont l'identité est révoquée : filtre, détail,
  * déblocage par dérogation motivée, 409 inattendu, et bandeau de la fiche utilisateur.
@@ -7,9 +10,11 @@ import { test, expect } from '@playwright/test'
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
 const NORMAL = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z', beneficiaryHeld: false, travelerId: 'u1' }
+// Voyageur banni : un vrai UUID, car le lien de la cause passe par le registre (`userRoute`).
+const HELD_TRAVELER = '7a7a7a7a-1111-4111-8111-777777777777'
 const HELD = {
   id: 'p9', bidId: 'b9', status: 'ESCROW', method: 'STRIPE', amountCents: 50000, commissionCents: 6000, currency: 'EUR', createdAt: '2026-09-18T10:00:00Z',
-  payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 'u7',
+  payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: HELD_TRAVELER,
 }
 const detailOf = (p: object) => ({ ...p, refundedCents: 0, stripePaymentIntentId: 'pi_x', escrowReleasedAt: null, disputed: false })
 const page1 = (content: object[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
@@ -71,7 +76,8 @@ test('paiement retenu : filtre, détail, puis déblocage avec dérogation motiv�
   const notice = page.locator('[data-test="payment-hold-notice"]')
   await expect(notice).toContainText('Le voyageur a été banni.')
   await expect(notice).toContainText('20/09/2026')
-  await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', /\/users\?query=u7&open=u7/)
+  // Banni : la cause s'explique dans la fiche du voyageur, onglet Gestion (registre `userRoute`).
+  await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', hrefIs(`/users/${HELD_TRAVELER}?tab=manage`))
 
   // Les gestes vivent dans le menu « Actions » du tiroir.
   await page.locator('[data-test="payment-actions-menu"]').click()

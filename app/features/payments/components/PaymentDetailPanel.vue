@@ -195,7 +195,7 @@ async function copy(key: string, value: string) {
           <div :id="`payment-panel-${active}`" role="region" :aria-labelledby="`payment-tab-${active}`" class="pt-5" :data-test="`payment-panel-${active}`">
             <PaymentSummaryTab v-if="active === 'summary'" :payment="payment" />
             <PaymentMoneyTab v-else-if="active === 'money'" :payment="payment" @resynced="emit('resynced')" />
-            <PaymentTimelineTab v-else-if="active === 'timeline'" :payment-id="payment.id" />
+            <PaymentTimelineTab v-else-if="active === 'timeline'" :payment="payment" />
             <PaymentIncidentsTab v-else-if="active === 'incidents'" :payment="payment" />
             <PaymentReferencesTab v-else :payment="payment" :copied="copied" @copy="copy" />
           </div>

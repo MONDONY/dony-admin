@@ -106,3 +106,21 @@ describe('PaymentSummaryTab', () => {
     expect(w.find('[data-test="party-sender"]').exists()).toBe(true)
   })
 })
+
+describe('PaymentPartiesRow : compte sans nom', () => {
+  beforeEach(() => seedAuth('ADMIN'))
+
+  it('identifiant présent mais nom absent : « Compte sans nom » en texte, sans lien', () => {
+    const w = mount(PaymentPartiesRow, { props: { payment: pay({ insight: insight({ sender: { id: SENDER, name: null } }) }) }, global })
+    expect(w.find('[data-test="payment-sender-link"]').exists()).toBe(false)
+    expect(w.find('[data-test="party-sender"]').text()).toContain('Compte sans nom')
+    expect(w.find('[data-test="party-sender"] a').exists()).toBe(false)
+    expect(w.find('[data-test="payment-traveler-link"]').exists()).toBe(true)
+  })
+  it('ancien back sans contexte et sans USER_VIEW : « Nom non communiqué », jamais un faux lien', () => {
+    seedAuth('ADMIN', { USER_VIEW: false })
+    const w = mount(PaymentPartiesRow, { props: { payment: pay({ insight: undefined, travelerId: TRAVELER }) }, global })
+    expect(w.find('a').exists()).toBe(false)
+    expect(w.find('[data-test="party-traveler"]').text()).toContain('Nom non communiqué')
+  })
+})

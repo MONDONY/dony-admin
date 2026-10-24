@@ -39,10 +39,21 @@ export function usePaymentDetail() {
   const overrideError = ref<string | null>(null)
   const busy = ref(false)
   const overrideRequest = ref<PayoutOverrideRequest | null>(null)
+  /**
+   * Numéro de la dernière ouverture ou fermeture : une lecture qui répond après la fermeture du
+   * tiroir (ou l'ouverture d'une autre fiche) ne réécrit rien, le tiroir ne réapparaît pas.
+   */
+  let generation = 0
 
   async function open(id: string) {
+    const mine = ++generation
     error.value = null
-    try { payment.value = await paymentsService.get(id) } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger le paiement') }
+    try {
+      const result = await paymentsService.get(id)
+      if (mine === generation) payment.value = result
+    } catch (e) {
+      if (mine === generation) error.value = extractProblemMessage(e, 'Impossible de charger le paiement')
+    }
   }
   /**
    * Relit la fiche après un geste réussi : la réponse du geste ne porte pas les champs de
@@ -50,9 +61,13 @@ export function usePaymentDetail() {
    * affiché et aucune erreur ne s'ajoute : le geste, lui, a réussi.
    */
   async function reload(id: string) {
-    try { payment.value = await paymentsService.get(id) } catch { /* détail du geste conservé */ }
+    try {
+      const result = await paymentsService.get(id)
+      // Fiche fermée ou autre fiche ouverte pendant la lecture : rien à réécrire.
+      if (payment.value?.id === id) payment.value = result
+    } catch { /* détail du geste conservé */ }
   }
-  function close() { payment.value = null; error.value = null; overrideRequest.value = null; overrideError.value = null }
+  function close() { generation++; payment.value = null; error.value = null; overrideRequest.value = null; overrideError.value = null }
   function dismissOverride() { overrideRequest.value = null; overrideError.value = null }
 
   /**
@@ -67,8 +82,11 @@ export function usePaymentDetail() {
     error.value = null
     overrideError.value = null
     busy.value = true
+    const id = payment.value?.id
     try {
-      payment.value = await fn()
+      const result = await fn()
+      // Le geste a réussi même si la fiche a été fermée entre-temps : elle ne se rouvre pas.
+      if (id !== undefined && payment.value?.id === id) payment.value = result
       overrideRequest.value = null
       return true
     } catch (e) {

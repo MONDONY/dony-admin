@@ -85,13 +85,19 @@ export function usePaymentDrawerRoute(
     if (openId.value) write()
   }
 
-  /** Au montage de la page : la fiche portée par l'URL, sur son onglet, sans réécrire l'URL. */
+  /** Au montage de la page : la fiche portée par l'URL, sur son onglet, sans réécrire l'URL (sauf onglet inconnu, retiré). */
   async function restore() {
     const id = paymentInUrl()
     if (!id) return
     openId.value = id
     section.value = paymentDrawerSection(currentQuery().section)
+    cleanUnknownSection()
     await detail.open(id)
+  }
+
+  /** `?section=` inconnu (lien abîmé, ancien onglet) : la fiche s'ouvre sur Résumé et l'URL est corrigée. */
+  function cleanUnknownSection() {
+    if (currentQuery().section !== undefined && section.value === null) write()
   }
 
   /**
@@ -122,6 +128,7 @@ export function usePaymentDrawerRoute(
     // La fiche affichée (son identifiant tel qu'écrit à l'ouverture) : seul l'onglet a pu changer.
     if (openId.value && onPayments && query.open === openId.value) {
       section.value = paymentDrawerSection(query.section)
+      cleanUnknownSection()
       return
     }
     const id = paymentInUrl()

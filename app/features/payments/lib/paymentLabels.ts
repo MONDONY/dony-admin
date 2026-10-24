@@ -65,6 +65,16 @@ export function bidStatusLabel(status: string | null | undefined): string | null
   return bidStatusMeta(status as BidStatus)?.label ?? status
 }
 
+const CHARGEBACK: Record<string, { label: string; tone: 'warning' | 'success' | 'danger' | 'neutral' }> = {
+  OPEN: { label: 'Ouvert', tone: 'warning' },
+  WON: { label: 'Gagné', tone: 'success' },
+  LOST: { label: 'Perdu', tone: 'danger' },
+}
+/** Statut d'un litige bancaire en clair ; un statut inconnu reste affiché tel quel, en neutre. */
+export function chargebackStatusMeta(status: string): { label: string; tone: 'warning' | 'success' | 'danger' | 'neutral' } {
+  return CHARGEBACK[status] ?? { label: status, tone: 'neutral' }
+}
+
 /** Identifiant raccourci pour l'affichage (le complet reste en infobulle). */
 export function shortId(id: string | null | undefined): string {
   return id ? id.slice(0, 8) : '—'

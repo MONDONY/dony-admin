@@ -21,7 +21,9 @@ const filterProps = { modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFro
 
 const row = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 1000, commissionCents: 120, currency: 'EUR', createdAt: '2026-09-01T10:00:00Z' } as const
 const detail = { ...row, refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false }
-const held = { ...detail, payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 't1' } as const
+// Le lien passe par le registre (`userRoute`), qui exige un UUID : plus d'identifiant factice.
+const T1 = '7a7a7a7a-1111-4111-8111-111111111111'
+const held = { ...detail, payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: T1 } as const
 
 describe('PaymentFilters : Versements retenus', () => {
   it('puce inactive par défaut, émet true au clic', async () => {
@@ -69,8 +71,8 @@ describe('PaymentDetailPanel : paiement retenu', () => {
     expect(notice.text()).toContain('banni')
     expect(notice.text()).toContain(new Date('2026-09-20T10:00:00Z').toLocaleDateString('fr-FR'))
     const link = w.find('[data-test="payment-hold-traveler-link"]')
-    expect(link.attributes('href')).toContain('/users')
-    expect(link.attributes('href')).toContain('t1')
+    // Banni : la fiche du voyageur, onglet Gestion (là où la cause s'explique).
+    expect(link.attributes('href')).toBe(JSON.stringify({ path: `/users/${T1}`, query: { tab: 'manage' } }))
     expect(notice.text()).not.toContain('—')
   })
 

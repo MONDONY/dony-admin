@@ -96,3 +96,65 @@ describe('usePaymentDetail', () => {
     expect(d.error.value).toBeNull()
   })
 })
+
+describe('usePaymentDetail : fiche fermée pendant une lecture', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    svc.get = vi.fn()
+    svc.forceRelease = vi.fn()
+    svc.refund = vi.fn()
+  })
+  /** Promesse résolue à la main : la fermeture a lieu pendant l'attente. */
+  function deferred<T>() {
+    let resolve!: (_v: T) => void
+    const promise = new Promise<T>((r) => { resolve = r })
+    return { promise, resolve }
+  }
+
+  it('reload : la fiche fermée pendant le GET ne réapparaît pas', async () => {
+    svc.get.mockResolvedValueOnce({ id: 'p1', status: 'ESCROW' })
+    const d = usePaymentDetail(); await d.open('p1')
+    const later = deferred<object>()
+    svc.get.mockReturnValueOnce(later.promise)
+    const pending = d.reload('p1')
+    d.close()
+    later.resolve({ id: 'p1', status: 'RELEASED' })
+    await pending
+    expect(d.payment.value).toBeNull()
+  })
+
+  it('reload : une autre fiche ouverte entre-temps n’est pas remplacée', async () => {
+    svc.get.mockResolvedValueOnce({ id: 'p1', status: 'ESCROW' })
+    const d = usePaymentDetail(); await d.open('p1')
+    const later = deferred<object>()
+    svc.get.mockReturnValueOnce(later.promise).mockResolvedValueOnce({ id: 'p2', status: 'ESCROW' })
+    const pending = d.reload('p1')
+    await d.open('p2')
+    later.resolve({ id: 'p1', status: 'RELEASED' })
+    await pending
+    expect(d.payment.value?.id).toBe('p2')
+  })
+
+  it('geste : la fiche fermée pendant l’appel ne réapparaît pas', async () => {
+    svc.get.mockResolvedValueOnce({ id: 'p1', status: 'ESCROW' })
+    const d = usePaymentDetail(); await d.open('p1')
+    const later = deferred<object>()
+    svc.forceRelease.mockReturnValueOnce(later.promise)
+    const pending = d.forceRelease()
+    d.close()
+    later.resolve({ id: 'p1', status: 'RELEASED' })
+    expect(await pending).toBe(true)
+    expect(d.payment.value).toBeNull()
+  })
+
+  it('open : une lecture plus ancienne qui répond après la fermeture ne rouvre pas la fiche', async () => {
+    const later = deferred<object>()
+    svc.get.mockReturnValueOnce(later.promise)
+    const d = usePaymentDetail()
+    const pending = d.open('p1')
+    d.close()
+    later.resolve({ id: 'p1', status: 'ESCROW' })
+    await pending
+    expect(d.payment.value).toBeNull()
+  })
+})

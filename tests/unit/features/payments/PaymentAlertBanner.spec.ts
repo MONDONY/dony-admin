@@ -87,3 +87,21 @@ describe('PaymentAlertBanner', () => {
     expect(w.find('[data-test="payment-abandoned-notice"]').text()).toBe('Checkout abandonné : le paiement est en attente depuis plus de 24 h, le client ne l’a jamais terminé. Aucun argent n’a bougé, rien à faire.')
   })
 })
+
+describe('PaymentAlertBanner : admin sans PAYMENT_REFUND', () => {
+  beforeEach(() => seedAuth('ADMIN', { PAYMENT_REFUND: false }))
+
+  it('paiement retenu : « Rembourser » présent mais grisé avec sa raison, « Payer le voyageur » reste actif', async () => {
+    const w = mountBanner(held({ alert: 'HELD' }), p => p !== 'PAYMENT_REFUND')
+    const refund = w.find('[data-test="banner-refund"]')
+    expect(refund.exists()).toBe(true)
+    expect(refund.attributes('aria-disabled')).toBe('true')
+    expect(w.find(`#${refund.attributes('aria-describedby')}`).text()).toMatch(/permission manquante/i)
+    await refund.trigger('click')
+    expect(w.emitted('act')).toBeUndefined()
+    const override = w.find('[data-test="banner-override"]')
+    expect(override.attributes('aria-disabled')).toBeUndefined()
+    await override.trigger('click')
+    expect(w.emitted('act')).toEqual([['release']])
+  })
+})
