@@ -355,6 +355,37 @@ describe('pages/transactions', () => {
       expect([listMock.mock.calls.length, countsMock.mock.calls.length, financeCountsMock.mock.calls.length]).toEqual(before.map(n => n + 1))
     })
 
+    it('un geste réussi relit aussi la fiche ouverte', async () => {
+      const w = await mountPage({ open: P1 })
+      const before = getMock.mock.calls.length
+      w.findComponent({ name: 'PaymentDetailPanel' }).vm.$emit('refund')
+      await flushPromises()
+      expect(getMock.mock.calls.length).toBe(before + 1)
+      expect(getMock).toHaveBeenLastCalledWith(P1)
+    })
+
+    it('fiche : ouverte depuis la liste → ?open= ; onglet → ?section= ; fermée → retirés', async () => {
+      const w = await mountPage()
+      w.findComponent({ name: 'PaymentsTable' }).vm.$emit('select', P1)
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: expect.objectContaining({ open: P1 }) })
+      const panel = w.findComponent({ name: 'PaymentDetailPanel' })
+      panel.vm.$emit('update:section', 'incidents')
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: expect.objectContaining({ open: P1, section: 'incidents' }) })
+      panel.vm.$emit('close')
+      await flushPromises()
+      const last = replaceMock.mock.calls.at(-1)![0].query
+      expect(last.open).toBeUndefined()
+      expect(last.section).toBeUndefined()
+      expect(w.findComponent({ name: 'PaymentDetailPanel' }).exists()).toBe(false)
+    })
+
+    it('?open=&section= : la fiche s’ouvre sur l’onglet demandé', async () => {
+      const w = await mountPage({ open: P1, section: 'incidents' })
+      expect(w.findComponent({ name: 'PaymentDetailPanel' }).props('section')).toBe('incidents')
+    })
+
     it('vues à nombre, lien « checkouts abandonnés masqués · les afficher »', async () => {
       const w = await mountPage()
       expect(w.find('[data-test="payment-view-ATTENTION"] [data-test="tab-count"]').text()).toBe('2')

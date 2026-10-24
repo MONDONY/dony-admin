@@ -20,12 +20,12 @@ import PeriodFilter from '@/features/finance/components/PeriodFilter.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePaymentsSection, type PaymentPickKind } from '@/features/payments/composables/usePaymentsSection'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
+import { usePaymentDrawerRoute } from '@/features/payments/composables/usePaymentDrawerRoute'
 import { useFinanceCounts } from '@/features/transactions/composables/useFinanceCounts'
 import { isTab, sectionOf, type TransactionTab } from '@/features/transactions/lib/sections'
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import { uuidParam } from '@/lib/safeInput'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback, PaymentSuggestParcel, PaymentSuggestPerson, PaymentSuggestTrip } from '@/features/payments/types/index'
 import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRetryPreview, WalletRefundView } from '@/features/finance/types/index'
@@ -51,6 +51,8 @@ const {
 const { counts: viewCounts, error: viewCountsError } = countsApi
 const { suggestions, unavailable: suggestionsUnavailable } = suggestApi
 const detail = usePaymentDetail()
+// Tiroir paiement : ?open=<paiement> et ?section=<onglet> dans l'URL, ouverture depuis un lien reçu.
+const drawer = usePaymentDrawerRoute(detail, { apply: q => pay.url.apply(q) })
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
 const cbPage = ref(0)
@@ -260,12 +262,11 @@ async function retryWalletRefund(body: RetryWalletRefundBody) {
 
 /**
  * L'onglet vit dans l'URL (?tab=wallet-refunds, notification WALLET_REFUND_REQUESTED), à côté
- * des filtres des paiements qu'il ne touche pas. Paiements = pas de paramètre.
+ * des filtres des paiements qu'il ne touche pas. Paiements = pas de paramètre ; quitter Paiements
+ * ferme la fiche paiement (son ?open= est retiré).
  */
 function syncTabQuery(t: Tab) {
-  const query = { ...(route.query ?? {}) }
-  if (t === 'payments') delete query.tab
-  else query.tab = t
+  const query = drawer.tabQuery(t)
   if (query.tab === route.query?.tab) return
   void router.replace({ query })
 }
@@ -284,31 +285,26 @@ async function switchTab(t: Tab, fromUrl = false) {
 function openWalletOwner(userId: string) {
   return navigateTo({ path: '/users', query: { query: userId, open: userId } })
 }
-/** Après chaque geste : la liste, les nombres des vues et les pastilles des sections sont relus. */
+/**
+ * Après chaque geste : la liste, les nombres des vues et les pastilles des sections sont relus ;
+ * un geste réussi relit aussi la fiche (sa réponse ne porte ni les liens ni l'alerte). Un échec
+ * garde la fiche telle quelle : son message et la dérogation proposée restent affichés.
+ */
 async function afterAction() { await Promise.all([pay.refresh(), finance.reload()]) }
 async function onAction(fn: () => Promise<boolean>) {
-  await fn()
-  await afterAction()
+  const id = drawer.openId.value
+  const ok = await fn()
+  await Promise.all([afterAction(), ok && id && drawer.openId.value === id ? detail.reload(id) : null])
 }
 /** Un n° de suivi suggéré ouvre son paiement ; une personne ou un trajet filtre la liste. */
 async function onPick(kind: PaymentPickKind, payload: PaymentSuggestPerson | PaymentSuggestTrip | PaymentSuggestParcel) {
   const id = await pay.onPick(kind, payload)
-  if (id) await detail.open(id)
+  if (id) await drawer.openPayment(id)
 }
 /** Référence exacte : ouverte seulement si le texte tapé est celui auquel les suggestions ont répondu. */
 async function onOpenPayment(id: string) {
   const target = await pay.onOpenPayment(id)
-  if (target) await detail.open(target)
-}
-
-/**
- * ?open=<paymentId> (lien « Ouvrir le paiement » d'une alerte, recherche globale) : la fiche du
- * paiement, UUID seulement. Avec un autre ?tab=, `open` désigne une ligne de cet onglet.
- */
-function paymentToOpen(): string | null {
-  const t = route.query?.tab
-  if (t !== undefined && t !== 'payments') return null
-  return uuidParam(route.query?.open)
+  if (target) await drawer.openPayment(target)
 }
 
 onMounted(async () => {
@@ -317,20 +313,15 @@ onMounted(async () => {
     pay.load(), finance.reload(),
     isTab(wanted) && wanted !== 'payments' ? switchTab(wanted, true) : Promise.resolve(),
   ])
-  const openId = paymentToOpen()
-  if (openId) await detail.open(openId)
+  // ?open=<paiement>[&section=] (alerte, recherche globale, fiche colis) : la fiche, sur son onglet.
+  await drawer.restore()
 })
 // Page déjà ouverte : un clic sur une notification change seulement la query.
 watch(() => route.query?.tab, (v) => {
   const t: Tab = isTab(v) ? v : 'payments'
   if (t !== tab.value) void switchTab(t, true)
 })
-// Même chose pour ?open (recherche globale) : ouvre la fiche si elle n'est pas déjà affichée.
-watch(() => route.query?.open, () => {
-  const openId = paymentToOpen()
-  if (!openId || openId === detail.payment.value?.id) return
-  void detail.open(openId)
-})
+// ?open= et ?section= arrivés page ouverte : suivis par `usePaymentDrawerRoute`.
 // … et pour ?held=true (bandeau d'une fiche utilisateur, carte de la vue d'ensemble).
 watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegacyHeld() })
 </script>
@@ -410,7 +401,7 @@ watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegac
       <PaymentTotalsBar v-if="totals" :totals="totals" />
       <PaymentsTable
         :payments="payments" :loading="isLoading" :empty-label="filters.view === 'ATTENTION' ? 'Rien à traiter' : 'Aucun paiement'"
-        @select="detail.open"
+        @select="drawer.openPayment"
       />
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
         <PaginationControls :page="currentPage" :total-pages="totalPages" @change="pay.goToPage" />
@@ -426,7 +417,9 @@ watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegac
         :error="detail.error.value" :busy="detail.busy.value"
         :override-request="detail.overrideRequest.value"
         :override-error="detail.overrideError.value"
-        @close="detail.close"
+        :section="drawer.section.value"
+        @update:section="drawer.setSection"
+        @close="drawer.closePayment"
         @force-release="(o) => onAction(() => detail.forceRelease(o))"
         @refund="onAction(detail.refund)"
         @retry-payout="(o) => onAction(() => detail.retryPayout(o))"

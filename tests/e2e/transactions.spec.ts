@@ -33,11 +33,13 @@ const CASH_COMMISSIONS = { content: [
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
+  // Comme le vrai serveur : après un geste, la fiche relue (GET) porte le nouvel état.
+  let current: object = DETAIL
   await page.route('**/api/v1/admin/payments**', (route) => {
     const url = route.request().url(); const m = route.request().method()
-    if (m === 'POST' && url.includes('/force-release')) return route.fulfill({ json: RELEASED })
-    if (m === 'POST' && url.includes('/refund')) return route.fulfill({ json: { ...DETAIL, status: 'REFUNDED' } })
-    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: DETAIL })
+    if (m === 'POST' && url.includes('/force-release')) { current = RELEASED; return route.fulfill({ json: RELEASED }) }
+    if (m === 'POST' && url.includes('/refund')) { current = { ...DETAIL, status: 'REFUNDED' }; return route.fulfill({ json: current }) }
+    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: current })
     return route.fulfill({ json: PAYMENTS })
   })
   await page.route('**/api/v1/admin/chargebacks**', (route) => route.fulfill({ json: CBS }))
@@ -64,7 +66,11 @@ test('admin sees payments with formatted amount', async ({ page }) => {
 test('admin force-releases an escrow payment', async ({ page }) => {
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Le PaymentIntent est dans l'onglet Références du tiroir.
+  await page.locator('[data-test="payment-tab-references"]').click()
   await expect(page.getByText('pi_123')).toBeVisible()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('livraison validée J+48')
   await page.locator('[data-test="confirm"]').click()
@@ -250,8 +256,29 @@ test('relance du versement mobile money depuis le détail d’un paiement pawaPa
   })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p2"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-retry-payout"]').click()
   await page.locator('[data-test="confirm"]').click()
   await expect.poll(() => retried).toBe(1)
   await expect(page.locator('[data-test="payment-error"]')).toHaveCount(0)
+})
+
+test('tiroir paiement : ouvert au clavier, onglet et fiche dans l’URL, Échap ferme et nettoie l’URL', async ({ page }) => {
+  await page.goto('/transactions')
+  const row = page.locator('[data-test="payment-row-p1"]')
+  await row.focus()
+  await page.keyboard.press('Enter')
+  const drawer = page.locator('[data-test="payment-detail"]')
+  await expect(drawer).toBeVisible()
+  await expect(page).toHaveURL(/[?&]open=p1(&|$)/)
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  await expect(page).toHaveURL(/section=incidents/)
+  await page.keyboard.press('Escape')
+  await expect(drawer).toHaveCount(0)
+  await expect(page).not.toHaveURL(/open=|section=/)
+  // Même ligne rouverte : Résumé, sans paramètre de section.
+  await row.click()
+  await expect(page.locator('[data-test="payment-panel-summary"]')).toBeVisible()
+  await expect(page).not.toHaveURL(/section=/)
 })

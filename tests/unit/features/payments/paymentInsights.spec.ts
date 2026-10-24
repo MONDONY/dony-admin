@@ -166,15 +166,17 @@ describe('PaymentDetailPanel — fiche enrichie', () => {
     ...row(), refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false, ...over,
   } as AdminPaymentDetail)
 
-  it('personnes, colis, montants détaillés et lien Stripe', () => {
+  it('personnes, colis, montants détaillés et lien Stripe', async () => {
     const w = mount(PaymentDetailPanel, { props: { payment: detail(), open: true }, global: { stubs: { NuxtLink } } })
     expect(w.find('[data-test="payment-sender-link"]').attributes('href')).toContain(SENDER)
     expect(w.find('[data-test="payment-traveler-link"]').text()).toBe('Moussa Keita')
     expect(w.find('[data-test="payment-bid-link"]').attributes('href')).toContain(BID)
     expect(w.text()).toContain('En transit')
     expect(w.find('[data-test="payment-detail-net"]').text()).toBe('19,05 EUR')
-    expect(w.find('[data-test="payment-stripe-link"]').attributes('href')).toBe('https://dashboard.stripe.com/test/payments/pi_1')
     expect(w.find('[data-test="payment-abandoned-notice"]').exists()).toBe(false)
+    // Références (PaymentIntent, lien Stripe) : leur onglet.
+    await w.find('[data-test="payment-tab-references"]').trigger('click')
+    expect(w.find('[data-test="payment-stripe-link"]').attributes('href')).toBe('https://dashboard.stripe.com/test/payments/pi_1')
   })
   it('négociation sans colis et checkout abandonné', () => {
     const w = mount(PaymentDetailPanel, {
@@ -186,7 +188,7 @@ describe('PaymentDetailPanel — fiche enrichie', () => {
   })
   it('mobile money : opérations pawaPay et lien vers l’onglet', () => {
     const w = mount(PaymentDetailPanel, {
-      props: { payment: detail({ method: 'PAWAPAY', pawapayDepositId: 'dep-1', insight: insight({ stripeDashboardUrl: null }) }), open: true },
+      props: { payment: detail({ method: 'PAWAPAY', pawapayDepositId: 'dep-1', insight: insight({ stripeDashboardUrl: null }) }), open: true, section: 'references' },
       global: { stubs: { NuxtLink } },
     })
     expect(w.text()).toContain('dep-1')
@@ -196,7 +198,7 @@ describe('PaymentDetailPanel — fiche enrichie', () => {
   it('copier la référence', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    const w = mount(PaymentDetailPanel, { props: { payment: detail(), open: true }, global: { stubs: { NuxtLink } } })
+    const w = mount(PaymentDetailPanel, { props: { payment: detail(), open: true, section: 'references' }, global: { stubs: { NuxtLink } } })
     await w.find('[data-test="payment-copy-pi"]').trigger('click')
     await flushPromises()
     expect(writeText).toHaveBeenCalledWith('pi_1')

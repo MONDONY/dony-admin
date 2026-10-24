@@ -17,7 +17,20 @@ const can = (p: Parameters<typeof auth.can>[0]) => auth.can(p)
 
 /** Fiche colis : le colis résolu par le back (négociation comprise), à défaut celui de la ligne. */
 const bidLink = (p: AdminPaymentListItem) => gate(can, 'BID_VIEW', bidRoute(p.insight?.bidId ?? p.bidId))
-const userLink = (id: string | null | undefined) => gate(can, 'USER_VIEW', userRoute(id))
+/** Fiche de la personne ; sans nom à afficher, pas de lien (jamais un « — » cliquable). */
+const userLink = (party: { id: string; name: string | null } | null | undefined) =>
+  (party?.name ? gate(can, 'USER_VIEW', userRoute(party.id)) : null)
+
+/** Entrée ou Espace sur la ligne elle-même (pas sur un de ses liens) : ouvre la fiche. */
+function onRowKey(e: KeyboardEvent, id: string) {
+  if (e.target !== e.currentTarget) return
+  e.preventDefault()
+  emit('select', id)
+}
+/** Nom accessible de la ligne focalisable : ce que l'on ouvre. */
+function rowLabel(p: AdminPaymentListItem): string {
+  return ['Ouvrir le paiement', routeLabel(p.insight), p.trackingNumber, formatMoney(p.amountCents, p.currency)].filter(Boolean).join(' · ')
+}
 
 /** N° de suivi, sinon le colis ou le fil de négociation raccourcis (identifiant complet en infobulle). */
 function trackingLabel(p: AdminPaymentListItem): { text: string; title?: string } {
@@ -50,8 +63,9 @@ const link = 'rounded-sm text-primary hover:underline focus-visible:outline focu
       <tbody>
         <tr
           v-for="p in payments" :key="p.id" :data-test="`payment-row-${p.id}`"
-          :class="['cursor-pointer border-b border-border align-top transition-colors hover:bg-surface-elevated', p.alert === 'HELD' ? 'bg-danger/5' : '']"
-          @click="emit('select', p.id)"
+          tabindex="0" :aria-label="rowLabel(p)"
+          :class="['cursor-pointer border-b border-border align-top transition-colors hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary', p.alert === 'HELD' ? 'bg-danger/5' : '']"
+          @click="emit('select', p.id)" @keydown.enter="onRowKey($event, p.id)" @keydown.space="onRowKey($event, p.id)"
         >
           <td class="px-4 py-3">
             <div class="flex flex-wrap items-center gap-1">
@@ -78,15 +92,15 @@ const link = 'rounded-sm text-primary hover:underline focus-visible:outline focu
           </td>
           <td class="px-4 py-3 text-sm">
             <NuxtLink
-              v-if="userLink(p.insight?.sender?.id)" :to="userLink(p.insight?.sender?.id)!" :data-test="`payment-sender-${p.id}`"
+              v-if="userLink(p.insight?.sender)" :to="userLink(p.insight?.sender)!" :data-test="`payment-sender-${p.id}`"
               :class="link" @click.stop
-            >{{ p.insight?.sender?.name ?? '—' }}</NuxtLink>
+            >{{ p.insight?.sender?.name }}</NuxtLink>
             <span v-else :data-test="`payment-sender-${p.id}`">{{ p.insight?.sender?.name ?? '—' }}</span>
             <span class="text-text-muted" aria-hidden="true"> → </span>
             <NuxtLink
-              v-if="userLink(p.insight?.traveler?.id)" :to="userLink(p.insight?.traveler?.id)!" :data-test="`payment-traveler-${p.id}`"
+              v-if="userLink(p.insight?.traveler)" :to="userLink(p.insight?.traveler)!" :data-test="`payment-traveler-${p.id}`"
               :class="link" @click.stop
-            >{{ p.insight?.traveler?.name ?? '—' }}</NuxtLink>
+            >{{ p.insight?.traveler?.name }}</NuxtLink>
             <span v-else :data-test="`payment-traveler-${p.id}`">{{ p.insight?.traveler?.name ?? '—' }}</span>
           </td>
           <td class="px-4 py-3 text-right text-sm tabular-nums whitespace-nowrap">

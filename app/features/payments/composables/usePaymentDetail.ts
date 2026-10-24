@@ -44,12 +44,21 @@ export function usePaymentDetail() {
     error.value = null
     try { payment.value = await paymentsService.get(id) } catch (e) { error.value = extractProblemMessage(e, 'Impossible de charger le paiement') }
   }
+  /**
+   * Relit la fiche après un geste réussi : la réponse du geste ne porte pas les champs de
+   * lecture (liens, alerte, n° de suivi…). En échec, le détail renvoyé par le geste reste
+   * affiché et aucune erreur ne s'ajoute : le geste, lui, a réussi.
+   */
+  async function reload(id: string) {
+    try { payment.value = await paymentsService.get(id) } catch { /* détail du geste conservé */ }
+  }
   function close() { payment.value = null; error.value = null; overrideRequest.value = null; overrideError.value = null }
   function dismissOverride() { overrideRequest.value = null; overrideError.value = null }
 
   /**
    * Retourne true si l'action a réussi, false si l'API renvoie une erreur. Chaque action du
-   * back renvoie le détail à jour : il remplace celui affiché, sans second GET. Pour un geste
+   * back renvoie le détail à jour : il remplace aussitôt celui affiché, puis la page le relit
+   * (`reload`) pour les champs que seule la lecture porte. Pour un geste
    * qui paie le voyageur (`payout`), les 409 de blocage basculent en demande de dérogation :
    * c'est ainsi qu'un paiement dont le détail ne portait pas encore la retenue est rattrapé.
    * Un 422 `payment-not-in-escrow` (vérifié par le back avant le gel) reste une erreur ordinaire.
@@ -99,5 +108,5 @@ export function usePaymentDetail() {
       ? paymentsService.retryMobileMoneyPayout(payment.value!.id, override)
       : paymentsService.retryMobileMoneyPayout(payment.value!.id), 'retry-payout')
   const retryRefund = () => run(() => paymentsService.retryMobileMoneyRefund(payment.value!.id))
-  return { payment, error, overrideError, busy, overrideRequest, open, close, dismissOverride, forceRelease, refund, retryPayout, retryRefund }
+  return { payment, error, overrideError, busy, overrideRequest, open, reload, close, dismissOverride, forceRelease, refund, retryPayout, retryRefund }
 }

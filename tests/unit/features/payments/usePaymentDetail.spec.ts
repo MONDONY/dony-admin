@@ -78,4 +78,21 @@ describe('usePaymentDetail', () => {
     const d = usePaymentDetail(); await d.open('p1')
     expect(d.error.value).toBe('Paiement introuvable')
   })
+
+  it('reload relit la fiche (les réponses des gestes ne portent pas les liens)', async () => {
+    svc.get.mockResolvedValueOnce({ id: 'p1', status: 'ESCROW' }).mockResolvedValueOnce({ id: 'p1', status: 'RELEASED', links: { disputeId: 'd' } })
+    svc.forceRelease.mockResolvedValue({ id: 'p1', status: 'RELEASED' })
+    const d = usePaymentDetail(); await d.open('p1'); await d.forceRelease()
+    await d.reload('p1')
+    expect(svc.get).toHaveBeenCalledTimes(2)
+    expect(d.payment.value?.links).toEqual({ disputeId: 'd' })
+  })
+  it('reload en échec : le détail renvoyé par le geste reste affiché, sans erreur', async () => {
+    svc.get.mockResolvedValueOnce({ id: 'p1', status: 'ESCROW' }).mockRejectedValueOnce(new Error('réseau'))
+    svc.refund.mockResolvedValue({ id: 'p1', status: 'REFUNDED' })
+    const d = usePaymentDetail(); await d.open('p1'); await d.refund()
+    await d.reload('p1')
+    expect(d.payment.value?.status).toBe('REFUNDED')
+    expect(d.error.value).toBeNull()
+  })
 })

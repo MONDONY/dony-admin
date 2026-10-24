@@ -22,6 +22,8 @@ async function routePayments(page: import('@playwright/test').Page, opts: { conf
   const posts: Captured[] = []
   const lists: string[] = []
   let conflictSent = false
+  // Comme le vrai serveur : après un geste réussi, la fiche relue (GET) porte le nouvel état.
+  const after: Record<string, object> = {}
   await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
   await page.route('**/api/v1/admin/payments**', (route) => {
     const req = route.request(); const url = req.url()
@@ -37,10 +39,11 @@ async function routePayments(page: import('@playwright/test').Page, opts: { conf
         })
       }
       const base = url.includes('/p9/') ? HELD : NORMAL
-      return route.fulfill({ json: { ...detailOf(base), status: 'RELEASED', payoutHeldAt: undefined, beneficiaryHeld: false } })
+      after[base.id] = { ...detailOf(base), status: 'RELEASED', payoutHeldAt: undefined, beneficiaryHeld: false }
+      return route.fulfill({ json: after[base.id] })
     }
-    if (url.includes('/admin/payments/p9')) return route.fulfill({ json: detailOf(HELD) })
-    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: detailOf(NORMAL) })
+    if (url.includes('/admin/payments/p9')) return route.fulfill({ json: after.p9 ?? detailOf(HELD) })
+    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: after.p1 ?? detailOf(NORMAL) })
     lists.push(url)
     return route.fulfill({ json: url.includes('held=true') ? page1([HELD]) : page1([NORMAL, HELD]) })
   })
@@ -63,11 +66,15 @@ test('paiement retenu : filtre, détail, puis déblocage avec dérogation motiv�
   expect(lists.some((u) => u.includes('held=true'))).toBe(true)
 
   await page.locator('[data-test="payment-row-p9"]').click()
+  // L'encart de la retenue est dans l'onglet Incidents du tiroir.
+  await page.locator('[data-test="payment-tab-incidents"]').click()
   const notice = page.locator('[data-test="payment-hold-notice"]')
   await expect(notice).toContainText('Le voyageur a été banni.')
   await expect(notice).toContainText('20/09/2026')
   await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', /\/users\?query=u7&open=u7/)
 
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await expect(page.locator('[data-test="override-warning"]')).toContainText('banni')
   const submit = page.locator('[data-test="override-submit"]')
@@ -87,7 +94,11 @@ test('paiement normal : déblocage inchangé, sans case ni corps', async ({ page
   const { posts } = await routePayments(page)
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  await expect(page.locator('[data-test="payment-panel-incidents"]')).toBeVisible()
   await expect(page.locator('[data-test="payment-hold-notice"]')).toHaveCount(0)
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await expect(page.locator('[data-test="override-dialog"]')).toHaveCount(0)
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
@@ -101,6 +112,8 @@ test('409 inattendu payout-beneficiary-held : bascule en dérogation puis renvoi
   const { posts } = await routePayments(page, { conflictOnFirstRelease: 'payout-beneficiary-held' })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -121,6 +134,8 @@ test('409 stripe-account-unusable : message clair, aucune dérogation proposée'
   await routePayments(page, { firstReleaseError: { status: 409, body: { code: 'stripe-account-unusable', detail: 'x', stripeAccountStatus: 'DISABLED' } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -134,6 +149,8 @@ test('409 à deux blocages : litige bancaire ET compte gelé affichés ensemble'
   } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -147,6 +164,8 @@ test('422 override-reason-invalid : le dialogue reste ouvert avec le détail, pu
   } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p9"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="override-checked"]').check()
   await page.locator('[data-test="override-reason"]').fill('Motif accepté côté front')
@@ -162,6 +181,8 @@ test('409 transfer-already-attempted : conseil de vérifier dans Stripe, aucune 
   await routePayments(page, { firstReleaseError: { status: 409, body: { code: 'transfer-already-attempted', detail: 'x' } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()

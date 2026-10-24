@@ -177,6 +177,28 @@ describe('PaymentsTable', () => {
     expect(w.emitted('select')).toEqual([[PAY]])
   })
 
+  it('nom absent mais identifiant présent : texte simple, pas de lien « — »', () => {
+    const w = mountTable([rich({ insight: insight({ sender: { id: SENDER, name: null } }) })])
+    expect(w.find(`[data-test="payment-sender-${PAY}"]`).element.tagName).not.toBe('A')
+    expect(w.find(`[data-test="payment-sender-${PAY}"]`).text()).toBe('—')
+  })
+
+  it('clavier : la ligne est focalisable, Entrée et Espace ouvrent la fiche', async () => {
+    const w = mountTable([rich()])
+    const row = w.find(`[data-test="payment-row-${PAY}"]`)
+    expect(row.attributes('tabindex')).toBe('0')
+    expect(row.attributes('aria-label')).toContain('Ouvrir le paiement')
+    await row.trigger('keydown', { key: 'Enter' })
+    await row.trigger('keydown', { key: ' ' })
+    expect(w.emitted('select')).toEqual([[PAY], [PAY]])
+  })
+
+  it('clavier : Entrée sur un lien de la ligne suit le lien sans ouvrir la fiche', async () => {
+    const w = mountTable([rich()])
+    await w.find(`[data-test="payment-sender-${PAY}"]`).trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('select')).toBeUndefined()
+  })
+
   it('Montant : net voyageur et commission sous le montant', () => {
     const w = mountTable([rich()])
     expect(w.find(`[data-test="payment-amount-${PAY}"]`).text()).toBe(formatMoney(21300, 'EUR'))
