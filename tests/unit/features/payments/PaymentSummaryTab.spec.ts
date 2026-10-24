@@ -124,3 +124,28 @@ describe('PaymentPartiesRow : compte sans nom', () => {
     expect(w.find('[data-test="party-traveler"]').text()).toContain('Nom non communiqué')
   })
 })
+
+describe('PaymentPartiesRow : argent du voyageur retenu', () => {
+  beforeEach(() => seedAuth('ADMIN'))
+  const heldPay = (over: Partial<AdminPaymentDetail> = {}) => pay({ beneficiaryHeld: true, payoutHeldAt: '2026-10-19T10:00:00Z', beneficiaryHoldReason: 'BANNED', ...over })
+
+  it('versement retenu : lien « Voir l’argent du voyageur » vers l’onglet Argent de sa fiche', () => {
+    const link = mount(PaymentPartiesRow, { props: { payment: heldPay() }, global }).find('[data-test="payment-traveler-money-link"]')
+    expect(link.element.tagName).toBe('A')
+    expect(link.attributes('href')).toBe(JSON.stringify({ path: `/users/${TRAVELER}`, query: { tab: 'money' } }))
+    expect(link.text()).toBe('Voir l’argent du voyageur')
+  })
+
+  it('rien de retenu : pas de lien vers l’argent', () => {
+    expect(mount(PaymentPartiesRow, { props: { payment: pay() }, global }).find('[data-test="payment-traveler-money-link"]').exists()).toBe(false)
+  })
+
+  it('sans USER_VIEW ou sans PAYMENT_VIEW : aucun lien vers l’argent', () => {
+    seedAuth('ADMIN', { USER_VIEW: false })
+    expect(mount(PaymentPartiesRow, { props: { payment: heldPay() }, global }).find('a').exists()).toBe(false)
+    seedAuth('ADMIN', { PAYMENT_VIEW: false })
+    const w = mount(PaymentPartiesRow, { props: { payment: heldPay() }, global })
+    expect(w.find('[data-test="payment-traveler-money-link"]').exists()).toBe(false)
+    expect(w.find('[data-test="payment-traveler-link"]').exists()).toBe(true)
+  })
+})

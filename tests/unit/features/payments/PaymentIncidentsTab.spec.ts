@@ -31,6 +31,8 @@ describe('PaymentIncidentsTab', () => {
     const w = mountTab(fullPayment())
     expect(w.findAll('[data-incident]').map(b => b.attributes('data-incident'))).toEqual(['hold', 'chargeback', 'dispute', 'noshow', 'alerts'])
     expect(hrefOf(w, 'payment-hold-traveler-link')).toBe(`/users/${IDS.TRAVELER}?tab=manage`)
+    expect(hrefOf(w, 'payment-hold-traveler-money-link')).toBe(`/users/${IDS.TRAVELER}?tab=money`)
+    expect(w.find('[data-test="payment-hold-traveler-money-link"]').text()).toBe('Voir l’argent du voyageur')
     expect(hrefOf(w, 'payment-chargeback-link')).toBe(`/transactions?tab=chargebacks&open=${IDS.CB}`)
     expect(hrefOf(w, 'payment-dispute-link')).toBe(`/incidents?open=${IDS.DISPUTE}`)
     expect(hrefOf(w, 'payment-noshow-link')).toBe(`/incidents?tab=noshows&open=${IDS.CANCEL}`)
@@ -66,6 +68,18 @@ describe('PaymentIncidentsTab', () => {
     const w = mountTab(kyc)
     expect(hrefOf(w, 'payment-hold-traveler-link')).toBe(`/users/${IDS.TRAVELER}`)
     expect(w.find('[data-test="payment-hold-traveler-link"]').text()).toBe('Voir la fiche du voyageur')
+  })
+
+  it('argent du voyageur : absent sans PAYMENT_VIEW, sans USER_VIEW ou sans identifiant ; la cause reste', () => {
+    seedAuth('ADMIN', { PAYMENT_VIEW: false })
+    const noPay = mountTab(fullPayment())
+    expect(noPay.find('[data-test="payment-hold-traveler-money-link"]').exists()).toBe(false)
+    expect(noPay.find('[data-test="payment-hold-traveler-link"]').exists()).toBe(true)
+    seedAuth('ADMIN', { USER_VIEW: false })
+    expect(mountTab(fullPayment()).find('[data-test="payment-hold-notice"] a').exists()).toBe(false)
+    seedAuth('ADMIN')
+    const noId = mountTab(fullPayment({ travelerId: null, insight: insightOf({ traveler: null }) }))
+    expect(noId.find('[data-test="payment-hold-notice"] a').exists()).toBe(false)
   })
 
   it('litige bancaire : statut, motif, issue et date d’ouverture', () => {

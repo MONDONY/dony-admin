@@ -43,6 +43,7 @@ describe('paymentLinks', () => {
     const l = paymentLinks(full(), all)
     expect(href(l.sender)).toBe(`/users/${SENDER}`)
     expect(href(l.traveler)).toBe(`/users/${TRAVELER}`)
+    expect(href(l.travelerMoney)).toBe(`/users/${TRAVELER}?tab=money`)
     expect(href(l.senderSupport)).toBe(`/support?userId=${SENDER}`)
     expect(href(l.travelerSupport)).toBe(`/support?userId=${TRAVELER}`)
     expect(href(l.bid)).toBe(`/colis?open=${BID}`)
@@ -77,6 +78,16 @@ describe('paymentLinks', () => {
     const l = paymentLinks(full(), without('USER_VIEW'))
     expect([l.sender, l.traveler, l.holdCause]).toEqual([null, null, null])
     expect(l.senderSupport).not.toBeNull()
+  })
+
+  it('argent du voyageur : USER_VIEW et PAYMENT_VIEW requis, identifiant du voyageur requis', () => {
+    expect(paymentLinks(full(), without('USER_VIEW')).travelerMoney).toBeNull()
+    const noPay = paymentLinks(full(), without('PAYMENT_VIEW'))
+    expect(noPay.travelerMoney).toBeNull()
+    expect(noPay.traveler).not.toBeNull()
+    expect(paymentLinks(full({ insight: insight({ traveler: null }), travelerId: null }), all).travelerMoney).toBeNull()
+    // Ancien back sans contexte : le voyageur de la ligne suffit.
+    expect(href(paymentLinks(full({ insight: undefined }), all).travelerMoney)).toBe(`/users/${TRAVELER}?tab=money`)
   })
 
   it('sans DISPUTE_VIEW : litige et absence à null', () => {

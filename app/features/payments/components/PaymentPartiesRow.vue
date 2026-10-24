@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { isPaymentHeld } from '@/features/payments/types/index'
 import type { AdminPaymentDetail, PaymentParty } from '@/features/payments/types/index'
+import { paymentLinks } from '@/features/payments/lib/paymentLinks'
 import { gate, userRoute } from '@/lib/adminLinks'
 import { useAuthStore } from '@/stores/auth'
 
@@ -25,6 +27,8 @@ const traveler = computed<PaymentParty | null>(() =>
 const link = (party: PaymentParty | null, unknownName = false) =>
   (party?.name || unknownName ? gate(p => auth.can(p), 'USER_VIEW', userRoute(party?.id)) : null)
 const hold = computed(() => props.payment.beneficiaryHoldReason ?? null)
+/** Versement retenu : un lien discret vers l'argent du voyageur (USER_VIEW + PAYMENT_VIEW). */
+const travelerMoney = computed(() => (isPaymentHeld(props.payment) ? paymentLinks(props.payment, p => auth.can(p)).travelerMoney : null))
 
 const cards = computed(() => [
   { role: 'sender', title: 'Expéditeur · paie', party: sender.value, to: link(sender.value) },
@@ -56,6 +60,10 @@ const nameOf = (party: PaymentParty | null, role: string, linked: boolean) => {
           </template>
         </div>
         <p v-if="c.role === 'traveler' && hold" class="mt-0.5 text-xs text-text-muted">Versements gelés</p>
+        <NuxtLink
+          v-if="c.role === 'traveler' && travelerMoney" :to="travelerMoney" data-test="payment-traveler-money-link"
+          class="mt-1 inline-flex min-h-10 items-center rounded-btn px-2 -mx-2 text-sm font-medium text-primary underline-offset-2 transition-[background-color,transform] hover:bg-primary/10 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.96] motion-reduce:active:scale-100"
+        >Voir l’argent du voyageur</NuxtLink>
       </div>
     </div>
   </section>

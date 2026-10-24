@@ -15,6 +15,8 @@ export interface PaymentAlertLink { id: string; type: string; severity: string; 
 export interface PaymentLinkSet {
   sender: AdminRoute | null
   traveler: AdminRoute | null
+  /** Argent du voyageur (fiche, onglet Argent) : USER_VIEW + PAYMENT_VIEW. */
+  travelerMoney: AdminRoute | null
   senderSupport: AdminRoute | null
   travelerSupport: AdminRoute | null
   bid: AdminRoute | null
@@ -65,6 +67,7 @@ export function paymentLinks(payment: AdminPaymentDetail, can: CanFn): PaymentLi
   return {
     sender: gate(can, 'USER_VIEW', userRoute(senderId)),
     traveler: gate(can, 'USER_VIEW', userRoute(travelerId)),
+    travelerMoney: can('PAYMENT_VIEW') ? gate(can, 'USER_VIEW', userRoute(travelerId, 'money')) : null,
     senderSupport: gate(can, 'SUPPORT_TICKET_VIEW', supportOfRoute(senderId)),
     travelerSupport: gate(can, 'SUPPORT_TICKET_VIEW', supportOfRoute(travelerId)),
     bid: bidView(bidRoute(bidId)),

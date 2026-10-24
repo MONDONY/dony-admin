@@ -80,7 +80,10 @@ const linkClass = 'inline-flex min-h-10 items-center rounded-btn px-2 -mx-2 text
       <p class="mt-1 text-text-muted text-pretty">
         L’argent reste chez Yadony et ne repartira pas tout seul. Remboursez l’expéditeur, ou payez le voyageur par une dérogation motivée.
       </p>
-      <NuxtLink v-if="holdLink" :to="holdLink.to" data-test="payment-hold-traveler-link" :class="[linkClass, 'mt-2']">{{ holdLink.label }}</NuxtLink>
+      <div v-if="holdLink || links.travelerMoney" class="mt-2 flex flex-wrap gap-x-4">
+        <NuxtLink v-if="holdLink" :to="holdLink.to" data-test="payment-hold-traveler-link" :class="linkClass">{{ holdLink.label }}</NuxtLink>
+        <NuxtLink v-if="links.travelerMoney" :to="links.travelerMoney" data-test="payment-hold-traveler-money-link" :class="linkClass">Voir l’argent du voyageur</NuxtLink>
+      </div>
     </section>
 
     <section v-if="showChargeback" data-incident="chargeback" data-test="payment-disputed" :class="[card, 'border-danger/30 bg-danger/5']">
