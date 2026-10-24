@@ -12,7 +12,7 @@ import { seedAuth } from '~/tests/helpers/auth'
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a :href="typeof to === \'string\' ? to : JSON.stringify(to)"><slot /></a>', props: ['to'] }
 const global = { stubs: { NuxtLink: NuxtLinkStub } }
 
-const filterProps = { modelStatus: 'TOUS', modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
+const filterProps = { modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
 
 const row = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 1000, commissionCents: 120, currency: 'EUR', createdAt: '2026-09-01T10:00:00Z' } as const
 const detail = { ...row, refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false }

@@ -145,23 +145,11 @@ describe('PaymentTotalsBar', () => {
   })
 })
 
-describe('PaymentFilters — recherche et abandonnés', () => {
+describe('PaymentFilters — abandonnés', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
-  const base = { modelStatus: 'TOUS', modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
+  const base = { modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
 
-  it('recherche envoyée après 300 ms, ou tout de suite sur Entrée', async () => {
-    const w = mount(PaymentFilters, { props: { ...base, modelQuery: '' } })
-    await w.find('[data-test="payment-search"]').setValue('awa ')
-    expect(w.emitted('update:query')).toBeUndefined()
-    vi.advanceTimersByTime(300)
-    expect(w.emitted('update:query')![0]).toEqual(['awa'])
-    await w.find('[data-test="payment-search"]').setValue('pi_1')
-    await w.find('[data-test="payment-search"]').trigger('keydown', { key: 'Enter' })
-    expect(w.emitted('update:query')![1]).toEqual(['pi_1'])
-    vi.advanceTimersByTime(500)
-    expect(w.emitted('update:query')).toHaveLength(2)
-  })
   it('bascule l’affichage des checkouts abandonnés', async () => {
     const w = mount(PaymentFilters, { props: { ...base, modelHideAbandoned: true } })
     expect(w.find('[data-test="chip-abandoned"]').text()).toBe('Afficher les checkouts abandonnés')
@@ -257,5 +245,19 @@ describe('paymentLabels', () => {
     expect(bidStatusLabel('ARRIVED')).toBe('Arrivé')
     expect(bidStatusLabel(null)).toBeNull()
     expect(shortId(null)).toBe('—')
+  })
+})
+
+describe('PaymentTotalsBar — libellés et devises', () => {
+  it('quatre libellés par carte, sans total toutes devises confondues', () => {
+    const w = mount(PaymentTotalsBar, { props: { totals: [
+      { currency: 'EUR', count: 1, escrowCents: 100, releasedCents: 0, refundedCents: 0, commissionCents: 0, pendingCount: 0 },
+      { currency: 'XOF', count: 1, escrowCents: 100, releasedCents: 0, refundedCents: 0, commissionCents: 0, pendingCount: 0 },
+    ] } })
+    for (const c of ['EUR', 'XOF']) {
+      const t = w.find(`[data-test="payment-totals-${c}"]`).text()
+      for (const l of ['En séquestre', 'Versé (libéré)', 'Remboursé', 'Commissions']) expect(t).toContain(l)
+    }
+    expect(w.findAll('section')).toHaveLength(2)
   })
 })

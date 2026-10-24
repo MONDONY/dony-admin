@@ -87,11 +87,11 @@ describe('pages/transactions', () => {
     expect(listMock.mock.calls[0][0]).toMatchObject({ status: 'TOUS', currency: 'TOUTES', dateFrom: null })
   })
 
-  it('changer le statut réécrit l’URL sans toucher à l’onglet', async () => {
+  it('changer la méthode réécrit l’URL sans toucher à l’onglet', async () => {
     const w = await mountPage({ tab: 'payments' })
-    await w.find('[data-test="chip-status-ESCROW"]').trigger('click')
+    await w.find('[data-test="filter-method"]').setValue('STRIPE')
     await flushPromises()
-    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'payments', status: 'ESCROW' } })
+    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'payments', method: 'STRIPE' } })
   })
 
   it('les onglets sont regroupés par sujet', async () => {

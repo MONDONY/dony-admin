@@ -5,7 +5,7 @@ import BidFilters from '@/features/bids/components/BidFilters.vue'
 import BidSearchBox from '@/features/bids/components/BidSearchBox.vue'
 import BidViewTabs from '@/features/bids/components/BidViewTabs.vue'
 import BidAlertPills from '@/features/bids/components/BidAlertPills.vue'
-import BidActiveFilters from '@/features/bids/components/BidActiveFilters.vue'
+import ActiveFilters from '@/components/ui/ActiveFilters.vue'
 import BidDetailPanel from '@/features/bids/components/BidDetailPanel.vue'
 import AnnouncementsTable from '@/features/bids/components/AnnouncementsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
@@ -331,7 +331,7 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
           @update:content="setContent"
           @reset="resetFilters"
         />
-        <BidActiveFilters :chips="activeChips" @remove="removeChip" @clear="resetFilters" />
+        <ActiveFilters :chips="activeChips" @remove="removeChip" @clear="resetFilters" />
       </div>
       <div
         v-if="filters.announcementId" data-test="trip-filter" role="status"
