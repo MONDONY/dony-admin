@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { seedAuth } from '~/tests/helpers/auth'
 import { mount } from '@vue/test-utils'
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
@@ -90,12 +91,13 @@ describe('WalletsTable', () => {
 })
 
 describe('MobileMoneyTable', () => {
+  beforeEach(() => { seedAuth('ADMIN') })
   it('affiche une ligne par opération avec sens, opérateur et montant formaté', () => {
     const w = mount(MobileMoneyTable, { props: { payments: mmPayments, loading: false } })
     const row = w.find('[data-test="mm-row-mm1"]')
     expect(row.exists()).toBe(true)
     // Le backend rend le sens du mouvement et l'opérateur suffixé du pays (WAVE_SEN).
-    expect(row.text()).toContain('Encaissement')
+    expect(row.text()).toContain('Dépôt')
     expect(row.text()).toContain('Wave')
     expect(row.text()).toContain('750,00 XOF')
   })
@@ -112,7 +114,7 @@ describe('MobileMoneyTable', () => {
     expect(w.text()).not.toContain('771234567')
   })
   it('affiche un état vide explicite', () => {
-    expect(mount(MobileMoneyTable, { props: { payments: [], loading: false } }).text()).toMatch(/Aucun paiement/i)
+    expect(mount(MobileMoneyTable, { props: { payments: [], loading: false } }).text()).toMatch(/Aucune opération/i)
   })
   it('affiche un état de chargement', () => {
     expect(mount(MobileMoneyTable, { props: { payments: [], loading: true } }).text()).toMatch(/Chargement/i)
@@ -212,6 +214,7 @@ describe('libellés mobile money', () => {
 })
 
 describe('MobileMoneyTable — opération sans paiement rattaché', () => {
+  beforeEach(() => { seedAuth('ADMIN') })
   it('affiche un tiret plutôt qu\'une cellule vide', () => {
     const w = mount(MobileMoneyTable, {
       props: { payments: [{ ...mmPayments[0], paymentId: null }], loading: false },

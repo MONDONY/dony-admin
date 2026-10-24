@@ -13,6 +13,8 @@ import { readFilters, sameQuery, writeFilters, type FilterSpecs, type FilterValu
 export function useUrlFilters<F extends object, K extends keyof F & string>(
   filters: F,
   specs: FilterSpecs<K>,
+  /** `enabled` : la page n'écrit l'URL que tant qu'il renvoie vrai (liste affichée dans un onglet, pas dans un autre). */
+  opts: { enabled?: () => boolean } = {},
 ) {
   const route = useRoute()
   const router = useRouter()
@@ -32,6 +34,7 @@ export function useUrlFilters<F extends object, K extends keyof F & string>(
   }
 
   function sync() {
+    if (opts.enabled && !opts.enabled()) return
     const next = apply(route?.query as Record<string, unknown> | undefined)
     if (sameQuery(route?.query as Record<string, unknown> | undefined, next)) return
     void router?.replace?.({ query: next as LocationQueryRaw })

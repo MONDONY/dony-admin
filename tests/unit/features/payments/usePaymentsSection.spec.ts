@@ -18,10 +18,10 @@ const COUNTS = { attention: 2, escrow: 5, releasedRecent: 1, refunded: 0, failed
 const missing = () => Object.assign(new Error('nf'), { statusCode: 404, data: {} })
 
 let scope: ReturnType<typeof effectScope>
-function make(query: Record<string, unknown> = {}) {
+function make(query: Record<string, unknown> = {}, opts: { active?: () => boolean } = {}) {
   route.query = query
   scope = effectScope()
-  return scope.run(() => usePaymentsSection())!
+  return scope.run(() => usePaymentsSection(opts))!
 }
 const lastList = () => svc.list.mock.calls.at(-1)[0]
 
@@ -236,5 +236,34 @@ describe('usePaymentsSection', () => {
     svc.counts.mockRejectedValue(missing())
     await s.refresh(); await s.refresh()
     expect(svc.counts).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('usePaymentsSection : périmètre de l’URL', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    svc.list = vi.fn().mockResolvedValue(page())
+    svc.summary = vi.fn().mockResolvedValue([])
+    svc.counts = vi.fn().mockResolvedValue(COUNTS)
+    svc.suggest = vi.fn().mockResolvedValue({ senders: [], travelers: [], trips: [], parcels: [] })
+  })
+  afterEach(() => { scope?.stop() })
+
+  it('?tab=mobile-money : view/query de Mobile money ne deviennent pas des filtres de Paiements', () => {
+    const s = make({ tab: 'mobile-money', view: 'failed', query: 'awa', kind: 'PAYOUT' })
+    expect(s.filters.query).toBe('')
+    expect(s.filters.view).toBe('ATTENTION')
+  })
+  it('?tab=payments garde ses filtres', () => {
+    const s = make({ tab: 'payments', view: 'ESCROW', query: 'awa' })
+    expect(s.filters.query).toBe('awa')
+    expect(s.filters.view).toBe('ESCROW')
+  })
+  it('section inactive (autre onglet) : un changement de filtre n’écrit pas l’URL de l’autre section', async () => {
+    const s = make({ tab: 'mobile-money', view: 'failed' }, { active: () => false })
+    await nextTick()
+    s.filters.view = 'ALL'
+    await nextTick()
+    expect(replace).not.toHaveBeenCalled()
   })
 })

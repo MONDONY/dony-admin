@@ -26,7 +26,7 @@ export function mobileMoneyStatusMeta(s: MobileMoneyOperationStatus): { label: s
 
 /** Sens métier de l'opération, côté yadony. */
 export function mobileMoneyKindLabel(kind: string): string {
-  return { DEPOSIT: 'Encaissement', PAYOUT: 'Versement', REFUND: 'Remboursement' }[kind] ?? kind
+  return { DEPOSIT: 'Dépôt', PAYOUT: 'Versement', REFUND: 'Remboursement' }[kind] ?? kind
 }
 
 /**

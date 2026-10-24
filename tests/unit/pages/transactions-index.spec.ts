@@ -37,7 +37,7 @@ const COUNTS = { attention: 2, escrow: 5, releasedRecent: 1, refunded: 0, failed
 const FINANCE = { payments: 2, mobileMoney: 3, soldes: 0, chargebacks: 1, details: { paymentsAttention: 2, mobileMoneyAttention: 3, walletRefundsPending: 0, cashCommissionsAttention: 0, chargebacksOpen: 1 } }
 const P1 = 'aaaaaaaa-1111-4111-8111-111111111111'
 
-const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn(), resolveWalletRefundRequest: vi.fn(), getWalletRefundRetryPreview: vi.fn(), retryWalletRefundRequest: vi.fn() }))
+const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn(), resolveWalletRefundRequest: vi.fn(), getWalletRefundRetryPreview: vi.fn(), retryWalletRefundRequest: vi.fn(), listMobileMoneyPayments: vi.fn(), mobileMoneyCounts: vi.fn() }))
 vi.mock('@/features/finance/services/financeService', () => ({ financeService: finance }))
 
 const replaceMock = vi.fn()
@@ -64,6 +64,8 @@ describe('pages/transactions', () => {
     financeCountsMock.mockReset().mockRejectedValue(missing())
     getMock.mockReset().mockResolvedValue({ id: P1, status: 'ESCROW' })
     finance.listWalletRefundRequests.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    finance.listMobileMoneyPayments.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    finance.mobileMoneyCounts.mockReset().mockResolvedValue({ failed: 2, open: 1, done: 7, all: 10, attention: 2 })
   })
 
   it('totaux par devise et export CSV de la liste filtrée', async () => {
@@ -413,6 +415,43 @@ describe('pages/transactions', () => {
       await w.find('[data-test="payment-counts-retry"]').trigger('click')
       await flushPromises()
       expect(w.find('[data-test="payment-counts-error"]').exists()).toBe(false)
+    })
+  })
+
+  describe('section Mobile money', () => {
+    it('?tab=mobile-money&view=done&kind=PAYOUT : filtres de la section, pas ceux des Paiements', async () => {
+      await mountPage({ tab: 'mobile-money', view: 'done', kind: 'PAYOUT', query: 'awa' })
+      expect(finance.listMobileMoneyPayments.mock.calls[0][0]).toMatchObject({ view: 'DONE', kind: 'PAYOUT', q: 'awa' })
+      expect(listMock.mock.calls[0][0].query).toBe('')
+      expect(listMock.mock.calls[0][0].view).toBe('ATTENTION')
+    })
+    it('vue par défaut Échecs quand il y a de l’attention ; écrite dans l’URL en minuscules avec tab', async () => {
+      await mountPage({ tab: 'mobile-money' })
+      expect(finance.listMobileMoneyPayments.mock.calls[0][0]).toMatchObject({ view: 'FAILED' })
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'mobile-money', view: 'failed' } })
+    })
+    it('un clic sur la vue Réussies recharge la liste et l’URL', async () => {
+      const w = await mountPage({ tab: 'mobile-money' })
+      await w.find('[data-test="mm-view-DONE"]').trigger('click')
+      await flushPromises()
+      expect(finance.listMobileMoneyPayments.mock.calls.at(-1)![0]).toMatchObject({ view: 'DONE', page: 0 })
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'mobile-money', view: 'done' } })
+    })
+    it('quitter la section retire ses paramètres et revenir aux Paiements ne les reprend pas', async () => {
+      const w = await mountPage({ tab: 'mobile-money', view: 'done', kind: 'PAYOUT' })
+      await w.find('[data-test="tab-payments"]').trigger('click')
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })
+    })
+    it('ancien back : pas de vues, liste plate', async () => {
+      finance.mobileMoneyCounts.mockReset().mockRejectedValue(missing())
+      const w = await mountPage({ tab: 'mobile-money', view: 'failed' })
+      expect(w.find('[data-test="mm-view-FAILED"]').exists()).toBe(false)
+      expect(finance.listMobileMoneyPayments.mock.calls[0][0]).toMatchObject({ view: 'ALL' })
+    })
+    it('vue Échecs vide : « Aucune opération en échec »', async () => {
+      const w = await mountPage({ tab: 'mobile-money' })
+      expect(w.text()).toContain('Aucune opération en échec')
     })
   })
 })

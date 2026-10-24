@@ -40,6 +40,20 @@ describe('useUrlFilters', () => {
     expect(replace).toHaveBeenCalledWith({ query: { tab: 'wallets', status: 'ESCROW' } })
   })
 
+  it('enabled faux : un changement de filtre n’écrit rien (liste d’un autre onglet)', async () => {
+    query = { tab: 'mobile-money', view: 'failed' }
+    const filters = reactive({ status: 'TOUS', query: '' })
+    let on = false
+    useUrlFilters(filters, specs, { enabled: () => on })
+    filters.query = 'abc'
+    await nextTick()
+    expect(replace).not.toHaveBeenCalled()
+    on = true
+    filters.query = 'abcd'
+    await nextTick()
+    expect(replace).toHaveBeenCalledWith({ query: { tab: 'mobile-money', view: 'failed', query: 'abcd' } })
+  })
+
   it('n’appelle pas replace quand la query est déjà à jour', async () => {
     query = { status: 'ESCROW' }
     const filters = reactive({ status: 'TOUS', query: '' })

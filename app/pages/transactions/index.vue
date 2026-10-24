@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import type { LocationQueryRaw } from 'vue-router'
 import PaymentsTable from '@/features/payments/components/PaymentsTable.vue'
 import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
 import PaymentTotalsBar from '@/features/payments/components/PaymentTotalsBar.vue'
@@ -11,6 +12,8 @@ import TransactionSectionTabs from '@/features/transactions/components/Transacti
 import ChargebacksTable from '@/features/payments/components/ChargebacksTable.vue'
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
+import MobileMoneyFilters from '@/features/finance/components/MobileMoneyFilters.vue'
+import FinanceViewTabs from '@/features/finance/components/FinanceViewTabs.vue'
 import CashCommissionsTable from '@/features/finance/components/CashCommissionsTable.vue'
 import MobileMoneyCommissionsPanel from '@/features/finance/components/MobileMoneyCommissionsPanel.vue'
 import WalletRefundRequestsTable from '@/features/finance/components/WalletRefundRequestsTable.vue'
@@ -21,6 +24,10 @@ import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { usePaymentsSection, type PaymentPickKind } from '@/features/payments/composables/usePaymentsSection'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
 import { usePaymentDrawerRoute } from '@/features/payments/composables/usePaymentDrawerRoute'
+import { useMobileMoney } from '@/features/finance/composables/useMobileMoney'
+import { MOBILE_MONEY_VIEWS, MM_URL_PARAMS } from '@/features/finance/lib/mobileMoneyViews'
+import { PAYMENT_URL_SPECS } from '@/features/payments/lib/paymentPageFilters'
+import { sameQuery } from '@/lib/urlFilters'
 import { useFinanceCounts } from '@/features/transactions/composables/useFinanceCounts'
 import { isTab, sectionOf, type TransactionTab } from '@/features/transactions/lib/sections'
 import { paymentsService } from '@/features/payments/services/paymentsService'
@@ -28,7 +35,7 @@ import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminChargeback, PaymentSuggestParcel, PaymentSuggestPerson, PaymentSuggestTrip } from '@/features/payments/types/index'
-import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRetryPreview, WalletRefundView } from '@/features/finance/types/index'
+import type { AdminWallet, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRetryPreview, WalletRefundView } from '@/features/finance/types/index'
 import { WALLET_REFUND_VIEWS } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
@@ -43,7 +50,7 @@ const auth = useAuthStore()
 const finance = useFinanceCounts()
 // Section Paiements : liste, vues à nombre, recherche à suggestions, filtres dans l'URL (lus ici,
 // avant le premier rendu : les champs s'initialisent depuis leurs props).
-const pay = usePaymentsSection()
+const pay = usePaymentsSection({ active: () => tab.value === 'payments' })
 const {
   filters, payments, isLoading, error: paymentsError, totalPages, currentPage, totals, exporting, heldFilterUnsupported,
   chips, viewsReady, hiddenAbandoned, held, searchResetKey, countsApi, suggestApi,
@@ -64,10 +71,13 @@ const walletsLoading = ref(false)
 const walletsPage = ref(0)
 const walletsTotalPages = ref(0)
 
-const mmPayments = ref<AdminMobileMoneyPayment[]>([])
-const mmLoading = ref(false)
-const mmPage = ref(0)
-const mmTotalPages = ref(0)
+// Section Mobile money : liste, vues à nombres et filtres dans l'URL (tant que l'onglet est actif).
+const mm = useMobileMoney()
+const {
+  rows: mmRows, isLoading: mmLoading, error: mmError, totalPages: mmTotalPages, currentPage: mmPage, filters: mmFilters,
+  counts: mmCounts, countsError: mmCountsError, viewsReady: mmViewsReady, providers: mmProviders,
+} = mm
+let mmLoaded = false
 
 const mmCommissions = ref<AdminMobileMoneyCommissions | null>(null)
 const mmCommissionsLoading = ref(false)
@@ -123,16 +133,6 @@ async function loadWallets(page = walletsPage.value) {
   }
   catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les portefeuilles') }
   finally { walletsLoading.value = false }
-}
-async function loadMobileMoney(page = mmPage.value) {
-  mmLoading.value = true
-  tabError.value = null
-  try {
-    const res = await financeService.listMobileMoneyPayments(page, 20)
-    mmPayments.value = res.content; mmTotalPages.value = res.totalPages; mmPage.value = res.number
-  }
-  catch (e) { tabError.value = extractProblemMessage(e, 'Impossible de charger les paiements mobile money') }
-  finally { mmLoading.value = false }
 }
 async function loadMobileMoneyCommissions() {
   mmCommissionsLoading.value = true
@@ -265,17 +265,39 @@ async function retryWalletRefund(body: RetryWalletRefundBody) {
  * des filtres des paiements qu'il ne touche pas. Paiements = pas de paramètre ; quitter Paiements
  * ferme la fiche paiement (son ?open= est retiré).
  */
-function syncTabQuery(t: Tab) {
-  const query = drawer.tabQuery(t)
+/** Paramètres d'URL des Paiements (dont l'alias `held`) : `view` et `query` y portent le même nom qu'en Mobile money. */
+const PAYMENT_PARAMS = [...Object.entries(PAYMENT_URL_SPECS).map(([k, spec]) => spec.param ?? k), 'held']
+/**
+ * Query d'un changement d'onglet. Mobile money et Paiements se partagent `view` et `query` : les
+ * paramètres de Mobile money ne survivent qu'à son propre onglet, et ceux des Paiements ne le
+ * suivent pas dans Mobile money. Les autres onglets gardent ce que l'URL portait (`tab` posé par
+ * le tiroir), Paiements et Mobile money réécrivent leurs filtres depuis leur état.
+ */
+function queryForTab(t: Tab, from: Tab): Record<string, unknown> {
+  const query: Record<string, unknown> = { ...drawer.tabQuery(t) }
+  if (from === 'mobile-money' && t !== 'mobile-money') for (const k of MM_URL_PARAMS) delete query[k]
+  if (t === 'mobile-money') {
+    for (const k of PAYMENT_PARAMS) delete query[k]
+    return mm.applyUrl(query)
+  }
+  return t === 'payments' ? pay.url.apply(query) : query
+}
+function syncTabQuery(t: Tab, from: Tab) {
+  const query = queryForTab(t, from) as LocationQueryRaw
   if (query.tab === route.query?.tab) return
   void router.replace({ query })
 }
 async function switchTab(t: Tab, fromUrl = false) {
+  const from = tab.value
   tab.value = t
-  if (!fromUrl) syncTabQuery(t)
+  if (!fromUrl) syncTabQuery(t, from)
   if (t === 'chargebacks' && !cbLoaded.value) await loadCbs()
   if (t === 'wallets' && wallets.value.length === 0) await loadWallets()
-  if (t === 'mobile-money' && mmPayments.value.length === 0) await loadMobileMoney()
+  if (t === 'mobile-money') {
+    // Première visite : filtres de l'URL si le lien les porte, vue par défaut sinon.
+    if (!mmLoaded) { mmLoaded = true; await mm.load(fromUrl ? (route.query as Record<string, unknown>) : {}) }
+    else if (fromUrl) await mm.syncFromQuery(route.query as Record<string, unknown>)
+  }
   if (t === 'mm-commissions' && mmCommissions.value === null) await loadMobileMoneyCommissions()
   if (t === 'cash-commissions' && cashCommissions.value.length === 0) await loadCashCommissions()
   if (t === 'wallet-refunds' && !walletRefundsLoaded.value) await loadWalletRefunds()
@@ -320,6 +342,16 @@ onMounted(async () => {
 watch(() => route.query?.tab, (v) => {
   const t: Tab = isTab(v) ? v : 'payments'
   if (t !== tab.value) void switchTab(t, true)
+})
+// Mobile money : ses filtres suivent l'URL tant que l'onglet Opérations est affiché (vue en minuscules).
+watch(() => [mmFilters.view, mmFilters.kind, mmFilters.provider, mmFilters.query, mmViewsReady.value], () => {
+  if (tab.value !== 'mobile-money' || !mmLoaded) return
+  const next = mm.applyUrl({ ...(route.query as Record<string, unknown>), tab: 'mobile-money' })
+  if (!sameQuery(route.query as Record<string, unknown> | undefined, next)) void router.replace({ query: next as LocationQueryRaw })
+})
+// … et dans l'autre sens : lien ou retour arrière qui change seulement ses paramètres.
+watch(() => [route.query?.view, route.query?.kind, route.query?.provider, route.query?.query], () => {
+  if (tab.value === 'mobile-money' && mmLoaded) void mm.syncFromQuery(route.query as Record<string, unknown>)
 })
 // ?open= et ?section= arrivés page ouverte : suivis par `usePaymentDrawerRoute`.
 // … et pour ?held=true (bandeau d'une fiche utilisateur, carte de la vue d'ensemble).
@@ -437,8 +469,36 @@ watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegac
       <div class="mt-4"><PaginationControls :page="walletsPage" :total-pages="walletsTotalPages" @change="loadWallets" /></div>
     </template>
     <template v-else-if="tab === 'mobile-money'">
-      <MobileMoneyTable :payments="mmPayments" :loading="mmLoading" />
-      <div class="mt-4"><PaginationControls :page="mmPage" :total-pages="mmTotalPages" @change="loadMobileMoney" /></div>
+      <div class="mb-4 space-y-3">
+        <!-- Vues : seulement une fois les nombres reçus, jamais face à un ancien back (liste « Toutes »). -->
+        <div v-if="mmViewsReady">
+          <FinanceViewTabs
+            :views="MOBILE_MONEY_VIEWS" :counts="mmCounts" :model-value="mmFilters.view" v-bind="{ ariaLabel: 'Vues des opérations mobile money' }"
+            test-prefix="mm-view" @update:model-value="mm.setView($event as typeof mmFilters.view)"
+          />
+        </div>
+        <p v-if="mmCountsError" data-test="mm-counts-error" role="status" class="flex items-center gap-2 text-xs text-text-muted">
+          Nombres indisponibles
+          <button
+            type="button" data-test="mm-counts-retry"
+            class="inline-flex min-h-10 items-center rounded-btn px-2 text-xs text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            @click="mm.reload()"
+          >Réessayer</button>
+        </p>
+        <MobileMoneyFilters
+          :query="mmFilters.query" :kind="mmFilters.kind" :provider="mmFilters.provider" :providers="mmProviders"
+          @update:query="mm.setQuery" @update:kind="mm.setKind" @update:provider="mm.setProvider"
+        />
+      </div>
+      <p
+        v-if="mmError" data-test="mm-error"
+        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >{{ mmError }}</p>
+      <MobileMoneyTable
+        :payments="mmRows" :loading="mmLoading"
+        :empty-label="mmViewsReady && mmFilters.view === 'FAILED' ? 'Aucune opération en échec' : 'Aucune opération'"
+      />
+      <div class="mt-4"><PaginationControls :page="mmPage" :total-pages="mmTotalPages" @change="mm.goToPage" /></div>
     </template>
     <template v-else-if="tab === 'mm-commissions'">
       <PeriodFilter

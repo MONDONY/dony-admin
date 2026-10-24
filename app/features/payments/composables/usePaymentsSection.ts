@@ -25,7 +25,7 @@ type PickPayload = PaymentSuggestPerson | PaymentSuggestTrip | PaymentSuggestPar
  * - Ancien back (nombres absents) : vues masquées, vue « Tous », alertes inconnues de lui
  *   retirées ; l'alerte HELD reste, le service l'envoie aussi en `held=true` qu'il comprend.
  */
-export function usePaymentsSection() {
+export function usePaymentsSection(opts: { active?: () => boolean } = {}) {
   const route = useRoute()
   const router = useRouter()
   const list = usePayments()
@@ -34,12 +34,17 @@ export function usePaymentsSection() {
   const suggestApi = usePaymentSuggestions()
 
   // Avant de suivre l'URL : la copie de l'état reçu ne doit pas déclencher de réécriture.
-  Object.assign(filters, paymentStateFromQuery((route?.query ?? {}) as Record<string, unknown>))
+  // Seule la section Paiements lit ces paramètres : `view` et `query` d'une autre section
+  // (?tab=mobile-money&view=failed) ne sont pas ses filtres ; seul l'alias d'entrée `held` reste lu.
+  const rawQuery = (route?.query ?? {}) as Record<string, unknown>
+  const onPayments = rawQuery.tab === undefined || rawQuery.tab === 'payments'
+  Object.assign(filters, paymentStateFromQuery(onPayments ? rawQuery : (rawQuery.held === undefined ? {} : { held: rawQuery.held })))
   const specs: FilterSpecs<PaymentUrlKey> = {
     ...PAYMENT_URL_SPECS,
     view: { ...PAYMENT_URL_SPECS.view, defaultFrom: q => (countsApi.unavailable.value ? 'ALL' : defaultPaymentViewFor(q)) },
   }
-  const url = useUrlFilters(paymentUrlValues(filters), specs)
+  // Les filtres ne s'écrivent dans l'URL que tant que la section est affichée : `view` et `query` y sont aussi ceux de Mobile money.
+  const url = useUrlFilters(paymentUrlValues(filters), specs, { enabled: opts.active })
 
   const labels = reactive<PaymentChipLabels>({})
   const chips = computed(() => paymentActiveChips(filters, labels))
