@@ -5,11 +5,15 @@ import { ALL_TABS, SECTIONS, SUB_TABS, defaultTabOfSection, type TransactionSect
 import type { FinanceCounts } from '@/features/transactions/types'
 
 /**
- * Quatre sections à pastilles rouges (sous-onglets pour Mobile money et Soldes). Sans nombres
- * (ancien back, ou pas encore reçus) : les sept onglets plats d'avant, rien d'inventé. Émet
+ * Quatre sections à pastilles rouges (sous-onglets pour Mobile money et Soldes). Nombres pas encore
+ * reçus : les mêmes sections, sans pastille (même hauteur, pas de saut). `flat` (ancien back, ou
+ * nombres en échec sans réponse antérieure) : les sept onglets plats d'avant, rien d'inventé. Émet
  * toujours l'identifiant historique `?tab=`.
  */
-const props = defineProps<{ section: TransactionSection; sub: TransactionTab; counts: FinanceCounts | null }>()
+const props = withDefaults(
+  defineProps<{ section: TransactionSection; sub: TransactionTab; counts: FinanceCounts | null; flat?: boolean }>(),
+  { flat: false },
+)
 const emit = defineEmits<{ 'update:tab': [tab: TransactionTab] }>()
 
 const BADGE: Record<TransactionSection, 'payments' | 'mobileMoney' | 'soldes' | 'chargebacks'> = {
@@ -24,7 +28,7 @@ const subLabel = computed(() => `Listes de la section ${SECTIONS.find(s => s.id 
 
 <template>
   <TabBar
-    v-if="!counts" :tabs="ALL_TABS" :model-value="sub" aria-label="Sections des transactions"
+    v-if="flat" :tabs="ALL_TABS" :model-value="sub" aria-label="Sections des transactions"
     @update:model-value="emit('update:tab', $event)"
   />
   <div v-else class="space-y-2">

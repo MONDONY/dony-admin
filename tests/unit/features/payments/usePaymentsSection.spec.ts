@@ -47,6 +47,26 @@ describe('usePaymentsSection', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
+  it('viewsPending : vrai jusqu’à la première réponse des nombres (hauteur réservée), faux ensuite même face à un ancien back', async () => {
+    let release: (_v: unknown) => void = () => {}
+    svc.counts.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const s = make()
+    expect(s.viewsPending.value).toBe(true)
+    const loading = s.load()
+    await flushPromises()
+    expect(s.viewsPending.value).toBe(true)
+    expect(s.viewsReady.value).toBe(false)
+    release(COUNTS); await loading
+    expect(s.viewsPending.value).toBe(false)
+    expect(s.viewsReady.value).toBe(true)
+    scope.stop()
+    svc.counts.mockRejectedValue(missing())
+    const old = make()
+    await old.load()
+    expect(old.viewsPending.value).toBe(false)
+    expect(old.viewsReady.value).toBe(false)
+  })
+
   it('URL : UUID et montants (unités principales → centimes), vue Tous', () => {
     const s = make({ partyId: U1, bidId: 'pas-un-uuid', amountMin: '100', tab: 'payments' })
     expect(s.filters).toMatchObject({ partyId: U1, bidId: '', amountMin: 10000, view: 'ALL' })

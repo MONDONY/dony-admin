@@ -81,4 +81,27 @@ describe('useFinanceCounts', () => {
     await fresh.settled()
     expect(fresh.counts.value).toEqual({ payments: 2 })
   })
+  it('flat : seulement quand le back n’a pas de nombres (absent, ou en échec avant toute réponse)', async () => {
+    let release: (_v: unknown) => void = () => {}
+    svc.counts.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const c = useFinanceCounts()
+    expect(c.flat.value).toBe(false)
+    const p = c.reload()
+    // En attente : les sections restent (sans pastille), pas les sept onglets plats.
+    expect(c.flat.value).toBe(false)
+    release({ payments: 1 }); await p
+    expect(c.flat.value).toBe(false)
+    // Échec après des nombres reçus : les nombres précédents restent, pas de repli.
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('x'), { statusCode: 500 }))
+    await c.reload()
+    expect(c.flat.value).toBe(false)
+
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('nf'), { statusCode: 404, data: {} }))
+    const old = useFinanceCounts(); await old.reload()
+    expect(old.flat.value).toBe(true)
+
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('x'), { statusCode: 500 }))
+    const broken = useFinanceCounts(); await broken.reload()
+    expect(broken.flat.value).toBe(true)
+  })
 })

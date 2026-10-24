@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { transactionsService } from '@/features/transactions/services/transactionsService'
 import type { FinanceCounts } from '@/features/transactions/types'
 import { isEndpointMissing } from '@/lib/endpointMissing'
@@ -6,13 +6,17 @@ import { extractProblemMessage } from '@/lib/problemDetail'
 
 /**
  * Pastilles des sections. Endpoint absent (ancien back) = indisponible, `counts = null` : la page
- * retombe sur les sept onglets plats. Toute autre erreur garde les derniers nombres, sans lever,
- * et la signale dans `error`. Seule la réponse du dernier appel compte (rechargements qui se chevauchent).
+ * retombe sur les sept onglets plats (`flat`). Toute autre erreur garde les derniers nombres, sans
+ * lever, et la signale dans `error`. Seule la réponse du dernier appel compte (rechargements qui se
+ * chevauchent). En attente de la première réponse, `flat` reste faux : les quatre sections
+ * s'affichent sans pastille, sans basculer d'une barre à l'autre quand les nombres arrivent.
  */
 export function useFinanceCounts() {
   const counts = ref<FinanceCounts | null>(null)
   const unavailable = ref(false)
   const error = ref<string | null>(null)
+  /** Sept onglets plats : pas de nombres ET le back a répondu sans (absent, ou en échec). */
+  const flat = computed(() => counts.value === null && (unavailable.value || error.value !== null))
   let seq = 0
   let pending: Promise<void> | null = null
 
@@ -38,5 +42,5 @@ export function useFinanceCounts() {
     }
   }
 
-  return { counts, unavailable, error, reload, settled }
+  return { counts, unavailable, error, flat, reload, settled }
 }

@@ -38,7 +38,8 @@ definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle
 
 const route = useRoute()
 const auth = useAuthStore()
-// Pastilles des quatre sections ; sans elles (ancien back), les sept onglets plats d'avant.
+// Pastilles des quatre sections (sans pastille le temps de la réponse) ; sans elles (ancien back,
+// ou en échec), les sept onglets plats d'avant.
 const finance = useFinanceCounts()
 // Listes des autres onglets : chacune garde son état ; ses filtres vivent dans l'URL de son onglet.
 const mm = useMobileMoney()
@@ -67,7 +68,7 @@ const { tab, section } = tabs
 const pay = usePaymentsSection({ active: () => tab.value === 'payments' })
 const {
   filters, payments, isLoading, error: paymentsError, totalPages, currentPage, totals, exporting, heldFilterUnsupported,
-  chips, viewsReady, hiddenAbandoned, held, searchResetKey, countsApi, suggestApi,
+  chips, viewsReady, viewsPending, hiddenAbandoned, held, searchResetKey, countsApi, suggestApi,
 } = pay
 const { counts: viewCounts, error: viewCountsError } = countsApi
 const { suggestions, unavailable: suggestionsUnavailable } = suggestApi
@@ -111,7 +112,7 @@ watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegac
 <template>
   <div>
     <div class="mb-4">
-      <TransactionSectionTabs :section="section" :sub="tab" :counts="finance.counts.value" @update:tab="tabs.switchTab" />
+      <TransactionSectionTabs :section="section" :sub="tab" :counts="finance.counts.value" :flat="finance.flat.value" @update:tab="tabs.switchTab" />
       <p v-if="finance.error.value" data-test="finance-counts-error" role="status" class="mt-1 flex items-center gap-2 text-xs text-text-muted">
         Nombres des sections indisponibles
         <button
@@ -128,6 +129,13 @@ watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegac
         <div v-if="viewsReady">
           <PaymentViewTabs :model-value="filters.view ?? 'ALL'" :counts="viewCounts" @update:model-value="pay.setView" />
           <ListCountsError v-if="viewCountsError" test-prefix="payment" class="mt-1" @retry="countsApi.reload()" />
+        </div>
+        <!-- Nombres en route : même hauteur que les vues et leur aide, pour que la liste ne saute pas. -->
+        <div v-else-if="viewsPending" data-test="payment-views-skeleton" aria-hidden="true">
+          <div class="flex h-10 items-center gap-4 border-b border-border px-4">
+            <span v-for="n in 6" :key="n" class="h-3 w-16 animate-pulse rounded bg-surface-elevated motion-reduce:animate-none" />
+          </div>
+          <div class="mt-2 h-4" />
         </div>
         <PaymentSearchBox
           :model-query="filters.query ?? ''" :suggestions="suggestions" :suggestions-disabled="suggestionsUnavailable" :reset-key="searchResetKey"

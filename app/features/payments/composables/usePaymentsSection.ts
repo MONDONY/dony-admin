@@ -50,6 +50,8 @@ export function usePaymentsSection(opts: { active?: () => boolean } = {}) {
   const chips = computed(() => paymentActiveChips(filters, labels))
   /** Onglets de vue : seulement une fois les nombres répondus, et jamais face à un ancien back. */
   const viewsReady = computed(() => countsApi.settled.value && !countsApi.unavailable.value)
+  /** Nombres pas encore répondus : la page réserve la hauteur de la barre des vues (pas de saut). */
+  const viewsPending = computed(() => !countsApi.settled.value)
   /** Nombre du lien « N checkouts abandonnés masqués · les afficher » ; 0 = pas de lien. */
   const hiddenAbandoned = computed(() => (filters.hideAbandoned && !countsApi.unavailable.value ? countsApi.counts.value?.abandoned ?? 0 : 0))
   /** Bascule « Versements retenus » : l'alerte HELD (ou l'ancien filtre `held`). */
@@ -165,7 +167,7 @@ export function usePaymentsSection(opts: { active?: () => boolean } = {}) {
   }
 
   return {
-    ...list, countsApi, suggestApi, url, chips, viewsReady, hiddenAbandoned, held, searchResetKey,
+    ...list, countsApi, suggestApi, url, chips, viewsReady, viewsPending, hiddenAbandoned, held, searchResetKey,
     load, applyLegacyHeld, onType, onSearch, onPick, onOpenPayment, removeChip, clearAll, showAbandoned, setHeld, refresh,
   }
 }

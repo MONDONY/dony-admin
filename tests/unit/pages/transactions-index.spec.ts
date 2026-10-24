@@ -361,6 +361,33 @@ describe('pages/transactions', () => {
       expect(w.find('[data-test="sub-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
     })
 
+    it('nombres pas encore reçus : quatre sections sans pastille et hauteur des vues réservée, puis les nombres', async () => {
+      let releaseFinance: (_v: unknown) => void = () => {}
+      let releaseViews: (_v: unknown) => void = () => {}
+      financeCountsMock.mockImplementation(() => new Promise((r) => { releaseFinance = r }))
+      countsMock.mockImplementation(() => new Promise((r) => { releaseViews = r }))
+      const w = await mountPage()
+      expect(w.find('[data-test="tab-payments"]').exists()).toBe(false)
+      expect(w.findAll('[data-test^="section-"]')).toHaveLength(4)
+      expect(w.find('[data-test="tab-count"]').exists()).toBe(false)
+      expect(w.find('[data-test="payment-views-skeleton"]').exists()).toBe(true)
+      expect(w.find('[data-test="payment-view-ATTENTION"]').exists()).toBe(false)
+      releaseFinance(FINANCE); releaseViews(COUNTS)
+      await flushPromises()
+      expect(w.find('[data-test="section-mobile-money"] [data-test="tab-count"]').text()).toBe('3')
+      expect(w.find('[data-test="payment-views-skeleton"]').exists()).toBe(false)
+      expect(w.find('[data-test="payment-view-ATTENTION"]').exists()).toBe(true)
+    })
+
+    it('ancien back : sections le temps de la réponse, puis les sept onglets plats ; ni vues ni réserve de hauteur', async () => {
+      countsMock.mockRejectedValue(missing())
+      const w = await mountPage()
+      expect(w.find('[data-test="tab-payments"]').exists()).toBe(true)
+      expect(w.find('[data-test^="section-"]').exists()).toBe(false)
+      expect(w.find('[data-test="payment-views-skeleton"]').exists()).toBe(false)
+      expect(w.find('[data-test="payment-view-ATTENTION"]').exists()).toBe(false)
+    })
+
     it('nombres des sections en erreur : onglets plats et message', async () => {
       financeCountsMock.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500 }))
       const w = await mountPage()

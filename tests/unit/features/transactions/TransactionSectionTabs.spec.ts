@@ -62,8 +62,18 @@ describe('TransactionSectionTabs', () => {
     expect(w.emitted('update:tab')).toEqual([['wallet-refunds'], ['cash-commissions']])
   })
 
-  it('sans nombres (ancien back, pas encore chargés) : les sept onglets plats d’aujourd’hui', async () => {
+  it('nombres pas encore reçus : les quatre sections, sans pastille (pas de saut de mise en page)', () => {
     const w = mountTabs({ counts: null, section: 'wallets', sub: 'wallet-refunds' })
+    const ids = w.findAll('[data-test^="section-"]').map(b => b.attributes('data-test'))
+    expect(ids).toEqual(['section-payments', 'section-mobile-money', 'section-wallets', 'section-chargebacks'])
+    expect(w.find('[data-test="tab-count"]').exists()).toBe(false)
+    expect(w.find('[data-test="section-wallets"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-test="sub-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-test="tab-payments"]').exists()).toBe(false)
+  })
+
+  it('repli (`flat` : ancien back ou nombres en échec) : les sept onglets plats d’aujourd’hui', async () => {
+    const w = mountTabs({ counts: null, flat: true, section: 'wallets', sub: 'wallet-refunds' })
     expect(w.find('[data-test^="section-"]').exists()).toBe(false)
     const ids = w.findAll('[data-tab-id]').map(b => b.attributes('data-test'))
     expect(ids).toEqual(['tab-payments', 'tab-chargebacks', 'tab-mobile-money', 'tab-mm-commissions', 'tab-wallets', 'tab-wallet-refunds', 'tab-cash-commissions'])
