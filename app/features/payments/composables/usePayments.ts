@@ -1,8 +1,17 @@
 import { reactive, ref } from 'vue'
 import { paymentsService } from '@/features/payments/services/paymentsService'
-import type { AdminPaymentListItem, PaymentsFilterState, PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter, PaymentTotals } from '@/features/payments/types/index'
+import type { AdminPaymentListItem, PaymentsFilterState, PaymentStatusFilter, PaymentMethodFilter, PaymentCurrencyFilter, PaymentTotals, PaymentView, PaymentAlertCode } from '@/features/payments/types/index'
+import type { PaymentChipKey } from '@/features/payments/lib/paymentPageFilters'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { downloadBlob } from '@/lib/downloadBlob'
+
+/** Filtres par défaut : « À traiter », checkouts abandonnés masqués, aucun autre filtre. */
+function defaultFilters(): PaymentsFilterState {
+  return {
+    status: 'TOUS', method: 'TOUS', currency: 'TOUTES', dateFrom: null, dateTo: null, held: false, query: '', hideAbandoned: true,
+    view: 'ATTENTION', alert: null, partyId: '', announcementId: '', bidId: '', amountMin: null, amountMax: null,
+  }
+}
 
 export function usePayments() {
   const payments = ref<AdminPaymentListItem[]>([])
@@ -13,7 +22,7 @@ export function usePayments() {
   const pageSize = ref(20)
   // Les checkouts abandonnés (en attente depuis plus de 24 h) sont masqués par défaut : ils
   // n'ont jamais déplacé d'argent et noyaient la liste.
-  const filters = reactive<PaymentsFilterState>({ status: 'TOUS', method: 'TOUS', currency: 'TOUTES', dateFrom: null, dateTo: null, held: false, query: '', hideAbandoned: true })
+  const filters = reactive<PaymentsFilterState>(defaultFilters())
   /** Totaux par devise du périmètre filtré ; null tant qu'ils ne sont pas chargés ou si le back ne les sert pas. */
   const totals = ref<PaymentTotals[] | null>(null)
   const exporting = ref(false)
@@ -50,6 +59,33 @@ export function usePayments() {
   async function setDateRange(from: string | null, to: string | null) { filters.dateFrom = from; filters.dateTo = to; currentPage.value = 0; await fetchPayments() }
   async function setQuery(q: string) { filters.query = q; currentPage.value = 0; await fetchPayments() }
   async function setHideAbandoned(h: boolean) { filters.hideAbandoned = h; currentPage.value = 0; await fetchPayments() }
+  async function setView(v: PaymentView) { filters.view = v; currentPage.value = 0; await fetchPayments() }
+  async function setAlert(a: PaymentAlertCode | null) { filters.alert = a; currentPage.value = 0; await fetchPayments() }
+  async function setParty(id: string | null) { filters.partyId = id ?? ''; currentPage.value = 0; await fetchPayments() }
+  async function setAnnouncement(id: string | null) { filters.announcementId = id ?? ''; currentPage.value = 0; await fetchPayments() }
+  async function setBid(id: string | null) { filters.bidId = id ?? ''; currentPage.value = 0; await fetchPayments() }
+  /** Bornes en centimes (incluses) ; `null` = pas de borne. */
+  async function setAmountRange(min: number | null, max: number | null) { filters.amountMin = min; filters.amountMax = max; currentPage.value = 0; await fetchPayments() }
+
+  /** Retire un filtre (puce) : remet ce seul filtre à son défaut. */
+  async function clearFilter(key: PaymentChipKey) {
+    const d = defaultFilters()
+    switch (key) {
+      case 'party': filters.partyId = d.partyId; break
+      case 'trip': filters.announcementId = d.announcementId; break
+      case 'bid': filters.bidId = d.bidId; break
+      case 'alert': filters.alert = d.alert; break
+      case 'status': filters.status = d.status; break
+      case 'method': filters.method = d.method; break
+      case 'currency': filters.currency = d.currency; break
+      case 'amount': filters.amountMin = d.amountMin; filters.amountMax = d.amountMax; break
+      case 'period': filters.dateFrom = d.dateFrom; filters.dateTo = d.dateTo; break
+      case 'search': filters.query = d.query; break
+    }
+    currentPage.value = 0; await fetchPayments()
+  }
+  /** Rétablit TOUS les défauts (y compris `hideAbandoned` et la vue « À traiter »). */
+  async function clearAll() { Object.assign(filters, defaultFilters()); currentPage.value = 0; await fetchPayments() }
 
   /** Télécharge la liste filtrée en CSV (droit EXPORT_RUN côté back). */
   async function exportCsv() {
@@ -60,5 +96,5 @@ export function usePayments() {
     } catch (e) { error.value = extractProblemMessage(e, 'Impossible d’exporter les paiements') } finally { exporting.value = false }
   }
 
-  return { payments, isLoading, error, totalPages, currentPage, pageSize, filters, totals, exporting, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, setQuery, setHideAbandoned, exportCsv, heldFilterUnsupported }
+  return { payments, isLoading, error, totalPages, currentPage, pageSize, filters, totals, exporting, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, setQuery, setHideAbandoned, setView, setAlert, setParty, setAnnouncement, setBid, setAmountRange, clearFilter, clearAll, exportCsv, heldFilterUnsupported }
 }
