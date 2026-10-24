@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { mobileMoneyStatusMeta, mobileMoneyProviderLabel } from './mobileMoneyStatus'
+import { mobileMoneyStatusMeta, mobileMoneyProviderDisplay } from './mobileMoneyStatus'
 import { formatAmount, maskPhoneNumber } from '@/features/finance/types/index'
 import type { AdminMobileMoneyPayment } from '@/features/finance/types/index'
 import { mobileMoneyLinks, mobileMoneyRoleLabel, mobileMoneyTypeLabel } from '@/features/finance/lib/mobileMoneyLinks'
@@ -71,7 +71,7 @@ const action = 'inline-flex min-h-10 items-center rounded-btn px-1 text-xs font-
             <span v-else class="text-text-muted">{{ p.paymentId ?? '—' }}</span>
           </td>
           <td class="px-4 py-3 text-sm">
-            <div class="text-text-muted">{{ mobileMoneyProviderLabel(p.provider) }}</div>
+            <div class="text-text-muted">{{ mobileMoneyProviderDisplay(p.provider) }}</div>
             <div v-if="enriched" class="text-xs tabular-nums text-text-muted" :data-test="`mm-phone-${p.id}`">{{ maskPhoneNumber(p.phoneNumber) }}</div>
           </td>
           <td v-if="!enriched" class="px-4 py-3 text-sm tabular-nums" :data-test="`mm-phone-${p.id}`">{{ maskPhoneNumber(p.phoneNumber) }}</td>

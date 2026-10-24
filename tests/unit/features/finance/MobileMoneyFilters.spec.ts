@@ -49,8 +49,14 @@ describe('MobileMoneyFilters', () => {
   it('Opérateur : Tous + opérateurs connus, valeur choisie toujours listée', async () => {
     const w = mountF({ provider: 'MTN_MOMO_CIV' })
     const opts = w.find('[data-test="mm-filter-provider"]').findAll('option')
-    expect(opts.map(o => o.text())).toEqual(['Tous les opérateurs', 'MTN MoMo', 'Orange Money', 'Wave'])
+    expect(opts.map(o => o.text())).toEqual(['Tous les opérateurs', 'MTN MoMo · CI', 'Orange Money · CI', 'Wave · SN'])
     await w.find('[data-test="mm-filter-provider"]').setValue('WAVE_SEN')
     expect(w.emitted('update:provider')).toEqual([['WAVE_SEN']])
+  })
+  it('même marque dans deux pays : options distinctes, valeurs = codes complets, triées par libellé', () => {
+    const w = mountF({ providers: ['ORANGE_SEN', 'ORANGE_CIV', 'ORANGE_XYZ'] })
+    const opts = w.find('[data-test="mm-filter-provider"]').findAll('option').slice(1)
+    expect(opts.map(o => o.text())).toEqual(['Orange Money · CI', 'Orange Money · SN', 'ORANGE_XYZ'])
+    expect(opts.map(o => o.element.value)).toEqual(['ORANGE_CIV', 'ORANGE_SEN', 'ORANGE_XYZ'])
   })
 })

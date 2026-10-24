@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 import SuggestSearchBox from '@/components/ui/SuggestSearchBox.vue'
 import { MOBILE_MONEY_KIND_OPTIONS } from '@/features/finance/lib/mobileMoneyViews'
-import { mobileMoneyProviderLabel } from './mobileMoneyStatus'
+import { mobileMoneyProviderDisplay } from './mobileMoneyStatus'
 import type { MobileMoneyOperationKind } from '@/features/finance/types/index'
 
 /**
@@ -42,7 +42,7 @@ function onSubmit(text: string) {
 const providerOptions = computed(() => {
   const all = new Set(props.providers)
   if (props.provider) all.add(props.provider)
-  return [...all].sort().map(value => ({ value, label: mobileMoneyProviderLabel(value) }))
+  return [...all].map(value => ({ value, label: mobileMoneyProviderDisplay(value) })).sort((a, b) => a.label.localeCompare(b.label, 'fr'))
 })
 
 const selectClass = 'min-h-10 rounded-btn border border-border bg-surface px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary'

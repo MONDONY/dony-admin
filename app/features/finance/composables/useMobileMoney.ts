@@ -71,7 +71,13 @@ export function useMobileMoney() {
     }
   }
 
-  async function fetchCounts() {
+  /**
+   * `initial` : premier chargement. Une erreur de nombres y laisse la liste plate « Toutes »
+   * (l'URL `view=done` est alors remplacée par Toutes). Après le chargement, une erreur garde les
+   * nombres précédents (périmés mais utilisables) : les onglets restent actifs, le message d'erreur
+   * `countsError` propose de réessayer.
+   */
+  async function fetchCounts(initial = false) {
     const my = ++countsSeq
     countsError.value = null
     try {
@@ -81,9 +87,11 @@ export function useMobileMoney() {
       else { counts.value = null; unavailable.value = true }
     } catch (e) {
       if (my !== countsSeq) return
-      counts.value = null
-      if (isEndpointMissing(e)) unavailable.value = true
-      else countsError.value = extractProblemMessage(e, 'Impossible de charger les nombres')
+      if (isEndpointMissing(e)) { counts.value = null; unavailable.value = true }
+      else {
+        if (initial) counts.value = null
+        countsError.value = extractProblemMessage(e, 'Impossible de charger les nombres')
+      }
     }
   }
 
@@ -101,7 +109,7 @@ export function useMobileMoney() {
     apply(state)
     if (state.view) { filters.view = state.view; viewChosen = true }
     currentPage.value = 0
-    await fetchCounts()
+    await fetchCounts(true)
     // Sans nombres (ancien back, erreur) : pas de vues, liste plate « Toutes ».
     if (!viewsReady.value) filters.view = 'ALL'
     else if (!viewChosen) filters.view = defaultMobileMoneyView(counts.value)
