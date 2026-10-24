@@ -33,7 +33,7 @@ describe('paymentsService', () => {
   })
   it('listChargebacks GETs paged', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    await paymentsService.listChargebacks(0, 20)
+    await paymentsService.listChargebacks({})
     expect(apiMock).toHaveBeenCalledWith('/admin/chargebacks', { query: { page: 0, size: 20 } })
   })
   it('retryMobileMoneyPayout POSTs la relance de versement', async () => {

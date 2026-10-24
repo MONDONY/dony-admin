@@ -24,20 +24,16 @@ function mobileMoneyScope(p: MobileMoneyListParams): Record<string, string | und
   return { kind: p.kind, provider: p.provider, q: p.q }
 }
 
-/** `(page, size)` : signature historique, gardée jusqu'à la migration des appelants (Task 10) ; sinon un objet de paramètres. */
-function listWallets(a: number | WalletListParams, b?: number): Promise<AdminWalletPage> {
-  if (typeof a === 'number') return useApi()<AdminWalletPage>('/admin/wallets', { query: { page: a, size: b } })
-  return useApi()<AdminWalletPage>('/admin/wallets', { query: pageQuery(a, { q: a.q, currency: a.currency, balanceSign: a.balanceSign, partyId: a.partyId }) })
+function listWallets(p: WalletListParams): Promise<AdminWalletPage> {
+  return useApi()<AdminWalletPage>('/admin/wallets', { query: pageQuery(p, { q: p.q, currency: p.currency, balanceSign: p.balanceSign, partyId: p.partyId }) })
 }
 
-function listMobileMoneyPayments(a: number | MobileMoneyListParams, b?: number): Promise<AdminMobileMoneyPage> {
-  if (typeof a === 'number') return useApi()<AdminMobileMoneyPage>('/admin/mobile-money-payments', { query: { page: a, size: b } })
-  return useApi()<AdminMobileMoneyPage>('/admin/mobile-money-payments', { query: pageQuery(a, { view: viewOf(a.view), ...mobileMoneyScope(a) }) })
+function listMobileMoneyPayments(p: MobileMoneyListParams): Promise<AdminMobileMoneyPage> {
+  return useApi()<AdminMobileMoneyPage>('/admin/mobile-money-payments', { query: pageQuery(p, { view: viewOf(p.view), ...mobileMoneyScope(p) }) })
 }
 
-function listCashCommissions(a: number | CashCommissionListParams, b?: number): Promise<AdminCashCommissionPage> {
-  if (typeof a === 'number') return useApi()<AdminCashCommissionPage>('/admin/cash-commissions', { query: { page: a, size: b } })
-  return useApi()<AdminCashCommissionPage>('/admin/cash-commissions', { query: pageQuery(a, { view: viewOf(a.view), status: a.status, q: a.q, partyId: a.partyId }) })
+function listCashCommissions(p: CashCommissionListParams): Promise<AdminCashCommissionPage> {
+  return useApi()<AdminCashCommissionPage>('/admin/cash-commissions', { query: pageQuery(p, { view: viewOf(p.view), status: p.status, q: p.q, partyId: p.partyId }) })
 }
 
 /**

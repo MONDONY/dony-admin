@@ -40,14 +40,13 @@ function scopeQuery(f: PaymentsFilterState): Record<string, string | number> {
   return query
 }
 
-/** `(page, size)` : signature historique, gardée jusqu'à la migration des appelants (Task 10) ; sinon un objet de paramètres. */
-function listChargebacks(a: number | ChargebackListParams, b?: number): Promise<AdminChargebackPage> {
-  if (typeof a === 'number') return useApi()<AdminChargebackPage>('/admin/chargebacks', { query: { page: a, size: b } })
+/** Litiges bancaires : vue (`ALL` omise) et recherche ; les défauts ne sont pas envoyés. */
+function listChargebacks(p: ChargebackListParams): Promise<AdminChargebackPage> {
   const query: Record<string, string | number> = {}
-  if (a.view && a.view !== 'ALL') query.view = a.view
-  if (a.q?.trim()) query.q = a.q.trim()
-  query.page = a.page ?? 0
-  query.size = a.size ?? 20
+  if (p.view && p.view !== 'ALL') query.view = p.view
+  if (p.q?.trim()) query.q = p.q.trim()
+  query.page = p.page ?? 0
+  query.size = p.size ?? 20
   return useApi()<AdminChargebackPage>('/admin/chargebacks', { query })
 }
 

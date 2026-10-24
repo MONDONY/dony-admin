@@ -219,6 +219,8 @@ test('admin relance un remboursement mobile money : manque affiché, puis versem
 test('les litiges bancaires se paginent au-delà de 20', async ({ page }) => {
   const pages: string[] = []
   await page.route('**/api/v1/admin/chargebacks**', (route) => {
+    // Les nombres des vues (`/counts`, ancien back ici : absents) ne sont pas une page de la liste.
+    if (route.request().url().includes('/chargebacks/counts')) return route.fulfill({ status: 404, json: {} })
     const p = new URL(route.request().url()).searchParams.get('page') ?? ''
     pages.push(p)
     return route.fulfill({ json: { ...CBS, totalElements: 25, totalPages: 2, number: Number(p) } })

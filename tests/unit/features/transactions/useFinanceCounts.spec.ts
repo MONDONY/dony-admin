@@ -64,4 +64,21 @@ describe('useFinanceCounts', () => {
     fail(Object.assign(new Error('nf'), { statusCode: 404, data: {} })); await a
     expect(c.unavailable.value).toBe(false); expect(c.counts.value).toEqual({ payments: 4 }); expect(c.error.value).toBeNull()
   })
+  it('settled : attend le chargement en cours, ou en lance un s’il n’y en a pas encore', async () => {
+    let release: (_v: unknown) => void = () => {}
+    svc.counts.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const c = useFinanceCounts()
+    const first = c.reload()
+    let done = false
+    const waiting = c.settled().then(() => { done = true })
+    await Promise.resolve()
+    expect(done).toBe(false)
+    release({ payments: 1 }); await first; await waiting
+    expect(done).toBe(true)
+    expect(svc.counts).toHaveBeenCalledTimes(1)
+    svc.counts.mockResolvedValue({ payments: 2 })
+    const fresh = useFinanceCounts()
+    await fresh.settled()
+    expect(fresh.counts.value).toEqual({ payments: 2 })
+  })
 })

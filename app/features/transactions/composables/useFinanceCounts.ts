@@ -14,8 +14,16 @@ export function useFinanceCounts() {
   const unavailable = ref(false)
   const error = ref<string | null>(null)
   let seq = 0
+  let pending: Promise<void> | null = null
 
-  async function reload(): Promise<void> {
+  function reload(): Promise<void> {
+    pending = run()
+    return pending
+  }
+  /** Nombres du dernier chargement (en cours, ou lancé s'il n'y en a pas eu) : pour décider d'une vue par défaut. */
+  function settled(): Promise<void> { return pending ?? reload() }
+
+  async function run(): Promise<void> {
     const my = ++seq
     try {
       const res = await transactionsService.counts()
@@ -30,5 +38,5 @@ export function useFinanceCounts() {
     }
   }
 
-  return { counts, unavailable, error, reload }
+  return { counts, unavailable, error, reload, settled }
 }

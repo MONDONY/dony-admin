@@ -61,6 +61,13 @@ describe('usePaymentsSection', () => {
     expect(lastList()).toMatchObject({ alert: 'HELD', view: 'ATTENTION' })
   })
 
+  it('?held=true reçu sur un autre onglet (section inactive) : retenue gardée en mémoire, URL de l’onglet sans paramètre des Paiements', async () => {
+    const s = make({ held: 'true', tab: 'wallet-refunds' }, { active: () => false })
+    await s.load()
+    expect(replace).toHaveBeenCalledWith({ query: { tab: 'wallet-refunds' } })
+    expect(lastList()).toMatchObject({ alert: 'HELD', view: 'ATTENTION' })
+  })
+
   it('?held=false : simplement retiré', async () => {
     const s = make({ held: 'false' })
     await s.load()

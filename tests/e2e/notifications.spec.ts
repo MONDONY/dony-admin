@@ -223,6 +223,8 @@ test('lien profond ?tab=wallet-refunds combiné à ?held=true : onglet ouvert au
   await page.route('**/api/v1/admin/wallet-refund-requests**', (route) => route.fulfill({ json: pageOf([]) }))
   await page.goto('/transactions?held=true&tab=wallet-refunds')
   await expect(page.locator('[data-test="tab-wallet-refunds"]')).toHaveAttribute('aria-pressed', 'true')
+  // Page hydratée : `held` converti à l'arrivée, sans entrer dans l'URL de cet onglet (portée par section).
+  await expect(page).toHaveURL(/\/transactions\?tab=wallet-refunds$/)
   await page.locator('[data-test="tab-payments"]').click()
   // `held=true` est converti à l'arrivée en alerte HELD (vue À traiter) ; `tab` seul disparaît.
   await expect(page).toHaveURL(/\/transactions\?alert=HELD&view=ATTENTION$/)

@@ -59,13 +59,18 @@ export function usePaymentsSection(opts: { active?: () => boolean } = {}) {
   let typed = ''
   let loaded = false
 
-  /** `?held=` n'a plus cours une fois converti : on le retire, les autres paramètres restent. */
+  /**
+   * `?held=` n'a plus cours une fois converti : on le retire, les autres paramètres restent. Reçu
+   * sur un autre onglet (?tab=wallet-refunds&held=true), la retenue reste dans l'état des Paiements
+   * mais n'entre pas dans l'URL de cet onglet : elle y reviendra avec les Paiements.
+   */
   async function stripLegacyHeld() {
     const query = (route?.query ?? {}) as Record<string, unknown>
     if (!('held' in query)) return
     const rest = { ...query }
     delete rest.held
-    await router.replace({ query: url.apply(rest) as LocationQueryRaw })
+    const inactive = opts.active !== undefined && !opts.active()
+    await router.replace({ query: (inactive ? rest : url.apply(rest)) as LocationQueryRaw })
   }
 
   async function load() {

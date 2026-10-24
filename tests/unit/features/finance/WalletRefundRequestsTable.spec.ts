@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { computed, nextTick } from 'vue'
+import { config, mount, flushPromises } from '@vue/test-utils'
+import { seedAuth } from '~/tests/helpers/auth'
+import { toHref, type AdminRoute } from '@/lib/adminLinks'
 import WalletRefundRequestsTable from '@/features/finance/components/WalletRefundRequestsTable.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import type { AdminWalletRefundRequest } from '@/features/finance/types/index'
@@ -25,7 +28,19 @@ const automatic: AdminWalletRefundRequest[] = [
   },
 ]
 
+// Le tableau lit les permissions (liens de fiche) et rend de vrais liens.
+config.global.stubs = {
+  NuxtLink: {
+    name: 'NuxtLink', props: ['to'],
+    setup(p: { to: string | AdminRoute }) { return { href: computed(() => (typeof p.to === 'string' ? p.to : toHref(p.to))) } },
+    template: '<a :href="href"><slot /></a>',
+  },
+}
+const U = '0f1e2d3c-aaaa-4bbb-8ccc-000000000001'
+const PARENT = '0f1e2d3c-aaaa-4bbb-8ccc-0000000000ff'
+
 describe('WalletRefundRequestsTable', () => {
+  beforeEach(() => { seedAuth('ADMIN') })
   it('affiche chaque demande dans sa devise avec son statut', () => {
     const w = mount(WalletRefundRequestsTable, { props: { requests, loading: false, busyId: null } })
     expect(w.find('[data-test="wrr-amount-r1"]').text()).toBe(formatMajorAmount(15000, 'XOF'))
@@ -114,5 +129,42 @@ describe('WalletRefundRequestsTable', () => {
     expect(w.find('[data-test="wrr-failure-mm"]').text()).toBe('Motif : Wallet pawaPay sans fonds')
     await w.find('[data-test="wrr-retry-mm"]').trigger('click')
     expect(w.emitted('retry')?.[0]).toEqual(['mm'])
+  })
+
+  it('demandeur nommé : lien vers sa fiche, onglet Argent ; sans USER_VIEW : texte', () => {
+    const rows: AdminWalletRefundRequest[] = [{ id: 'n1', userId: U, userName: 'Awa Diop', currency: 'EUR', amount: 9, status: 'REFUNDED', requestedAt: '2026-10-14T18:29:40' }]
+    const w = mount(WalletRefundRequestsTable, { props: { requests: rows, loading: false, busyId: null } })
+    const a = w.find('[data-test="wrr-user-n1"]')
+    expect(a.element.tagName).toBe('A')
+    expect(a.attributes('href')).toBe(`/users/${U}?tab=money`)
+    // Le nom suffit : l'identifiant n'est pas affiché à côté.
+    expect(w.find('[data-test="wrr-row-n1"]').text()).not.toContain('0f1e2d3c')
+    seedAuth('ADMIN', { USER_VIEW: false })
+    const t = mount(WalletRefundRequestsTable, { props: { requests: rows, loading: false, busyId: null } })
+    expect(t.find('[data-test="wrr-user-n1"]').element.tagName).not.toBe('A')
+    expect(t.findAll('a')).toHaveLength(0)
+  })
+
+  it('demande parente : « Reprise d’un échec » mène à la demande parente', () => {
+    const rows: AdminWalletRefundRequest[] = [{ id: 'c1', userId: 'u1', currency: 'EUR', amount: 9, status: 'PENDING', requestedAt: '2026-10-14T18:29:40', parentRequestId: PARENT }]
+    const w = mount(WalletRefundRequestsTable, { props: { requests: rows, loading: false, busyId: null } })
+    const a = w.find('[data-test="wrr-parent-c1"]')
+    expect(a.text()).toContain('Reprise d’un échec')
+    expect(a.attributes('href')).toBe(`/transactions?tab=wallet-refunds&open=${PARENT}`)
+  })
+
+  it('ligne ouverte (`highlightId`) : mise en évidence et amenée à l’écran', async () => {
+    const spy = vi.fn()
+    Element.prototype.scrollIntoView = spy
+    const w = mount(WalletRefundRequestsTable, { props: { requests, loading: false, busyId: null, highlightId: 'r2' }, attachTo: document.body })
+    await nextTick(); await flushPromises()
+    expect(w.find('[data-test="wrr-row-r2"]').attributes('aria-current')).toBe('true')
+    expect(w.find('[data-test="wrr-row-r1"]').attributes('aria-current')).toBeUndefined()
+    expect(spy).toHaveBeenCalledTimes(1)
+    w.unmount()
+  })
+
+  it('liste en échec : pas d’état vide', () => {
+    expect(mount(WalletRefundRequestsTable, { props: { requests: [], loading: false, busyId: null, failed: true } }).text()).not.toMatch(/Aucune demande/)
   })
 })

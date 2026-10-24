@@ -63,6 +63,7 @@ describe('maskPhoneNumber', () => {
 })
 
 describe('WalletsTable', () => {
+  beforeEach(() => { seedAuth('ADMIN') })
   it('affiche une ligne par portefeuille avec solde et devise formatés', () => {
     const w = mount(WalletsTable, { props: { wallets, loading: false } })
     const row = w.find('[data-test="wallet-row-w1"]')
@@ -80,14 +81,7 @@ describe('WalletsTable', () => {
     const w = mount(WalletsTable, { props: { wallets, loading: false } })
     expect(w.findAll('button').length).toBe(0)
   })
-  it('une ligne cliquable émet select avec l’utilisateur, au clic comme au clavier', async () => {
-    const w = mount(WalletsTable, { props: { wallets, loading: false } })
-    const row = w.find('[data-test="wallet-row-w1"]')
-    expect(row.attributes('tabindex')).toBe('0')
-    await row.trigger('click')
-    await row.trigger('keydown', { key: 'Enter' })
-    expect(w.emitted('select')).toEqual([['u1'], ['u1']])
-  })
+  // La ligne n'est plus cliquable : le nom du titulaire est un vrai lien (WalletsTable.spec.ts).
 })
 
 describe('MobileMoneyTable', () => {
@@ -126,6 +120,7 @@ describe('MobileMoneyTable', () => {
 })
 
 describe('CashCommissionsTable', () => {
+  beforeEach(() => { seedAuth('ADMIN') })
   it('affiche une ligne par demande avec montant et commission formatés', () => {
     const w = mount(CashCommissionsTable, { props: { commissions: cashCommissions, loading: false } })
     const row = w.find('[data-test="cash-commission-row-b1"]')
