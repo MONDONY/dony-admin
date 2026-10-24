@@ -1,5 +1,5 @@
 import type { AdminAlert } from '@/features/alerts/types/index'
-import { unchecked, userLegacyRoute, transactionsViewRoute, mobileMoneyFailedRoute, type AdminRoute } from '@/lib/adminLinks'
+import { unchecked, userLegacyRoute, transactionsViewRoute, mobileMoneyOpenRoute, type AdminRoute } from '@/lib/adminLinks'
 
 /**
  * Fiches des alertes opérationnelles : ce que veut dire chaque code technique levé par le
@@ -590,8 +590,9 @@ export function alertLinks(alert: AdminAlert): AlertLink[] {
   if (alert.type.startsWith('INV-14', MONEY_INVARIANT_PREFIX.length)) {
     links.push({ label: 'Remboursements wallet', to: transactionsViewRoute({ tab: 'wallet-refunds' }) })
   }
+  // Opération encore en attente (INV-11) ou versement repris à surveiller : vue « En cours ».
   if (alert.type.startsWith('INV-11', MONEY_INVARIANT_PREFIX.length) || alert.type.startsWith('MM_PAYOUT_ORPHAN_')) {
-    links.push({ label: 'Opérations mobile money en échec', to: mobileMoneyFailedRoute() })
+    links.push({ label: 'Opérations mobile money en cours', to: mobileMoneyOpenRoute() })
   }
   return links
 }

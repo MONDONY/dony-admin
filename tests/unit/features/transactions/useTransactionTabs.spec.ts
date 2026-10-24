@@ -63,6 +63,29 @@ describe('useTransactionTabs', () => {
     expect(make({}, {}).tabs.tab.value).toBe('payments')
   })
 
+  it('clics rapides A → B → A : le retour sur A est écrit même si la navigation vers B est en cours', async () => {
+    const wallets = fakeList(['partyId'])
+    const { tabs } = make({}, { wallets })
+    // Le routeur n'applique pas encore la navigation : `route.query` reste l'ancienne (Paiements).
+    const pending: Array<() => void> = []
+    replace.mockImplementation((to: { query: Record<string, unknown> }) => new Promise<void>((resolve) => {
+      pending.push(() => { route.query = to.query; resolve() })
+    }))
+    try {
+      void tabs.switchTab('wallets')
+      void tabs.switchTab('payments')
+      expect(replace).toHaveBeenCalledTimes(2)
+      expect(replace.mock.calls[1]![0].query.tab).toBeUndefined()
+      for (const done of pending) done()
+      await flushPromises()
+      expect(route.query.tab).toBeUndefined()
+      expect(tabs.tab.value).toBe('payments')
+    }
+    finally {
+      replace.mockImplementation(async (to: { query: Record<string, unknown> }) => { route.query = to.query })
+    }
+  })
+
   it('start : la liste de l’onglet du lien est chargée avec la query reçue', async () => {
     const wallets = fakeList(['partyId'])
     const { tabs } = make({ tab: 'wallets', partyId: 'u1' }, { wallets })

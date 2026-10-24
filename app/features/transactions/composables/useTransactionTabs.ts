@@ -81,7 +81,10 @@ export function useTransactionTabs(o: TransactionTabsOptions) {
     tab.value = t
     if (!fromUrl) {
       const query = queryForTab(t)
-      if (query.tab !== route?.query?.tab) replaceQuery(query)
+      // Comparer à la query en cours de navigation, pas à `route.query` (périmée) : sinon A → B → A
+      // en clics rapides ne réécrit pas A (B n'est pas encore appliqué, A semble déjà en place).
+      const current = pendingQuery ?? (route?.query as Query | undefined)
+      if (query.tab !== current?.tab) replaceQuery(query)
     }
     const list = listOf(t)
     if (list) {

@@ -159,6 +159,16 @@ describe('pages/alertes', () => {
       expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
     })
 
+    it('lien introuvable puis retrait de ?open (retour arrière) : le message d’erreur disparaît', async () => {
+      svc.get.mockRejectedValue(Object.assign(new Error('Not Found'), { statusCode: 404 }))
+      route.query = { open: A }
+      const w = await mountPage()
+      expect(w.find('[data-test="alert-open-error"]').exists()).toBe(true)
+      route.query = {}
+      await flushPromises()
+      expect(w.find('[data-test="alert-open-error"]').exists()).toBe(false)
+    })
+
     it('page quittée : le ?open= de la page suivante (un paiement) n’est pas lu comme une alerte', async () => {
       await mountPage()
       route.path = '/transactions'

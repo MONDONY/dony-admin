@@ -50,6 +50,10 @@ describe('constructeurs : URL du contrat', () => {
     expect(L.mobileMoneyFailedRoute()).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
     expect(L.toHref(L.mobileMoneyFailedRoute())).toBe('/transactions?tab=mobile-money&view=failed')
   })
+  it('mobile money, vue En cours : `view=open`, même forme', () => {
+    expect(L.mobileMoneyOpenRoute()).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'open' } })
+    expect(L.toHref(L.mobileMoneyOpenRoute())).toBe('/transactions?tab=mobile-money&view=open')
+  })
   it('pages de liste', () => {
     expect(L.incidentsListRoute()).toEqual({ path: '/incidents' })
     expect(L.alertsListRoute()).toEqual({ path: '/alertes' })

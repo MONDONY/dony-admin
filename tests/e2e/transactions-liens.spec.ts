@@ -15,6 +15,7 @@ const TRIP = '2a2a0000-0000-4000-8000-0000000000a1'
 const USER = '3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b'
 const ALERT = '4b4b0000-0000-4000-8000-0000000000e1'
 const INV11 = '4b4b0000-0000-4000-8000-0000000000e2'
+const ORPHAN = '4b4b0000-0000-4000-8000-0000000000e3'
 const DISPUTE = 'd1d10000-0000-4000-8000-0000000000d1'
 
 /** URL courante sans le préfixe de l'application (`/siragbe`), pour comparer chemin + query exacts. */
@@ -209,21 +210,29 @@ test('vue d’ensemble, carte Escrow J+48 → vue « À traiter » filtrée sur 
   await expect(page.locator(`[data-test="payment-row-${PAY}"]`)).toHaveCount(1)
 })
 
-test('alerte INV-11 → mobile money, vue Échecs', async ({ page }) => {
-  const calls = await setup(page)
-  const inv11 = { id: INV11, type: 'MONEY_INVARIANT_INV-11', severity: 'WARN', detail: 'Incohérence INV-11', payload: { invariant: 'INV-11' },
-    resolved: false, resolvedAt: null, createdAt: '2026-10-06T12:00:00' }
-  await page.route('**/api/v1/admin/alerts**', (route) => {
-    if (route.request().url().includes('/violations')) return route.fulfill({ json: { invariant: 'INV-11', title: 'x', severity: 'MOYENNE', total: 0, rows: [] } })
-    return route.fulfill({ json: page1([inv11]) })
+/**
+ * INV-11 (« opération en attente depuis plus d'une heure ») et MM_PAYOUT_ORPHAN_* (« versement repris
+ * à surveiller ») désignent une opération EN COURS : le lien atterrit sur la vue « En cours ».
+ */
+for (const c of [
+  { name: 'INV-11', id: INV11, type: 'MONEY_INVARIANT_INV-11', detail: 'Incohérence INV-11', payload: { invariant: 'INV-11' } },
+  { name: 'MM_PAYOUT_ORPHAN_*', id: ORPHAN, type: 'MM_PAYOUT_ORPHAN_7d1f', detail: 'Versement repris', payload: {} },
+]) {
+  test(`alerte ${c.name} → mobile money, vue En cours`, async ({ page }) => {
+    const calls = await setup(page)
+    const alert = { id: c.id, type: c.type, severity: 'WARN', detail: c.detail, payload: c.payload, resolved: false, resolvedAt: null, createdAt: '2026-10-06T12:00:00' }
+    await page.route('**/api/v1/admin/alerts**', (route) => {
+      if (route.request().url().includes('/violations')) return route.fulfill({ json: { invariant: 'INV-11', title: 'x', severity: 'MOYENNE', total: 0, rows: [] } })
+      return route.fulfill({ json: page1([alert]) })
+    })
+    await page.goto('/alertes')
+    await page.locator(`[data-test="details-${c.id}"]`).click()
+    await page.locator('[data-test="alert-link-transactions"]', { hasText: 'Opérations mobile money en cours' }).click()
+    await expect(page.locator('[data-test="mm-view-OPEN"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
+    await expect.poll(() => landing(page)).toBe('/transactions?tab=mobile-money&view=open')
+    expect(calls.mobileMoney.at(-1)!.searchParams.get('view')).toBe('OPEN')
   })
-  await page.goto('/alertes')
-  await page.locator(`[data-test="details-${INV11}"]`).click()
-  await page.locator('[data-test="alert-link-transactions"]', { hasText: 'Opérations mobile money en échec' }).click()
-  await expect(page.locator('[data-test="mm-view-FAILED"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
-  await expect.poll(() => landing(page)).toBe('/transactions?tab=mobile-money&view=failed')
-  expect(calls.mobileMoney.at(-1)!.searchParams.get('view')).toBe('FAILED')
-})
+}
 
 test('tiroir paiement → « journal d’audit » : filtres PAYMENT appliqués, puis retour au tiroir', async ({ page }) => {
   const calls = await setup(page)

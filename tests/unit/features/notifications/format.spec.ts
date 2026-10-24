@@ -113,6 +113,16 @@ describe('navBadges', () => {
     // Les autres entrées ne bougent pas.
     expect(navBadges({ reports: 2 }, finance)['/signalements']?.count).toBe(2)
   })
+
+  it('Transactions : réponse finance/counts incomplète ou non numérique => jamais NaN, repli sur les clés actuelles', () => {
+    const finance = { payments: 4, mobileMoney: 2, soldes: 3, chargebacks: 1, details: { paymentsAttention: 4, mobileMoneyAttention: 2, walletRefundsPending: 2, cashCommissionsAttention: 1, chargebacksOpen: 1 } }
+    const { chargebacks: _drop, ...partial } = finance
+    for (const broken of [partial, { ...finance, soldes: 'x' }, { ...finance, payments: null }, { ...finance, mobileMoney: Number.NaN }]) {
+      const badge = navBadges({ heldPayouts: 1, walletRefunds: 2 }, broken as unknown as typeof finance)['/transactions']
+      expect(badge).toEqual({ count: 3, label: '3', tone: 'danger' })
+    }
+    expect(navBadges({}, partial as unknown as typeof finance)['/transactions']).toBeUndefined()
+  })
   it('GP Pro additionne demandes à examiner et titulaires à revoir, sans rouge', () => {
     expect(navBadges({ gpPro: 2, gpProReview: 1 })['/gp-pro']).toEqual({ count: 3, label: '3', tone: 'neutral' })
     expect(navBadges({ gpProReview: 4 })['/gp-pro']?.label).toBe('4')

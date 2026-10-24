@@ -86,9 +86,13 @@ export const conversationRoute = (firestoreId: unknown): AdminRoute | null => {
   return id ? { path: '/moderation', query: { open: id } } : null
 }
 
-/** Même forme, sans contrôle d'UUID (seulement non vide) : migration à l'identique des appels
- *  qui recevaient déjà un identifiant typé du back sans le valider. */
 const nonEmpty: IdCheck = value => (typeof value === 'string' && value ? value : null)
+/**
+ * Même forme, sans contrôle d'UUID (seulement non vide) : migration à l'identique des appels
+ * qui recevaient déjà un identifiant typé du back sans le valider.
+ * @deprecated Migration seulement : réservé aux fichiers déjà migrés (liste blanche de
+ * `tests/unit/lib/adminLinksGuard.spec.ts`). Tout nouveau code utilise les constructeurs stricts.
+ */
 export const unchecked = makeRoutes(nonEmpty)
 
 export function transactionsViewRoute(opts: { view?: TransactionsView; alert?: TransactionsAlert; tab?: string } = {}): AdminRoute {
@@ -104,6 +108,13 @@ export function transactionsViewRoute(opts: { view?: TransactionsView; alert?: T
  * (`writeMobileMoneyQuery`), le lien n'est donc pas réécrit à l'arrivée.
  */
 export const mobileMoneyFailedRoute = (): AdminRoute => ({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+
+/**
+ * Mobile money, vue En cours (même forme en minuscules). Cible des alertes qui désignent une
+ * opération encore en attente (INV-11 « en attente depuis plus d'une heure », MM_PAYOUT_ORPHAN_*
+ * « versement repris à surveiller ») : elle n'est pas en échec, la vue Échecs ne la montrerait pas.
+ */
+export const mobileMoneyOpenRoute = (): AdminRoute => ({ path: '/transactions', query: { tab: 'mobile-money', view: 'open' } })
 
 /** Versements retenus : alias historique `?held=true`. */
 export const heldPayoutsRoute = (): AdminRoute => ({ path: '/transactions', query: { held: 'true' } })

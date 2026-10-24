@@ -22,9 +22,11 @@ export function useOpenAlert(list: Ref<AdminAlert[]>) {
     selected.value = alert
   }
 
+  /** Ferme le panneau et efface le message d'un lien introuvable (`open` retiré de l'URL). */
   function close() {
     seq++
     selected.value = null
+    openError.value = null
   }
 
   async function openById(raw: unknown): Promise<void> {

@@ -87,13 +87,17 @@ describe('alertLinks / entityLink', () => {
 
   it('ajoute l’onglet utile pour les règles INV-11 et INV-14', () => {
     expect(alertLinks(alert('MONEY_INVARIANT_INV-14'))[0].to.query).toEqual({ tab: 'wallet-refunds' })
-    expect(alertLinks(alert('MONEY_INVARIANT_INV-11'))[0].to).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+    // INV-11 : opération en attente depuis plus d'une heure => vue « En cours », pas « Échecs ».
+    const [inv11] = alertLinks(alert('MONEY_INVARIANT_INV-11'))
+    expect(inv11.label).toBe('Opérations mobile money en cours')
+    expect(inv11.to).toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'open' } })
   })
 
-  it('MM_PAYOUT_ORPHAN_* : mobile money, vue Échecs', () => {
+  it('MM_PAYOUT_ORPHAN_* : versement repris à surveiller => mobile money, vue En cours', () => {
     const links = alertLinks(alert('MM_PAYOUT_ORPHAN_123'))
-    expect(links.find(l => l.label === 'Opérations mobile money en échec')?.to)
-      .toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'failed' } })
+    expect(links.find(l => l.label === 'Opérations mobile money en cours')?.to)
+      .toEqual({ path: '/transactions', query: { tab: 'mobile-money', view: 'open' } })
+    expect(links.some(l => l.to.query?.view === 'failed')).toBe(false)
   })
 
   it('colonnes SQL snake_case et valeurs non-UUID', () => {

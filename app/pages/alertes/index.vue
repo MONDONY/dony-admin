@@ -85,7 +85,7 @@ onMounted(async () => {
 const onThisPage = () => /^\/alertes\/?$/.test(route.path ?? '')
 watch(() => (onThisPage() ? queryOpen() : null), (id) => {
   if (id) void openById(id)
-  else if (id === undefined && selected.value) close()
+  else if (id === undefined && (selected.value || openError.value)) close()
 })
 </script>
 

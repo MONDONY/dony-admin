@@ -67,6 +67,15 @@ describe('useOpenAlert', () => {
     expect(o.selected.value).toBeNull()
   })
 
+  it('close après un lien introuvable : erreur effacée', async () => {
+    svc.get.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 404 }))
+    const o = useOpenAlert(ref([]))
+    await o.openById(B)
+    expect(o.openError.value).toBe('Alerte introuvable')
+    o.close()
+    expect(o.openError.value).toBeNull()
+  })
+
   it('open / close : erreur effacée', async () => {
     svc.get.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 404 }))
     const o = useOpenAlert(ref([]))

@@ -1,6 +1,5 @@
 import type { AdminBidDetail } from '../types'
-import type { useAuthStore } from '@/stores/auth'
-import { unchecked, gate, conversationRoute, type AdminRoute } from '@/lib/adminLinks'
+import { unchecked, gate, conversationRoute, type AdminRoute, type CanFn } from '@/lib/adminLinks'
 
 export type BidRoute = AdminRoute
 export interface BidLinks {
@@ -10,13 +9,13 @@ export interface BidLinks {
   conversation: BidRoute | null
 }
 
+/** Signature de `auth.can` (définie par le registre) : le tiroir passe `auth.can`, les tests une fonction simple. */
+export type { CanFn }
+
 /**
  * Liens sortants de la fiche colis, chacun derrière sa permission : paiement (PAYMENT_VIEW),
  * litige et absence signalée (DISPUTE_VIEW), conversation (MODERATION_VIEW). Absent : `null`.
  */
-/** Signature de `auth.can` : le tiroir passe `auth.can`, les tests une fonction simple. */
-export type CanFn = ReturnType<typeof useAuthStore>['can']
-
 export function bidLinks(bid: AdminBidDetail, can: CanFn): BidLinks {
   const links = bid.links ?? null
   const money = bid.money ?? null
