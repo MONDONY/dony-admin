@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toHref, heldPayoutsRoute } from '@/lib/adminLinks'
 import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
@@ -16,6 +17,7 @@ import type { AdminUserDetail, AdminKycDetail } from '@/features/users/types/ind
 import { useAuthStore } from '@/stores/auth'
 import { heldPaymentsReminder, holdReasonsLabel } from '@/features/payments/types/index'
 
+const heldPayoutsHref = toHref(heldPayoutsRoute())
 const props = defineProps<{
   user: AdminUserDetail; open: boolean; error?: string | null; busy?: boolean
   /** Onglet affiché à l'ouverture (liens profonds, tests) ; « profil » par défaut. */
@@ -337,7 +339,7 @@ const dialogConfig = computed<DialogConfig>(() => {
         </p>
         <NuxtLink
           v-if="heldCount > 0 && auth.can('PAYMENT_VIEW')" data-test="user-payouts-held-link"
-          to="/transactions?held=true"
+          :to="heldPayoutsHref"
           class="mt-2 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
         >Voir les versements retenus</NuxtLink>
       </div>

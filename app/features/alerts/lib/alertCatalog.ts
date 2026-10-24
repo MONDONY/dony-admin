@@ -1,4 +1,5 @@
 import type { AdminAlert } from '@/features/alerts/types/index'
+import { unchecked, userLegacyRoute, transactionsViewRoute, type AdminRoute } from '@/lib/adminLinks'
 
 /**
  * Fiches des alertes opérationnelles : ce que veut dire chaque code technique levé par le
@@ -17,7 +18,7 @@ export interface AlertGuide {
 
 export interface AlertLink {
   label: string
-  to: { path: string; query: Record<string, string> }
+  to: AdminRoute
 }
 
 export interface AlertFact {
@@ -557,18 +558,18 @@ export function entityLink(key: string, value: unknown): AlertLink | null {
   switch (key) {
     case 'paymentId':
     case 'payment_id':
-      return { label: 'Ouvrir le paiement', to: { path: '/transactions', query: { open: value } } }
+      return { label: 'Ouvrir le paiement', to: unchecked.paymentRoute(value)! }
     case 'bidId':
     case 'bid_id':
-      return { label: 'Ouvrir le colis', to: { path: '/colis', query: { open: value } } }
+      return { label: 'Ouvrir le colis', to: unchecked.bidRoute(value)! }
     case 'travelerId':
-      return { label: 'Fiche du voyageur', to: { path: '/users', query: { query: value, open: value } } }
+      return { label: 'Fiche du voyageur', to: userLegacyRoute(value)! }
     case 'senderId':
-      return { label: 'Fiche de l’expéditeur', to: { path: '/users', query: { query: value, open: value } } }
+      return { label: 'Fiche de l’expéditeur', to: userLegacyRoute(value)! }
     case 'userId':
     case 'user_id':
     case 'tx_user_id':
-      return { label: 'Fiche de l’utilisateur', to: { path: '/users', query: { query: value, open: value } } }
+      return { label: 'Fiche de l’utilisateur', to: userLegacyRoute(value)! }
     default:
       return null
   }
@@ -587,10 +588,10 @@ export function alertLinks(alert: AdminAlert): AlertLink[] {
     links.push(link)
   }
   if (alert.type.startsWith('INV-14', MONEY_INVARIANT_PREFIX.length)) {
-    links.push({ label: 'Remboursements wallet', to: { path: '/transactions', query: { tab: 'wallet-refunds' } } })
+    links.push({ label: 'Remboursements wallet', to: transactionsViewRoute({ tab: 'wallet-refunds' }) })
   }
   if (alert.type.startsWith('INV-11', MONEY_INVARIANT_PREFIX.length) || alert.type.startsWith('MM_PAYOUT_ORPHAN_')) {
-    links.push({ label: 'Opérations mobile money', to: { path: '/transactions', query: { tab: 'mobile-money' } } })
+    links.push({ label: 'Opérations mobile money', to: transactionsViewRoute({ tab: 'mobile-money' }) })
   }
   return links
 }

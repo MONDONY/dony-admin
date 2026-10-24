@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { toHref, heldPayoutsRoute } from '@/lib/adminLinks'
 import { computed, ref, watch } from 'vue'
 import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { holdReasonsLabel } from '@/features/payments/types/index'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminUserDetail } from '@/features/users/types/index'
 
+const heldPayoutsHref = toHref(heldPayoutsRoute())
 const props = defineProps<{
   user: AdminUserDetail
   busy?: boolean
@@ -82,7 +84,7 @@ watch(
       </p>
       <NuxtLink
         v-if="heldCount > 0 && auth.can('PAYMENT_VIEW')" data-test="user-payouts-held-link"
-        to="/transactions?held=true"
+        :to="heldPayoutsHref"
         class="mt-2 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
       >Voir les versements retenus</NuxtLink>
     </div>

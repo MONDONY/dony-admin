@@ -3,6 +3,7 @@ import { overviewService } from '@/features/overview/services/overviewService'
 import { formatAmount } from '@/features/finance/types/index'
 import type { AdminOverview } from '@/features/overview/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { toHref, heldPayoutsRoute, transactionsViewRoute, incidentsListRoute, alertsListRoute } from '@/lib/adminLinks'
 
 export interface KpiData { id: string; label: string; value: string; subLabel?: string }
 export interface QueueCard { id: string; label: string; count: number; tone: 'danger' | 'warning' | 'info' | 'neutral'; href: string }
@@ -54,9 +55,9 @@ export function useOverview() {
     // /kyc et disparaît si le back n'envoie ni l'un ni l'autre.
     const kycCount = q.kycInReview ?? q.pendingKyc
     const cards: QueueCard[] = [
-      { id: 'disputes', label: 'Litiges ouverts', count: q.openDisputes, tone: 'danger', href: '/incidents' },
-      { id: 'noshows', label: 'No-shows à arbitrer', count: q.pendingNoShows, tone: 'warning', href: '/incidents' },
-      { id: 'alerts', label: 'Alertes non résolues', count: q.unresolvedAlerts, tone: 'danger', href: '/alertes' },
+      { id: 'disputes', label: 'Litiges ouverts', count: q.openDisputes, tone: 'danger', href: toHref(incidentsListRoute()) },
+      { id: 'noshows', label: 'No-shows à arbitrer', count: q.pendingNoShows, tone: 'warning', href: toHref(incidentsListRoute()) },
+      { id: 'alerts', label: 'Alertes non résolues', count: q.unresolvedAlerts, tone: 'danger', href: toHref(alertsListRoute()) },
     ]
     if (typeof kycCount === 'number') {
       cards.push({ id: 'kyc', label: 'Identités à vérifier', count: kycCount, tone: 'info', href: '/kyc' })
@@ -64,9 +65,9 @@ export function useOverview() {
     // Argent bloqué chez Yadony en attente d'une décision admin : la carte disparaît face à
     // un back qui ne l'envoie pas encore, elle reste à zéro sinon.
     if (typeof q.heldPayouts === 'number') {
-      cards.push({ id: 'heldPayouts', label: 'Versements retenus', count: q.heldPayouts, tone: 'danger', href: '/transactions?held=true' })
+      cards.push({ id: 'heldPayouts', label: 'Versements retenus', count: q.heldPayouts, tone: 'danger', href: toHref(heldPayoutsRoute()) })
     }
-    cards.push({ id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: '/transactions' })
+    cards.push({ id: 'escrowJ48', label: 'Escrow J+48', count: q.escrowJ48, tone: 'warning', href: toHref(transactionsViewRoute()) })
     return cards
   })
 

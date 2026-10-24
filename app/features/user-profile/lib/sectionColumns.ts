@@ -8,6 +8,7 @@ import { reportStatusMeta } from '@/features/signalements/components/reportStatu
 import { auditActionLabel } from '@/features/user-profile/lib/auditActionLabels'
 import { formatDayUtc } from '@/features/user-profile/lib/formatDayUtc'
 import { formatInstant } from '@/features/user-profile/lib/formatInstant'
+import { unchecked, toHref, type AdminRoute } from '@/lib/adminLinks'
 import type { BidStatus } from '@/features/bids/types/index'
 import type { PaymentStatus } from '@/features/payments/types/index'
 import type { ReportStatus } from '@/features/signalements/types/index'
@@ -232,9 +233,12 @@ export const auditColumns: SectionColumn[] = [
 ]
 
 /** Liens vers les écrans existants ; null quand aucun lien n'existe. */
-export const parcelLink = (r: UserParcelRow): string => `/colis?open=${r.id}`
-export const tripLink = (r: UserTripRow): string => `/colis?tab=announcements&announcement=${r.id}`
-export const requestLink = (r: UserRequestRow): string => `/colis?tab=demandes&open=${r.id}`
-export const paymentLink = (r: UserPaymentRow): string => `/transactions?open=${r.id}`
-export const disputeLink = (r: UserDisputeRow): string => `/incidents?open=${r.id}`
-export const reportLink = (r: UserReportRow): string => `/signalements?open=${r.id}`
+/** Route du registre sérialisée ; `''` si l'identifiant manque (jamais « undefined » dans l'URL). */
+const href = (route: AdminRoute | null): string => (route ? toHref(route) : '')
+
+export const parcelLink = (r: UserParcelRow): string => href(unchecked.bidRoute(r.id))
+export const tripLink = (r: UserTripRow): string => href(unchecked.tripRoute(r.id))
+export const requestLink = (r: UserRequestRow): string => href(unchecked.packageRequestRoute(r.id))
+export const paymentLink = (r: UserPaymentRow): string => href(unchecked.paymentRoute(r.id))
+export const disputeLink = (r: UserDisputeRow): string => href(unchecked.disputeRoute(r.id))
+export const reportLink = (r: UserReportRow): string => href(unchecked.reportRoute(r.id))
