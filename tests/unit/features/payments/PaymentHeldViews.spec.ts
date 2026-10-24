@@ -12,11 +12,18 @@ import { seedAuth } from '~/tests/helpers/auth'
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a :href="typeof to === \'string\' ? to : JSON.stringify(to)"><slot /></a>', props: ['to'] }
 const global = { stubs: { NuxtLink: NuxtLinkStub } }
 
-const filterProps = { modelStatus: 'TOUS', modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
+/** Les gestes vivent dans le menu « Actions » du tiroir : on l'ouvre avant de les chercher. */
+async function openActions(w: ReturnType<typeof mount>) {
+  await w.find('[data-test="payment-actions-menu"]').trigger('click')
+}
+
+const filterProps = { modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
 
 const row = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 1000, commissionCents: 120, currency: 'EUR', createdAt: '2026-09-01T10:00:00Z' } as const
 const detail = { ...row, refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false }
-const held = { ...detail, payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 't1' } as const
+// Le lien passe par le registre (`userRoute`), qui exige un UUID : plus d'identifiant factice.
+const T1 = '7a7a7a7a-1111-4111-8111-111111111111'
+const held = { ...detail, payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: T1 } as const
 
 describe('PaymentFilters : Versements retenus', () => {
   it('puce inactive par défaut, émet true au clic', async () => {
@@ -38,6 +45,7 @@ describe('PaymentFilters : Versements retenus', () => {
 })
 
 describe('PaymentsTable : badge Versement retenu', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('badge sur une ligne retenue, absent sinon (ancien back compris)', () => {
     const w = mount(PaymentsTable, {
       props: { loading: false, payments: [{ ...row, id: 'p1', payoutHeldAt: '2026-09-20T10:00:00Z' }, { ...row, id: 'p2' }, { ...row, id: 'p3', beneficiaryHeld: true }] },
@@ -52,25 +60,25 @@ describe('PaymentDetailPanel : paiement retenu', () => {
   beforeEach(() => seedAuth('ADMIN'))
 
   it('ancien back : aucun encart', () => {
-    const w = mount(PaymentDetailPanel, { props: { payment: detail, open: true }, global })
+    const w = mount(PaymentDetailPanel, { props: { payment: detail, open: true, section: 'incidents' }, global })
     expect(w.find('[data-test="payment-hold-notice"]').exists()).toBe(false)
   })
 
   it('encart : motif banni, date de retenue et lien vers la fiche du voyageur', () => {
-    const w = mount(PaymentDetailPanel, { props: { payment: held, open: true }, global })
+    const w = mount(PaymentDetailPanel, { props: { payment: held, open: true, section: 'incidents' }, global })
     const notice = w.find('[data-test="payment-hold-notice"]')
     expect(notice.text()).toContain('Versement retenu')
     expect(notice.text()).toContain('banni')
     expect(notice.text()).toContain(new Date('2026-09-20T10:00:00Z').toLocaleDateString('fr-FR'))
     const link = w.find('[data-test="payment-hold-traveler-link"]')
-    expect(link.attributes('href')).toContain('/users')
-    expect(link.attributes('href')).toContain('t1')
+    // Banni : la fiche du voyageur, onglet Gestion (là où la cause s'explique).
+    expect(link.attributes('href')).toBe(JSON.stringify({ path: `/users/${T1}`, query: { tab: 'manage' } }))
     expect(notice.text()).not.toContain('—')
   })
 
   it('encart : identité révoquée, sans date ni identifiant de voyageur', () => {
     const w = mount(PaymentDetailPanel, {
-      props: { payment: { ...detail, beneficiaryHeld: true, beneficiaryHoldReason: 'KYC_REVOKED' }, open: true }, global,
+      props: { payment: { ...detail, beneficiaryHeld: true, beneficiaryHoldReason: 'KYC_REVOKED' }, open: true, section: 'incidents' }, global,
     })
     const notice = w.find('[data-test="payment-hold-notice"]')
     expect(notice.text()).toContain('a été révoquée')
@@ -80,6 +88,7 @@ describe('PaymentDetailPanel : paiement retenu', () => {
 
   it('cas normal : le déblocage ouvre le dialogue habituel, sans case de dérogation', async () => {
     const w = mount(PaymentDetailPanel, { props: { payment: detail, open: true }, global })
+    await openActions(w)
     await w.find('[data-test="action-release"]').trigger('click')
     expect(w.find('[data-test="override-dialog"]').exists()).toBe(false)
     await w.find('[data-test="reason"]').setValue('J+48 atteint')
@@ -89,6 +98,7 @@ describe('PaymentDetailPanel : paiement retenu', () => {
 
   it('paiement retenu : le déblocage ouvre directement la dérogation et émet son corps', async () => {
     const w = mount(PaymentDetailPanel, { props: { payment: held, open: true }, global })
+    await openActions(w)
     await w.find('[data-test="action-release"]').trigger('click')
     expect(w.find('[data-test="overlay"]').exists()).toBe(false)
     expect(w.find('[data-test="override-dialog"]').exists()).toBe(true)
@@ -104,6 +114,7 @@ describe('PaymentDetailPanel : paiement retenu', () => {
   it('relance retenue : dérogation, puis émission retry-payout avec le corps', async () => {
     const payout = { ...held, status: 'RELEASED', method: 'PAWAPAY', pawapayPayoutId: 'po1' } as const
     const w = mount(PaymentDetailPanel, { props: { payment: payout, open: true }, global })
+    await openActions(w)
     await w.find('[data-test="action-retry-payout"]').trigger('click')
     expect(w.find('[data-test="override-dialog"] h2').text()).toContain('Relancer le versement')
     await w.find('[data-test="override-checked"]').setValue(true)

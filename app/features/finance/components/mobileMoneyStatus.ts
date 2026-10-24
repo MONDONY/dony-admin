@@ -26,7 +26,7 @@ export function mobileMoneyStatusMeta(s: MobileMoneyOperationStatus): { label: s
 
 /** Sens métier de l'opération, côté yadony. */
 export function mobileMoneyKindLabel(kind: string): string {
-  return { DEPOSIT: 'Encaissement', PAYOUT: 'Versement', REFUND: 'Remboursement' }[kind] ?? kind
+  return { DEPOSIT: 'Dépôt', PAYOUT: 'Versement', REFUND: 'Remboursement' }[kind] ?? kind
 }
 
 /**
@@ -36,4 +36,19 @@ export function mobileMoneyKindLabel(kind: string): string {
 export function mobileMoneyProviderLabel(provider: string): string {
   const base = provider.replace(/_(CIV|SEN|CMR|BEN|BFA|COD|COG|GAB|KEN|ZMB|SLE|TZA|UGA|RWA|MWI|NGA|GHA)$/, '')
   return { ORANGE: 'Orange Money', WAVE: 'Wave', MTN_MOMO: 'MTN MoMo', MOOV: 'Moov Money', FREE: 'Free Money' }[base] ?? provider
+}
+
+const COUNTRY_ISO2: Record<string, string> = {
+  CIV: 'CI', SEN: 'SN', CMR: 'CM', BEN: 'BJ', BFA: 'BF', COD: 'CD', COG: 'CG', GAB: 'GA', KEN: 'KE',
+  ZMB: 'ZM', SLE: 'SL', TZA: 'TZ', UGA: 'UG', RWA: 'RW', MWI: 'MW', NGA: 'NG', GHA: 'GH',
+}
+
+/**
+ * Opérateur ET pays (« Orange Money · CI ») : une même marque existe dans plusieurs pays et
+ * `ORANGE_CIV` / `ORANGE_SEN` ne doivent pas s'afficher pareil. Forme inconnue : le code brut.
+ */
+export function mobileMoneyProviderDisplay(provider: string): string {
+  const m = /_([A-Z]{3})$/.exec(provider)
+  const iso = m ? COUNTRY_ISO2[m[1]!] : undefined
+  return iso ? `${mobileMoneyProviderLabel(provider)} · ${iso}` : provider
 }

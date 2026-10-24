@@ -317,3 +317,26 @@ describe('AnnouncementsTable', () => {
     expect(w.find('[data-test="ann-trip-a2"]').exists()).toBe(false)
   })
 })
+
+describe('AnnouncementsTable : « Paiements de ce trajet »', () => {
+  const A = '0a1b2c3d-1111-4222-8333-444455556666'
+  const Link = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+  const one = [{ ...anns[0], id: A }]
+  const mountT = () => mount(AnnouncementsTable, { props: { announcements: one, loading: false }, global: { stubs: { NuxtLink: Link } } })
+
+  it('avec PAYMENT_VIEW : lien vers la liste filtrée sur le trajet', () => {
+    seedAuth('ADMIN')
+    const a = mountT().get(`[data-test="ann-payments-${A}"]`)
+    expect(a.element.tagName).toBe('A')
+    expect(a.attributes('href')).toBe(`/transactions?announcementId=${A}`)
+    expect(a.text()).toBe('Paiements de ce trajet')
+  })
+
+  it('sans PAYMENT_VIEW, ou identifiant mal formé : aucun lien', () => {
+    seedAuth('ADMIN', { PAYMENT_VIEW: false })
+    expect(mountT().find(`[data-test="ann-payments-${A}"]`).exists()).toBe(false)
+    seedAuth('ADMIN')
+    const w = mount(AnnouncementsTable, { props: { announcements: [anns[0]], loading: false }, global: { stubs: { NuxtLink: Link } } })
+    expect(w.find('[data-test="ann-payments-a1"]').exists()).toBe(false)
+  })
+})

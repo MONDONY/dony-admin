@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useEscapeClose } from '@/composables/useEscapeClose'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import GuaranteeFundForm from './GuaranteeFundForm.vue'
@@ -9,8 +9,9 @@ import { disputeStatusMeta } from './disputeStatus'
 import { formatAmount } from '@/features/finance/types/index'
 import type { AdminDisputeDetail, AdminDisputeSplitOptions, DisputeResolution } from '@/features/incidents/types/index'
 import { useAuthStore } from '@/stores/auth'
+import { gate, paymentsOfBidRoute, toHref } from '@/lib/adminLinks'
 
-withDefaults(defineProps<{ dispute: AdminDisputeDetail; open: boolean; splitOptions?: AdminDisputeSplitOptions | null }>(), { splitOptions: null })
+const props = withDefaults(defineProps<{ dispute: AdminDisputeDetail; open: boolean; splitOptions?: AdminDisputeSplitOptions | null }>(), { splitOptions: null })
 const emit = defineEmits<{
   close: []; resolve: [resolution: DisputeResolution, note: string]; guarantee: [amountCents: number, beneficiaryUserId: string, reason: string]
   split: [senderRefund: number, travelerPayout: number, note: string]; 'retry-split': []
@@ -20,6 +21,11 @@ useEscapeClose(() => emit('close'))
 const auth = useAuthStore()
 const pending = ref<DisputeResolution | null>(null)
 /** Partager déplace de l'argent dans les deux sens : mêmes droits que la libération et le remboursement. */
+/** Le litige porte son colis, pas son paiement : liste Transactions filtrée sur le colis (PAYMENT_VIEW). */
+const paymentsHref = computed((): string | null => {
+  const route = gate(auth.can, 'PAYMENT_VIEW', paymentsOfBidRoute(props.dispute.bidId))
+  return route ? toHref(route) : null
+})
 const canSplit = () => auth.can('PAYMENT_RELEASE') && auth.can('PAYMENT_REFUND')
 const splitStatusLabel: Record<string, string> = {
   CLAIMED: 'Décidé, rien encore exécuté chez Stripe',
@@ -44,7 +50,13 @@ function confirmResolve(note: string) {
         <StatusBadge v-bind="disputeStatusMeta(dispute.status)" />
       </div>
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
-        <div><dt class="text-text-muted">Colis</dt><dd>{{ dispute.bidId }}</dd></div>
+        <div>
+          <dt class="text-text-muted">Colis</dt>
+          <dd class="break-all">{{ dispute.bidId }}</dd>
+          <dd v-if="paymentsHref">
+            <NuxtLink :to="paymentsHref" data-test="dispute-payment-link" class="inline-flex min-h-10 items-center rounded-btn px-2 -ml-2 text-sm font-medium text-primary transition-[background-color,transform] hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.96] motion-reduce:active:scale-100">Voir le paiement de ce colis</NuxtLink>
+          </dd>
+        </div>
         <div><dt class="text-text-muted">Devise du colis</dt><dd data-test="dispute-currency">{{ dispute.bidCurrency ?? '—' }}</dd></div>
         <div><dt class="text-text-muted">Remboursement gelé</dt><dd>{{ dispute.refundFrozen ? 'Oui' : 'Non' }}</dd></div>
         <div v-if="dispute.resolution"><dt class="text-text-muted">Résolution</dt><dd>{{ dispute.resolution }}</dd></div>

@@ -5,6 +5,7 @@ import { formatAmount, formatMajorAmount, WALLET_REFUND_STATUS_LABELS } from '@/
 import type { AdminWalletRefundRequestPage } from '@/features/finance/types/index'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import { maskPhone } from '../lib/normalize'
+import { unchecked, transactionsViewRoute } from '@/lib/adminLinks'
 
 export type SearchGroup =
   | 'users' | 'bids' | 'announcements' | 'requests' | 'payments' | 'walletRefunds' | 'reports' | 'support'
@@ -46,7 +47,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `users:${u.id}`, group: 'users',
         title: fullName(u.firstName, u.lastName) || 'Utilisateur sans nom',
         subtitle: join(maskPhone(u.phoneNumber), u.city, u.status && u.status !== 'ACTIVE' ? u.status.toLowerCase() : null),
-        to: { path: '/users', query: { query: u.id, open: u.id } },
+        to: unchecked.userLegacyRoute(u.id)!,
       }))
     },
   },
@@ -59,7 +60,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `bids:${b.id}`, group: 'bids',
         title: b.trackingNumber || `Colis ${b.id.slice(0, 8)}`,
         subtitle: join(b.senderName, b.corridor, b.status.toLowerCase()),
-        to: { path: '/colis', query: { open: b.id } },
+        to: unchecked.bidRoute(b.id)!,
       }))
     },
   },
@@ -72,7 +73,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `announcements:${a.id}`, group: 'announcements',
         title: a.corridor || 'Trajet',
         subtitle: join(a.travelerName, a.departureDate ? new Date(a.departureDate).toLocaleDateString('fr-FR') : null),
-        to: { path: '/colis', query: { tab: 'announcements', announcement: a.id } },
+        to: unchecked.tripRoute(a.id)!,
       }))
     },
   },
@@ -85,7 +86,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `requests:${r.id}`, group: 'requests',
         title: `${r.departureCity} → ${r.arrivalCity}`,
         subtitle: join(r.senderName, r.status.toLowerCase()),
-        to: { path: '/colis', query: { tab: 'demandes', open: r.id } },
+        to: unchecked.packageRequestRoute(r.id)!,
       }))
     },
   },
@@ -98,7 +99,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `payments:${p.id}`, group: 'payments',
         title: formatAmount(p.amountCents, p.currency),
         subtitle: join(p.insight?.sender?.name, p.status.toLowerCase()),
-        to: { path: '/transactions', query: { open: p.id } },
+        to: unchecked.paymentRoute(p.id)!,
       }))
     },
   },
@@ -111,7 +112,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `walletRefunds:${r.id}`, group: 'walletRefunds',
         title: formatMajorAmount(r.amount, r.currency),
         subtitle: join(r.userName, WALLET_REFUND_STATUS_LABELS[r.status] ?? r.status),
-        to: { path: '/transactions', query: { tab: 'wallet-refunds' } },
+        to: transactionsViewRoute({ tab: 'wallet-refunds' }),
       }))
     },
   },
@@ -124,7 +125,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `reports:${r.id}`, group: 'reports',
         title: reportReasonLabel(r.reason),
         subtitle: join(r.reporterName, r.description ? r.description.slice(0, 60) : null),
-        to: { path: '/signalements', query: { open: r.id } },
+        to: unchecked.reportRoute(r.id)!,
       }))
     },
   },
@@ -137,7 +138,7 @@ export const SEARCH_SOURCES: readonly SearchSource[] = [
         key: `support:${t.id}`, group: 'support',
         title: t.subject,
         subtitle: join(t.userDisplayName, t.status.toLowerCase()),
-        to: { path: '/support', query: { ticket: t.id } },
+        to: unchecked.supportTicketRoute(t.id)!,
       }))
     },
   },

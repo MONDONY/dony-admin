@@ -21,6 +21,8 @@ export interface AdminAuditPage {
 export interface AuditFilterState {
   action: string | null
   entityType: string | null
+  /** Identifiant exact de l'entité (UUID) ; absent ou null = non envoyé. */
+  entityId?: string | null
   actorId: string | null
   from: string | null
   to: string | null

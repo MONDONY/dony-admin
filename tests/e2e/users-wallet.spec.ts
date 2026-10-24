@@ -127,20 +127,31 @@ test('ancien back sans endpoint portefeuille : mention discrète et aucune corre
   await expect(page.locator('[data-test="wallet-adjust-open"]')).toHaveCount(0)
 })
 
-test('une ligne de l’onglet Portefeuilles ouvre la fiche de l’utilisateur', async ({ page }) => {
+test('le titulaire d’un portefeuille mène à sa fiche, onglet Argent', async ({ page }) => {
+  // Le registre de liens n'accepte que des UUID : le titulaire en porte un, nom compris (nouveau back).
+  const HOLDER = '0f1e2d3c-aaaa-4bbb-8ccc-000000000001'
   await mockBackend(page)
+  await page.route(`**/api/v1/admin/users/${HOLDER}**`, (route) => {
+    const url = route.request().url()
+    if (url.includes('/wallet/transactions')) return route.fulfill({ json: txPage([BID, TOP_UP]) })
+    if (url.includes('/wallet')) return route.fulfill({ json: { accounts: [ACCOUNT_EUR] } })
+    return route.fulfill({ json: { ...DETAIL, id: HOLDER } })
+  })
   await page.route('**/api/v1/admin/payments**', (route) => route.fulfill({
     json: txPage([{ id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 1000, commissionCents: 120, currency: 'EUR', createdAt: '2026-09-01T10:00:00Z' }]),
   }))
   await page.route('**/api/v1/admin/wallets**', (route) => route.fulfill({
-    json: txPage([{ id: 'w1', userId: 'u1', balanceCents: 1250, currency: 'EUR', updatedAt: '2026-09-01T10:00:00Z' }]),
+    json: txPage([{ id: 'w1', userId: HOLDER, userName: 'Jean Dupont (@jean)', balanceCents: 1250, currency: 'EUR', updatedAt: '2026-09-01T10:00:00Z' }]),
   }))
   await page.goto('/transactions')
   // Ancrage sur une ligne chargée côté client (page hydratée) avant de changer d'onglet :
   // l'état vide, lui, sort déjà du rendu serveur et ne prouve rien.
   await expect(page.locator('[data-test="payment-row-p1"]')).toBeVisible()
   await page.locator('[data-test="tab-wallets"]').click()
-  await page.locator('[data-test="wallet-row-w1"]').click()
-  await expect(page).toHaveURL(/\/users\?query=u1&open=u1/)
-  await expect(page.locator('aside').getByText('jean@x.fr')).toBeVisible()
+  const holder = page.locator('[data-test="wallet-holder-w1"]')
+  await expect(holder).toHaveText('Jean Dupont (@jean)')
+  await expect(page.locator('[data-test="wallet-row-w1"]')).not.toContainText(HOLDER.slice(0, 8))
+  await holder.click()
+  await expect(page).toHaveURL(new RegExp(`/users/${HOLDER}\\?tab=money$`))
+  await expect(page.getByText('Jean Dupont').first()).toBeVisible()
 })

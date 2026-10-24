@@ -1,6 +1,7 @@
 import { bidStatusMeta } from '@/features/bids/components/bidStatus'
 import type { BidStatus } from '@/features/bids/types/index'
 import type { PaymentInsight } from '@/features/payments/types/index'
+import { parseServerDate } from '@/lib/serverDate'
 
 /** Libellés des étapes de la chronologie d'un paiement (codes du journal d'audit du back). */
 const ACTIONS: Record<string, string> = {
@@ -64,7 +65,44 @@ export function bidStatusLabel(status: string | null | undefined): string | null
   return bidStatusMeta(status as BidStatus)?.label ?? status
 }
 
+const CHARGEBACK: Record<string, { label: string; tone: 'warning' | 'success' | 'danger' | 'neutral' }> = {
+  OPEN: { label: 'Ouvert', tone: 'warning' },
+  WON: { label: 'Gagné', tone: 'success' },
+  LOST: { label: 'Perdu', tone: 'danger' },
+}
+/** Statut d'un litige bancaire en clair ; un statut inconnu reste affiché tel quel, en neutre. */
+export function chargebackStatusMeta(status: string): { label: string; tone: 'warning' | 'success' | 'danger' | 'neutral' } {
+  return CHARGEBACK[status] ?? { label: status, tone: 'neutral' }
+}
+
 /** Identifiant raccourci pour l'affichage (le complet reste en infobulle). */
 export function shortId(id: string | null | undefined): string {
   return id ? id.slice(0, 8) : '—'
+}
+
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+/**
+ * Ancienneté d'un paiement pour la colonne « Depuis » : « il y a 4 j » et « 19 oct. » (l'année
+ * seulement si elle diffère de celle d'aujourd'hui). Date du serveur lue en UTC ; illisible : null.
+ */
+export function paymentAge(iso: string | null | undefined, now: number = Date.now()): { relative: string; day: string } | null {
+  const at = parseServerDate(iso)
+  if (Number.isNaN(at)) return null
+  const elapsed = now - at
+  const relative = elapsed < MINUTE ? 'à l’instant'
+    : elapsed < HOUR ? `il y a ${Math.floor(elapsed / MINUTE)} min`
+      : elapsed < DAY ? `il y a ${Math.floor(elapsed / HOUR)} h`
+        : `il y a ${Math.floor(elapsed / DAY)} j`
+  const date = new Date(at)
+  const sameYear = date.getFullYear() === new Date(now).getFullYear()
+  const day = date.toLocaleDateString('fr-FR', sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' })
+  return { relative, day }
+}
+
+/** Texte de recherche d'un trajet suggéré : « Paris Dakar » (la recherche serveur exige chaque mot). */
+export function tripSearchText(trip: { departureCity: string; arrivalCity: string }): string {
+  return [trip.departureCity, trip.arrivalCity].map(c => c?.trim()).filter(Boolean).join(' ')
 }

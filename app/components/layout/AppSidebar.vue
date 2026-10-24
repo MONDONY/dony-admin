@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore, type AdminPermission } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { navBadges } from '@/features/notifications/lib/navBadges'
+import { useNavFinanceCounts } from '@/features/transactions/composables/useNavFinanceCounts'
 import NavItem from './NavItem.vue'
 import { HOME_ENTRY, NAV_GROUPS, resolveActiveEntry, type NavEntry } from './navConfig'
 import { useShortcutsHelp } from '@/composables/useShortcuts'
@@ -18,7 +19,9 @@ const can = (p: AdminPermission) => auth.can(p)
 
 // Compteurs du menu : même source (et même minuteur) que la cloche de la barre du haut.
 const notifications = useNotificationsStore()
-const badges = computed(() => (notifications.unavailable ? {} : navBadges(notifications.counts)))
+// Pastille de Transactions : somme des quatre sections quand `finance/counts` répond.
+const financeCounts = useNavFinanceCounts(() => notifications.counts, () => auth.can('PAYMENT_VIEW'))
+const badges = computed(() => (notifications.unavailable ? {} : navBadges(notifications.counts, financeCounts.value)))
 const badgeProps = (to: string) => {
   const b = badges.value[to]
   return b ? { badge: b.count, badgeTone: b.tone } : {}

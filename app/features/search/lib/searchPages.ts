@@ -1,6 +1,7 @@
 import type { RouteLocationRaw } from 'vue-router'
 import type { AdminPermission } from '@/stores/auth'
 import { normalizeSearch } from './normalize'
+import { mobileMoneyFailedRoute, transactionsViewRoute } from '@/lib/adminLinks'
 
 export interface SearchPage {
   key: string
@@ -22,12 +23,13 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { key: 'gp-pro-review', label: 'Titulaires à revoir', parent: 'GP Pro', keywords: 'alertes badge gp', to: { path: '/gp-pro', query: { tab: 'revue' } }, permission: 'GP_PRO_REVIEW' },
   { key: 'rgpd', label: 'Demandes RGPD', keywords: 'suppression compte gdpr', to: '/users/rgpd', permission: 'USER_GDPR_DELETE' },
   { key: 'payments', label: 'Paiements', parent: 'Transactions', keywords: 'transactions escrow stripe', to: '/transactions', permission: 'PAYMENT_VIEW' },
-  { key: 'chargebacks', label: 'Litiges bancaires', parent: 'Transactions', keywords: 'chargeback contestation', to: { path: '/transactions', query: { tab: 'chargebacks' } }, permission: 'PAYMENT_VIEW' },
-  { key: 'wallets', label: 'Portefeuilles', parent: 'Transactions', keywords: 'wallet solde', to: { path: '/transactions', query: { tab: 'wallets' } }, permission: 'PAYMENT_VIEW' },
-  { key: 'mobile-money', label: 'Mobile money', parent: 'Transactions', keywords: 'pawapay orange wave', to: { path: '/transactions', query: { tab: 'mobile-money' } }, permission: 'PAYMENT_VIEW' },
-  { key: 'mm-commissions', label: 'Commissions mobile money', parent: 'Transactions', to: { path: '/transactions', query: { tab: 'mm-commissions' } }, permission: 'PAYMENT_VIEW' },
-  { key: 'cash-commissions', label: 'Commissions cash', parent: 'Transactions', keywords: 'especes', to: { path: '/transactions', query: { tab: 'cash-commissions' } }, permission: 'PAYMENT_VIEW' },
-  { key: 'wallet-refunds', label: 'Remboursements wallet', parent: 'Transactions', keywords: 'remboursement suppression compte solde', to: { path: '/transactions', query: { tab: 'wallet-refunds' } }, permission: 'PAYMENT_VIEW' },
+  { key: 'chargebacks', label: 'Litiges bancaires', parent: 'Transactions', keywords: 'chargeback contestation', to: transactionsViewRoute({ tab: 'chargebacks' }), permission: 'PAYMENT_VIEW' },
+  { key: 'wallets', label: 'Portefeuilles', parent: 'Transactions', keywords: 'wallet solde', to: transactionsViewRoute({ tab: 'wallets' }), permission: 'PAYMENT_VIEW' },
+  { key: 'mobile-money', label: 'Mobile money', parent: 'Transactions', keywords: 'pawapay orange wave', to: transactionsViewRoute({ tab: 'mobile-money' }), permission: 'PAYMENT_VIEW' },
+  { key: 'mobile-money-failed', label: 'Versements échoués', parent: 'Transactions', keywords: 'mobile money echecs pawapay paiements rates', to: mobileMoneyFailedRoute(), permission: 'PAYMENT_VIEW' },
+  { key: 'mm-commissions', label: 'Commissions mobile money', parent: 'Transactions', to: transactionsViewRoute({ tab: 'mm-commissions' }), permission: 'PAYMENT_VIEW' },
+  { key: 'cash-commissions', label: 'Commissions cash', parent: 'Transactions', keywords: 'especes', to: transactionsViewRoute({ tab: 'cash-commissions' }), permission: 'PAYMENT_VIEW' },
+  { key: 'wallet-refunds', label: 'Remboursements wallet', parent: 'Transactions', keywords: 'remboursement suppression compte solde', to: transactionsViewRoute({ tab: 'wallet-refunds' }), permission: 'PAYMENT_VIEW' },
   { key: 'bids', label: 'Colis', keywords: 'bids envois suivi', to: '/colis', permission: 'BID_VIEW' },
   { key: 'announcements', label: 'Annonces de trajet', parent: 'Colis', keywords: 'trajets voyages voyageurs', to: { path: '/colis', query: { tab: 'announcements' } }, permission: 'BID_VIEW' },
   { key: 'requests', label: 'Demandes d’envoi', parent: 'Colis', keywords: 'package requests negociation', to: { path: '/colis', query: { tab: 'demandes' } }, permission: 'BID_VIEW' },

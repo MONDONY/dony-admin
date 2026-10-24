@@ -75,6 +75,23 @@ describe('useOverview', () => {
     expect(disputes.tone).toBe('danger')
   })
 
+  it('liens des files : mêmes URL qu’avant le registre', async () => {
+    fetchMock.mockResolvedValue(sample)
+    const o = useOverview()
+    await o.fetchOverview()
+    const href = (id: string) => o.queues.value.find(q => q.id === id)?.href
+    expect(href('disputes')).toBe('/incidents')
+    expect(href('noshows')).toBe('/incidents')
+    expect(href('alerts')).toBe('/alertes')
+  })
+
+  it('carte Escrow J+48 : la vue « À traiter » filtrée sur l’alerte J+48, dont le nombre est celui de la carte', async () => {
+    fetchMock.mockResolvedValue(sample)
+    const o = useOverview()
+    await o.fetchOverview()
+    expect(o.queues.value.find(q => q.id === 'escrowJ48')?.href).toBe('/transactions?view=ATTENTION&alert=ESCROW_J48')
+  })
+
   it('carte KYC : compteur en revue, cliquable vers /kyc', async () => {
     fetchMock.mockResolvedValue({ ...sample, queues: { ...sample.queues, kycInReview: 4 } })
     const o = useOverview()

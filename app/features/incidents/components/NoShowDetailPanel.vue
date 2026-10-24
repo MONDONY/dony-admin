@@ -8,6 +8,7 @@ import {
   partyLabel, partyRoleLabel, paymentStatusLabel, remainingMeta, scopeMeta, shortId, tripLabel,
 } from './noShowLabels'
 import { useAuthStore } from '@/stores/auth'
+import { bidRoute, gate, paymentsOfBidRoute, toHref } from '@/lib/adminLinks'
 
 const props = defineProps<{
   row: AdminNoShow
@@ -19,6 +20,10 @@ const emit = defineEmits<{ close: [] }>()
 
 const auth = useAuthStore()
 const canResolve = computed(() => auth.can('DISPUTE_RESOLVE'))
+/** Colis (BID_VIEW) et ses paiements dans Transactions (PAYMENT_VIEW) ; sans le droit, du texte. */
+const hrefOf = (route: ReturnType<typeof bidRoute>) => (route ? toHref(route) : null)
+const bidHref = computed(() => hrefOf(gate(auth.can, 'BID_VIEW', bidRoute(props.row.bidId))))
+const paymentsHref = computed(() => hrefOf(gate(auth.can, 'PAYMENT_VIEW', paymentsOfBidRoute(props.row.bidId))))
 const pending = ref<NoShowDecision | null>(null)
 const busy = ref(false)
 const actionError = ref<string | null>(null)
@@ -121,7 +126,9 @@ function onEscape() { if (!pending.value) emit('close') }
       </section>
 
       <section class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <NuxtLink :to="`/colis?open=${row.bidId}`" data-test="noshow-bid-link" class="text-primary hover:underline">Ouvrir le colis {{ shortId(row.bidId) }}</NuxtLink>
+        <NuxtLink v-if="bidHref" :to="bidHref" data-test="noshow-bid-link" class="text-primary hover:underline">Ouvrir le colis {{ shortId(row.bidId) }}</NuxtLink>
+        <span v-else data-test="noshow-bid-text" class="text-text-muted">Colis {{ shortId(row.bidId) }}</span>
+        <NuxtLink v-if="paymentsHref" :to="paymentsHref" data-test="noshow-payment-link" class="text-primary hover:underline">Voir le paiement de ce colis</NuxtLink>
         <NuxtLink
           v-if="row.dispute" :to="disputeHref(row.dispute)" data-test="noshow-dispute-link"
           class="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/25"

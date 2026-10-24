@@ -52,3 +52,23 @@ describe('useAudit', () => {
     expect(a.error.value).toBe('Détail lisible du back')
   })
 })
+
+describe('useAudit : identifiant d’entité', () => {
+  it('reset vide aussi entityId', async () => {
+    const svc2 = auditService as any
+    svc2.list = vi.fn().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    const a = useAudit()
+    a.filters.entityId = '0a1b2c3d-1111-4222-8333-444455556666'
+    await a.reset()
+    expect(a.filters.entityId).toBeNull()
+  })
+
+  it('restore copie les filtres et revient en page 0', async () => {
+    const a = useAudit()
+    await a.goToPage(2)
+    a.restore({ action: null, entityType: 'PAYMENT', entityId: 'x', actorId: null, from: null, to: null })
+    expect(a.filters.entityType).toBe('PAYMENT')
+    expect(a.filters.entityId).toBe('x')
+    expect(a.currentPage.value).toBe(0)
+  })
+})

@@ -33,3 +33,12 @@ pnpm e2e
 
 ## Modules (P0 = placeholders)
 Vue d'ensemble · Utilisateurs · Transactions · Colis · Incidents · Alertes · Modération · Codes promo · Audit · Exports · Signalements
+
+## Liens entre pages
+
+Toute URL interne (`/colis?open=…`, `/transactions?…`, `/users/<id>?tab=…`, `/alertes?open=…`…) se construit avec le registre `app/lib/adminLinks.ts`, jamais à la main : une seule vérité sur la forme des URL et des paramètres que chaque page lit à l'arrivée.
+
+- **Une destination précise** : la page, le tiroir ouvert, son onglet, le filtre appliqué — pas « la page en général ».
+- **Permission = existence** : un lien passe par `gate(auth.can, '<PERMISSION_DE_LA_DESTINATION>', route)` ; sans la permission (ou sans identifiant valide, le constructeur renvoie alors `null`), pas de `<a>` mais du texte simple. Jamais de lien mort ni de « undefined » dans une URL.
+- **Ajouter un lien** : réutiliser un constructeur existant, ou en ajouter un dans `makeRoutes` (identifiant contrôlé, paramètres que la page cible lit déjà) avec son test dans `tests/unit/lib/adminLinks.spec.ts` ; le rendre avec `NuxtLink :to="route"` (vrai `<a href>`, Ctrl/Cmd-clic, même onglet).
+- **Garde-fous** (`tests/unit/lib/adminLinksGuard.spec.ts`) : aucune chaîne `'/colis?…'` ni `'/transactions?…'` écrite hors du registre ; `unchecked` (constructeurs sans contrôle d'UUID, `@deprecated`) reste limité aux fichiers déjà migrés.

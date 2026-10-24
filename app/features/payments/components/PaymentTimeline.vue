@@ -6,9 +6,12 @@ import type { PaymentTimelineEntry } from '@/features/payments/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { isEndpointMissing } from '@/lib/endpointMissing'
 import { parseServerDate } from '@/lib/serverDate'
+import { gate, userRoute } from '@/lib/adminLinks'
+import { useAuthStore } from '@/stores/auth'
 
 /** Chronologie d'un paiement : dates du paiement et journal d'audit, chargés à l'ouverture. */
 const props = defineProps<{ paymentId: string }>()
+const auth = useAuthStore()
 
 const entries = ref<PaymentTimelineEntry[] | null>(null)
 const error = ref<string | null>(null)
@@ -32,6 +35,10 @@ function fmt(d: string) {
   const ms = parseServerDate(d)
   return Number.isNaN(ms) ? '—' : new Date(ms).toLocaleString('fr-FR')
 }
+/** Auteur compte utilisateur : lien vers sa fiche (USER_VIEW). Un admin, ou sans droit : du texte. */
+function actorLink(e: PaymentTimelineEntry) {
+  return e.actorKind === 'USER' ? gate(p => auth.can(p), 'USER_VIEW', userRoute(e.actorId)) : null
+}
 /** Motif, montant, code d'échec… : les champs du journal utiles à l'admin, sans les identifiants. */
 function details(e: PaymentTimelineEntry): string | null {
   const keys = ['reason', 'overrideReason', 'note', 'amount', 'refundedAmount', 'failureCode', 'status', 'source']
@@ -52,7 +59,10 @@ function details(e: PaymentTimelineEntry): string | null {
         <span class="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-surface" :class="e.source === 'PAYMENT' ? 'bg-primary' : 'bg-text-muted'" />
         <p class="text-sm font-medium">{{ timelineActionLabel(e.action) }}</p>
         <p class="text-xs text-text-muted tabular-nums">
-          {{ fmt(e.at) }}<span v-if="e.actorLabel"> · {{ e.actorKind === 'ADMIN' ? 'admin' : 'par' }} {{ e.actorLabel }}</span>
+          {{ fmt(e.at) }}<span v-if="e.actorLabel"> · {{ e.actorKind === 'ADMIN' ? 'admin' : 'par' }} <NuxtLink
+            v-if="actorLink(e)" :to="actorLink(e)!"
+            class="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >{{ e.actorLabel }}</NuxtLink><template v-else>{{ e.actorLabel }}</template></span>
         </p>
         <p v-if="details(e)" class="text-xs text-text-muted break-words">{{ details(e) }}</p>
       </li>

@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test'
 
+/** `href` exact, préfixe de l'application (`/siragbe`) compris : rien d'autre avant ni après. */
+const hrefIs = (path: string) => new RegExp(`^(/siragbe)?${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+
 /**
  * Versements retenus d'un voyageur banni ou dont l'identité est révoquée : filtre, détail,
  * déblocage par dérogation motivée, 409 inattendu, et bandeau de la fiche utilisateur.
@@ -7,9 +10,11 @@ import { test, expect } from '@playwright/test'
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 
 const NORMAL = { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z', beneficiaryHeld: false, travelerId: 'u1' }
+// Voyageur banni : un vrai UUID, car le lien de la cause passe par le registre (`userRoute`).
+const HELD_TRAVELER = '7a7a7a7a-1111-4111-8111-777777777777'
 const HELD = {
   id: 'p9', bidId: 'b9', status: 'ESCROW', method: 'STRIPE', amountCents: 50000, commissionCents: 6000, currency: 'EUR', createdAt: '2026-09-18T10:00:00Z',
-  payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: 'u7',
+  payoutHeldAt: '2026-09-20T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED', travelerId: HELD_TRAVELER,
 }
 const detailOf = (p: object) => ({ ...p, refundedCents: 0, stripePaymentIntentId: 'pi_x', escrowReleasedAt: null, disputed: false })
 const page1 = (content: object[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
@@ -22,6 +27,8 @@ async function routePayments(page: import('@playwright/test').Page, opts: { conf
   const posts: Captured[] = []
   const lists: string[] = []
   let conflictSent = false
+  // Comme le vrai serveur : après un geste réussi, la fiche relue (GET) porte le nouvel état.
+  const after: Record<string, object> = {}
   await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
   await page.route('**/api/v1/admin/payments**', (route) => {
     const req = route.request(); const url = req.url()
@@ -37,10 +44,11 @@ async function routePayments(page: import('@playwright/test').Page, opts: { conf
         })
       }
       const base = url.includes('/p9/') ? HELD : NORMAL
-      return route.fulfill({ json: { ...detailOf(base), status: 'RELEASED', payoutHeldAt: undefined, beneficiaryHeld: false } })
+      after[base.id] = { ...detailOf(base), status: 'RELEASED', payoutHeldAt: undefined, beneficiaryHeld: false }
+      return route.fulfill({ json: after[base.id] })
     }
-    if (url.includes('/admin/payments/p9')) return route.fulfill({ json: detailOf(HELD) })
-    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: detailOf(NORMAL) })
+    if (url.includes('/admin/payments/p9')) return route.fulfill({ json: after.p9 ?? detailOf(HELD) })
+    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: after.p1 ?? detailOf(NORMAL) })
     lists.push(url)
     return route.fulfill({ json: url.includes('held=true') ? page1([HELD]) : page1([NORMAL, HELD]) })
   })
@@ -54,17 +62,25 @@ test('paiement retenu : filtre, détail, puis déblocage avec dérogation motiv�
   await expect(page.locator('[data-test="payment-held-p9"]')).toHaveText('Versement retenu')
   await expect(page.locator('[data-test="payment-held-p1"]')).toHaveCount(0)
 
+  // « Versements retenus » vit sous « Plus de filtres » et devient l'alerte HELD dans l'URL
+  // (`held=true` n'est plus qu'un alias d'entrée ; la liste reçoit toujours held=true).
+  await page.locator('[data-test="more-filters"]').click()
   await page.locator('[data-test="chip-held"]').click()
-  await expect(page).toHaveURL(/held=true/)
+  await expect(page).toHaveURL(/alert=HELD/)
   await expect(page.locator('[data-test="payment-row-p1"]')).toHaveCount(0)
   expect(lists.some((u) => u.includes('held=true'))).toBe(true)
 
   await page.locator('[data-test="payment-row-p9"]').click()
+  // L'encart de la retenue est dans l'onglet Incidents du tiroir.
+  await page.locator('[data-test="payment-tab-incidents"]').click()
   const notice = page.locator('[data-test="payment-hold-notice"]')
   await expect(notice).toContainText('Le voyageur a été banni.')
   await expect(notice).toContainText('20/09/2026')
-  await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', /\/users\?query=u7&open=u7/)
+  // Banni : la cause s'explique dans la fiche du voyageur, onglet Gestion (registre `userRoute`).
+  await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', hrefIs(`/users/${HELD_TRAVELER}?tab=manage`))
 
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await expect(page.locator('[data-test="override-warning"]')).toContainText('banni')
   const submit = page.locator('[data-test="override-submit"]')
@@ -84,7 +100,11 @@ test('paiement normal : déblocage inchangé, sans case ni corps', async ({ page
   const { posts } = await routePayments(page)
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  await expect(page.locator('[data-test="payment-panel-incidents"]')).toBeVisible()
   await expect(page.locator('[data-test="payment-hold-notice"]')).toHaveCount(0)
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await expect(page.locator('[data-test="override-dialog"]')).toHaveCount(0)
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
@@ -98,6 +118,8 @@ test('409 inattendu payout-beneficiary-held : bascule en dérogation puis renvoi
   const { posts } = await routePayments(page, { conflictOnFirstRelease: 'payout-beneficiary-held' })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -118,6 +140,8 @@ test('409 stripe-account-unusable : message clair, aucune dérogation proposée'
   await routePayments(page, { firstReleaseError: { status: 409, body: { code: 'stripe-account-unusable', detail: 'x', stripeAccountStatus: 'DISABLED' } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -131,6 +155,8 @@ test('409 à deux blocages : litige bancaire ET compte gelé affichés ensemble'
   } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -144,6 +170,8 @@ test('422 override-reason-invalid : le dialogue reste ouvert avec le détail, pu
   } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p9"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="override-checked"]').check()
   await page.locator('[data-test="override-reason"]').fill('Motif accepté côté front')
@@ -159,6 +187,8 @@ test('409 transfer-already-attempted : conseil de vérifier dans Stripe, aucune 
   await routePayments(page, { firstReleaseError: { status: 409, body: { code: 'transfer-already-attempted', detail: 'x' } } })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('J+48 atteint')
   await page.locator('[data-test="confirm"]').click()
@@ -190,7 +220,63 @@ test('fiche utilisateur : bandeau des versements bloqués et lien vers Transacti
   await page.locator('[data-test="cancel"]').click()
 
   await page.locator('[data-test="user-payouts-held-link"]').click()
-  await expect(page).toHaveURL(/\/transactions\?held=true/)
+  // Le lien garde `?held=true` ; la page le convertit aussitôt en alerte HELD.
+  await expect(page).toHaveURL(/\/transactions\?.*alert=HELD/)
   await expect(page.locator('[data-test="chip-held"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('[data-test="payment-row-p9"]')).toBeVisible()
+})
+
+/** Fiche du voyageur retenu, au minimum : détail, vue d'ensemble, portefeuille, paiements. */
+async function routeHeldTraveler(page: import('@playwright/test').Page) {
+  const user = {
+    id: HELD_TRAVELER, firstName: 'Moussa', lastName: 'Traoré', phoneNumber: '+33677777777', email: 'm@x.fr', city: 'Paris', country: 'FR',
+    status: 'BANNED', kycStatus: 'VERIFIED', isProAccount: false, averageRating: null, totalTrips: 4, totalShipments: 0, createdAt: '2026-01-01',
+    roles: ['TRAVELER'], stripeAccountStatus: 'ONBOARDING_COMPLETE', commissionRateOverride: null, publishingSuspended: false, gpPro: false,
+    cancellationCount: 0, noShowCount: 0, refusedCount: 0, senderHandoverIncidentCount: 0, ratingCount: 0, deletionRequestedAt: null,
+    messagingMutedUntil: null, payoutsHeldSince: '2026-09-20T10:00:00Z', payoutsHeldReason: 'BANNED', heldPaymentsCount: 1,
+  }
+  await page.route('**/api/v1/admin/users**', (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^.*\/admin\/users/, '')
+    const sub = path.split('/').slice(2).join('/')
+    if (sub === '') return route.fulfill({ json: user })
+    if (sub === 'wallet') return route.fulfill({ json: { accounts: [{ currency: 'EUR', balance: 12.5, refundEligibleAmount: 10, frozen: false }] } })
+    if (sub === 'overview') return route.fulfill({ json: { kpis: { parcelsInProgress: 0, activeTrips: 0, openDisputes: 0, totalDisputes: 0, reportsReceived: 0, reportsPending: 0, ratingCount: 0 }, inProgress: [] } })
+    return route.fulfill({ json: page1([]) })
+  })
+}
+
+test('paiement retenu : « Voir l’argent du voyageur » mène à l’onglet Argent de sa fiche, Retour revient au tiroir', async ({ page }) => {
+  await routePayments(page)
+  await routeHeldTraveler(page)
+  // Paiement à identifiant UUID : Retour rouvre la fiche par ?open= (qui n'accepte que des UUID).
+  const HELD_UUID = '9e9e9e9e-1111-4111-8111-999999999999'
+  await page.route(`**/api/v1/admin/payments/${HELD_UUID}`, (route) => route.fulfill({ json: detailOf({ ...HELD, id: HELD_UUID }) }))
+  await page.route(`**/api/v1/admin/payments/${HELD_UUID}/timeline`, (route) => route.fulfill({ json: [] }))
+  await page.goto(`/transactions?open=${HELD_UUID}&section=incidents`)
+  const money = page.locator('[data-test="payment-hold-traveler-money-link"]')
+  await expect(money).toHaveAttribute('href', hrefIs(`/users/${HELD_TRAVELER}?tab=money`), { timeout: 15000 })
+  await money.click()
+  await expect(page).toHaveURL(new RegExp(`/users/${HELD_TRAVELER}\\?tab=money$`))
+  await expect(page.locator('[data-test="tab-money"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="wallet-account-EUR"]')).toContainText('12,50 EUR')
+  await page.goBack()
+  await expect(page).toHaveURL(new RegExp(`/transactions\\?.*open=${HELD_UUID}.*section=incidents`))
+  await expect(page.locator('[data-test="payment-hold-notice"]')).toBeVisible()
+})
+
+test('paiement retenu, admin sans USER_VIEW : aucun lien vers la fiche ni l’argent du voyageur', async ({ page }) => {
+  await routePayments(page)
+  // Seed posé après celui d'ADMIN : il le remplace (même clé), privé de USER_VIEW.
+  await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, { ...ADMIN, permissionOverrides: { USER_VIEW: false } })
+  // Identifiant de fixture non UUID : la fiche s'ouvre depuis la ligne, pas par ?open=.
+  await page.goto('/transactions')
+  await page.locator('[data-test="payment-row-p9"]').click({ timeout: 15000 })
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  const notice = page.locator('[data-test="payment-hold-notice"]')
+  await expect(notice).toContainText('Le voyageur a été banni.')
+  await expect(notice.locator('a')).toHaveCount(0)
+  await expect(page.locator('[data-test="payment-tab-summary"]')).toBeVisible()
+  await page.locator('[data-test="payment-tab-summary"]').click()
+  await expect(page.locator('[data-test="party-traveler"]')).toBeVisible()
+  await expect(page.locator('[data-test="party-traveler"] a')).toHaveCount(0)
 })

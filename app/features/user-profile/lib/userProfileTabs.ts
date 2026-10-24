@@ -1,7 +1,9 @@
 import type { TabItem } from '@/components/ui/TabBar.vue'
-import type { AdminPermission, useAuthStore } from '@/stores/auth'
+import type { AdminPermission } from '@/stores/auth'
+import type { CanFn } from '@/lib/adminLinks'
 
-export type CanFn = ReturnType<typeof useAuthStore>['can']
+/** Signature de `auth.can`, définie une seule fois par le registre des liens. */
+export type { CanFn }
 
 export type ProfileTab = 'overview' | 'parcels' | 'money' | 'incidents' | 'identity' | 'support' | 'manage'
 

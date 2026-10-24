@@ -152,6 +152,11 @@ describe('PayoutOverrideDialog : blocages cumulés et erreur de motif', () => {
   })
 })
 
+/** Les gestes vivent dans le menu « Actions » du tiroir : on l'ouvre avant de les chercher. */
+async function openActions(w: ReturnType<typeof mount>) {
+  await w.find('[data-test="payment-actions-menu"]').trigger('click')
+}
+
 describe('PaymentDetailPanel : cycle de la dérogation', () => {
   beforeEach(() => seedAuth('ADMIN'))
   const held = {
@@ -161,6 +166,7 @@ describe('PaymentDetailPanel : cycle de la dérogation', () => {
   } as const
 
   async function submitOverride(w: ReturnType<typeof mount>) {
+    await openActions(w)
     await w.find('[data-test="action-release"]').trigger('click')
     await w.find('[data-test="override-checked"]').setValue(true)
     await w.find('[data-test="override-reason"]').setValue('Livraison vérifiée par photo')
@@ -169,6 +175,7 @@ describe('PaymentDetailPanel : cycle de la dérogation', () => {
 
   it('paiement retenu ET en litige : les deux blocages dès l’ouverture', async () => {
     const w = mount(PaymentDetailPanel, { props: { payment: held, open: true } })
+    await openActions(w)
     await w.find('[data-test="action-release"]').trigger('click')
     expect(w.find('[data-test="override-blocker-DISPUTED"]').exists()).toBe(true)
     expect(w.find('[data-test="override-blocker-BENEFICIARY_HELD"]').text()).toContain('identité')

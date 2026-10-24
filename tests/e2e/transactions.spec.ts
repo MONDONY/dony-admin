@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test'
 
+/** `href` exact, préfixe de l'application (`/siragbe`) compris : rien d'autre avant ni après. */
+const hrefIs = (path: string) => new RegExp(`^(/siragbe)?${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 const PAYMENTS = { content: [
   { id: 'p1', bidId: 'b1', status: 'ESCROW', method: 'STRIPE', amountCents: 12345, commissionCents: 1480, currency: 'EUR', createdAt: '2026-06-01T10:00:00Z' },
@@ -33,11 +36,13 @@ const CASH_COMMISSIONS = { content: [
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
+  // Comme le vrai serveur : après un geste, la fiche relue (GET) porte le nouvel état.
+  let current: object = DETAIL
   await page.route('**/api/v1/admin/payments**', (route) => {
     const url = route.request().url(); const m = route.request().method()
-    if (m === 'POST' && url.includes('/force-release')) return route.fulfill({ json: RELEASED })
-    if (m === 'POST' && url.includes('/refund')) return route.fulfill({ json: { ...DETAIL, status: 'REFUNDED' } })
-    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: DETAIL })
+    if (m === 'POST' && url.includes('/force-release')) { current = RELEASED; return route.fulfill({ json: RELEASED }) }
+    if (m === 'POST' && url.includes('/refund')) { current = { ...DETAIL, status: 'REFUNDED' }; return route.fulfill({ json: current }) }
+    if (url.includes('/admin/payments/p1')) return route.fulfill({ json: current })
     return route.fulfill({ json: PAYMENTS })
   })
   await page.route('**/api/v1/admin/chargebacks**', (route) => route.fulfill({ json: CBS }))
@@ -64,7 +69,11 @@ test('admin sees payments with formatted amount', async ({ page }) => {
 test('admin force-releases an escrow payment', async ({ page }) => {
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p1"]').click()
+  // Le PaymentIntent est dans l'onglet Références du tiroir.
+  await page.locator('[data-test="payment-tab-references"]').click()
   await expect(page.getByText('pi_123')).toBeVisible()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-release"]').click()
   await page.locator('[data-test="reason"]').fill('livraison validée J+48')
   await page.locator('[data-test="confirm"]').click()
@@ -119,7 +128,7 @@ test('admin sees where the mobile money commission sits', async ({ page }) => {
   await expect(page.locator('[data-test="mm-commission-month-2026-09-XOF"]')).toContainText('septembre 2026')
 })
 
-test('amounts keep their own currency, and the currency chip filters the list', async ({ page }) => {
+test('amounts keep their own currency, and the currency filter filters the list', async ({ page }) => {
   let lastQuery = ''
   await page.route('**/api/v1/admin/payments?**', (route) => {
     lastQuery = new URL(route.request().url()).search
@@ -132,7 +141,8 @@ test('amounts keep their own currency, and the currency chip filters the list', 
   await expect(page.locator('[data-test="payment-amount-p2"]')).not.toContainText('€')
   await expect(page.locator('[data-test="payment-amount-p1"]')).toContainText('EUR')
 
-  await page.locator('[data-test="chip-currency-XOF"]').click()
+  // Les pastilles de devise sont devenues une liste déroulante (filtres de la réorganisation).
+  await page.locator('[data-test="filter-currency"]').selectOption('XOF')
   await expect.poll(() => lastQuery).toContain('currency=XOF')
 })
 
@@ -209,6 +219,8 @@ test('admin relance un remboursement mobile money : manque affiché, puis versem
 test('les litiges bancaires se paginent au-delà de 20', async ({ page }) => {
   const pages: string[] = []
   await page.route('**/api/v1/admin/chargebacks**', (route) => {
+    // Les nombres des vues (`/counts`, ancien back ici : absents) ne sont pas une page de la liste.
+    if (route.request().url().includes('/chargebacks/counts')) return route.fulfill({ status: 404, json: {} })
     const p = new URL(route.request().url()).searchParams.get('page') ?? ''
     pages.push(p)
     return route.fulfill({ json: { ...CBS, totalElements: 25, totalPages: 2, number: Number(p) } })
@@ -249,8 +261,68 @@ test('relance du versement mobile money depuis le détail d’un paiement pawaPa
   })
   await page.goto('/transactions')
   await page.locator('[data-test="payment-row-p2"]').click()
+  // Les gestes vivent dans le menu « Actions » du tiroir.
+  await page.locator('[data-test="payment-actions-menu"]').click()
   await page.locator('[data-test="action-retry-payout"]').click()
   await page.locator('[data-test="confirm"]').click()
   await expect.poll(() => retried).toBe(1)
   await expect(page.locator('[data-test="payment-error"]')).toHaveCount(0)
+})
+
+test('tiroir paiement : ouvert au clavier, onglet et fiche dans l’URL, Échap ferme et nettoie l’URL', async ({ page }) => {
+  await page.goto('/transactions')
+  const row = page.locator('[data-test="payment-row-p1"]')
+  await row.focus()
+  await page.keyboard.press('Enter')
+  const drawer = page.locator('[data-test="payment-detail"]')
+  await expect(drawer).toBeVisible()
+  await expect(page).toHaveURL(/[?&]open=p1(&|$)/)
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  await expect(page).toHaveURL(/section=incidents/)
+  await page.keyboard.press('Escape')
+  await expect(drawer).toHaveCount(0)
+  await expect(page).not.toHaveURL(/open=|section=/)
+  // Même ligne rouverte : Résumé, sans paramètre de section.
+  await row.click()
+  await expect(page.locator('[data-test="payment-panel-summary"]')).toBeVisible()
+  await expect(page).not.toHaveURL(/section=/)
+})
+
+test('fiche paiement : chaque information ailleurs est un lien précis, et Retour revient à la fiche', async ({ page }) => {
+  const PAY = '0e0e0e0e-1111-4111-8111-000000000001'
+  const TRAVELER = '99999999-8888-4777-8666-555555555555'
+  const BID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+  const DISPUTE = 'dddddddd-1111-4222-8333-444444444444'
+  const CB = 'ffffffff-1111-4222-8333-444444444444'
+  const ALERT = '34343434-1111-4222-8333-444444444444'
+  const LINKED = {
+    ...DETAIL, id: PAY, bidId: BID, disputed: true, alert: 'HELD', travelerId: TRAVELER,
+    payoutHeldAt: '2026-10-19T10:00:00Z', beneficiaryHeld: true, beneficiaryHoldReason: 'BANNED',
+    links: { disputeId: DISPUTE, disputeStatus: 'OPEN', chargebackId: CB },
+    openAlerts: [{ id: ALERT, type: 'ESCROW_J48_TIMEOUT', severity: 'WARN' }],
+    chargeback: { id: CB, status: 'OPEN', reason: 'fraudulent', openedAt: '2026-10-20T08:00:00' },
+  }
+  await page.route(`**/api/v1/admin/payments/${PAY}`, (route) => route.fulfill({ json: LINKED }))
+  await page.route(`**/api/v1/admin/payments/${PAY}/timeline`, (route) => route.fulfill({ json: [] }))
+
+  // Onglet inconnu : la fiche s'ouvre sur Résumé et l'URL est corrigée.
+  await page.goto(`/transactions?open=${PAY}&section=pirate`)
+  await expect(page.locator('[data-test="payment-panel-summary"]')).toBeVisible({ timeout: 15000 })
+  await expect(page).not.toHaveURL(/section=/)
+  await expect(page).toHaveURL(new RegExp(`open=${PAY}`))
+
+  await page.locator('[data-test="payment-tab-incidents"]').click()
+  await expect(page.locator('[data-test="payment-hold-traveler-link"]')).toHaveAttribute('href', hrefIs(`/users/${TRAVELER}?tab=manage`))
+  await expect(page.locator('[data-test="payment-chargeback-link"]')).toHaveAttribute('href', hrefIs(`/transactions?tab=chargebacks&open=${CB}`))
+  await expect(page.locator(`[data-test="payment-open-alert-link-${ALERT}"]`)).toHaveAttribute('href', hrefIs(`/alertes?open=${ALERT}`))
+  await expect(page.locator('[data-test="payment-bid-incidents-link"]')).toHaveAttribute('href', hrefIs(`/colis?open=${BID}&section=incidents`))
+  const dispute = page.locator('[data-test="payment-dispute-link"]')
+  await expect(dispute).toHaveAttribute('href', hrefIs(`/incidents?open=${DISPUTE}`))
+
+  // Un vrai lien : la destination est dans l'historique, Retour revient sur la fiche et son onglet.
+  await dispute.click()
+  await expect(page).toHaveURL(new RegExp(`/incidents\\?open=${DISPUTE}`))
+  await page.goBack()
+  await expect(page).toHaveURL(new RegExp(`/transactions\\?.*section=incidents`))
+  await expect(page.locator('[data-test="payment-panel-incidents"]')).toBeVisible()
 })

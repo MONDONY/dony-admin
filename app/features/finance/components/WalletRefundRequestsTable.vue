@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
 import {
   formatMajorAmount,
@@ -8,16 +9,41 @@ import {
 } from '@/features/finance/types/index'
 import type { AdminWalletRefundRequest } from '@/features/finance/types/index'
 import { canRetryWalletRefund, failureLabel } from '@/features/finance/components/walletRefundRetry'
+import { gate, userRoute, walletRefundRoute } from '@/lib/adminLinks'
+import { parseServerDate } from '@/lib/serverDate'
+import { HIGHLIGHT_ROW_CLASS } from '@/lib/highlightRow'
+import { useRowHighlight } from '@/composables/useRowHighlight'
+import { useAuthStore } from '@/stores/auth'
 
-withDefaults(defineProps<{
+/**
+ * Demandes de remboursement wallet. Le demandeur nommé mène à sa fiche, onglet Argent
+ * (USER_VIEW) ; « Reprise d'un échec » à la demande parente (même onglet, ligne ouverte). La
+ * ligne ouverte par lien (`highlightId`) est mise en évidence et amenée à l'écran.
+ */
+const props = withDefaults(defineProps<{
   requests: AdminWalletRefundRequest[]
   loading: boolean
   busyId: string | null
   emptyLabel?: string
-}>(), { emptyLabel: 'Aucune demande de remboursement en attente' })
+  failed?: boolean
+  highlightId?: string | null
+}>(), { emptyLabel: 'Aucune demande de remboursement en attente', failed: false, highlightId: null })
 const emit = defineEmits<{ resolve: [id: string]; retry: [id: string] }>()
 
-function fmt(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
+const auth = useAuthStore()
+const can = (p: Parameters<typeof auth.can>[0]) => auth.can(p)
+const userLink = (r: AdminWalletRefundRequest) => (r.userName ? gate(can, 'USER_VIEW', userRoute(r.userId, 'money')) : null)
+const parentLink = (r: AdminWalletRefundRequest) => gate(can, 'PAYMENT_VIEW', walletRefundRoute(r.parentRequestId))
+
+const root = ref<HTMLElement | null>(null)
+useRowHighlight(root, () => props.highlightId, () => props.requests)
+
+/** Jour d'une date du serveur (écrite en UTC sans fuseau), au format court d'avant. */
+function fmt(d: string) {
+  const at = parseServerDate(d)
+  return Number.isNaN(at) ? '—' : new Date(at).toLocaleDateString('fr-FR')
+}
+const link = 'rounded-sm text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary'
 
 /** Seul un ticket manuel en attente demande un geste : virement hors plateforme puis résolution. */
 function needsAction(r: AdminWalletRefundRequest) {
@@ -34,7 +60,7 @@ const STATUS_TONE: Record<string, string> = {
 </script>
 
 <template>
-  <div class="rounded-card border border-border bg-surface overflow-hidden">
+  <div ref="root" class="rounded-card border border-border bg-surface overflow-hidden">
     <div class="overflow-x-auto">
       <table class="w-full">
         <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
@@ -49,14 +75,24 @@ const STATUS_TONE: Record<string, string> = {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in requests" :key="r.id" :data-test="`wrr-row-${r.id}`" class="border-b border-border last:border-b-0">
+          <tr
+            v-for="r in requests" :key="r.id" :data-test="`wrr-row-${r.id}`" :data-row-id="r.id"
+            :aria-current="highlightId === r.id ? 'true' : undefined"
+            :class="['border-b border-border last:border-b-0 transition-colors', highlightId === r.id && HIGHLIGHT_ROW_CLASS]"
+          >
             <td class="px-4 py-3 text-sm">
-              <div class="font-medium" :data-test="`wrr-user-${r.id}`">{{ r.userName || 'Utilisateur' }}</div>
-              <div class="text-xs text-text-muted tabular-nums" :title="r.userId">{{ r.userId.slice(0, 8) }}</div>
+              <NuxtLink v-if="userLink(r)" :to="userLink(r)!" :data-test="`wrr-user-${r.id}`" :class="[link, 'font-medium']">{{ r.userName }}</NuxtLink>
+              <template v-else>
+                <div class="font-medium" :data-test="`wrr-user-${r.id}`">{{ r.userName || 'Utilisateur' }}</div>
+                <div v-if="!r.userName" class="text-xs text-text-muted tabular-nums" :title="r.userId">{{ r.userId.slice(0, 8) }}</div>
+              </template>
             </td>
             <td class="px-4 py-3 text-sm text-text-muted" :data-test="`wrr-origin-${r.id}`">
               {{ r.origin ? WALLET_REFUND_ORIGIN_LABELS[r.origin] : '—' }}
-              <div v-if="r.parentRequestId" class="text-xs">Reprise d'un échec</div>
+              <div v-if="r.parentRequestId" class="text-xs">
+                <NuxtLink v-if="parentLink(r)" :to="parentLink(r)!" :data-test="`wrr-parent-${r.id}`" :class="link">Reprise d’un échec</NuxtLink>
+                <span v-else :data-test="`wrr-parent-${r.id}`">Reprise d’un échec</span>
+              </div>
             </td>
             <td class="px-4 py-3 text-sm text-text-muted" :data-test="`wrr-channel-${r.id}`">{{ r.channel ? WALLET_REFUND_CHANNEL_LABELS[r.channel] : '—' }}</td>
             <td class="px-4 py-3 text-sm tabular-nums text-right">
@@ -109,6 +145,6 @@ const STATUS_TONE: Record<string, string> = {
         </tbody>
       </table>
     </div>
-    <StateBlock :loading="loading" :empty="requests.length === 0" :empty-label="emptyLabel" />
+    <StateBlock :loading="loading" :empty="requests.length === 0 && !failed" :empty-label="emptyLabel" />
   </div>
 </template>

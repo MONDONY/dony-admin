@@ -9,6 +9,7 @@ import type { PaymentStatus } from '@/features/payments/types/index'
 import type { AdminBidDetail } from '@/features/bids/types/index'
 import { bidPaymentMethodLabel, formatDateTime } from '@/features/bids/lib/bidLabels'
 import { useAuthStore } from '@/stores/auth'
+import { gate, paymentRoute, toHref } from '@/lib/adminLinks'
 
 /** Onglet Argent : montants du paiement, versement, et resynchronisation Stripe. */
 const props = defineProps<{ bid: AdminBidDetail }>()
@@ -33,6 +34,12 @@ const moneyEmpty = computed(() => {
 const commissionRate = computed(() => (props.bid.commissionRate != null
   ? `${(props.bid.commissionRate * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
   : null))
+/** Versement retenu : la retenue se lit dans l'onglet Incidents du tiroir paiement (PAYMENT_VIEW). */
+const heldHref = computed(() => {
+  const m = money.value
+  const route = m?.payoutHeldAt ? gate(auth.can, 'PAYMENT_VIEW', paymentRoute(m.paymentId, 'incidents')) : null
+  return route ? toHref(route) : null
+})
 const canResync = computed(() => canSeePayments.value && money.value?.rail === 'STRIPE')
 </script>
 
@@ -60,7 +67,16 @@ const canResync = computed(() => canSeePayments.value && money.value?.rail === '
             <dd class="tabular-nums">{{ money.escrowReleasedAt ? `Le ${formatDateTime(money.escrowReleasedAt)}` : 'Pas encore' }}</dd>
           </div>
           <div v-if="money.refundedCents > 0"><dt class="text-text-muted">Remboursé</dt><dd class="tabular-nums">{{ formatMoney(money.refundedCents, money.currency ?? undefined) }}</dd></div>
-          <div v-if="money.payoutHeldAt" class="sm:col-span-2"><dt class="text-danger">Versement retenu</dt><dd class="tabular-nums">Depuis le {{ formatDateTime(money.payoutHeldAt) }}</dd></div>
+          <div v-if="money.payoutHeldAt" class="sm:col-span-2">
+            <dt class="text-danger">Versement retenu</dt>
+            <dd class="flex flex-wrap items-center gap-x-3 tabular-nums">
+              <span>Depuis le {{ formatDateTime(money.payoutHeldAt) }}</span>
+              <NuxtLink
+                v-if="heldHref" :to="heldHref" data-test="money-held-link"
+                class="inline-flex min-h-10 items-center rounded-btn px-2 font-medium text-primary transition-[background-color,transform] hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.96] motion-reduce:active:scale-100"
+              >Voir la retenue</NuxtLink>
+            </dd>
+          </div>
           <div v-if="money.disputed" class="sm:col-span-2"><dt class="text-danger">Litige bancaire</dt><dd>Ouvert chez la banque de l’expéditeur</dd></div>
         </template>
       </dl>

@@ -113,8 +113,10 @@ describe('usePayments — totaux, recherche, export', () => {
 })
 
 describe('PaymentsTable', () => {
+  // Les liens de la ligne dépendent des permissions : session nécessaire.
+  beforeEach(() => seedAuth('ADMIN'))
   it('type, trajet, parties et badge checkout abandonné', async () => {
-    const w = mount(PaymentsTable, { props: { loading: false, payments: [row(), row({ id: 'p2', status: 'PENDING', insight: insight({ kind: 'BID', abandoned: true }) })] } })
+    const w = mount(PaymentsTable, { props: { loading: false, payments: [row(), row({ id: 'p2', status: 'PENDING', insight: insight({ kind: 'BID', abandoned: true }) })] }, global: { stubs: { NuxtLink } } })
     expect(w.text()).toContain('Négociation')
     expect(w.text()).toContain('Lyon → Abidjan')
     expect(w.find('[data-test="payment-sender-p1-0000-0000"]').text()).toBe('Awa Diallo (@awa)')
@@ -124,7 +126,7 @@ describe('PaymentsTable', () => {
     expect(w.emitted('select')![0]).toEqual(['p2'])
   })
   it('ancien back sans contexte : tirets, pas d’erreur', () => {
-    const w = mount(PaymentsTable, { props: { loading: false, payments: [row({ insight: undefined, bidId: BID })] } })
+    const w = mount(PaymentsTable, { props: { loading: false, payments: [row({ insight: undefined, bidId: BID })] }, global: { stubs: { NuxtLink } } })
     expect(w.text()).toContain('Colis')
     expect(w.text()).toContain('—')
   })
@@ -145,23 +147,11 @@ describe('PaymentTotalsBar', () => {
   })
 })
 
-describe('PaymentFilters — recherche et abandonnés', () => {
+describe('PaymentFilters — abandonnés', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
-  const base = { modelStatus: 'TOUS', modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
+  const base = { modelMethod: 'TOUS', modelCurrency: 'TOUTES', modelDateFrom: null, modelDateTo: null } as const
 
-  it('recherche envoyée après 300 ms, ou tout de suite sur Entrée', async () => {
-    const w = mount(PaymentFilters, { props: { ...base, modelQuery: '' } })
-    await w.find('[data-test="payment-search"]').setValue('awa ')
-    expect(w.emitted('update:query')).toBeUndefined()
-    vi.advanceTimersByTime(300)
-    expect(w.emitted('update:query')![0]).toEqual(['awa'])
-    await w.find('[data-test="payment-search"]').setValue('pi_1')
-    await w.find('[data-test="payment-search"]').trigger('keydown', { key: 'Enter' })
-    expect(w.emitted('update:query')![1]).toEqual(['pi_1'])
-    vi.advanceTimersByTime(500)
-    expect(w.emitted('update:query')).toHaveLength(2)
-  })
   it('bascule l’affichage des checkouts abandonnés', async () => {
     const w = mount(PaymentFilters, { props: { ...base, modelHideAbandoned: true } })
     expect(w.find('[data-test="chip-abandoned"]').text()).toBe('Afficher les checkouts abandonnés')
@@ -176,15 +166,17 @@ describe('PaymentDetailPanel — fiche enrichie', () => {
     ...row(), refundedCents: 0, stripePaymentIntentId: 'pi_1', escrowReleasedAt: null, disputed: false, ...over,
   } as AdminPaymentDetail)
 
-  it('personnes, colis, montants détaillés et lien Stripe', () => {
+  it('personnes, colis, montants détaillés et lien Stripe', async () => {
     const w = mount(PaymentDetailPanel, { props: { payment: detail(), open: true }, global: { stubs: { NuxtLink } } })
     expect(w.find('[data-test="payment-sender-link"]').attributes('href')).toContain(SENDER)
     expect(w.find('[data-test="payment-traveler-link"]').text()).toBe('Moussa Keita')
     expect(w.find('[data-test="payment-bid-link"]').attributes('href')).toContain(BID)
     expect(w.text()).toContain('En transit')
     expect(w.find('[data-test="payment-detail-net"]').text()).toBe('19,05 EUR')
-    expect(w.find('[data-test="payment-stripe-link"]').attributes('href')).toBe('https://dashboard.stripe.com/test/payments/pi_1')
     expect(w.find('[data-test="payment-abandoned-notice"]').exists()).toBe(false)
+    // Références (PaymentIntent, lien Stripe) : leur onglet.
+    await w.find('[data-test="payment-tab-references"]').trigger('click')
+    expect(w.find('[data-test="payment-stripe-link"]').attributes('href')).toBe('https://dashboard.stripe.com/test/payments/pi_1')
   })
   it('négociation sans colis et checkout abandonné', () => {
     const w = mount(PaymentDetailPanel, {
@@ -196,7 +188,7 @@ describe('PaymentDetailPanel — fiche enrichie', () => {
   })
   it('mobile money : opérations pawaPay et lien vers l’onglet', () => {
     const w = mount(PaymentDetailPanel, {
-      props: { payment: detail({ method: 'PAWAPAY', pawapayDepositId: 'dep-1', insight: insight({ stripeDashboardUrl: null }) }), open: true },
+      props: { payment: detail({ method: 'PAWAPAY', pawapayDepositId: 'dep-1', insight: insight({ stripeDashboardUrl: null }) }), open: true, section: 'references' },
       global: { stubs: { NuxtLink } },
     })
     expect(w.text()).toContain('dep-1')
@@ -206,7 +198,7 @@ describe('PaymentDetailPanel — fiche enrichie', () => {
   it('copier la référence', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    const w = mount(PaymentDetailPanel, { props: { payment: detail(), open: true }, global: { stubs: { NuxtLink } } })
+    const w = mount(PaymentDetailPanel, { props: { payment: detail(), open: true, section: 'references' }, global: { stubs: { NuxtLink } } })
     await w.find('[data-test="payment-copy-pi"]').trigger('click')
     await flushPromises()
     expect(writeText).toHaveBeenCalledWith('pi_1')
@@ -257,5 +249,19 @@ describe('paymentLabels', () => {
     expect(bidStatusLabel('ARRIVED')).toBe('Arrivé')
     expect(bidStatusLabel(null)).toBeNull()
     expect(shortId(null)).toBe('—')
+  })
+})
+
+describe('PaymentTotalsBar — libellés et devises', () => {
+  it('quatre libellés par carte, sans total toutes devises confondues', () => {
+    const w = mount(PaymentTotalsBar, { props: { totals: [
+      { currency: 'EUR', count: 1, escrowCents: 100, releasedCents: 0, refundedCents: 0, commissionCents: 0, pendingCount: 0 },
+      { currency: 'XOF', count: 1, escrowCents: 100, releasedCents: 0, refundedCents: 0, commissionCents: 0, pendingCount: 0 },
+    ] } })
+    for (const c of ['EUR', 'XOF']) {
+      const t = w.find(`[data-test="payment-totals-${c}"]`).text()
+      for (const l of ['En séquestre', 'Versé (libéré)', 'Remboursé', 'Commissions']) expect(t).toContain(l)
+    }
+    expect(w.findAll('section')).toHaveLength(2)
   })
 })
