@@ -274,6 +274,7 @@ test.describe('liens entrants historiques', () => {
     await page.goto('/transactions?held=true')
     await expect(page.locator('[data-test="active-chip-alert"]')).toContainText('Versement retenu', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe('/transactions?alert=HELD&view=ATTENTION')
+    await expect.poll(() => calls.list.length).toBeGreaterThan(0)
     expect(lastList(calls).get('alert')).toBe('HELD')
     await expect(page.locator('[data-test="payment-view-ATTENTION"]')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('[data-test="chip-held"]')).toHaveAttribute('aria-pressed', 'true')
