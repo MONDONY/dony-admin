@@ -14,6 +14,10 @@ export const alertsService = {
   list(filters: AlertsFilterState, page: number, size: number): Promise<AdminAlertPage> {
     return useApi()<AdminAlertPage>('/admin/alerts', { query: buildQuery(filters, page, size) })
   },
+  /** Une alerte par identifiant (ALERT_VIEW) ; 404 sans `code` sur un back qui ne l'a pas encore. */
+  get(id: string): Promise<AdminAlert> {
+    return useApi()<AdminAlert>(`/admin/alerts/${id}`)
+  },
   violations(id: string): Promise<AlertViolations> {
     return useApi()<AlertViolations>(`/admin/alerts/${id}/violations`)
   },

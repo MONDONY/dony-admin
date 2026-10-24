@@ -105,4 +105,47 @@ describe('financeService', () => {
     await financeService.retryWalletRefundRequest('r1', { amount: 477 })
     expect(apiMock).toHaveBeenCalledWith('/admin/wallet-refund-requests/r1/retry', { method: 'POST', body: { amount: 477 } })
   })
+
+  it('listWallets avec paramètres : filtres envoyés, défauts omis', async () => {
+    apiMock.mockResolvedValue({ content: [] })
+    await financeService.listWallets({ q: ' awa ', currency: 'XOF', balanceSign: 'NEGATIVE', partyId: 'u1', page: 1, size: 10 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/wallets', { query: { q: 'awa', currency: 'XOF', balanceSign: 'NEGATIVE', partyId: 'u1', page: 1, size: 10 } })
+    apiMock.mockClear()
+    await financeService.listWallets({ q: '', currency: '', balanceSign: '', partyId: '' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/wallets', { query: { page: 0, size: 20 } })
+  })
+
+  it('listMobileMoneyPayments avec paramètres : vue ALL omise', async () => {
+    apiMock.mockResolvedValue({ content: [] })
+    await financeService.listMobileMoneyPayments({ view: 'FAILED', kind: 'PAYOUT', provider: 'WAVE_SEN', q: 'abc', page: 0, size: 20 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/mobile-money-payments', { query: { view: 'FAILED', kind: 'PAYOUT', provider: 'WAVE_SEN', q: 'abc', page: 0, size: 20 } })
+    apiMock.mockClear()
+    await financeService.listMobileMoneyPayments({ view: 'ALL' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/mobile-money-payments', { query: { page: 0, size: 20 } })
+  })
+
+  it('mobileMoneyCounts n\'envoie ni vue ni pagination', async () => {
+    apiMock.mockResolvedValue({ failed: 1, open: 0, done: 2, all: 3, attention: 1 })
+    const r = await financeService.mobileMoneyCounts({ view: 'FAILED', kind: 'DEPOSIT', provider: '', q: ' x ', page: 3 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/mobile-money-payments/counts', { query: { kind: 'DEPOSIT', q: 'x' } })
+    expect(r.attention).toBe(1)
+  })
+
+  it('listCashCommissions avec paramètres : vue ALL omise', async () => {
+    apiMock.mockResolvedValue({ content: [] })
+    await financeService.listCashCommissions({ view: 'ATTENTION', status: 'FAILED', q: 'T1', partyId: 'u1', page: 0, size: 20 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/cash-commissions', { query: { view: 'ATTENTION', status: 'FAILED', q: 'T1', partyId: 'u1', page: 0, size: 20 } })
+    apiMock.mockClear()
+    await financeService.listCashCommissions({ view: 'ALL', status: '' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/cash-commissions', { query: { page: 0, size: 20 } })
+  })
+
+  it('cashCommissionCounts suit q et partyId seulement', async () => {
+    apiMock.mockResolvedValue({ attention: 2, all: 5 })
+    await financeService.cashCommissionCounts({ q: ' a ', partyId: 'u1' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/cash-commissions/counts', { query: { q: 'a', partyId: 'u1' } })
+    apiMock.mockClear()
+    await financeService.cashCommissionCounts()
+    expect(apiMock).toHaveBeenCalledWith('/admin/cash-commissions/counts', { query: {} })
+  })
 })

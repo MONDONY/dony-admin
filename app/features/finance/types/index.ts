@@ -4,7 +4,22 @@ export interface AdminWallet {
   balanceCents: number
   currency: string
   updatedAt: string
+  /** « Prénom Nom (@pseudo) » ; absent pour un compte supprimé ou un ancien back. */
+  userName?: string | null
 }
+/** Paramètres des listes finance : les valeurs par défaut ne sont pas envoyées. */
+export type WalletBalanceSign = 'POSITIVE' | 'NEGATIVE' | 'ZERO'
+export interface WalletListParams { q?: string; currency?: string; balanceSign?: WalletBalanceSign | ''; partyId?: string; page?: number; size?: number }
+export type MobileMoneyView = 'ALL' | 'FAILED' | 'OPEN' | 'DONE'
+export interface MobileMoneyListParams { view?: MobileMoneyView; kind?: MobileMoneyOperationKind | ''; provider?: string; q?: string; page?: number; size?: number }
+export type CashCommissionView = 'ALL' | 'ATTENTION'
+export interface CashCommissionListParams { view?: CashCommissionView; status?: CashCommissionStatus | ''; q?: string; partyId?: string; page?: number; size?: number }
+
+/** Nombres des vues mobile money, comptés PAR OPÉRATION (peuvent dépasser `alerts.mmFailed` des paiements). */
+export interface MobileMoneyCounts { failed: number; open: number; done: number; all: number; attention: number }
+/** `attention` = FAILED, REQUIRES_3DS et REFUND_FAILED. */
+export interface CashCommissionCounts { attention: number; all: number }
+
 export interface AdminWalletPage { content: AdminWallet[]; totalElements: number; totalPages: number; number: number; size: number }
 
 /**
@@ -43,6 +58,18 @@ export interface AdminMobileMoneyPayment {
   /** Motif d'échec renvoyé par l'opérateur, absent quand l'opération n'a pas échoué. */
   failureCode?: string | null
   createdAt: string
+  /** Champs du nouveau back (NON_NULL, tous absents d'un ancien back). */
+  purpose?: string | null
+  personId?: string | null
+  personName?: string | null
+  role?: 'SENDER' | 'TRAVELER' | 'USER' | null
+  bidId?: string | null
+  trackingNumber?: string | null
+  /** « Paris → Dakar ». */
+  corridor?: string | null
+  walletRefundRequestId?: string | null
+  /** La relance du versement ou du remboursement serait acceptée. */
+  retryable?: boolean
 }
 
 /**
@@ -102,6 +129,11 @@ export interface AdminCashCommission {
   chargedVia: CashCommissionChargedVia | null
   retryCount: number
   createdAt: string
+  /** Colis et voyageur (nouveau back) ; le nom manque pour un compte supprimé, l'identifiant reste. */
+  trackingNumber?: string | null
+  corridor?: string | null
+  travelerId?: string | null
+  travelerName?: string | null
 }
 export interface AdminCashCommissionPage { content: AdminCashCommission[]; totalElements: number; totalPages: number; number: number; size: number }
 

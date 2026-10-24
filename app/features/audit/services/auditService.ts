@@ -5,6 +5,7 @@ function buildQuery(f: AuditFilterState, page: number, size: number): Record<str
   const q: Record<string, string | number> = { page, size }
   if (f.action) q.action = f.action
   if (f.entityType) q.entityType = f.entityType
+  if (f.entityId) q.entityId = f.entityId
   if (f.actorId) q.actorId = f.actorId
   if (f.from) q.from = f.from
   if (f.to) q.to = f.to

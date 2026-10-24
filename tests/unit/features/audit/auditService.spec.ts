@@ -29,4 +29,12 @@ describe('auditService', () => {
     })
     expect(apiMock.mock.calls[0][0]).toBe('/admin/audit-log')
   })
+
+  it('list envoie entityId quand il est renseigné, et l\'omet sinon', async () => {
+    apiMock.mockResolvedValue({ content: [] })
+    await auditService.list({ action: null, entityType: 'PAYMENT', entityId: 'p1', actorId: null, from: null, to: null }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ entityType: 'PAYMENT', entityId: 'p1' })
+    await auditService.list({ action: null, entityType: null, actorId: null, from: null, to: null }, 0, 20)
+    expect(apiMock.mock.calls[1][1].query.entityId).toBeUndefined()
+  })
 })

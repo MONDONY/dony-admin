@@ -31,4 +31,10 @@ describe('alertsService', () => {
     await alertsService.violations('a1')
     expect(apiMock).toHaveBeenCalledWith('/admin/alerts/a1/violations')
   })
+
+  it('get() GETe une alerte par identifiant', async () => {
+    apiMock.mockResolvedValue({ id: 'a1' })
+    await alertsService.get('a1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/alerts/a1')
+  })
 })

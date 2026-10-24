@@ -55,10 +55,61 @@ export interface PaymentInsight {
   stripeDashboardUrl: string | null
 }
 
+/** Vues de la liste des paiements (nombres de pastilles). `ALL` est la vue sans restriction. */
+export type PaymentView = 'ATTENTION' | 'ESCROW' | 'RELEASED_RECENT' | 'REFUNDED' | 'FAILED' | 'ALL'
+
+/** Alertes d'un paiement, de la plus urgente à la moins urgente. */
+export type PaymentAlertCode = 'HELD' | 'CHARGEBACK_OPEN' | 'MM_FAILED' | 'ESCROW_J48'
+
+/**
+ * Nombres par vue (`GET /admin/payments/counts`). `attention` = paiements portant AU MOINS UNE
+ * alerte. Les `alerts` sont les prédicats bruts : NON exclusifs, ils peuvent se recouper, leur
+ * somme n'égale donc pas forcément `attention`. `abandoned` compte les checkouts abandonnés du
+ * périmètre même quand `hideAbandoned` les masque (c'est le nombre du lien « les afficher »).
+ */
+export interface PaymentViewCounts {
+  attention: number; escrow: number; releasedRecent: number; refunded: number; failed: number; all: number; abandoned: number
+  alerts: { held: number; chargebackOpen: number; mmFailed: number; escrowJ48: number }
+}
+
+/** Personne proposée par la recherche (expéditeur ou voyageur) ; `count` = ses paiements. */
+export interface PaymentSuggestPerson { id: string; name: string; count: number }
+export interface PaymentSuggestTrip { label: string; departureCity: string; arrivalCity: string; count: number }
+export interface PaymentSuggestParcel { paymentId: string; trackingNumber: string; status: string; amountCents: number; currency: string }
+
+/** Propositions de la recherche, cinq au plus par groupe. Jamais de numéro de téléphone. */
+export interface PaymentSuggest {
+  /** Présent quand la saisie identifie exactement un paiement. */
+  exactPaymentId?: string
+  senders: PaymentSuggestPerson[]
+  travelers: PaymentSuggestPerson[]
+  trips: PaymentSuggestTrip[]
+  parcels: PaymentSuggestParcel[]
+}
+
 export interface AdminPaymentListItem extends PayoutHoldFields {
   id: string; bidId: string | null; status: PaymentStatus; method: PaymentMethod; amountCents: number; commissionCents: number; currency: string; createdAt: string
   insight?: PaymentInsight | null
+  /** Alerte la plus urgente du paiement ; absente s'il n'y en a aucune (ou ancien back). */
+  alert?: PaymentAlertCode | null
+  /** N° de suivi du colis (direct ou lié au fil) ; absent si aucun colis. */
+  trackingNumber?: string | null
+  /** Annonce du trajet ; absente tant que le fil n'a pas de colis. */
+  announcementId?: string | null
 }
+
+/**
+ * Fiches liées au paiement. Chaque identifiant n'est renvoyé que si l'opérateur a la permission
+ * de sa destination ; bloc entier absent quand aucun n'est visible.
+ */
+export interface PaymentLinks {
+  announcementId?: string; disputeId?: string; disputeStatus?: string; cancellationId?: string
+  conversationId?: string; chargebackId?: string; packageRequestId?: string
+}
+/** Alerte non résolue qui cite le paiement (visible avec ALERT_VIEW). */
+export interface PaymentOpenAlert { id: string; type: string; severity: string }
+/** Litige bancaire le plus récent du paiement. */
+export interface PaymentChargebackSummary { id: string; status: string; reason?: string; outcome?: string; openedAt?: string }
 
 /** Totaux d'une devise sur le périmètre filtré (centimes). */
 export interface PaymentTotals {
@@ -77,6 +128,11 @@ export interface PaymentTimelineEntry {
  * envoie pas.
  */
 export interface AdminPaymentDetail extends AdminPaymentListItem {
+  /** Fiches liées filtrées par permission (ancien back : absent). */
+  links?: PaymentLinks
+  /** Alertes ouvertes du paiement ; absentes sans ALERT_VIEW. */
+  openAlerts?: PaymentOpenAlert[]
+  chargeback?: PaymentChargebackSummary
   refundedCents: number; stripePaymentIntentId: string | null; escrowReleasedAt: string | null; disputed: boolean
   pawapayDepositId?: string | null; pawapayPayoutId?: string | null; pawapayRefundId?: string | null
   /**
@@ -119,7 +175,18 @@ export interface StripeResyncResult {
   /** Back #488 : le versement au voyageur est parti pendant la resynchronisation (colis déjà livré). Absent sur l'ancien back. */
   released?: boolean
 }
-export interface AdminChargeback { id: string; bidId: string | null; amountCents: number; currency?: string | null; reason: string | null; status: ChargebackStatus; openedAt: string }
+export interface AdminChargeback {
+  id: string; bidId: string | null; amountCents: number; currency?: string | null; reason: string | null; status: ChargebackStatus; openedAt: string
+  /** Nouveau back : paiement du litige (à défaut celui du colis), colis, trajet et parties. Un nom manque pour un compte supprimé. */
+  paymentId?: string | null; trackingNumber?: string | null; corridor?: string | null
+  senderId?: string | null; senderName?: string | null; travelerId?: string | null; travelerName?: string | null
+  /** Issue et date de décision, seulement une fois le litige tranché. */
+  outcome?: string | null; resolvedAt?: string | null
+}
+/** Vues de la liste des litiges bancaires. */
+export type ChargebackView = 'ALL' | 'OPEN' | 'WON' | 'LOST'
+export interface ChargebackCounts { open: number; won: number; lost: number; all: number }
+export interface ChargebackListParams { view?: ChargebackView; q?: string; page?: number; size?: number }
 export interface AdminPaymentPage { content: AdminPaymentListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface AdminChargebackPage { content: AdminChargeback[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface PaymentsFilterState {
@@ -130,6 +197,17 @@ export interface PaymentsFilterState {
   query?: string
   /** Masque les checkouts abandonnés (en attente depuis plus de 24 h). */
   hideAbandoned?: boolean
+  /** Vue (pastille) ; `ALL` ou absent = sans restriction, non envoyé. */
+  view?: PaymentView
+  /** Alerte précise ; vide ou absente = non envoyé. */
+  alert?: PaymentAlertCode | null
+  /** Expéditeur OU voyageur ; vide = non envoyé. */
+  partyId?: string
+  announcementId?: string
+  bidId?: string
+  /** Bornes de montant en CENTIMES (incluses) ; `null` ou absent = non envoyé. */
+  amountMin?: number | null
+  amountMax?: number | null
 }
 
 /** Corps d'une dérogation : payer le voyageur malgré le blocage, motif journalisé côté back. */
