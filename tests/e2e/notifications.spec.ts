@@ -224,5 +224,6 @@ test('lien profond ?tab=wallet-refunds combiné à ?held=true : onglet ouvert au
   await page.goto('/transactions?held=true&tab=wallet-refunds')
   await expect(page.locator('[data-test="tab-wallet-refunds"]')).toHaveAttribute('aria-pressed', 'true')
   await page.locator('[data-test="tab-payments"]').click()
-  await expect(page).toHaveURL(/\/transactions\?held=true$/)
+  // `held=true` est converti à l'arrivée en alerte HELD (vue À traiter) ; `tab` seul disparaît.
+  await expect(page).toHaveURL(/\/transactions\?alert=HELD&view=ATTENTION$/)
 })

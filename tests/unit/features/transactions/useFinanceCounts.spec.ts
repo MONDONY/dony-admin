@@ -32,4 +32,36 @@ describe('useFinanceCounts', () => {
     await c.reload()
     expect(c.unavailable.value).toBe(false); expect(c.counts.value).toEqual({ payments: 1 })
   })
+  it('reload_otherError_setsError_clearedOnSuccess', async () => {
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne' } }))
+    const c = useFinanceCounts(); await c.reload()
+    expect(c.error.value).toBe('Panne'); expect(c.counts.value).toBeNull(); expect(c.unavailable.value).toBe(false)
+    svc.counts.mockResolvedValueOnce({ payments: 2 })
+    await c.reload()
+    expect(c.error.value).toBeNull(); expect(c.counts.value).toEqual({ payments: 2 })
+  })
+  it('reload_missingEndpoint_isNotAnError', async () => {
+    svc.counts.mockRejectedValueOnce(Object.assign(new Error('nf'), { statusCode: 404, data: {} }))
+    const c = useFinanceCounts(); await c.reload()
+    expect(c.error.value).toBeNull()
+  })
+  it('reload_overlapping_lastCallWins', async () => {
+    let first!: (_v: unknown) => void
+    svc.counts.mockImplementationOnce(() => new Promise((r) => { first = r }))
+    svc.counts.mockResolvedValueOnce({ payments: 9 })
+    const c = useFinanceCounts()
+    const a = c.reload(); const b = c.reload()
+    await b
+    first({ payments: 1 }); await a
+    expect(c.counts.value).toEqual({ payments: 9 })
+  })
+  it('reload_overlapping_staleErrorIgnored', async () => {
+    let fail!: (_e: unknown) => void
+    svc.counts.mockImplementationOnce(() => new Promise((_, r) => { fail = r }))
+    svc.counts.mockResolvedValueOnce({ payments: 4 })
+    const c = useFinanceCounts()
+    const a = c.reload(); await c.reload()
+    fail(Object.assign(new Error('nf'), { statusCode: 404, data: {} })); await a
+    expect(c.unavailable.value).toBe(false); expect(c.counts.value).toEqual({ payments: 4 }); expect(c.error.value).toBeNull()
+  })
 })

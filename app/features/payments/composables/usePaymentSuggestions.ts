@@ -10,6 +10,8 @@ const MIN_QUERY = 2
 export function usePaymentSuggestions() {
   const suggestions = ref<PaymentSuggest | null>(null)
   const unavailable = ref(false)
+  /** Texte (nettoyé) auquel `suggestions` répond ; null sans suggestions. */
+  const answeredQuery = ref<string | null>(null)
   let generation = 0
   let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -23,10 +25,12 @@ export function usePaymentSuggestions() {
       const res = await paymentsService.suggest(q)
       if (current !== generation) return
       suggestions.value = res
+      answeredQuery.value = q
       unavailable.value = false
     } catch (e) {
       if (current !== generation) return
       suggestions.value = null
+      answeredQuery.value = null
       if (isEndpointMissing(e)) unavailable.value = true
     }
   }
@@ -35,6 +39,16 @@ export function usePaymentSuggestions() {
     stopTimer()
     generation++
     suggestions.value = null
+    answeredQuery.value = null
+  }
+
+  /**
+   * Paiement désigné exactement par `text`, seulement si les suggestions affichées répondent à ce
+   * texte-là : une réponse arrivée pour une frappe antérieure n'ouvre jamais une fiche périmée.
+   */
+  function exactFor(text: string): string | null {
+    if (answeredQuery.value === null || answeredQuery.value !== text.trim()) return null
+    return suggestions.value?.exactPaymentId ?? null
   }
 
   function query(q: string) {
@@ -48,5 +62,5 @@ export function usePaymentSuggestions() {
 
   if (getCurrentScope()) onScopeDispose(stopTimer)
 
-  return { suggestions, unavailable, query, clear }
+  return { suggestions, unavailable, answeredQuery, query, clear, exactFor }
 }

@@ -43,6 +43,7 @@ test('carte Versements retenus : absente sur un ancien back, présente et cliqua
   await expect(card).toContainText('Versements retenus')
   await expect(card).toContainText('4')
   await card.click()
-  await expect(page).toHaveURL(/\/transactions\?held=true/)
+  // La carte mène à `?held=true`, converti à l'arrivée en alerte HELD.
+  await expect(page).toHaveURL(/\/transactions\?.*alert=HELD/)
   await expect(page.locator('[data-test="chip-held"]')).toHaveAttribute('aria-pressed', 'true')
 })

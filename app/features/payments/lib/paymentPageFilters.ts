@@ -26,7 +26,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
 }
 const PAYMENT_METHOD_LABELS: Record<string, string> = { STRIPE: 'Carte', PAWAPAY: 'Mobile money' }
 
-type PaymentUrlKey = 'status' | 'method' | 'currency' | 'dateFrom' | 'dateTo' | 'hideAbandoned' | 'view' | 'alert'
+export type PaymentUrlKey = 'status' | 'method' | 'currency' | 'dateFrom' | 'dateTo' | 'hideAbandoned' | 'view' | 'alert'
   | 'partyId' | 'announcementId' | 'bidId' | 'query' | 'amountMin' | 'amountMax'
 
 /**
@@ -90,6 +90,37 @@ export function paymentInitialView(query: Record<string, unknown>): PaymentView 
     if (k !== 'view' && v !== PAYMENT_URL_SPECS[k as PaymentUrlKey].default && v !== '') valid[k] = v
   }
   return defaultPaymentViewFor(valid)
+}
+
+/**
+ * État des filtres lu dans l'URL, prêt à copier dans `filters` : `?held=true` converti, UUID et
+ * montants vérifiés, montants en centimes, vue d'ouverture calculée sur les paramètres valides.
+ */
+export function paymentStateFromQuery(query: Record<string, unknown>): Partial<PaymentsFilterState> {
+  const found = readPaymentFilters(legacyHeldToFilters(query))
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(found)) {
+    out[k] = k === 'amountMin' || k === 'amountMax' ? toCents(v as string) : v
+  }
+  out.view = paymentInitialView(query)
+  return out as Partial<PaymentsFilterState>
+}
+
+/**
+ * Valeurs à écrire dans l'URL, lues à chaque accès sur `filters` (donc réactives) : montants en
+ * unités principales, champs absents ramenés à leur défaut (vue absente = « Tous »).
+ */
+export function paymentUrlValues(f: PaymentsFilterState): Record<PaymentUrlKey, FilterValue> {
+  const read: Record<PaymentUrlKey, () => FilterValue> = {
+    status: () => f.status, method: () => f.method, currency: () => f.currency,
+    dateFrom: () => f.dateFrom, dateTo: () => f.dateTo, hideAbandoned: () => !!f.hideAbandoned,
+    view: () => f.view ?? 'ALL', alert: () => f.alert ?? null,
+    partyId: () => f.partyId ?? '', announcementId: () => f.announcementId ?? '', bidId: () => f.bidId ?? '',
+    query: () => f.query ?? '', amountMin: () => fromCents(f.amountMin), amountMax: () => fromCents(f.amountMax),
+  }
+  const values = {} as Record<PaymentUrlKey, FilterValue>
+  for (const [k, get] of Object.entries(read)) Object.defineProperty(values, k, { enumerable: true, get })
+  return values
 }
 
 export type PaymentChipKey = 'party' | 'trip' | 'bid' | 'alert' | 'status' | 'method' | 'currency' | 'amount' | 'period' | 'search'

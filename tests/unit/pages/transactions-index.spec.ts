@@ -1,6 +1,7 @@
 /**
- * Page Transactions : le filtre « Versements retenus » se lit dans l'URL (?held=true, liens
- * de la vue d'ensemble et de la fiche utilisateur) et s'y reporte quand on le bascule.
+ * Page Transactions : sections, onglets historiques (?tab=), fiche ouverte (?open=) et filtres de
+ * la section Paiements dans l'URL. `?held=true` (liens de la vue d'ensemble et de la fiche
+ * utilisateur) reste un lien d'entrée : il devient l'alerte HELD (`alert=HELD`, vue À traiter).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -14,6 +15,9 @@ vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBaseUrl: '', firebaseApi
 
 const listMock = vi.fn()
 const getMock = vi.fn()
+const countsMock = vi.fn()
+const suggestMock = vi.fn()
+const financeCountsMock = vi.fn()
 const summaryMock = vi.fn()
 const exportMock = vi.fn()
 vi.mock('@/features/payments/services/paymentsService', () => ({
@@ -22,8 +26,16 @@ vi.mock('@/features/payments/services/paymentsService', () => ({
     get: (...a: unknown[]) => getMock(...a), forceRelease: vi.fn(), refund: vi.fn(), retryMobileMoneyPayout: vi.fn(), retryMobileMoneyRefund: vi.fn(),
     listChargebacks: vi.fn(),
     summary: (...a: unknown[]) => summaryMock(...a), exportCsv: (...a: unknown[]) => exportMock(...a),
+    counts: (...a: unknown[]) => countsMock(...a), suggest: (...a: unknown[]) => suggestMock(...a),
   },
 }))
+vi.mock('@/features/transactions/services/transactionsService', () => ({
+  transactionsService: { counts: () => financeCountsMock() },
+}))
+const missing = () => Object.assign(new Error('nf'), { statusCode: 404, data: {} })
+const COUNTS = { attention: 2, escrow: 5, releasedRecent: 1, refunded: 0, failed: 0, all: 9, abandoned: 23, alerts: { held: 1, chargebackOpen: 0, mmFailed: 0, escrowJ48: 1 } }
+const FINANCE = { payments: 2, mobileMoney: 3, soldes: 0, chargebacks: 1, details: { paymentsAttention: 2, mobileMoneyAttention: 3, walletRefundsPending: 0, cashCommissionsAttention: 0, chargebacksOpen: 1 } }
+const P1 = 'aaaaaaaa-1111-4111-8111-111111111111'
 
 const finance = vi.hoisted(() => ({ listWalletRefundRequests: vi.fn(), resolveWalletRefundRequest: vi.fn(), getWalletRefundRetryPreview: vi.fn(), retryWalletRefundRequest: vi.fn() }))
 vi.mock('@/features/finance/services/financeService', () => ({ financeService: finance }))
@@ -32,6 +44,8 @@ const replaceMock = vi.fn()
 
 async function mountPage(query: Record<string, string> | { meta: object; query: Record<string, string> } = {}) {
   const route = 'meta' in query ? query : { meta: {}, query }
+  // Comme le vrai routeur : la query suit le dernier `replace`.
+  replaceMock.mockImplementation(async (to: { query: Record<string, string> }) => { route.query = to.query })
   vi.stubGlobal('useRoute', () => route)
   vi.stubGlobal('useRouter', () => ({ replace: replaceMock }))
   const mod = await import('@/pages/transactions/index.vue')
@@ -44,7 +58,11 @@ describe('pages/transactions', () => {
   beforeEach(() => {
     seedAuth('ADMIN')
     listMock.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    replaceMock.mockReset().mockResolvedValue(undefined)
+    replaceMock.mockReset()
+    countsMock.mockReset().mockResolvedValue(COUNTS)
+    suggestMock.mockReset().mockResolvedValue({ senders: [], travelers: [], trips: [], parcels: [] })
+    financeCountsMock.mockReset().mockRejectedValue(missing())
+    getMock.mockReset().mockResolvedValue({ id: P1, status: 'ESCROW' })
     finance.listWalletRefundRequests.mockReset().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
   })
 
@@ -69,9 +87,21 @@ describe('pages/transactions', () => {
   })
 
   it('?open=<paymentId> (lien depuis une alerte) : ouvre la fiche du paiement', async () => {
-    getMock.mockReset().mockResolvedValue({ id: 'p1', status: 'ESCROW' })
-    await mountPage({ open: 'p1' })
-    expect(getMock).toHaveBeenCalledWith('p1')
+    await mountPage({ open: P1 })
+    expect(getMock).toHaveBeenCalledWith(P1)
+  })
+
+  it('?open= qui n’est pas un identifiant de paiement : ignoré, aucun appel', async () => {
+    await mountPage({ open: '../../admin/x' })
+    expect(getMock).not.toHaveBeenCalled()
+  })
+
+  it('?tab=payments&open= ouvre la fiche ; avec un autre onglet, `open` n’est pas un paiement', async () => {
+    await mountPage({ tab: 'payments', open: P1 })
+    expect(getMock).toHaveBeenCalledWith(P1)
+    getMock.mockClear()
+    await mountPage({ tab: 'chargebacks', open: P1 })
+    expect(getMock).not.toHaveBeenCalled()
   })
 
   it('filtres de l’URL (?status=ESCROW&method=PAWAPAY&currency=XOF&dateFrom=…) appliqués au premier chargement', async () => {
@@ -91,7 +121,8 @@ describe('pages/transactions', () => {
     const w = await mountPage({ tab: 'payments' })
     await w.find('[data-test="filter-method"]').setValue('STRIPE')
     await flushPromises()
-    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'payments', method: 'STRIPE' } })
+    // Un filtre présent fait de « Tous » la vue par défaut : la vue courante (À traiter) s'écrit donc aussi.
+    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'payments', method: 'STRIPE', view: 'ATTENTION' } })
   })
 
   it('les onglets sont regroupés par sujet', async () => {
@@ -101,30 +132,42 @@ describe('pages/transactions', () => {
     expect(w.find('[data-test="tab-group-Soldes"]').findAll('button')).toHaveLength(3)
   })
 
-  it('sans paramètre : liste sans filtre de retenue', async () => {
+  it('sans paramètre : vue À traiter, sans filtre de retenue, URL intacte', async () => {
     await mountPage()
-    expect(listMock.mock.calls[0][0].held).toBe(false)
+    expect(listMock.mock.calls[0][0]).toMatchObject({ view: 'ATTENTION', alert: null, held: false })
+    expect(replaceMock).not.toHaveBeenCalled()
   })
 
-  it('?held=true : filtre actif dès le premier chargement, puce enfoncée', async () => {
+  it('?held=true : alerte HELD et vue À traiter dès le premier chargement, puce enfoncée, `held` retiré de l’URL', async () => {
     const w = await mountPage({ held: 'true' })
-    expect(listMock.mock.calls[0][0].held).toBe(true)
+    expect(listMock.mock.calls[0][0]).toMatchObject({ alert: 'HELD', view: 'ATTENTION' })
     expect(w.find('[data-test="chip-held"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-test="active-chip-alert"]').text()).toContain('Versement retenu')
+    expect(replaceMock).toHaveBeenCalledWith({ query: { alert: 'HELD', view: 'ATTENTION' } })
   })
 
-  it('basculer la puce reporte le filtre dans l’URL et relit la liste', async () => {
+  it('basculer la puce reporte l’alerte HELD dans l’URL et relit la liste', async () => {
     const w = await mountPage({ tab: 'x' })
     await w.find('[data-test="chip-held"]').trigger('click')
     await flushPromises()
-    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'x', held: 'true' } })
-    expect(listMock.mock.calls.at(-1)![0].held).toBe(true)
+    expect(replaceMock).toHaveBeenCalledWith({ query: { tab: 'x', alert: 'HELD', view: 'ATTENTION' } })
+    expect(listMock.mock.calls.at(-1)![0].alert).toBe('HELD')
   })
 
-  it('désactiver retire held de l’URL', async () => {
+  it('désactiver retire l’alerte de l’URL', async () => {
     const w = await mountPage({ held: 'true' })
     await w.find('[data-test="chip-held"]').trigger('click')
     await flushPromises()
-    expect(replaceMock).toHaveBeenCalledWith({ query: {} })
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })
+  })
+
+  it('page déjà ouverte : un ?held=true arrivé ensuite filtre sur l’alerte HELD', async () => {
+    const route = reactive({ meta: {}, query: {} as Record<string, string> })
+    await mountPage(route)
+    route.query = { held: 'true' }
+    await flushPromises()
+    expect(listMock.mock.calls.at(-1)![0]).toMatchObject({ alert: 'HELD', view: 'ATTENTION' })
+    expect(route.query).toEqual({ alert: 'HELD', view: 'ATTENTION' })
   })
 
   it('ancien back : le filtre non pris en charge est signalé', async () => {
@@ -156,7 +199,7 @@ describe('pages/transactions', () => {
 
     it('?tab= se combine avec ?held=true sans le perdre', async () => {
       const w = await mountPage({ tab: 'wallet-refunds', held: 'true' })
-      expect(listMock.mock.calls[0][0].held).toBe(true)
+      expect(listMock.mock.calls[0][0].alert).toBe('HELD')
       expect(w.find('[data-test="tab-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
     })
 
@@ -174,11 +217,11 @@ describe('pages/transactions', () => {
       expect(finance.listWalletRefundRequests).toHaveBeenCalledTimes(1)
     })
 
-    it('un clic sur un onglet le reporte dans l’URL en gardant held, Paiements le retire', async () => {
+    it('un clic sur un onglet le reporte dans l’URL en gardant le filtre de retenue, Paiements le retire', async () => {
       const w = await mountPage({ held: 'true' })
       await w.find('[data-test="tab-wallet-refunds"]').trigger('click')
       await flushPromises()
-      expect(replaceMock).toHaveBeenLastCalledWith({ query: { held: 'true', tab: 'wallet-refunds' } })
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { alert: 'HELD', view: 'ATTENTION', tab: 'wallet-refunds' } })
     })
 
     it('Marquer remboursée ouvre la saisie du montant versé, puis envoie {paidAmount, note}', async () => {
@@ -266,16 +309,79 @@ describe('pages/transactions', () => {
       const w = await mountPage({ tab: 'wallet-refunds', held: 'true' })
       await w.find('[data-test="tab-payments"]').trigger('click')
       await flushPromises()
-      expect(replaceMock).toHaveBeenLastCalledWith({ query: { held: 'true' } })
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { alert: 'HELD', view: 'ATTENTION' } })
     })
   })
 
   it('recherche globale : un ?open arrivé après le montage ouvre la fiche du paiement', async () => {
     const route = reactive({ meta: {}, query: {} as Record<string, string> })
     await mountPage(route)
-    getMock.mockReset().mockResolvedValue({ id: 'p1', status: 'ESCROW' })
-    route.query = { open: 'p1' }
+    route.query = { open: P1 }
     await flushPromises()
-    expect(getMock).toHaveBeenCalledWith('p1')
+    expect(getMock).toHaveBeenCalledWith(P1)
+  })
+
+  describe('sections et vues', () => {
+    it('avec les nombres des sections : quatre sections à pastilles, un clic émet l’onglet historique', async () => {
+      financeCountsMock.mockResolvedValue(FINANCE)
+      const w = await mountPage()
+      expect(w.find('[data-test="tab-payments"]').exists()).toBe(false)
+      expect(w.find('[data-test="section-mobile-money"] [data-test="tab-count"]').text()).toBe('3')
+      await w.find('[data-test="section-wallets"]').trigger('click')
+      await flushPromises()
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'wallets' } })
+      expect(w.find('[data-test="sub-wallets"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('?tab=wallet-refunds avec sections : section Soldes, sous-onglet Remboursements wallet', async () => {
+      financeCountsMock.mockResolvedValue(FINANCE)
+      const w = await mountPage({ tab: 'wallet-refunds' })
+      expect(w.find('[data-test="section-wallets"]').attributes('aria-pressed')).toBe('true')
+      expect(w.find('[data-test="sub-wallet-refunds"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('nombres des sections en erreur : onglets plats et message', async () => {
+      financeCountsMock.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500 }))
+      const w = await mountPage()
+      expect(w.find('[data-test="tab-payments"]').exists()).toBe(true)
+      expect(w.find('[data-test="finance-counts-error"]').exists()).toBe(true)
+    })
+
+    it('un geste relit la liste, les nombres des vues et les pastilles', async () => {
+      const w = await mountPage({ open: P1 })
+      const before = [listMock.mock.calls.length, countsMock.mock.calls.length, financeCountsMock.mock.calls.length]
+      w.findComponent({ name: 'PaymentDetailPanel' }).vm.$emit('refund')
+      await flushPromises()
+      expect([listMock.mock.calls.length, countsMock.mock.calls.length, financeCountsMock.mock.calls.length]).toEqual(before.map(n => n + 1))
+    })
+
+    it('vues à nombre, lien « checkouts abandonnés masqués · les afficher »', async () => {
+      const w = await mountPage()
+      expect(w.find('[data-test="payment-view-ATTENTION"] [data-test="tab-count"]').text()).toBe('2')
+      expect(w.find('[data-test="abandoned-hidden"]').text()).toContain('23 checkouts abandonnés masqués')
+      await w.find('[data-test="abandoned-show"]').trigger('click')
+      await flushPromises()
+      expect(listMock.mock.calls.at(-1)![0].hideAbandoned).toBe(false)
+      expect(w.find('[data-test="abandoned-hidden"]').exists()).toBe(false)
+    })
+
+    it('ancien back (nombres absents) : pas de vues, aucun nombre, vue Tous', async () => {
+      countsMock.mockRejectedValue(missing())
+      const w = await mountPage()
+      expect(w.find('[data-test="payment-view-ATTENTION"]').exists()).toBe(false)
+      expect(w.find('[data-test="abandoned-hidden"]').exists()).toBe(false)
+      expect(w.text()).not.toContain('Rien à traiter')
+      expect(replaceMock).not.toHaveBeenCalled()
+    })
+
+    it('nombres des vues en erreur : message et Réessayer', async () => {
+      countsMock.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500 }))
+      const w = await mountPage()
+      expect(w.find('[data-test="payment-counts-error"]').exists()).toBe(true)
+      countsMock.mockResolvedValue(COUNTS)
+      await w.find('[data-test="payment-counts-retry"]').trigger('click')
+      await flushPromises()
+      expect(w.find('[data-test="payment-counts-error"]').exists()).toBe(false)
+    })
   })
 })

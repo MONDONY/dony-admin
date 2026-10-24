@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFilters, writeFilters } from '@/lib/urlFilters'
-import { PAYMENT_URL_SPECS, fromCents, legacyHeldToFilters, paymentActiveChips, paymentInitialView, readPaymentFilters, toCents } from '@/features/payments/lib/paymentPageFilters'
+import { PAYMENT_URL_SPECS, fromCents, legacyHeldToFilters, paymentActiveChips, paymentInitialView, paymentStateFromQuery, paymentUrlValues, readPaymentFilters, toCents } from '@/features/payments/lib/paymentPageFilters'
 import type { PaymentsFilterState } from '@/features/payments/types/index'
 
 const U1 = '11111111-1111-4111-8111-111111111111'
@@ -121,5 +121,47 @@ describe('paymentActiveChips', () => {
     expect(paymentActiveChips({ ...base(), dateTo: '2026-10-15' }, {})[0]!.label).toBe('Période : jusqu’au 15/10')
     expect(paymentActiveChips({ ...base(), method: 'PAWAPAY', status: 'CANCELLED' }, {}).map(c => c.label)).toEqual(['Statut : Annulé', 'Méthode : Mobile money'])
     expect(paymentActiveChips({ ...base(), held: true }, {})).toEqual([])
+  })
+})
+
+describe('paymentStateFromQuery (URL → état des filtres)', () => {
+  it('sans paramètre : seulement la vue par défaut', () => {
+    expect(paymentStateFromQuery({})).toEqual({ view: 'ATTENTION' })
+    expect(paymentStateFromQuery({ tab: 'wallets', open: U1 })).toEqual({ view: 'ATTENTION' })
+  })
+  it('montants en unités principales → centimes ; UUID mal formés et montants invalides ignorés', () => {
+    expect(paymentStateFromQuery({ amountMin: '100', amountMax: '12,5', partyId: U1, announcementId: '../x', bidId: 'b1', query: 'awa' })).toEqual({
+      amountMin: 10000, amountMax: 1250, partyId: U1, query: 'awa', view: 'ALL',
+    })
+    expect(paymentStateFromQuery({ amountMin: 'abc' })).toEqual({ view: 'ATTENTION' })
+  })
+  it('held=true → alerte HELD, vue À traiter', () => {
+    expect(paymentStateFromQuery({ held: 'true' })).toEqual({ view: 'ATTENTION', alert: 'HELD' })
+    expect(paymentStateFromQuery({ held: 'true', view: 'ALL', alert: 'ESCROW_J48' })).toEqual({ view: 'ALL', alert: 'ESCROW_J48' })
+  })
+  it('anciens filtres conservés', () => {
+    expect(paymentStateFromQuery({ status: 'ESCROW', method: 'PAWAPAY', currency: 'XOF', dateFrom: '2026-10-01', hideAbandoned: 'false' })).toEqual({
+      status: 'ESCROW', method: 'PAWAPAY', currency: 'XOF', dateFrom: '2026-10-01', hideAbandoned: false, view: 'ALL',
+    })
+  })
+})
+
+describe('paymentUrlValues (état → valeurs écrites dans l\'URL)', () => {
+  it('centimes → unités principales, absents → défauts ; aller-retour stable', () => {
+    const f: PaymentsFilterState = { ...base(), hideAbandoned: true, view: 'ESCROW', alert: 'HELD', partyId: U1, amountMin: 10000, amountMax: null, query: 'awa' }
+    const v = paymentUrlValues(f)
+    expect(v).toMatchObject({ status: 'TOUS', view: 'ESCROW', alert: 'HELD', partyId: U1, announcementId: '', bidId: '', amountMin: '100', amountMax: '', query: 'awa', hideAbandoned: true })
+    const q = writeFilters({ tab: 'payments' }, v, PAYMENT_URL_SPECS)
+    expect(q).toEqual({ tab: 'payments', alert: 'HELD', partyId: U1, query: 'awa', amountMin: '100', view: 'ESCROW' })
+    expect(paymentStateFromQuery(q)).toEqual({ alert: 'HELD', partyId: U1, query: 'awa', amountMin: 10000, view: 'ESCROW' })
+  })
+  it('suit l’objet réactif (lecture à chaque accès)', () => {
+    const f: PaymentsFilterState = { ...base(), amountMin: null }
+    const v = paymentUrlValues(f)
+    f.amountMin = 250
+    expect(v.amountMin).toBe('2.5')
+    expect(v.alert).toBeNull()
+    expect(v.view).toBe('ALL')
+    expect(v.hideAbandoned).toBe(false)
   })
 })

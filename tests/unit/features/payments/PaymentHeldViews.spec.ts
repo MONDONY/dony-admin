@@ -38,6 +38,7 @@ describe('PaymentFilters : Versements retenus', () => {
 })
 
 describe('PaymentsTable : badge Versement retenu', () => {
+  beforeEach(() => seedAuth('ADMIN'))
   it('badge sur une ligne retenue, absent sinon (ancien back compris)', () => {
     const w = mount(PaymentsTable, {
       props: { loading: false, payments: [{ ...row, id: 'p1', payoutHeldAt: '2026-09-20T10:00:00Z' }, { ...row, id: 'p2' }, { ...row, id: 'p3', beneficiaryHeld: true }] },

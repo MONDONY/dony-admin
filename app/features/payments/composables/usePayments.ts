@@ -45,7 +45,7 @@ export function usePayments() {
       const page = await paymentsService.list(filters, currentPage.value, pageSize.value)
       // Le nouveau back envoie `beneficiaryHeld` sur CHAQUE paiement (booléen, même à false) :
       // une page où aucun n'en porte vient d'un back qui ignore le filtre.
-      heldFilterUnsupported.value = Boolean(filters.held) && page.content.length > 0
+      heldFilterUnsupported.value = (Boolean(filters.held) || filters.alert === 'HELD') && page.content.length > 0
         && page.content.every((p) => p.beneficiaryHeld === undefined)
       payments.value = heldFilterUnsupported.value ? [] : page.content
       totalPages.value = heldFilterUnsupported.value ? 0 : page.totalPages

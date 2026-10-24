@@ -119,7 +119,7 @@ test('admin sees where the mobile money commission sits', async ({ page }) => {
   await expect(page.locator('[data-test="mm-commission-month-2026-09-XOF"]')).toContainText('septembre 2026')
 })
 
-test('amounts keep their own currency, and the currency chip filters the list', async ({ page }) => {
+test('amounts keep their own currency, and the currency filter filters the list', async ({ page }) => {
   let lastQuery = ''
   await page.route('**/api/v1/admin/payments?**', (route) => {
     lastQuery = new URL(route.request().url()).search
@@ -132,7 +132,8 @@ test('amounts keep their own currency, and the currency chip filters the list', 
   await expect(page.locator('[data-test="payment-amount-p2"]')).not.toContainText('€')
   await expect(page.locator('[data-test="payment-amount-p1"]')).toContainText('EUR')
 
-  await page.locator('[data-test="chip-currency-XOF"]').click()
+  // Les pastilles de devise sont devenues une liste déroulante (filtres de la réorganisation).
+  await page.locator('[data-test="filter-currency"]').selectOption('XOF')
   await expect.poll(() => lastQuery).toContain('currency=XOF')
 })
 

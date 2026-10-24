@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PaymentsTable from '@/features/payments/components/PaymentsTable.vue'
 import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
 import PaymentTotalsBar from '@/features/payments/components/PaymentTotalsBar.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
+import PaymentViewTabs from '@/features/payments/components/PaymentViewTabs.vue'
+import PaymentSearchBox from '@/features/payments/components/PaymentSearchBox.vue'
+import ActiveFilters from '@/components/ui/ActiveFilters.vue'
+import TransactionSectionTabs from '@/features/transactions/components/TransactionSectionTabs.vue'
 import ChargebacksTable from '@/features/payments/components/ChargebacksTable.vue'
 import WalletsTable from '@/features/finance/components/WalletsTable.vue'
 import MobileMoneyTable from '@/features/finance/components/MobileMoneyTable.vue'
@@ -14,51 +18,38 @@ import ResolveWalletRefundDialog from '@/features/finance/components/ResolveWall
 import RetryWalletRefundDialog from '@/features/finance/components/RetryWalletRefundDialog.vue'
 import PeriodFilter from '@/features/finance/components/PeriodFilter.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
-import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
-import { usePayments } from '@/features/payments/composables/usePayments'
+import { usePaymentsSection, type PaymentPickKind } from '@/features/payments/composables/usePaymentsSection'
 import { usePaymentDetail } from '@/features/payments/composables/usePaymentDetail'
+import { useFinanceCounts } from '@/features/transactions/composables/useFinanceCounts'
+import { isTab, sectionOf, type TransactionTab } from '@/features/transactions/lib/sections'
 import { paymentsService } from '@/features/payments/services/paymentsService'
 import { financeService } from '@/features/finance/services/financeService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import { useUrlFilters } from '@/composables/useUrlFilters'
+import { uuidParam } from '@/lib/safeInput'
 import { useAuthStore } from '@/stores/auth'
-import type { AdminChargeback } from '@/features/payments/types/index'
+import type { AdminChargeback, PaymentSuggestParcel, PaymentSuggestPerson, PaymentSuggestTrip } from '@/features/payments/types/index'
 import type { AdminWallet, AdminMobileMoneyPayment, AdminCashCommission, AdminMobileMoneyCommissions, AdminWalletRefundRequest, ResolveWalletRefundBody, RetryWalletRefundBody, WalletRefundRetryPreview, WalletRefundView } from '@/features/finance/types/index'
 import { WALLET_REFUND_VIEWS } from '@/features/finance/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PAYMENT_VIEW', pageTitle: 'Transactions', pageSubtitle: 'Paiements & escrow' })
 
-type Tab = 'payments' | 'chargebacks' | 'wallets' | 'mobile-money' | 'mm-commissions' | 'cash-commissions' | 'wallet-refunds'
-
-const TABS: readonly Tab[] = ['payments', 'chargebacks', 'wallets', 'mobile-money', 'mm-commissions', 'cash-commissions', 'wallet-refunds']
-/** Groupés par sujet pour qu'on s'y retrouve ; les identifiants restent ceux des liens (?tab=). */
-const TAB_ITEMS: TabItem<Tab>[] = [
-  { id: 'payments', label: 'Paiements', group: 'Paiements' },
-  { id: 'chargebacks', label: 'Litiges bancaires', group: 'Paiements' },
-  { id: 'mobile-money', label: 'Mobile money', group: 'Mobile money' },
-  { id: 'mm-commissions', label: 'Commissions mobile money', group: 'Mobile money' },
-  { id: 'wallets', label: 'Portefeuilles', group: 'Soldes' },
-  { id: 'wallet-refunds', label: 'Remboursements wallet', group: 'Soldes' },
-  { id: 'cash-commissions', label: 'Commissions cash', group: 'Soldes' },
-]
-const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TABS as readonly string[]).includes(v)
+type Tab = TransactionTab
 const tab = ref<Tab>('payments')
+const section = computed(() => sectionOf(tab.value))
 const route = useRoute()
 const router = useRouter()
-const { payments, isLoading, error: paymentsError, totalPages, currentPage, filters, totals, exporting, fetchPayments, goToPage, setStatusFilter, setMethodFilter, setCurrencyFilter, setDateRange, setHeldFilter, setQuery, setHideAbandoned, exportCsv, heldFilterUnsupported } = usePayments()
 const auth = useAuthStore()
-// Filtres de l'onglet Paiements dans l'URL (?status=ESCROW&method=PAWAPAY…) ; `held`, `tab` et
-// `open` gardent leur propre logique plus bas et sont préservés par la réécriture.
-const urlFilters = useUrlFilters(filters, {
-  status: { default: 'TOUS', allowed: ['TOUS', 'PENDING', 'ESCROW', 'RELEASED', 'FAILED', 'REFUNDED', 'CANCELLED'] },
-  method: { default: 'TOUS', allowed: ['TOUS', 'STRIPE', 'PAWAPAY'] },
-  currency: { default: 'TOUTES', allowed: ['TOUTES', 'EUR', 'USD', 'CAD', 'GBP', 'CHF', 'XOF', 'XAF'] },
-  dateFrom: { default: null },
-  dateTo: { default: null },
-  hideAbandoned: { default: true },
-})
-// Avant le premier rendu : les champs des filtres (recherche, dates) s'initialisent depuis leurs props.
-urlFilters.restore()
+// Pastilles des quatre sections ; sans elles (ancien back), les sept onglets plats d'avant.
+const finance = useFinanceCounts()
+// Section Paiements : liste, vues à nombre, recherche à suggestions, filtres dans l'URL (lus ici,
+// avant le premier rendu : les champs s'initialisent depuis leurs props).
+const pay = usePaymentsSection()
+const {
+  filters, payments, isLoading, error: paymentsError, totalPages, currentPage, totals, exporting, heldFilterUnsupported,
+  chips, viewsReady, hiddenAbandoned, held, searchResetKey, countsApi, suggestApi,
+} = pay
+const { counts: viewCounts, error: viewCountsError } = countsApi
+const { suggestions, unavailable: suggestionsUnavailable } = suggestApi
 const detail = usePaymentDetail()
 const cbs = ref<AdminChargeback[]>([])
 const cbLoading = ref(false)
@@ -205,7 +196,7 @@ async function resolveWalletRefund(body: ResolveWalletRefundBody) {
   try {
     await financeService.resolveWalletRefundRequest(request.id, body)
     resolvingWalletRefund.value = null
-    await loadWalletRefunds()
+    await Promise.all([loadWalletRefunds(), finance.reload()])
   }
   // L'erreur reste dans la boîte de dialogue : la saisie n'est pas perdue (422 du back, par exemple).
   catch (e) { resolveWalletRefundError.value = extractProblemMessage(e, 'Impossible de résoudre cette demande de remboursement') }
@@ -261,7 +252,7 @@ async function retryWalletRefund(body: RetryWalletRefundBody) {
     if (row) row.status = 'PROCESSING'
     walletRefundBusyId.value = null
     closeRetryWalletRefund()
-    await loadWalletRefunds()
+    await Promise.all([loadWalletRefunds(), finance.reload()])
   }
   catch (e) { retryWalletRefundError.value = extractProblemMessage(e, 'Impossible de relancer ce remboursement') }
   finally { walletRefundBusyId.value = null }
@@ -269,7 +260,7 @@ async function retryWalletRefund(body: RetryWalletRefundBody) {
 
 /**
  * L'onglet vit dans l'URL (?tab=wallet-refunds, notification WALLET_REFUND_REQUESTED), à côté
- * de ?held=true qu'il ne touche pas. Paiements = pas de paramètre.
+ * des filtres des paiements qu'il ne touche pas. Paiements = pas de paramètre.
  */
 function syncTabQuery(t: Tab) {
   const query = { ...(route.query ?? {}) }
@@ -293,28 +284,41 @@ async function switchTab(t: Tab, fromUrl = false) {
 function openWalletOwner(userId: string) {
   return navigateTo({ path: '/users', query: { query: userId, open: userId } })
 }
-// ?held=true (carte de la vue d'ensemble, fiche utilisateur) : le filtre « Versements
-// retenus » est le seul porté par l'URL, pour que ces liens restent partageables.
-async function onHeldFilter(h: boolean) {
-  const query = { ...(route.query ?? {}) }
-  if (h) query.held = 'true'
-  else delete query.held
-  await router.replace({ query })
-  await setHeldFilter(h)
-}
-async function afterAction() { await fetchPayments() }
+/** Après chaque geste : la liste, les nombres des vues et les pastilles des sections sont relus. */
+async function afterAction() { await Promise.all([pay.refresh(), finance.reload()]) }
 async function onAction(fn: () => Promise<boolean>) {
   await fn()
   await afterAction()
 }
+/** Un n° de suivi suggéré ouvre son paiement ; une personne ou un trajet filtre la liste. */
+async function onPick(kind: PaymentPickKind, payload: PaymentSuggestPerson | PaymentSuggestTrip | PaymentSuggestParcel) {
+  const id = await pay.onPick(kind, payload)
+  if (id) await detail.open(id)
+}
+/** Référence exacte : ouverte seulement si le texte tapé est celui auquel les suggestions ont répondu. */
+async function onOpenPayment(id: string) {
+  const target = await pay.onOpenPayment(id)
+  if (target) await detail.open(target)
+}
+
+/**
+ * ?open=<paymentId> (lien « Ouvrir le paiement » d'une alerte, recherche globale) : la fiche du
+ * paiement, UUID seulement. Avec un autre ?tab=, `open` désigne une ligne de cet onglet.
+ */
+function paymentToOpen(): string | null {
+  const t = route.query?.tab
+  if (t !== undefined && t !== 'payments') return null
+  return uuidParam(route.query?.open)
+}
 
 onMounted(async () => {
-  if (route.query?.held === 'true') filters.held = true
   const wanted = route.query?.tab
-  await Promise.all([fetchPayments(), isTab(wanted) && wanted !== 'payments' ? switchTab(wanted, true) : Promise.resolve()])
-  // ?open=<paymentId> (lien « Ouvrir le paiement » d'une alerte) : ouvre la fiche.
-  const openId = route.query?.open
-  if (typeof openId === 'string' && openId) await detail.open(openId)
+  await Promise.all([
+    pay.load(), finance.reload(),
+    isTab(wanted) && wanted !== 'payments' ? switchTab(wanted, true) : Promise.resolve(),
+  ])
+  const openId = paymentToOpen()
+  if (openId) await detail.open(openId)
 })
 // Page déjà ouverte : un clic sur une notification change seulement la query.
 watch(() => route.query?.tab, (v) => {
@@ -322,57 +326,100 @@ watch(() => route.query?.tab, (v) => {
   if (t !== tab.value) void switchTab(t, true)
 })
 // Même chose pour ?open (recherche globale) : ouvre la fiche si elle n'est pas déjà affichée.
-watch(() => route.query?.open, (openId) => {
-  if (typeof openId !== 'string' || !openId || openId === detail.payment.value?.id) return
+watch(() => route.query?.open, () => {
+  const openId = paymentToOpen()
+  if (!openId || openId === detail.payment.value?.id) return
   void detail.open(openId)
 })
+// … et pour ?held=true (bandeau d'une fiche utilisateur, carte de la vue d'ensemble).
+watch(() => route.query?.held, (v) => { if (v !== undefined) void pay.applyLegacyHeld() })
 </script>
 
 <template>
   <div>
-    <TabBar class="mb-4" :tabs="TAB_ITEMS" :model-value="tab" aria-label="Sections des transactions" @update:model-value="switchTab" />
+    <div class="mb-4">
+      <TransactionSectionTabs :section="section" :sub="tab" :counts="finance.counts.value" @update:tab="switchTab" />
+      <p v-if="finance.error.value" data-test="finance-counts-error" role="status" class="mt-1 flex items-center gap-2 text-xs text-text-muted">
+        Nombres des sections indisponibles
+        <button
+          type="button" data-test="finance-counts-retry"
+          class="inline-flex min-h-10 items-center rounded-btn px-2 text-xs text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          @click="finance.reload()"
+        >Réessayer</button>
+      </p>
+    </div>
     <p
       v-if="tabError" data-test="transactions-error"
       class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
     >{{ tabError }}</p>
 
     <template v-if="tab === 'payments'">
-      <PaymentFilters
-        :model-status="filters.status"
-        :model-method="filters.method"
-        :model-currency="filters.currency"
-        :model-date-from="filters.dateFrom"
-        :model-date-to="filters.dateTo"
-        :model-held="filters.held"
-        :model-query="filters.query"
-        :model-hide-abandoned="filters.hideAbandoned"
-        @update:held="onHeldFilter"
-        @update:query="setQuery"
-        @update:hide-abandoned="setHideAbandoned"
-        @update:status="setStatusFilter"
-        @update:method="setMethodFilter"
-        @update:currency="setCurrencyFilter"
-        @update:date-range="(from, to) => setDateRange(from, to)"
-      />
+      <div class="mb-4 space-y-3">
+        <!-- Vues : seulement une fois les nombres répondus, jamais face à un ancien back (liste « Tous »). -->
+        <div v-if="viewsReady">
+          <PaymentViewTabs :model-value="filters.view ?? 'ALL'" :counts="viewCounts" @update:model-value="pay.setView" />
+          <p v-if="viewCountsError" data-test="payment-counts-error" role="status" class="mt-1 flex items-center gap-2 text-xs text-text-muted">
+            Nombres indisponibles
+            <button
+              type="button" data-test="payment-counts-retry"
+              class="inline-flex min-h-10 items-center rounded-btn px-2 text-xs text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              @click="countsApi.reload()"
+            >Réessayer</button>
+          </p>
+        </div>
+        <PaymentSearchBox
+          :model-query="filters.query ?? ''" :suggestions="suggestions" :suggestions-disabled="suggestionsUnavailable" :reset-key="searchResetKey"
+          @type="pay.onType" @update:query="pay.onSearch" @pick="onPick" @open-payment="onOpenPayment"
+        />
+        <PaymentFilters
+          :model-method="filters.method"
+          :model-currency="filters.currency"
+          :model-date-from="filters.dateFrom"
+          :model-date-to="filters.dateTo"
+          :model-amount-min="filters.amountMin ?? null"
+          :model-amount-max="filters.amountMax ?? null"
+          :model-held="held"
+          :model-hide-abandoned="filters.hideAbandoned"
+          @update:held="pay.setHeld"
+          @update:hide-abandoned="pay.setHideAbandoned"
+          @update:method="pay.setMethodFilter"
+          @update:currency="pay.setCurrencyFilter"
+          @update:date-range="(from, to) => pay.setDateRange(from, to)"
+          @update:amount-range="(min, max) => pay.setAmountRange(min, max)"
+        />
+        <div v-if="chips.length || hiddenAbandoned" class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <ActiveFilters :chips="chips" @remove="pay.removeChip" @clear="pay.clearAll" />
+          <p v-if="hiddenAbandoned" data-test="abandoned-hidden" class="ml-auto flex items-center text-sm text-text-muted tabular-nums">
+            {{ hiddenAbandoned }} {{ hiddenAbandoned > 1 ? 'checkouts abandonnés masqués' : 'checkout abandonné masqué' }} ·
+            <button
+              type="button" data-test="abandoned-show"
+              class="inline-flex min-h-10 items-center rounded-btn px-2 text-sm text-primary transition-[background-color,transform] hover:bg-primary/10 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              @click="pay.showAbandoned()"
+            >les afficher</button>
+          </p>
+        </div>
+      </div>
       <p
         v-if="heldFilterUnsupported" data-test="held-filter-unsupported"
         class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
       >Le serveur ne sait pas encore isoler les versements retenus : ce filtre sera disponible après sa mise à jour.</p>
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p class="text-sm text-text-muted">Cliquez sur un paiement pour voir les personnes, les montants, les références Stripe et la chronologie.</p>
-        <button
-          v-if="auth.can('EXPORT_RUN')" type="button" data-test="payments-export" :disabled="exporting"
-          class="rounded-btn border border-border px-3 py-1.5 text-sm hover:bg-surface-elevated disabled:opacity-40"
-          @click="exportCsv"
-        >{{ exporting ? 'Export…' : 'Exporter en CSV' }}</button>
-      </div>
       <p
         v-if="paymentsError" data-test="payments-error"
         class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
       >{{ paymentsError }}</p>
       <PaymentTotalsBar v-if="totals" :totals="totals" />
-      <PaymentsTable :payments="payments" :loading="isLoading" @select="detail.open" />
-      <div class="mt-4"><PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" /></div>
+      <PaymentsTable
+        :payments="payments" :loading="isLoading" :empty-label="filters.view === 'ATTENTION' ? 'Rien à traiter' : 'Aucun paiement'"
+        @select="detail.open"
+      />
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <PaginationControls :page="currentPage" :total-pages="totalPages" @change="pay.goToPage" />
+        <button
+          v-if="auth.can('EXPORT_RUN')" type="button" data-test="payments-export" :disabled="exporting"
+          class="inline-flex min-h-10 items-center rounded-btn border border-border px-3 text-sm transition-[background-color,transform] hover:bg-surface-elevated active:scale-[0.96] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          @click="pay.exportCsv()"
+        >{{ exporting ? 'Export…' : 'Exporter en CSV' }}</button>
+      </div>
       <PaymentDetailPanel
         v-if="detail.payment.value"
         :payment="detail.payment.value" :open="detail.payment.value !== null"

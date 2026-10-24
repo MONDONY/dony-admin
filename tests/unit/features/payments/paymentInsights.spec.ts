@@ -113,8 +113,10 @@ describe('usePayments — totaux, recherche, export', () => {
 })
 
 describe('PaymentsTable', () => {
+  // Les liens de la ligne dépendent des permissions : session nécessaire.
+  beforeEach(() => seedAuth('ADMIN'))
   it('type, trajet, parties et badge checkout abandonné', async () => {
-    const w = mount(PaymentsTable, { props: { loading: false, payments: [row(), row({ id: 'p2', status: 'PENDING', insight: insight({ kind: 'BID', abandoned: true }) })] } })
+    const w = mount(PaymentsTable, { props: { loading: false, payments: [row(), row({ id: 'p2', status: 'PENDING', insight: insight({ kind: 'BID', abandoned: true }) })] }, global: { stubs: { NuxtLink } } })
     expect(w.text()).toContain('Négociation')
     expect(w.text()).toContain('Lyon → Abidjan')
     expect(w.find('[data-test="payment-sender-p1-0000-0000"]').text()).toBe('Awa Diallo (@awa)')
@@ -124,7 +126,7 @@ describe('PaymentsTable', () => {
     expect(w.emitted('select')![0]).toEqual(['p2'])
   })
   it('ancien back sans contexte : tirets, pas d’erreur', () => {
-    const w = mount(PaymentsTable, { props: { loading: false, payments: [row({ insight: undefined, bidId: BID })] } })
+    const w = mount(PaymentsTable, { props: { loading: false, payments: [row({ insight: undefined, bidId: BID })] }, global: { stubs: { NuxtLink } } })
     expect(w.text()).toContain('Colis')
     expect(w.text()).toContain('—')
   })

@@ -58,8 +58,21 @@ describe('paymentsService', () => {
     apiMock.mockResolvedValue({ content: [] })
     await paymentsService.list({ ...base, view: 'ATTENTION', alert: 'HELD', partyId: 'u1', announcementId: 'a1', bidId: 'b1', amountMin: 12000, amountMax: 0 }, 0, 20)
     expect(apiMock.mock.calls[0][1].query).toEqual({
-      view: 'ATTENTION', alert: 'HELD', partyId: 'u1', announcementId: 'a1', bidId: 'b1', amountMin: 12000, amountMax: 0, page: 0, size: 20,
+      // `held=true` accompagne l'alerte HELD (même prédicat) : un ancien back qui ignore `alert` filtre quand même.
+      view: 'ATTENTION', alert: 'HELD', held: 'true', partyId: 'u1', announcementId: 'a1', bidId: 'b1', amountMin: 12000, amountMax: 0, page: 0, size: 20,
     })
+  })
+  it('alerte HELD : `held=true` aussi au résumé et à l\'export, jamais aux nombres ; autre alerte : pas de held', async () => {
+    apiMock.mockResolvedValue([])
+    await paymentsService.summary({ ...base, alert: 'HELD' })
+    await paymentsService.exportCsv({ ...base, alert: 'HELD' })
+    await paymentsService.list({ ...base, alert: 'ESCROW_J48' }, 0, 20)
+    apiMock.mockResolvedValue({})
+    await paymentsService.counts({ ...base, alert: 'HELD' })
+    expect(apiMock.mock.calls[0][1].query).toEqual({ alert: 'HELD', held: 'true' })
+    expect(apiMock.mock.calls[1][1].query).toEqual({ alert: 'HELD', held: 'true' })
+    expect(apiMock.mock.calls[2][1].query).toEqual({ alert: 'ESCROW_J48', page: 0, size: 20 })
+    expect(apiMock.mock.calls[3][1].query).toEqual({})
   })
   it('summary et exportCsv acceptent les mêmes filtres', async () => {
     apiMock.mockResolvedValue([])

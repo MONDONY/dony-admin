@@ -24,6 +24,8 @@ function listQuery(f: PaymentsFilterState): Record<string, string | number> {
   const query: Record<string, string | number> = { ...filterQuery(f), ...scopeQuery(f) }
   if (f.view && f.view !== 'ALL') query.view = f.view
   if (f.alert) query.alert = f.alert
+  // Même prédicat que l'ancien filtre `held` : un back qui ignore `alert` isole quand même les retenues.
+  if (f.alert === 'HELD') query.held = 'true'
   return query
 }
 

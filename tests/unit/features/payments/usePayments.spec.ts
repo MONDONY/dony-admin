@@ -9,6 +9,13 @@ describe('usePayments', () => {
     vi.clearAllMocks()
     svc.list = vi.fn()
   })
+  it('alerte HELD face à un back qui ignore la retenue : liste vidée et signalée, comme le filtre held', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'p1' }, { id: 'p2' }], totalElements: 2, totalPages: 1, number: 0, size: 20 })
+    const p = usePayments(); await p.setAlert('HELD')
+    expect(p.heldFilterUnsupported.value).toBe(true); expect(p.payments.value).toEqual([])
+    await p.setAlert('ESCROW_J48')
+    expect(p.heldFilterUnsupported.value).toBe(false); expect(p.payments.value).toHaveLength(2)
+  })
   it('fetchPayments loads page', async () => {
     svc.list.mockResolvedValue({ content: [{ id: 'p1' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
     const p = usePayments(); await p.fetchPayments()

@@ -54,8 +54,11 @@ test('paiement retenu : filtre, détail, puis déblocage avec dérogation motiv�
   await expect(page.locator('[data-test="payment-held-p9"]')).toHaveText('Versement retenu')
   await expect(page.locator('[data-test="payment-held-p1"]')).toHaveCount(0)
 
+  // « Versements retenus » vit sous « Plus de filtres » et devient l'alerte HELD dans l'URL
+  // (`held=true` n'est plus qu'un alias d'entrée ; la liste reçoit toujours held=true).
+  await page.locator('[data-test="more-filters"]').click()
   await page.locator('[data-test="chip-held"]').click()
-  await expect(page).toHaveURL(/held=true/)
+  await expect(page).toHaveURL(/alert=HELD/)
   await expect(page.locator('[data-test="payment-row-p1"]')).toHaveCount(0)
   expect(lists.some((u) => u.includes('held=true'))).toBe(true)
 
@@ -190,7 +193,8 @@ test('fiche utilisateur : bandeau des versements bloqués et lien vers Transacti
   await page.locator('[data-test="cancel"]').click()
 
   await page.locator('[data-test="user-payouts-held-link"]').click()
-  await expect(page).toHaveURL(/\/transactions\?held=true/)
+  // Le lien garde `?held=true` ; la page le convertit aussitôt en alerte HELD.
+  await expect(page).toHaveURL(/\/transactions\?.*alert=HELD/)
   await expect(page.locator('[data-test="chip-held"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('[data-test="payment-row-p9"]')).toBeVisible()
 })
