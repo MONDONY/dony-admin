@@ -5,6 +5,7 @@ import IncidentQueue from './IncidentQueue.vue'
 import IncidentCase from './IncidentCase.vue'
 import IncidentDecisionPanel from './IncidentDecisionPanel.vue'
 import { useIncidents } from '@/features/incidents/composables/useIncidents'
+import { useIncidentContext } from '@/features/incidents/composables/useIncidentContext'
 import { useDisputeDetail } from '@/features/incidents/composables/useDisputeDetail'
 import { useNoShowDecision } from '@/features/incidents/composables/useNoShowDecision'
 import { useWorkbenchShortcuts } from '@/features/signalements/composables/useWorkbenchShortcuts'
@@ -13,6 +14,7 @@ import {
   neighbourIncidentKey, noShowIncident, noShowKey, queueOrder, summarizeIncidents,
   type Incident, type KindFilter, type TabFilter,
 } from '@/features/incidents/lib/incidentWorkbench'
+import { formatMajorAmount } from '@/features/finance/types/index'
 import type { DisputeResolution, NoShowDecision } from '@/features/incidents/types/index'
 
 /**
@@ -23,6 +25,7 @@ import type { DisputeResolution, NoShowDecision } from '@/features/incidents/typ
  */
 const { incidents, todo, tab, isLoading, error, warning, truncated, noshows, fetch, setTab } = useIncidents()
 const detail = useDisputeDetail()
+const ctx = useIncidentContext()
 const noshowDecision = useNoShowDecision(fetch)
 
 const query = ref('')
@@ -102,6 +105,7 @@ function toggleGroup(key: string) {
 
 // Le dossier d'un litige se lit à la sélection ; celui d'une absence est déjà dans la file.
 watch(selectedKey, async (key) => {
+  void ctx.load(key)
   const s = key ? selected.value : null
   if (s?.dispute) { if (detail.dispute.value?.id !== s.id) await detail.open(s.id) }
   else detail.close()
@@ -155,6 +159,8 @@ async function runDecision(run: () => Promise<Outcome>, { reload }: { reload: bo
   selectedKey.value = target
   writeUrl()
   if (target) scrollTo(target)
+  // Même dossier : sa chronologie doit montrer le geste.
+  if (target === s.key) void ctx.load(s.key)
 }
 /** Les actions du composable de litige ne lèvent pas : leur échec se lit dans `error`. */
 const fromDetail = (message: string): Outcome => (detail.error.value ? { ok: false, message: detail.error.value } : { ok: true, message })
@@ -177,7 +183,10 @@ async function onRetrySplit() {
   await detail.retrySplit()
   busy.value = false
   if (detail.error.value) decisionError.value = detail.error.value
-  else doneMessage.value = 'Partage repris.'
+  else {
+    doneMessage.value = 'Partage repris.'
+    void ctx.load(selectedKey.value)
+  }
 }
 async function onDecideNoShow(decision: NoShowDecision, reason: string) {
   const row = selected.value?.noshow
@@ -188,11 +197,13 @@ async function onDecideNoShow(decision: NoShowDecision, reason: string) {
   }, { reload: false })
 }
 
-/** Le litige lié d'une absence, ouvert depuis son dossier. */
-async function openLinked(key: string) {
-  const id = key.slice(key.indexOf(':') + 1)
+/** Un autre incident (litige lié, autre incident des parties), ouvert depuis le dossier : dans la file, sinon lu. */
+async function openOther(key: string) {
+  resetFeedback()
   if (incidents.value.some((i) => i.key === key)) { selectIncident(key); return }
-  await openFromQuery(id, 'DISPUTE')
+  const sep = key.indexOf(':')
+  await openFromQuery(key.slice(sep + 1), key.slice(0, sep) === 'noshow' ? 'NOSHOW' : 'DISPUTE')
+  writeUrl()
 }
 
 // ---- Raccourcis : J / K, 1 à 9, ⏎ ----
@@ -210,11 +221,10 @@ useWorkbenchShortcuts({
 /** Ouvre un incident par identifiant : dans la file, sinon lu (litige) ou cherché parmi les absences chargées. */
 async function openFromQuery(id: string | undefined, as: 'DISPUTE' | 'NOSHOW' | null = null) {
   openError.value = null
-  pinned.value = null
-  if (!id) return
+  if (!id) { pinned.value = null; return }
   const wantNoShow = (as ?? (queryValue('tab') === 'noshows' ? 'NOSHOW' : 'DISPUTE')) === 'NOSHOW'
   const key = wantNoShow ? noShowKey(id) : disputeKey(id)
-  if (incidents.value.some((i) => i.key === key)) { selectedKey.value = key; return }
+  if (incidents.value.some((i) => i.key === key)) { pinned.value = null; selectedKey.value = key; return }
   if (wantNoShow) {
     const row = noshows.value.find((r) => r.id === id)
     if (!row) { openError.value = 'Déclaration introuvable dans la liste : elle a peut-être été tranchée, utilisez les filtres.'; return }
@@ -223,7 +233,13 @@ async function openFromQuery(id: string | undefined, as: 'DISPUTE' | 'NOSHOW' | 
     return
   }
   await detail.open(id)
-  if (!detail.dispute.value) { openError.value = detail.error.value ?? 'Litige introuvable'; return }
+  // Un échec laisse la fiche précédente en mémoire : seule celle du litige demandé compte.
+  if (detail.dispute.value?.id !== id) {
+    openError.value = detail.error.value ?? 'Litige introuvable'
+    // Le message vaut pour le lien, pas pour le dossier encore ouvert à côté.
+    detail.error.value = null
+    return
+  }
   pinned.value = disputeIncident(detail.dispute.value)
   selectedKey.value = key
 }
@@ -269,7 +285,10 @@ watch(() => (onThisPage() ? [queryValue('tab'), queryValue('open')] as const : n
       </div>
       <div class="rounded-card border border-border bg-surface p-3">
         <span class="block text-xs font-semibold uppercase tracking-wide text-warning">Remboursements gelés</span>
-        <span class="font-display text-3xl font-bold tabular-nums" data-test="summary-frozen">{{ summary.frozen }}</span>
+        <span class="flex flex-wrap items-baseline gap-x-2">
+          <span class="font-display text-3xl font-bold tabular-nums" data-test="summary-frozen">{{ summary.frozen }}</span>
+          <span v-if="summary.frozenAmounts.length" class="text-xs tabular-nums text-text-muted" data-test="summary-frozen-amounts">{{ summary.frozenAmounts.map((f) => formatMajorAmount(f.amount, f.currency)).join(' · ') }}</span>
+        </span>
       </div>
       <div class="rounded-card border border-border bg-surface p-3">
         <span class="block text-xs font-semibold uppercase tracking-wide text-text-muted">Échéance proche</span>
@@ -342,7 +361,8 @@ watch(() => (onThisPage() ? [queryValue('tab'), queryValue('open')] as const : n
         <div class="max-h-[calc(100vh-18rem)] min-h-[24rem] overflow-y-auto">
           <IncidentCase
             :incident="selected" :detail="fiche" :detail-loading="detail.isLoading.value" :detail-error="detail.error.value" :now="now"
-            @open-incident="openLinked"
+            :context="ctx.context.value" :context-loading="ctx.isLoading.value" :context-error="ctx.error.value"
+            @open-incident="openOther"
           />
         </div>
 

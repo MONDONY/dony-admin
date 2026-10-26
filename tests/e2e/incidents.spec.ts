@@ -27,14 +27,16 @@ const DELIVERY = {
 const page = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 100 })
 const noShowRow = (id: string) => `[data-test="incident-row-noshow:${id}"]`
 
-interface Mocks { disputes?: unknown[]; noshows?: unknown[]; onNoShowPost?: (_route: Route, _action: string, _id: string) => Promise<void> | void }
-async function setup(p: Page, role: 'ADMIN' | 'SUPPORT', { disputes = [], noshows = [], onNoShowPost }: Mocks = {}) {
+interface Mocks { disputes?: unknown[]; noshows?: unknown[]; context?: unknown; onNoShowPost?: (_route: Route, _action: string, _id: string) => Promise<void> | void }
+async function setup(p: Page, role: 'ADMIN' | 'SUPPORT', { disputes = [], noshows = [], context, onNoShowPost }: Mocks = {}) {
   await p.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, admin(role))
   await p.route('**/api/v1/admin/disputes**', (route) => {
     const url = route.request().url(); const m = route.request().method()
     if (m === 'POST' && url.includes('/guarantee-fund')) return route.fulfill({ json: DISPUTE_RESOLVED })
     if (m === 'POST' && url.includes('/resolve')) return route.fulfill({ json: DISPUTE_RESOLVED })
     if (url.includes('/split-options')) return route.fulfill({ status: 404, json: {} })
+    // Ancien back par défaut : pas de contexte.
+    if (url.endsWith('/context')) return context ? route.fulfill({ json: context }) : route.fulfill({ status: 404, json: {} })
     if (url.includes('/admin/disputes/d1')) return route.fulfill({ json: DISPUTE_DETAIL })
     return route.fulfill({ json: page(new URL(url).searchParams.get('status') === 'RESOLVED' ? [] : disputes) })
   })
@@ -295,4 +297,31 @@ test('ancien back : titre « Colis … », confirmation via l’ancien endpoint,
   await expect(p.locator('[data-test="incident-error"]')).toHaveText('Aucune annulation en attente pour ce bid')
   await p.locator('[data-test="incident-confirm"]').click()
   await expect(p.locator('[data-test="incidents-done"]')).toHaveText('Absence confirmée.')
+})
+
+test('contexte : autres incidents des deux parties, historique de l’audit et argent gelé', async ({ page: p }) => {
+  const priced = { ...DISPUTE, amount: 38, currency: 'EUR' }
+  const context = {
+    related: [{ kind: 'NOSHOW', id: 'c1', type: 'SENDER_NO_SHOW', scope: 'HANDOVER', open: true, createdAt: '2026-09-28T10:00:00' }],
+    history: [{ action: 'SPLIT_RETRY', at: '2026-10-25T09:00:00', actorEmail: 'sira@yadony.com', note: null }],
+  }
+  await setup(p, 'ADMIN', { disputes: [priced], noshows: [HANDOVER], context })
+  await p.goto('/incidents')
+  await expect(p.locator('[data-test="summary-frozen-amounts"]')).toContainText('38,00 EUR')
+  await expect(p.locator('[data-test="incident-row-dispute:d1"]')).toContainText('38,00 EUR · Remboursement gelé')
+  await expect(p.locator('[data-test="incident-related"]')).toContainText('Déclaration d’absence à la remise')
+  await expect(p.locator('[data-test="report-timeline"]')).toContainText('Partage du séquestre repris')
+  await expect(p.locator('[data-test="report-timeline"]')).toContainText('par sira@yadony.com')
+  await p.locator('[data-test="incident-related-noshow:c1"]').click()
+  await expect(p.locator('[data-test="incident-title"]')).toHaveText('Déclaration d’absence à la remise')
+  await expect(p).toHaveURL(/\/incidents\?tab=noshows&open=c1$/)
+})
+
+test('ancien back : pas de contexte, ni section ni message', async ({ page: p }) => {
+  await setup(p, 'ADMIN', { disputes: [DISPUTE] })
+  await p.goto('/incidents')
+  await expect(p.locator('[data-test="incident-title"]')).toHaveText('Voyageur absent à la livraison')
+  await expect(p.locator('[data-test="incident-related"]')).toHaveCount(0)
+  await expect(p.locator('[data-test="incident-context-error"]')).toHaveCount(0)
+  await expect(p.locator('[data-test="summary-frozen-amounts"]')).toHaveCount(0)
 })

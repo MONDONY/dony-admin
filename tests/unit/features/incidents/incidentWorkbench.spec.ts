@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  defaultIncidentKey, disputeIncident, disputeResolutionLabel, disputeSentence, disputeTypeLabel, filterIncidents,
+  buildIncidentTimeline, defaultIncidentKey, disputeAmountLabel, disputeIncident, frozenTotals, noShowTitleOf, relatedIncidentKey, relatedIncidentLabel, disputeResolutionLabel, disputeSentence, disputeTypeLabel, filterIncidents,
   followingIncidentKey, groupIncidents, hasOwnForm, incidentActionsFor, incidentAge, incidentLabel, incidentNoteError,
   incidentStatusMeta, incidentSubtitle, neighbourIncidentKey, noShowDecisionOf, noShowIncident, noShowNeedsDecision,
   queueOrder, summarizeIncidents,
@@ -170,11 +170,11 @@ describe('synthèse', () => {
       noShowIncident(noShow({ id: 'e', remainingMinutes: 0 })),
       noShowIncident(noShow({ id: 'x', status: 'CONFIRMED' })),
     ]
-    expect(summarizeIncidents(items, NOW)).toEqual({ todo: 5, disputes: 2, noshows: 3, late: 2, frozen: 1, urgent: 2 })
+    expect(summarizeIncidents(items, NOW)).toEqual({ todo: 5, disputes: 2, noshows: 3, late: 2, frozen: 1, urgent: 2, frozenAmounts: [] })
   })
 
   it('rien : tout à zéro', () => {
-    expect(summarizeIncidents([], NOW)).toEqual({ todo: 0, disputes: 0, noshows: 0, late: 0, frozen: 0, urgent: 0 })
+    expect(summarizeIncidents([], NOW)).toEqual({ todo: 0, disputes: 0, noshows: 0, late: 0, frozen: 0, urgent: 0, frozenAmounts: [] })
   })
 })
 
@@ -234,5 +234,83 @@ describe('gestes et notes', () => {
     expect(hasOwnForm('DISMISSED')).toBe(false)
     expect(noShowDecisionOf('NOSHOW_CONFIRM')).toBe('confirm')
     expect(noShowDecisionOf('NOSHOW_REJECT')).toBe('reject')
+  })
+})
+
+describe('montants', () => {
+  it('montant du colis d’un litige, absent tant que le back ne le donne pas', () => {
+    expect(disputeAmountLabel({ amount: 38, currency: 'EUR' })).toBe('38,00 EUR')
+    expect(disputeAmountLabel({ amount: 25000, currency: 'XOF' })).toMatch(/25\s?000/)
+    expect(disputeAmountLabel({})).toBeNull()
+    expect(disputeAmountLabel({ amount: null })).toBeNull()
+  })
+
+  it('la ligne secondaire d’un litige : montant puis gel du remboursement', () => {
+    expect(incidentSubtitle(disputeIncident(dispute({ amount: 38, currency: 'EUR' })))).toBe('38,00 EUR · Remboursement gelé')
+    expect(incidentSubtitle(disputeIncident(dispute({ amount: 38, currency: 'EUR', refundFrozen: false })))).toBe('38,00 EUR')
+  })
+
+  it('argent gelé : une somme par devise, jamais mélangées, seulement les litiges à traiter gelés', () => {
+    const items = [
+      disputeIncident(dispute({ id: 'a', amount: 38, currency: 'eur' })),
+      disputeIncident(dispute({ id: 'b', amount: 12, currency: 'EUR' })),
+      disputeIncident(dispute({ id: 'c', amount: 25000, currency: 'XOF' })),
+      disputeIncident(dispute({ id: 'd', amount: 99, currency: 'EUR', refundFrozen: false })),
+      disputeIncident(dispute({ id: 'e', amount: 77, currency: 'EUR', status: 'RESOLVED' })),
+      disputeIncident(dispute({ id: 'f' })),
+      disputeIncident(dispute({ id: 'g', amount: 5, currency: null })),
+      noShowIncident(noShow()),
+    ]
+    expect(frozenTotals(items)).toEqual([{ currency: 'EUR', amount: 55 }, { currency: 'XOF', amount: 25000 }])
+    expect(summarizeIncidents(items, NOW).frozenAmounts).toHaveLength(2)
+    expect(frozenTotals([])).toEqual([])
+  })
+})
+
+describe('autres incidents des parties', () => {
+  it('clé de file et libellé selon la nature', () => {
+    expect(relatedIncidentKey({ kind: 'DISPUTE', id: 'x' })).toBe('dispute:x')
+    expect(relatedIncidentKey({ kind: 'NOSHOW', id: 'y' })).toBe('noshow:y')
+    expect(relatedIncidentLabel({ kind: 'DISPUTE', id: 'x', type: 'ADMIN_PARCEL_LOST', open: true, createdAt: '2026-10-01T10:00:00' })).toBe('Colis perdu')
+    expect(relatedIncidentLabel({ kind: 'NOSHOW', id: 'y', type: 'RECIPIENT_NO_SHOW', scope: 'DELIVERY', open: false, createdAt: '2026-10-01T10:00:00' })).toBe('Déclaration d’absence à la livraison')
+  })
+
+  it('titre d’une absence : portée réelle, sinon déduite du motif', () => {
+    expect(noShowTitleOf('SENDER_NO_SHOW', 'HANDOVER')).toBe('Déclaration d’absence à la remise')
+    expect(noShowTitleOf('SENDER_NO_SHOW', null)).toBe('Déclaration d’absence à la remise')
+    expect(noShowTitleOf('RECIPIENT_NO_SHOW', undefined)).toBe('Déclaration d’absence à la livraison')
+    expect(noShowTitleOf('SENDER_NO_SHOW', 'DELIVERY')).toBe('Déclaration d’absence à la livraison')
+  })
+})
+
+describe('chronologie', () => {
+  const d = disputeIncident(dispute({ status: 'RESOLVED' }))
+
+  it('avec le contexte : l’ouverture, puis chaque geste tracé du plus ancien au plus récent', () => {
+    const items = buildIncidentTimeline(d, null, [
+      { action: 'RESOLVE', at: '2026-10-24T16:22:00', actorEmail: 'sira@yadony.com', note: 'Sans suite' },
+      { action: 'SPLIT_RETRY', at: '2026-10-25T09:00:00' },
+      { action: 'AUTRE_GESTE', at: null },
+    ])
+    expect(items.map((i) => i.label)).toEqual(['Litige ouvert', 'Autre geste', 'Partage du séquestre repris', 'Litige résolu'])
+    expect(items[3]).toMatchObject({ by: 'par sira@yadony.com', note: 'Sans suite' })
+    expect(items[1]!.at).toBeNull()
+    expect(items[2]!.by).toBeNull()
+  })
+
+  it('une absence : gestes de l’admin nommés', () => {
+    const n = noShowIncident(noShow())
+    const items = buildIncidentTimeline(n, null, [{ action: 'NOSHOW_CONFIRMED_BY_ADMIN', at: '2026-10-25T09:00:00Z', note: 'Motif' }, { action: 'NOSHOW_REJECTED_BY_ADMIN' }])
+    expect(items.map((i) => i.label)).toEqual(['Absence déclarée', 'Déclaration rejetée', 'Absence confirmée'])
+  })
+
+  it('sans le contexte (ancien back) : la décision que porte la fiche', () => {
+    expect(buildIncidentTimeline(d, { resolution: 'SPLIT', resolvedAt: '2026-10-24T16:22:00Z', resolutionNote: 'Photos' }, null).map((i) => i.label))
+      .toEqual(['Litige ouvert', 'Séquestre partagé'])
+    expect(buildIncidentTimeline(d, { resolution: null, resolvedAt: '2026-10-24T16:22:00Z', resolutionNote: null }, undefined)[1]!.label).toBe('Litige résolu')
+    expect(buildIncidentTimeline(d, null, null)).toHaveLength(1)
+    const decided = noShowIncident(noShow({ status: 'RESOLVED', adminDecision: 'REJECTED', decidedAt: '2026-10-25T10:00:00Z', decisionReason: 'Motif' }))
+    expect(buildIncidentTimeline(decided, null, null).map((i) => i.label)).toEqual(['Absence déclarée', 'Rejetée'])
+    expect(buildIncidentTimeline(noShowIncident(noShow()), null, null)).toHaveLength(1)
   })
 })

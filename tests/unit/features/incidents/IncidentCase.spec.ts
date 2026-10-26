@@ -93,6 +93,54 @@ describe('IncidentCase : litige', () => {
   })
 })
 
+describe('IncidentCase : contexte', () => {
+  beforeEach(() => { seedAuth('ADMIN') })
+  const incident = disputeIncident(dispute())
+  const related = [
+    { kind: 'NOSHOW' as const, id: 'n2', type: 'SENDER_NO_SHOW', scope: 'HANDOVER' as const, open: true, createdAt: '2026-10-10T10:00:00' },
+    { kind: 'DISPUTE' as const, id: 'd2', type: 'ADMIN_PARCEL_LOST', open: false, createdAt: '2026-09-02T10:00:00' },
+  ]
+
+  it('les autres incidents des parties : libellé, nature, état, et ouverture sans quitter l’écran', async () => {
+    const w = mountCase({ incident, detail: disputeDetail(), context: { related, history: [] } })
+    const list = w.get('[data-test="incident-related"]')
+    expect(list.text()).toContain('Déclaration d’absence à la remise')
+    expect(list.text()).toContain('Absence')
+    expect(list.text()).toContain('À traiter')
+    expect(list.text()).toContain('Colis perdu')
+    expect(list.text()).toContain('Traité')
+    await w.get('[data-test="incident-related-noshow:n2"]').trigger('click')
+    await w.get('[data-test="incident-related-dispute:d2"]').trigger('click')
+    expect(w.emitted('openIncident')).toEqual([['noshow:n2'], ['dispute:d2']])
+  })
+
+  it('pas d’autre incident : pas de section', () => {
+    const w = mountCase({ incident, context: { related: [], history: [] } })
+    expect(w.find('[data-test="incident-related"]').exists()).toBe(false)
+  })
+
+  it('chargement et erreur du contexte', () => {
+    expect(mountCase({ incident, contextLoading: true }).find('[data-test="incident-context-loading"]').exists()).toBe(true)
+    expect(mountCase({ incident, contextError: 'Contexte indisponible' }).get('[data-test="incident-context-error"]').text()).toBe('Contexte indisponible')
+  })
+
+  it('l’historique vient de l’audit quand le contexte est là', () => {
+    const w = mountCase({ incident, context: { related: [], history: [{ action: 'RESOLVE', at: '2026-10-24T16:22:00', actorEmail: 'sira@yadony.com', note: 'Preuves' }] } })
+    const t = w.get('[data-test="report-timeline"]').text()
+    expect(t).toContain('Litige résolu')
+    expect(t).toContain('par sira@yadony.com')
+    expect(t).toContain('« Preuves »')
+  })
+
+  it('le montant du colis s’affiche une fois la fiche chargée', () => {
+    const w = mountCase({ incident: disputeIncident(dispute({ amount: 38, currency: 'EUR' })), detail: disputeDetail({ amount: 38 }) })
+    expect(w.get('[data-test="incident-fact-amount"]').text()).toContain('38,00 EUR')
+    const fromList = mountCase({ incident: disputeIncident(dispute({ amount: 20, currency: 'EUR' })), detail: disputeDetail() })
+    expect(fromList.get('[data-test="incident-fact-amount"]').text()).toContain('20,00 EUR')
+    expect(mountCase({ incident, detail: disputeDetail() }).find('[data-test="incident-fact-amount"]').exists()).toBe(false)
+  })
+})
+
 describe('IncidentCase : absence', () => {
   beforeEach(() => { seedAuth('ADMIN') })
 
