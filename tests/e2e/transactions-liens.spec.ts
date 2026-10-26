@@ -226,7 +226,6 @@ for (const c of [
       return route.fulfill({ json: page1([alert]) })
     })
     await page.goto('/alertes')
-    await page.locator(`[data-test="details-${c.id}"]`).click()
     await page.locator('[data-test="alert-link-transactions"]', { hasText: 'Opérations mobile money en cours' }).click()
     await expect(page.locator('[data-test="mm-view-OPEN"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe('/transactions?tab=mobile-money&view=open')
@@ -249,7 +248,7 @@ test('tiroir paiement → « journal d’audit » : filtres PAYMENT appliqués, 
 })
 
 test.describe('tiroir paiement → « Ouvrir l’alerte »', () => {
-  test('alerte hors de la première page : lue par identifiant et ouverte ; fermer retire ?open', async ({ page }) => {
+  test('alerte hors de la file : lue par identifiant et ouverte, ?open conservé', async ({ page }) => {
     await setup(page)
     await page.route('**/api/v1/admin/alerts**', (route) => {
       if (route.request().url().includes(`/admin/alerts/${ALERT}`)) {
@@ -260,12 +259,11 @@ test.describe('tiroir paiement → « Ouvrir l’alerte »', () => {
     })
     await page.goto(`/transactions?open=${PAY}&section=incidents`)
     await page.locator(`[data-test="payment-open-alert-link-${ALERT}"]`).click()
-    await expect(page.locator('[data-test="alert-detail"]')).toBeVisible({ timeout: 15000 })
+    await expect(page.locator('[data-test="alert-case"]')).toBeVisible({ timeout: 15000 })
     await expect.poll(() => landing(page)).toBe(`/alertes?open=${ALERT}`)
     await expect(page.locator('[data-test="alert-detail-summary"]')).toHaveText('Séquestre de plus de 48 h')
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-test="alert-detail"]')).toHaveCount(0)
-    await expect(page).toHaveURL(/\/alertes$/)
+    // La file est vide : l'alerte du lien reste ouverte à côté de sa décision.
+    await expect(page.locator('[data-test="alert-decision-panel"]')).toBeVisible()
   })
 
   test('alerte introuvable (404) : message visible, la page reste utilisable', async ({ page }) => {
@@ -278,7 +276,7 @@ test.describe('tiroir paiement → « Ouvrir l’alerte »', () => {
     })
     await page.goto(`/alertes?open=${ALERT}`)
     await expect(page.locator('[data-test="alert-open-error"]')).toContainText('Alerte introuvable')
-    await expect(page.locator('[data-test="alert-detail"]')).toHaveCount(0)
+    await expect(page.locator('[data-test="alert-detail-title"]')).toHaveCount(0)
     await expect(page.locator('[data-test="tab-OPEN"]')).toBeVisible()
   })
 })
