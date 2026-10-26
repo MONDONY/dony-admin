@@ -5,6 +5,8 @@ export type DisputeStatusFilter = 'TOUS' | DisputeStatus
 export interface AdminDisputeListItem {
   id: string; bidId: string; type: string; status: DisputeStatus
   senderName: string | null; travelerName: string | null; refundFrozen: boolean; createdAt: string
+  /** Montant du colis (paiement, à défaut prix négocié) et sa devise, en unité principale. Absents sur un back antérieur. */
+  amount?: number | null; currency?: string | null
 }
 export interface AdminDisputeDetail extends AdminDisputeListItem {
   resolution: DisputeResolution | null; resolvedAt: string | null; resolutionNote: string | null
@@ -56,6 +58,28 @@ export function currencyDecimals(currency?: string | null): number {
   const c = (currency ?? 'EUR').toUpperCase()
   return c === 'XOF' || c === 'XAF' ? 0 : 2
 }
+/** Geste tracé dans l'audit d'un incident (du plus récent au plus ancien). */
+export interface IncidentHistoryEntry {
+  action: string
+  detail?: string | null
+  at?: string | null
+  actorEmail?: string | null
+  note?: string | null
+}
+/** Autre litige ou déclaration d'absence d'une des deux parties. */
+export interface RelatedIncident {
+  kind: 'DISPUTE' | 'NOSHOW'
+  id: string
+  /** Type du litige, ou motif de la déclaration d'absence. */
+  type: string
+  scope?: NoShowScope | null
+  /** Litige ouvert, ou absence qui attend encore une décision. */
+  open: boolean
+  createdAt: string
+}
+/** `GET /admin/disputes/{id}/context` et `GET /admin/cancellations/{id}/context` (back #658). */
+export interface IncidentContext { related: RelatedIncident[]; history: IncidentHistoryEntry[] }
+
 export interface AdminDisputePage { content: AdminDisputeListItem[]; totalElements: number; totalPages: number; number: number; size: number }
 export const GUARANTEE_FUND_MAX_CENTS = 20000
 

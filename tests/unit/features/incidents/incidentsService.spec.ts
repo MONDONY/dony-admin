@@ -105,4 +105,11 @@ describe('incidentsService', () => {
       expect(apiMock).toHaveBeenCalledWith('/cancellations/bids/b1/confirm-noshow', { method: 'POST' })
     })
   })
+  it('lit le contexte d’un litige et celui d’une absence', async () => {
+    apiMock.mockResolvedValue({ related: [], history: [] })
+    await incidentsService.getDisputeContext('d1')
+    await incidentsService.getNoShowContext('c1')
+    expect(apiMock.mock.calls[0]).toEqual(['/admin/disputes/d1/context'])
+    expect(apiMock.mock.calls[1]).toEqual(['/admin/cancellations/c1/context'])
+  })
 })

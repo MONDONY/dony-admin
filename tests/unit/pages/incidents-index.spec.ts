@@ -19,6 +19,7 @@ const svc = vi.hoisted(() => ({
   listDisputes: vi.fn(), listNoShows: vi.fn(), getDispute: vi.fn(), getSplitOptions: vi.fn(),
   resolveDispute: vi.fn(), resolveDisputeWithSplit: vi.fn(), retrySplit: vi.fn(), payGuaranteeFund: vi.fn(),
   confirmNoShow: vi.fn(), rejectNoShow: vi.fn(), confirmLegacyNoShow: vi.fn(),
+  getDisputeContext: vi.fn(), getNoShowContext: vi.fn(),
 }))
 vi.mock('@/features/incidents/services/incidentsService', () => ({ incidentsService: svc }))
 
@@ -82,6 +83,10 @@ describe('pages/incidents', () => {
     })
     svc.rejectNoShow.mockReset()
     svc.confirmLegacyNoShow.mockReset()
+    // Ancien back par défaut : pas de contexte ; chaque test le branche s'il en a besoin.
+    const missing = () => Object.assign(new Error('Not Found'), { statusCode: 404 })
+    svc.getDisputeContext.mockReset().mockRejectedValue(missing())
+    svc.getNoShowContext.mockReset().mockRejectedValue(missing())
   })
 
   it('ouvre d’emblée l’incident le plus pressant : dossier et décision à côté', async () => {
@@ -459,6 +464,127 @@ describe('pages/incidents', () => {
       expect(w.text()).toContain('Aucun incident')
       expect(w.get('[data-test="summary-todo"]').text()).toBe('0')
       expect(w.get('[data-test="incident-case-empty"]').exists()).toBe(true)
+    })
+  })
+
+  describe('contexte (back #658)', () => {
+    const related = [
+      { kind: 'NOSHOW', id: 'n1', type: 'SENDER_NO_SHOW', scope: 'HANDOVER', open: true, createdAt: '2026-09-28T10:00:00' },
+      { kind: 'DISPUTE', id: 'd9', type: 'ADMIN_PARCEL_LOST', open: false, createdAt: '2026-09-02T10:00:00' },
+    ]
+    const history = [{ action: 'RESOLVE', at: '2026-10-24T16:22:00', actorEmail: 'sira@yadony.com', note: 'Preuves' }]
+
+    it('lit le contexte du litige ouvert et montre les autres incidents des parties', async () => {
+      svc.getDisputeContext.mockResolvedValue({ related, history: [] })
+      const w = await mountPage()
+      expect(svc.getDisputeContext).toHaveBeenCalledWith('d1')
+      expect(w.get('[data-test="incident-related"]').text()).toContain('Colis perdu')
+    })
+
+    it('ouvre un autre incident de la file, puis lit celui qui n’y est pas', async () => {
+      svc.getDisputeContext.mockResolvedValue({ related, history: [] })
+      svc.getNoShowContext.mockResolvedValue({ related: [], history: [] })
+      const far = dispute({ id: 'd9', status: 'RESOLVED', type: 'ADMIN_PARCEL_LOST', senderName: 'Sali', travelerName: 'Omar SY' })
+      svc.getDispute.mockImplementation(async (id: string) => disputeDetail({ ...(id === 'd9' ? far : d1) }))
+      const w = await mountPage()
+      await w.get('[data-test="incident-related-noshow:n1"]').trigger('click')
+      expect(title(w)).toBe('Déclaration d’absence à la remise')
+      expect(svc.getNoShowContext).toHaveBeenCalledWith('n1')
+      expect(replaceMock).toHaveBeenLastCalledWith({ query: { tab: 'noshows', open: 'n1' } })
+    })
+
+    it('un autre incident hors file (litige traité) : lu par identifiant et gardé à l’écran', async () => {
+      svc.getDisputeContext.mockResolvedValue({ related, history: [] })
+      const far = dispute({ id: 'd9', status: 'RESOLVED', type: 'ADMIN_PARCEL_LOST' })
+      svc.getDispute.mockImplementation(async (id: string) => disputeDetail({ ...(id === 'd9' ? far : d1) }))
+      const w = await mountPage()
+      await w.get('[data-test="incident-related-dispute:d9"]').trigger('click')
+      await flushPromises()
+      expect(title(w)).toBe('Colis perdu')
+      expect(w.get('[data-test="incident-decision-done"]').exists()).toBe(true)
+      expect(route.query).toEqual({ open: 'd9' })
+    })
+
+    it('un autre incident introuvable : message, rien ne change', async () => {
+      svc.getDisputeContext.mockResolvedValue({ related: [{ ...related[1], id: 'zz' }], history: [] })
+      svc.getDispute.mockImplementation(async (id: string) => { if (id === 'zz') throw httpError(404, { detail: 'Litige introuvable' }); return disputeDetail({ ...d1 }) })
+      const w = await mountPage()
+      await w.get('[data-test="incident-related-dispute:zz"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="incident-open-error"]').text()).toBe('Litige introuvable')
+      expect(w.find('[data-test="incident-detail-error"]').exists()).toBe(false)
+      expect(title(w)).toBe('Voyageur absent à la livraison')
+    })
+
+    it('l’historique vient de l’audit', async () => {
+      svc.getDisputeContext.mockResolvedValue({ related: [], history })
+      const w = await mountPage()
+      expect(w.get('[data-test="report-timeline"]').text()).toContain('par sira@yadony.com')
+    })
+
+    it('ancien back : pas de section ni de message d’erreur', async () => {
+      const w = await mountPage()
+      expect(w.find('[data-test="incident-related"]').exists()).toBe(false)
+      expect(w.find('[data-test="incident-context-error"]').exists()).toBe(false)
+      expect(w.get('[data-test="incident-title"]').exists()).toBe(true)
+    })
+
+    it('panne du contexte : une phrase, le dossier reste lisible', async () => {
+      svc.getDisputeContext.mockRejectedValue(httpError(500, { detail: 'Contexte en panne' }))
+      const w = await mountPage()
+      expect(w.get('[data-test="incident-context-error"]').text()).toBe('Contexte en panne')
+    })
+
+    it('le contexte est relu après la reprise d’un partage, pour que l’historique montre le geste', async () => {
+      const split = { id: 's1', senderRefundAmount: 50, travelerPayoutAmount: 30, currency: 'EUR', mode: 'REFUND_TRANSFER', status: 'SENDER_REFUNDED', attempts: 2, lastError: 'x', stripeRefundId: 'r', stripeTransferId: null, completedAt: null }
+      const stuck = dispute({ id: 'd5', status: 'RESOLVED', type: 'ADMIN_OTHER' })
+      resolvedDisputes = [stuck]
+      svc.getDispute.mockImplementation(async () => disputeDetail({ ...stuck, resolution: 'SPLIT', split } as never))
+      svc.getDisputeContext.mockResolvedValue({ related: [], history: [] })
+      svc.retrySplit.mockResolvedValue(disputeDetail({ ...stuck, resolution: 'SPLIT', split: { ...split, status: 'COMPLETED' } } as never))
+      route.query = { open: 'd5' }
+      const w = await mountPage()
+      const before = svc.getDisputeContext.mock.calls.length
+      await w.get('[data-test="split-retry"]').trigger('click')
+      await flushPromises()
+      expect(svc.getDisputeContext.mock.calls.length).toBe(before + 1)
+    })
+
+    it('le contexte du dossier suit la décision : relu quand le même dossier reste ouvert', async () => {
+      svc.getDisputeContext.mockResolvedValue({ related: [], history: [] })
+      svc.getNoShowContext.mockResolvedValue({ related: [], history: [] })
+      svc.confirmNoShow.mockImplementation(async () => noShow({ id: 'n1', status: 'CONFIRMED', adminDecision: 'CONFIRMED', canConfirm: false, canReject: false }))
+      openDisputes = []
+      const w = await mountPage()
+      const before = svc.getNoShowContext.mock.calls.length
+      await w.get('[data-test="incident-note"]').setValue('Appel au voyageur sans réponse')
+      await w.get('[data-test="incident-confirm"]').trigger('click')
+      await flushPromises()
+      expect(svc.getNoShowContext.mock.calls.length).toBeGreaterThan(before - 1)
+    })
+  })
+
+  describe('argent gelé', () => {
+    it('la tuile cumule le montant des litiges gelés, par devise', async () => {
+      openDisputes = [dispute({ id: 'd1', amount: 38, currency: 'EUR' }), dispute({ id: 'd2', type: 'ADMIN_PARCEL_LOST', amount: 12, currency: 'EUR' }), dispute({ id: 'd3', type: 'ADMIN_OTHER', amount: 25000, currency: 'XOF' })]
+      noshows = []
+      const w = await mountPage()
+      expect(w.get('[data-test="summary-frozen"]').text()).toBe('3')
+      const amounts = w.get('[data-test="summary-frozen-amounts"]').text()
+      expect(amounts).toContain('50,00 EUR')
+      expect(amounts).toMatch(/25\s?000/)
+    })
+
+    it('sans montant du back : le compte seul', async () => {
+      const w = await mountPage()
+      expect(w.find('[data-test="summary-frozen-amounts"]').exists()).toBe(false)
+    })
+
+    it('la ligne de la file montre le montant du colis', async () => {
+      openDisputes = [dispute({ id: 'd1', amount: 38, currency: 'EUR' })]
+      noshows = []
+      const w = await mountPage()
+      expect(w.get('[data-test="incident-row-dispute:d1"]').text()).toContain('38,00 EUR · Remboursement gelé')
     })
   })
 

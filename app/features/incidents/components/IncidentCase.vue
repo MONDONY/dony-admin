@@ -4,14 +4,14 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ReportTimeline from '@/features/signalements/components/ReportTimeline.vue'
 import { formatAmount } from '@/features/finance/types/index'
 import {
-  amountLabel, bidStatusLabel, decisionSummary, disputeLinkLabel, disputePending, formatDateTime, noShowSentence, noShowStatusMeta,
+  amountLabel, bidStatusLabel, decisionSummary, disputeLinkLabel, disputePending, formatDateTime, noShowSentence,
   partyLabel, partyRoleLabel, paymentStatusLabel, remainingMeta, scopeMeta, shortId, tripLabel,
 } from './noShowLabels'
 import {
-  disputeResolutionLabel, disputeSentence, incidentAge, incidentStatusMeta, type Incident,
+  buildIncidentTimeline, disputeAmountLabel, disputeResolutionLabel, disputeSentence, incidentAge, incidentStatusMeta,
+  relatedIncidentKey, relatedIncidentLabel, type Incident,
 } from '@/features/incidents/lib/incidentWorkbench'
-import type { TimelineItem } from '@/features/signalements/reportContext'
-import type { AdminDisputeDetail } from '@/features/incidents/types/index'
+import type { AdminDisputeDetail, IncidentContext } from '@/features/incidents/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { bidRoute, gate, paymentsOfBidRoute, toHref, userRoute } from '@/lib/adminLinks'
 import { serverDateIso } from '@/lib/serverDate'
@@ -26,8 +26,12 @@ const props = withDefaults(defineProps<{
   detail?: AdminDisputeDetail | null
   detailLoading?: boolean
   detailError?: string | null
+  /** Autres incidents des deux parties et historique ; null tant que ça charge ou sur un ancien back. */
+  context?: IncidentContext | null
+  contextLoading?: boolean
+  contextError?: string | null
   now?: number
-}>(), { detail: null, detailLoading: false, detailError: null, now: undefined })
+}>(), { detail: null, detailLoading: false, detailError: null, context: null, contextLoading: false, contextError: null, now: undefined })
 const emit = defineEmits<{ openIncident: [key: string] }>()
 
 const auth = useAuthStore()
@@ -79,7 +83,9 @@ const facts = computed<{ key: string; label: string; value: string | null; urgen
   }
   const d = fiche.value
   if (!d) return []
+  const amount = dispute.value ? disputeAmountLabel({ amount: d.amount ?? dispute.value.amount, currency: d.bidCurrency ?? dispute.value.currency }) : null
   return [
+    { key: 'amount', label: 'Montant du colis', value: amount },
     { key: 'currency', label: 'Devise du colis', value: d.bidCurrency ?? '—' },
     { key: 'frozen', label: 'Remboursement gelé', value: d.refundFrozen ? 'Oui' : 'Non' },
     { key: 'resolution', label: 'Résolution', value: disputeResolutionLabel(d.resolution) },
@@ -96,21 +102,9 @@ const splitStatusLabel: Record<string, string> = {
   COMPLETED: 'Exécuté',
 }
 
-const timeline = computed<TimelineItem[]>(() => {
-  const i = props.incident
-  if (!i) return []
-  const items: TimelineItem[] = []
-  if (i.dispute) {
-    items.push({ key: 'opened', label: 'Litige ouvert', at: serverDateIso(i.createdAt), by: null, note: null })
-    const d = fiche.value
-    if (d?.resolvedAt) items.push({ key: 'resolved', label: disputeResolutionLabel(d.resolution) ?? 'Litige résolu', at: d.resolvedAt, by: null, note: d.resolutionNote })
-  } else if (i.noshow) {
-    const r = i.noshow
-    items.push({ key: 'declared', label: 'Absence déclarée', at: serverDateIso(r.createdAt), by: null, note: null })
-    if (r.adminDecision) items.push({ key: 'decided', label: noShowStatusMeta(r.status, r.adminDecision).label, at: r.decidedAt, by: null, note: r.decisionReason })
-  }
-  return items
-})
+const timeline = computed(() => (props.incident ? buildIncidentTimeline(props.incident, fiche.value, props.context?.history) : []))
+const related = computed(() => props.context?.related ?? [])
+const RELATED_TONE = { open: 'text-warning', done: 'text-text-muted' } as const
 </script>
 
 <template>
@@ -198,6 +192,30 @@ const timeline = computed<TimelineItem[]>(() => {
           <span data-test="noshow-decision-reason" class="block text-text">{{ row.decisionReason }}</span>
         </p>
       </div>
+
+      <!-- Autres incidents des deux parties -->
+      <section
+        v-if="related.length" aria-label="Autres incidents des deux parties" data-test="incident-related"
+        class="rounded-card border border-border bg-surface p-5"
+      >
+        <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Autres incidents des deux parties</h3>
+        <ul class="flex flex-col gap-1">
+          <li v-for="r in related" :key="relatedIncidentKey(r)">
+            <button
+              type="button" :data-test="`incident-related-${relatedIncidentKey(r)}`"
+              class="flex w-full items-baseline justify-between gap-3 rounded-btn px-2 py-1.5 text-left text-sm hover:bg-surface-elevated"
+              @click="emit('openIncident', relatedIncidentKey(r))"
+            >
+              <span class="min-w-0 truncate">{{ relatedIncidentLabel(r) }}<span class="text-text-muted"> · {{ r.kind === 'DISPUTE' ? 'Litige' : 'Absence' }}</span></span>
+              <span :class="['shrink-0 text-xs tabular-nums', r.open ? RELATED_TONE.open : RELATED_TONE.done]">
+                {{ r.open ? 'À traiter' : 'Traité' }} · {{ formatDateTime(serverDateIso(r.createdAt)) }}
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
+      <p v-else-if="contextLoading" data-test="incident-context-loading" class="px-1 text-xs text-text-muted">Chargement du contexte…</p>
+      <p v-else-if="contextError" data-test="incident-context-error" role="status" class="px-1 text-xs text-text-muted">{{ contextError }}</p>
 
       <!-- Historique -->
       <div class="rounded-card border border-border bg-surface p-5">

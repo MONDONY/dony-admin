@@ -4,9 +4,12 @@ import {
 } from '@/features/incidents/components/noShowLabels'
 import { NOSHOW_REASON_MIN, NOSHOW_REASON_MAX } from '@/features/incidents/types/index'
 import type {
-  AdminDisputeListItem, AdminNoShow, DisputeResolution, NoShowDecision,
+  AdminDisputeDetail, AdminDisputeListItem, AdminNoShow, DisputeResolution, IncidentHistoryEntry, NoShowDecision,
+  NoShowScope, RelatedIncident,
 } from '@/features/incidents/types/index'
-import { parseServerDate } from '@/lib/serverDate'
+import { formatMajorAmount } from '@/features/finance/types/index'
+import type { TimelineItem } from '@/features/signalements/reportContext'
+import { parseServerDate, serverDateIso } from '@/lib/serverDate'
 
 type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -82,10 +85,12 @@ export function disputeSentence(d: Pick<AdminDisputeListItem, 'type' | 'senderNa
   return `${d.senderName ?? 'L’expéditeur'} et ${d.travelerName ?? 'le voyageur'} sont en désaccord sur ce colis.`
 }
 
-function noShowGroupTitle(r: AdminNoShow): string {
-  const handover = r.scope ? r.scope === 'HANDOVER' : r.reason === 'SENDER_NO_SHOW'
+/** Portée réelle, ou déduite du motif sur l'ancien back (seul SENDER_NO_SHOW se déclare à la remise). */
+export function noShowTitleOf(reason: string, scope: NoShowScope | null | undefined): string {
+  const handover = scope ? scope === 'HANDOVER' : reason === 'SENDER_NO_SHOW'
   return handover ? 'Déclaration d’absence à la remise' : 'Déclaration d’absence à la livraison'
 }
+const noShowGroupTitle = (r: AdminNoShow): string => noShowTitleOf(r.reason, r.scope)
 
 // ---- Construction ----
 
@@ -119,9 +124,17 @@ export function incidentLabel(i: Incident): string {
   return noShowTitle(i.noshow!)
 }
 
-/** Ligne secondaire : trajet et montant d'une absence, remboursement gelé d'un litige. */
+/** Montant du colis d'un litige (« 38,00 EUR »), null tant que le back ne le donne pas. */
+export function disputeAmountLabel(d: Pick<AdminDisputeListItem, 'amount' | 'currency'>): string | null {
+  return d.amount != null ? formatMajorAmount(d.amount, d.currency) : null
+}
+
+/** Ligne secondaire : montant et gel du remboursement d'un litige, trajet et montant d'une absence. */
 export function incidentSubtitle(i: Incident): string | null {
-  if (i.dispute) return i.dispute.refundFrozen ? 'Remboursement gelé' : null
+  if (i.dispute) {
+    const parts = [disputeAmountLabel(i.dispute), i.dispute.refundFrozen ? 'Remboursement gelé' : null].filter((x): x is string => !!x)
+    return parts.length ? parts.join(' · ') : null
+  }
   const r = i.noshow!
   const parts = [tripLabel(r.trip), amountLabel(r)].filter((x): x is string => !!x)
   return parts.length ? parts.join(' · ') : null
@@ -228,6 +241,20 @@ export interface IncidentSummary {
   frozen: number
   /** Absences dont le délai de contestation se termine dans moins de 2 h. */
   urgent: number
+  /** Argent retenu par les litiges à remboursement gelé, par devise (jamais additionnées entre elles). */
+  frozenAmounts: { currency: string; amount: number }[]
+}
+
+/** Somme des montants des litiges à traiter dont le remboursement est gelé, une ligne par devise. */
+export function frozenTotals(items: readonly Incident[]): { currency: string; amount: number }[] {
+  const totals = new Map<string, number>()
+  for (const i of items) {
+    const d = i.dispute
+    if (!i.todo || !d?.refundFrozen || d.amount == null) continue
+    const currency = (d.currency ?? 'EUR').toUpperCase()
+    totals.set(currency, (totals.get(currency) ?? 0) + d.amount)
+  }
+  return [...totals].map(([currency, amount]) => ({ currency, amount })).sort((a, b) => a.currency.localeCompare(b.currency))
 }
 
 export function summarizeIncidents(items: readonly Incident[], now: number = Date.now()): IncidentSummary {
@@ -239,7 +266,55 @@ export function summarizeIncidents(items: readonly Incident[], now: number = Dat
     late: todo.filter((i) => isLate(i, now)).length,
     frozen: todo.filter((i) => i.dispute?.refundFrozen).length,
     urgent: todo.filter((i) => i.noshow && remainingMeta(i.noshow, now)?.urgent).length,
+    frozenAmounts: frozenTotals(todo),
   }
+}
+
+// ---- Contexte ----
+
+/** Clé de file d'un autre incident, pour l'ouvrir depuis le dossier. */
+export const relatedIncidentKey = (r: Pick<RelatedIncident, 'kind' | 'id'>): string => (r.kind === 'DISPUTE' ? disputeKey(r.id) : noShowKey(r.id))
+
+export function relatedIncidentLabel(r: RelatedIncident): string {
+  return r.kind === 'DISPUTE' ? disputeTypeLabel(r.type) : noShowTitleOf(r.type, r.scope)
+}
+
+const AUDIT_LABELS: Record<string, string> = {
+  RESOLVE: 'Litige résolu',
+  GUARANTEE_FUND: 'Fonds de garantie versé',
+  SPLIT_RETRY: 'Partage du séquestre repris',
+  NOSHOW_CONFIRMED_BY_ADMIN: 'Absence confirmée',
+  NOSHOW_REJECTED_BY_ADMIN: 'Déclaration rejetée',
+}
+
+/**
+ * Chronologie d'un incident, de la plus ancienne à la plus récente. Avec le contexte, chaque geste
+ * tracé dans l'audit (le back les rend du plus récent au plus ancien) ; sans lui (ancien back), la
+ * décision que la fiche porte encore.
+ */
+export function buildIncidentTimeline(
+  i: Incident,
+  fiche: Pick<AdminDisputeDetail, 'resolution' | 'resolvedAt' | 'resolutionNote'> | null,
+  history: readonly IncidentHistoryEntry[] | null | undefined,
+): TimelineItem[] {
+  const opened: TimelineItem = {
+    key: 'opened', label: i.kind === 'DISPUTE' ? 'Litige ouvert' : 'Absence déclarée', at: serverDateIso(i.createdAt), by: null, note: null,
+  }
+  if (history) {
+    const steps = [...history].reverse().map((e, n): TimelineItem => ({
+      key: `${e.action}-${n}`, label: AUDIT_LABELS[e.action] ?? humanize(e.action), at: e.at ? serverDateIso(e.at) : null,
+      by: e.actorEmail ? `par ${e.actorEmail}` : null, note: e.note ?? null,
+    }))
+    return [opened, ...steps]
+  }
+  const items = [opened]
+  if (i.dispute && fiche?.resolvedAt) {
+    items.push({ key: 'resolved', label: disputeResolutionLabel(fiche.resolution) ?? 'Litige résolu', at: fiche.resolvedAt, by: null, note: fiche.resolutionNote })
+  } else if (i.noshow?.adminDecision) {
+    const r = i.noshow
+    items.push({ key: 'decided', label: noShowStatusMeta(r.status, r.adminDecision).label, at: r.decidedAt, by: null, note: r.decisionReason })
+  }
+  return items
 }
 
 // ---- Sélection ----

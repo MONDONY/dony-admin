@@ -1,7 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
   AdminDisputeDetail, AdminDisputePage, DisputeStatusFilter, DisputeResolution, AdminDisputeSplitOptions,
-  AdminNoShow, AdminNoShowPage, AdminNoShowPageRaw, AdminNoShowRaw, NoShowFilters, NoShowParty, NoShowStatus,
+  AdminNoShow, AdminNoShowPage, IncidentContext, AdminNoShowPageRaw, AdminNoShowRaw, NoShowFilters, NoShowParty, NoShowStatus,
 } from '@/features/incidents/types/index'
 
 /** Rôles déduits du motif quand l'ancien back ne décrit pas les parties. */
@@ -70,6 +70,13 @@ export const incidentsService = {
     const body: Record<string, unknown> = { amountCents, beneficiaryUserId, reason }
     if (currency) body.currency = currency
     return useApi()<AdminDisputeDetail>(`/admin/disputes/${id}/guarantee-fund`, { method: 'POST', body })
+  },
+  /** Autres incidents des deux parties et historique (back #658) ; 404/405 sans `code` sur un ancien back. */
+  getDisputeContext(id: string): Promise<IncidentContext> {
+    return useApi()<IncidentContext>(`/admin/disputes/${id}/context`)
+  },
+  getNoShowContext(id: string): Promise<IncidentContext> {
+    return useApi()<IncidentContext>(`/admin/cancellations/${id}/context`)
   },
   /** `noShowStatus` double `status` pour l'ancien back, qui ignore `status` et `scope`. */
   async listNoShows(filters: NoShowFilters, page: number, size: number): Promise<AdminNoShowPage> {
