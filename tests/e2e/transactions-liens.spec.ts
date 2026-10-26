@@ -164,7 +164,7 @@ test.describe('incidents → « Voir le paiement de ce colis »', () => {
     })
     await page.route('**/api/v1/admin/cancellations**', route => route.fulfill({ json: page1([]) }))
     await page.goto(`/incidents?open=${DISPUTE}`)
-    await page.locator('[data-test="dispute-payment-link"]').click()
+    await page.locator('[data-test="incident-payment-link"]').click()
     await expect(page.locator('[data-test="active-chip-bid"]')).toContainText('Colis :', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe(`/transactions?bidId=${BID}&view=ALL`)
     expect(calls.payments.at(-1)!.searchParams.get('bidId')).toBe(BID)
@@ -183,7 +183,7 @@ test.describe('incidents → « Voir le paiement de ce colis »', () => {
       handoverAt: '2026-09-15T12:30:00Z', amount: 45, currency: 'EUR', paymentMethod: 'STRIPE', paymentStatus: 'ESCROW', bidStatus: 'ACCEPTED', canConfirm: true, canReject: true,
     }]) }))
     await page.goto('/incidents?tab=noshows&open=c1')
-    await page.locator('[data-test="noshow-payment-link"]').click()
+    await page.locator('[data-test="incident-payment-link"]').click()
     await expect(page.locator('[data-test="active-chip-bid"]')).toContainText('Colis :', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe(`/transactions?bidId=${BID}&view=ALL`)
   })
