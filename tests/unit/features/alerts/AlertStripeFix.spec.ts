@@ -9,7 +9,7 @@ vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: aler
 const paySvc = vi.hoisted(() => ({ get: vi.fn(), resyncStripe: vi.fn(), forceRelease: vi.fn() }))
 vi.mock('@/features/payments/services/paymentsService', () => ({ paymentsService: paySvc }))
 
-import AlertDetailPanel from '@/features/alerts/components/AlertDetailPanel.vue'
+import AlertCase from '@/features/alerts/components/AlertCase.vue'
 import { resetStripeResyncAvailability } from '@/features/payments/composables/useStripeResync'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="JSON.stringify(to)"><slot /></a>' }
@@ -44,14 +44,14 @@ function resync(over: Record<string, unknown> = {}) {
   }
 }
 
-const mountPanel = (a: AdminAlert) => mount(AlertDetailPanel, { props: { alert: a }, global: { stubs: { NuxtLink } } })
+const mountPanel = (a: AdminAlert) => mount(AlertCase, { props: { alert: a }, global: { stubs: { NuxtLink } } })
 
 async function clickResync(w: ReturnType<typeof mountPanel>) {
   await w.find('[data-test="resync-stripe"]').trigger('click')
   await flushPromises()
 }
 
-describe('AlertDetailPanel — section « Corriger »', () => {
+describe('AlertCase — section « Corriger »', () => {
   beforeEach(() => {
     seedAuth('SUPER_ADMIN')
     resetStripeResyncAvailability()

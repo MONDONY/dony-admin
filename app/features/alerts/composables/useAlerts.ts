@@ -9,7 +9,8 @@ export function useAlerts() {
   const error = ref<string | null>(null)
   const totalPages = ref(0)
   const currentPage = ref(0)
-  const pageSize = ref(20)
+  // Le poste regroupe les alertes par type : une page large garde les groupes entiers.
+  const pageSize = ref(100)
   const filters = reactive<AlertsFilterState>({ type: null, severity: null, resolved: 'OPEN' })
 
   async function fetchAlerts() {
@@ -32,6 +33,19 @@ export function useAlerts() {
   async function resolve(id: string, note: string) { await alertsService.resolve(id, note); await fetchAlerts() }
 
   /**
+   * Résout plusieurs alertes avec la même note, une par une (chacune garde sa ligne d'Audit), puis
+   * recharge une fois. Rend les identifiants refusés : l'appelant dit lesquels restent ouverts.
+   */
+  async function resolveMany(ids: string[], note: string): Promise<string[]> {
+    const failed: string[] = []
+    for (const id of ids) {
+      try { await alertsService.resolve(id, note) } catch { failed.push(id) }
+    }
+    await fetchAlerts()
+    return failed
+  }
+
+  /**
    * Alertes résolues par le back pendant une resynchronisation Stripe : marquées dans la liste
    * sans recharger (elle resterait sinon « Ouverte » jusqu'au prochain chargement).
    */
@@ -39,5 +53,5 @@ export function useAlerts() {
     alerts.value = alerts.value.map(a => (ids.includes(a.id) && !a.resolved ? { ...a, resolved: true, resolvedAt: at } : a))
   }
 
-  return { markResolvedLocally, alerts, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve }
+  return { markResolvedLocally, alerts, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, resolveMany }
 }

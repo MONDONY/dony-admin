@@ -1,4 +1,4 @@
-/** Page Alertes : filtre de sévérité et fiche détaillée d'une alerte. */
+/** Page Alertes : poste de traitement (file groupée, dossier, décision) et lien profond. */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { reactive } from 'vue'
@@ -26,17 +26,23 @@ const resyncResult = {
   after: { status: 'ESCROW', capturedAt: '2026-10-10T08:00:00Z', stripeStatus: 'succeeded', amountCapturable: 0 },
   message: 'ok', resolvedAlertIds: ['a2'], openAlertIds: [], alertResolvable: false,
 }
+const escrow = (id: string, createdAt: string, over: Record<string, unknown> = {}) => ({
+  id, type: 'ESCROW_J48_TIMEOUT', severity: 'WARN', detail: `Paiement ${id} en séquestre`,
+  payload: {}, resolved: false, resolvedAt: null, createdAt, ...over,
+})
+const row = escrow('a1', '2026-10-06T12:00:00')
 
-const row = {
-  id: 'a1', type: 'ESCROW_J48_TIMEOUT', severity: 'WARN', detail: 'Paiement p1 en séquestre',
-  payload: {}, resolved: false, resolvedAt: null, createdAt: '2026-10-06T12:00:00',
-}
+let openRows: Record<string, unknown>[]
+const pageOf = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 100 })
+
+/** Lectures de la file (page de 100) : on ne compte pas celles du bandeau de synthèse. */
+const queueReads = () => svc.list.mock.calls.filter(c => c[2] === 100 && c[0].resolved === 'OPEN')
 
 // Une page d'un test précédent encore montée réagirait aux changements de la route partagée.
 const mounted: VueWrapper[] = []
 async function mountPage() {
   const mod = await import('@/pages/alertes/index.vue')
-  const w = mount(mod.default, { global: { stubs: { PaginationControls: true, NuxtLink: true } } })
+  const w = mount(mod.default, { attachTo: document.body, global: { stubs: { PaginationControls: true, NuxtLink: true } } })
   mounted.push(w)
   await flushPromises()
   return w
@@ -50,113 +56,279 @@ describe('pages/alertes', () => {
     replaceMock.mockReset().mockImplementation(({ query }: { query: Record<string, string> }) => { route.query = query; return Promise.resolve() })
     svc.get.mockReset()
     seedAuth('ADMIN')
-    svc.list.mockReset().mockResolvedValue({ content: [row], totalElements: 1, totalPages: 1, number: 0, size: 20 })
-    svc.resolve.mockReset().mockResolvedValue({ ...row, resolved: true })
+    openRows = [row]
+    svc.list.mockReset().mockImplementation(async (f: { resolved: string; severity: string | null }) => {
+      if (f.resolved === 'RESOLVED') return pageOf([])
+      return pageOf(openRows.filter(a => !f.severity || a.severity === f.severity))
+    })
+    svc.resolve.mockReset().mockImplementation(async (id: string) => {
+      openRows = openRows.filter(a => a.id !== id)
+      return { id, resolved: true }
+    })
+    svc.violations.mockReset()
   })
 
-  it('filtre par sévérité', async () => {
+  it('ouvre d’emblée la première alerte de la file : dossier et décision à côté', async () => {
     const w = await mountPage()
-    await w.find('[data-test="severity-CRITICAL"]').trigger('click')
+    expect(w.get('[data-test="alert-detail-title"]').text()).toBe('Paiement en séquestre depuis plus de 48 h')
+    expect(w.find('[data-test="alert-decision-panel"]').exists()).toBe(true)
+    expect(replaceMock).not.toHaveBeenCalled()
+  })
+
+  it('bandeau de synthèse : compte les ouvertes par sévérité', async () => {
+    openRows = [recon, row, escrow('a3', '2026-10-05T12:00:00')]
+    const w = await mountPage()
+    expect(w.get('[data-test="summary-CRITICAL"]').text()).toContain('1')
+    expect(w.get('[data-test="summary-WARN"]').text()).toContain('2')
+    expect(w.get('[data-test="summary-WARN"]').text()).toContain('en 1 groupe')
+  })
+
+  it('un compteur filtre la file par sévérité, et un second clic retire le filtre', async () => {
+    openRows = [recon, row]
+    const w = await mountPage()
+    await w.get('[data-test="summary-CRITICAL"]').trigger('click')
     await flushPromises()
     expect(svc.list.mock.calls.at(-1)![0].severity).toBe('CRITICAL')
-  })
-
-  it('ouvre la fiche puis résout l’alerte depuis la fiche', async () => {
-    const w = await mountPage()
-    await w.find('[data-test="details-a1"]').trigger('click')
-    expect(w.find('[data-test="alert-detail"]').exists()).toBe(true)
-    await w.find('[data-test="alert-detail-resolve"]').trigger('click')
-    expect(w.text()).toContain('Marquer « Paiement en séquestre depuis plus de 48 h » comme résolue')
-    const reason = w.find('[data-test="reason"]')
-    await reason.setValue('Colis encore en route, rien à faire')
-    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.get('[data-test="summary-CRITICAL"]').attributes('aria-pressed')).toBe('true')
+    await w.get('[data-test="summary-CRITICAL"]').trigger('click')
     await flushPromises()
-    expect(svc.resolve).toHaveBeenCalledWith('a1', 'Colis encore en route, rien à faire')
-    expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+    expect(svc.list.mock.calls.at(-1)![0].severity).toBeNull()
   })
 
-  it('resynchronisation Stripe : l’alerte résolue par le back passe « Résolue » dans la liste et la fiche', async () => {
+  it('« Résolues cette semaine » ouvre l’onglet des résolues ; les onglets rechargent la file', async () => {
+    const w = await mountPage()
+    await w.get('[data-test="summary-RESOLVED"]').trigger('click')
+    await flushPromises()
+    expect(svc.list.mock.calls.at(-1)![0].resolved).toBe('RESOLVED')
+    await w.get('[data-test="tab-ALL"]').trigger('click')
+    await flushPromises()
+    expect(svc.list.mock.calls.at(-1)![0].resolved).toBe('ALL')
+  })
+
+  it('compteurs en panne : le poste reste utilisable', async () => {
+    svc.list.mockImplementation(async (f: { resolved: string }, _p: number, size: number) => {
+      if (size === 200) throw new Error('boom')
+      return f.resolved === 'OPEN' ? pageOf([row]) : pageOf([])
+    })
+    const w = await mountPage()
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+    expect(w.get('[data-test="summary-CRITICAL"]').text()).toContain('0')
+  })
+
+  it('regroupe les alertes de même type : ×2, déplié au clic, première alerte ouverte', async () => {
+    openRows = [row, escrow('a3', '2026-10-01T12:00:00')]
+    const w = await mountPage()
+    // La plus ancienne (a3) est celle qu'on traite d'abord.
+    expect(w.get('[data-test="alert-group-toggle-Paiement en séquestre depuis plus de 48 h"]').text()).toContain('×2')
+    expect(w.get('[data-test="alert-row-a3"]').attributes('data-selected')).toBe('true')
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+  })
+
+  it('recherche et catégorie réduisent la file sans recharger', async () => {
+    openRows = [row, recon]
+    const w = await mountPage()
+    const calls = svc.list.mock.calls.length
+    await w.get('[data-test="alert-search"]').setValue(P)
+    expect(w.find('[data-test="alert-row-a2"]').exists()).toBe(true)
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(false)
+    await w.get('[data-test="alert-search"]').setValue('')
+    await w.get('[data-test="category-Séquestre"]').trigger('click')
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+    expect(w.find('[data-test="alert-row-a2"]').exists()).toBe(false)
+    await w.get('[data-test="category-Séquestre"]').trigger('click')
+    expect(w.find('[data-test="alert-row-a2"]').exists()).toBe(true)
+    expect(svc.list.mock.calls.length).toBe(calls)
+  })
+
+  it('une recherche qui exclut l’alerte ouverte ouvre la première restante, puis rien quand la file est vide', async () => {
+    openRows = [row, recon]
+    const w = await mountPage()
+    await w.get('[data-test="alert-search"]').setValue('séquestre')
+    expect(w.get('[data-test="alert-detail-title"]').text()).toBe('Paiement en séquestre depuis plus de 48 h')
+    await w.get('[data-test="alert-search"]').setValue('introuvable-xyz')
+    expect(w.find('[data-test="alert-case-empty"]').exists()).toBe(true)
+  })
+
+  it('résout l’alerte avec une note et passe à la suivante', async () => {
+    openRows = [recon, row]
+    const w = await mountPage()
+    expect(w.get('[data-test="alert-row-a2"]').attributes('data-selected')).toBe('true')
+    await w.get('[data-test="alert-note"]').setValue('Colis encore en route, rien à faire')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.resolve).toHaveBeenCalledWith('a2', 'Colis encore en route, rien à faire')
+    expect(w.get('[data-test="alerts-done"]').text()).toBe('Alerte résolue.')
+    expect(w.get('[data-test="alert-row-a1"]').attributes('data-selected')).toBe('true')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'a1' } })
+  })
+
+  it('faux positif : la note envoyée au back le dit', async () => {
+    const w = await mountPage()
+    await w.get('[data-test="alert-action-FALSE_POSITIVE"] input').setValue(true)
+    await w.get('[data-test="alert-note"]').setValue('Règle trop sensible')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.resolve).toHaveBeenCalledWith('a1', 'Faux positif : Règle trop sensible')
+  })
+
+  it('dernière alerte résolue : le dossier se vide et ?open est retiré', async () => {
+    route.query = { open: 'a1' }
+    const w = await mountPage()
+    await w.get('[data-test="alert-note"]').setValue('Corrigé à la main')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="alert-case-empty"]').exists()).toBe(true)
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })
+  })
+
+  it('refus du back : l’erreur se lit dans le panneau et la saisie reste', async () => {
+    svc.resolve.mockRejectedValue(Object.assign(new Error('Forbidden'), { data: { detail: 'Permission requise' } }))
+    const w = await mountPage()
+    await w.get('[data-test="alert-note"]').setValue('Corrigé à la main')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="alert-error"]').text()).toBeTruthy()
+    expect((w.get('[data-test="alert-note"]').element as HTMLTextAreaElement).value).toBe('Corrigé à la main')
+    expect(w.find('[data-test="alerts-done"]').exists()).toBe(false)
+  })
+
+  it('résout tout le groupe d’un coup avec une seule note', async () => {
+    openRows = [row, escrow('a3', '2026-10-01T12:00:00'), escrow('a4', '2026-10-02T12:00:00'), recon]
+    const w = await mountPage()
+    // La critique passe en tête : on ouvre le groupe « séquestre ».
+    await w.get('[data-test="alert-group-toggle-Paiement en séquestre depuis plus de 48 h"]').trigger('click')
+    await flushPromises()
+    await w.get('[data-test="scope-group"]').trigger('click')
+    await w.get('[data-test="alert-note"]').setValue('Versement forcé')
+    await w.get('[data-test="alert-acknowledge"]').setValue(true)
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.resolve.mock.calls.map(c => c[0]).sort()).toEqual(['a1', 'a3', 'a4'])
+    expect(svc.resolve.mock.calls.every(c => c[1] === 'Versement forcé')).toBe(true)
+    expect(w.get('[data-test="alerts-done"]').text()).toBe('3 alertes résolues.')
+    expect(w.get('[data-test="alert-row-a2"]').attributes('data-selected')).toBe('true')
+  })
+
+  it('résolution de groupe partielle : les refusées restent ouvertes et sont annoncées', async () => {
+    openRows = [row, escrow('a3', '2026-10-01T12:00:00')]
+    svc.resolve.mockImplementation(async (id: string) => {
+      if (id === 'a1') throw new Error('403')
+      openRows = openRows.filter(a => a.id !== id)
+      return { id, resolved: true }
+    })
+    const w = await mountPage()
+    await w.get('[data-test="scope-group"]').trigger('click')
+    await w.get('[data-test="alert-note"]').setValue('Versement forcé')
+    await w.get('[data-test="alert-acknowledge"]').setValue(true)
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="alert-error"]').text()).toContain('1 alerte n’a pas pu être résolue : elle reste ouverte.')
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+    expect(w.find('[data-test="alert-row-a3"]').exists()).toBe(false)
+  })
+
+  it('J / K parcourent la file, ⏎ confirme la décision, 2 choisit le faux positif', async () => {
+    openRows = [recon, row]
+    const w = await mountPage()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }))
+    await flushPromises()
+    expect(w.get('[data-test="alert-row-a1"]').attributes('data-selected')).toBe('true')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k' }))
+    await flushPromises()
+    expect(w.get('[data-test="alert-row-a2"]').attributes('data-selected')).toBe('true')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }))
+    await w.get('[data-test="alert-note"]').setValue('Règle trop sensible')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+    await flushPromises()
+    expect(svc.resolve).toHaveBeenCalledWith('a2', 'Faux positif : Règle trop sensible')
+  })
+
+  it('resynchronisation Stripe : l’alerte résolue par le back passe « Résolue » dans la liste et le dossier', async () => {
     seedAuth('SUPER_ADMIN')
-    svc.list.mockResolvedValue({ content: [row, recon], totalElements: 2, totalPages: 1, number: 0, size: 20 })
+    openRows = [row, recon]
     paySvc.get.mockReset().mockResolvedValue({ id: P, status: 'PENDING', method: 'STRIPE', amountCents: 6450, commissionCents: 774, currency: 'EUR' })
     paySvc.resyncStripe.mockReset().mockResolvedValue(resyncResult)
     const w = await mountPage()
-    await w.find('[data-test="details-a2"]').trigger('click')
     await flushPromises()
-    await w.find('[data-test="resync-stripe"]').trigger('click')
+    await w.get('[data-test="resync-stripe"]').trigger('click')
     await flushPromises()
-    expect(w.find('[data-test="alert-row-a2"]').text()).toContain('Résolue')
-    expect(w.find('[data-test="alert-row-a1"]').text()).toContain('Ouverte')
-    expect(w.find('[data-test="alert-detail"]').text()).toContain('Résolue le')
-    expect(w.find('[data-test="alert-detail-resolve"]').exists()).toBe(false)
-    expect(svc.list).toHaveBeenCalledTimes(1)
+    expect(w.get('[data-test="alert-row-a2"]').text()).toContain('Résolue')
+    expect(w.get('[data-test="alert-row-a1"]').text()).not.toContain('Résolue')
+    expect(w.get('[data-test="alert-detail-state"]').text()).toContain('Résolue le')
+    expect(w.find('[data-test="alert-decision-resolved"]').exists()).toBe(true)
+    expect(queueReads()).toHaveLength(1)
   })
 
-  it('versement forcé depuis la fiche : la liste est rechargée', async () => {
+  it('versement forcé : la file est rechargée et le dossier garde ses données fraîches', async () => {
     seedAuth('SUPER_ADMIN')
-    svc.list.mockResolvedValue({ content: [recon], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    openRows = [recon]
     paySvc.get.mockReset().mockResolvedValue({ id: P, status: 'ESCROW', method: 'STRIPE', amountCents: 6450, commissionCents: 774, currency: 'EUR' })
     paySvc.forceRelease.mockReset().mockResolvedValue({ id: P, status: 'RELEASED', method: 'STRIPE', amountCents: 6450, commissionCents: 774, currency: 'EUR' })
     const w = await mountPage()
-    await w.find('[data-test="details-a2"]').trigger('click')
-    await flushPromises()
-    await w.find('[data-test="alert-fix-release"]').trigger('click')
-    svc.list.mockResolvedValue({ content: [{ ...recon, detail: 'rafraîchie' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
-    const confirm = w.findAll('[data-test="confirm"]').at(-1)!
-    await confirm.trigger('click')
+    await w.get('[data-test="alert-fix-release"]').trigger('click')
+    openRows = [{ ...recon, detail: 'rafraîchie' }]
+    await w.findAll('[data-test="confirm"]').at(-1)!.trigger('click')
     await flushPromises()
     expect(paySvc.forceRelease).toHaveBeenCalledWith(P)
-    expect(svc.list).toHaveBeenCalledTimes(2)
-    expect(w.find('[data-test="alert-detail-summary"]').text()).toBe('rafraîchie')
+    expect(queueReads()).toHaveLength(2)
+    expect(w.get('[data-test="alert-detail-summary"]').text()).toBe('rafraîchie')
+  })
+
+  it('« Marquer comme résolue » du dossier met la main sur la décision', async () => {
+    seedAuth('SUPER_ADMIN')
+    openRows = [recon]
+    paySvc.get.mockReset().mockResolvedValue({ id: P, status: 'PENDING', method: 'STRIPE', amountCents: 6450, commissionCents: 774, currency: 'EUR' })
+    paySvc.resyncStripe.mockReset().mockResolvedValue({ ...resyncResult, resolvedAlertIds: [], alertResolvable: true })
+    const w = await mountPage()
+    await w.get('[data-test="resync-stripe"]').trigger('click')
+    await flushPromises()
+    await w.get('[data-test="alert-fix-resolve"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement?.id).toBe('alert-note')
   })
 
   describe('lien profond ?open=<alerte>', () => {
     const A = '0a1b2c3d-1111-4222-8333-444455556666'
-    const far = { ...row, id: A, type: 'ESCROW_J48_TIMEOUT', detail: 'Hors de la page' }
+    const far = escrow(A, '2026-10-06T12:00:00', { detail: 'Hors de la page', resolved: true, resolvedAt: '2026-10-07T12:00:00' })
 
-    it('page sans ?open : liste seule, aucune lecture par identifiant, URL intacte', async () => {
-      const w = await mountPage()
-      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+    it('page sans ?open : aucune lecture par identifiant, URL intacte', async () => {
+      await mountPage()
       expect(svc.get).not.toHaveBeenCalled()
       expect(replaceMock).not.toHaveBeenCalled()
     })
 
-    it('?open=<id> hors de la liste : lue via alertsService.get et ouverte dans le panneau', async () => {
+    it('?open=<id> de la liste : ouverte sans lecture supplémentaire', async () => {
+      openRows = [row, recon]
+      route.query = { open: 'a2' }
+      const w = await mountPage()
+      expect(svc.get).not.toHaveBeenCalled()
+      expect(w.get('[data-test="alert-row-a2"]').attributes('data-selected')).toBe('true')
+    })
+
+    it('?open=<id> hors de la liste : lue via alertsService.get et gardée ouverte', async () => {
       svc.get.mockResolvedValue(far)
       route.query = { open: A }
       const w = await mountPage()
       expect(svc.get).toHaveBeenCalledWith(A)
       expect(w.get('[data-test="alert-detail-summary"]').text()).toBe('Hors de la page')
+      expect(w.find('[data-test="alert-decision-resolved"]').exists()).toBe(true)
     })
 
-    it('404 : « Alerte introuvable », la liste reste utilisable', async () => {
+    it('404 : « Alerte introuvable », la file reste utilisable et ouvre la première alerte', async () => {
       svc.get.mockRejectedValue(Object.assign(new Error('Not Found'), { statusCode: 404 }))
       route.query = { open: A }
       const w = await mountPage()
       expect(w.get('[data-test="alert-open-error"]').text()).toContain('Alerte introuvable')
-      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
       expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+      expect(w.get('[data-test="alert-row-a1"]').attributes('data-selected')).toBe('true')
     })
 
-    it('fermer le panneau retire ?open de l’URL', async () => {
-      svc.get.mockResolvedValue(far)
-      route.query = { open: A, x: 'y' }
-      const w = await mountPage()
-      await w.get('[data-test="alert-detail"]').trigger('click')
-      await flushPromises()
-      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
-      expect(replaceMock).toHaveBeenLastCalledWith({ query: { x: 'y' } })
-    })
-
-    it('page déjà ouverte : un changement de query seul ouvre l’alerte, son retrait la ferme', async () => {
+    it('page déjà ouverte : un changement de query seul ouvre l’alerte', async () => {
       svc.get.mockResolvedValue(far)
       const w = await mountPage()
       route.query = { open: A }
       await flushPromises()
-      expect(w.find('[data-test="alert-detail"]').exists()).toBe(true)
-      route.query = {}
-      await flushPromises()
-      expect(w.find('[data-test="alert-detail"]').exists()).toBe(false)
+      expect(w.get('[data-test="alert-detail-summary"]').text()).toBe('Hors de la page')
     })
 
     it('lien introuvable puis retrait de ?open (retour arrière) : le message d’erreur disparaît', async () => {
@@ -178,9 +350,10 @@ describe('pages/alertes', () => {
       route.path = '/alertes'
     })
 
-    it('ouvrir une alerte de la liste écrit ?open dans l’URL', async () => {
+    it('choisir une alerte dans la file écrit ?open dans l’URL', async () => {
+      openRows = [recon, row]
       const w = await mountPage()
-      await w.get('[data-test="details-a1"]').trigger('click')
+      await w.get('[data-test="alert-open-a1"]').trigger('click')
       await flushPromises()
       expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'a1' } })
       expect(svc.get).not.toHaveBeenCalled()

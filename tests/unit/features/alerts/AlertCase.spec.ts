@@ -6,7 +6,7 @@ import type { AdminAlert } from '@/features/alerts/types/index'
 const svc = vi.hoisted(() => ({ violations: vi.fn() }))
 vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc }))
 
-import AlertDetailPanel from '@/features/alerts/components/AlertDetailPanel.vue'
+import AlertCase from '@/features/alerts/components/AlertCase.vue'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="JSON.stringify(to)"><slot /></a>' }
 const P = '11111111-2222-3333-4444-555555555555'
@@ -18,15 +18,17 @@ function alert(over: Partial<AdminAlert> = {}): AdminAlert {
   }
 }
 
-function mountPanel(a: AdminAlert | null) {
-  return mount(AlertDetailPanel, { props: { alert: a }, global: { stubs: { NuxtLink } } })
+function mountPanel(a: AdminAlert | null, now?: number) {
+  return mount(AlertCase, { props: { alert: a, now }, global: { stubs: { NuxtLink } } })
 }
 
-describe('AlertDetailPanel', () => {
+describe('AlertCase', () => {
   beforeEach(() => { seedAuth('ADMIN'); svc.violations.mockReset() })
 
-  it('rien quand aucune alerte n’est sélectionnée', () => {
-    expect(mountPanel(null).find('[data-test="alert-detail"]').exists()).toBe(false)
+  it('aucune alerte sélectionnée : message, rien d’autre', () => {
+    const w = mountPanel(null)
+    expect(w.find('[data-test="alert-case-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="alert-detail-title"]').exists()).toBe(false)
   })
 
   it('titre, explication, étapes, liens et données en clair', () => {
@@ -38,18 +40,18 @@ describe('AlertDetailPanel', () => {
     expect(svc.violations).not.toHaveBeenCalled()
   })
 
-  it('émet resolve et close', async () => {
-    const w = mountPanel(alert())
-    await w.find('[data-test="alert-detail-resolve"]').trigger('click')
-    await w.find('[data-test="alert-detail-close"]').trigger('click')
-    expect(w.emitted('resolve')![0]).toEqual(['a1'])
-    expect(w.emitted('close')).toHaveLength(1)
+  it('alerte ouverte : état et ancienneté dans l’en-tête', () => {
+    const NOW = Date.parse('2026-10-26T12:00:00Z')
+    const w = mountPanel(alert({ createdAt: '2026-10-19T12:00:00Z' }), NOW)
+    expect(w.find('[data-test="alert-detail-state"]').text()).toBe('Ouverte')
+    expect(w.find('[data-test="alert-detail-age"]').text()).toBe('depuis 7 j')
+    expect(w.find('[data-test="alert-detail-age"]').classes()).toContain('text-danger')
   })
 
-  it('pas de bouton résoudre sur une alerte déjà résolue', () => {
+  it('alerte résolue : date de résolution, pas d’ancienneté', () => {
     const w = mountPanel(alert({ resolved: true, resolvedAt: '2026-10-06T13:00:00Z' }))
-    expect(w.find('[data-test="alert-detail-resolve"]').exists()).toBe(false)
-    expect(w.text()).toContain('Résolue le')
+    expect(w.find('[data-test="alert-detail-state"]').text()).toContain('Résolue le')
+    expect(w.find('[data-test="alert-detail-age"]').exists()).toBe(false)
   })
 
   it('règle de cohérence : recalcule et montre les lignes en faute avec liens', async () => {

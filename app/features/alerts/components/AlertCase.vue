@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useEscapeClose } from '@/composables/useEscapeClose'
 import { computed, ref, watch } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { alertSeverityMeta } from './alertSeverity'
@@ -7,16 +6,18 @@ import AlertRowsTable from './AlertRowsTable.vue'
 import AlertStripeFix from './AlertStripeFix.vue'
 import { alertPaymentId } from '@/features/payments/lib/stripeResync'
 import { alertFacts, alertGuide, alertLinks, alertSampleRows, alertSummary, entityLink, isMoneyInvariant } from '@/features/alerts/lib/alertCatalog'
+import { alertAge } from '@/features/alerts/lib/alertWorkbench'
 import { alertsService } from '@/features/alerts/services/alertsService'
 import type { AdminAlert, AlertViolations } from '@/features/alerts/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { formatAlertDate } from '@/features/alerts/lib/alertDate'
-import { useAuthStore } from '@/stores/auth'
 
-const props = defineProps<{ alert: AdminAlert | null }>()
-const emit = defineEmits<{ close: []; resolve: [id: string]; 'auto-resolved': [ids: string[]]; changed: [] }>()
-useEscapeClose(() => emit('close'), () => props.alert !== null)
-const auth = useAuthStore()
+/**
+ * Dossier de l'alerte, au centre du poste : ce qui s'est passé, les étapes à suivre, les gestes
+ * directs (resynchroniser, forcer le versement), les lignes en faute et les données de la levée.
+ */
+const props = defineProps<{ alert: AdminAlert | null; now?: number }>()
+const emit = defineEmits<{ 'auto-resolved': [ids: string[]]; changed: []; resolve: [id: string] }>()
 
 const guide = computed(() => props.alert ? alertGuide(props.alert.type) : null)
 const facts = computed(() => props.alert ? alertFacts(props.alert) : [])
@@ -25,6 +26,8 @@ const samples = computed(() => props.alert ? alertSampleRows(props.alert) : [])
 /** Paiement visé : la section « Corriger » n'apparaît que s'il est identifié. */
 const fixPaymentId = computed(() => props.alert ? alertPaymentId(props.alert) : null)
 const moneyInvariant = computed(() => !!props.alert && isMoneyInvariant(props.alert.type))
+const age = computed(() => (props.alert && !props.alert.resolved ? alertAge(props.alert, props.now) : null))
+const AGE_TONE = { neutral: 'text-text-muted', warning: 'text-warning', danger: 'text-danger' } as const
 
 const violations = ref<AlertViolations | null>(null)
 const violationsLoading = ref(false)
@@ -52,40 +55,40 @@ watch(() => props.alert?.id, (id) => {
 </script>
 
 <template>
-  <div v-if="alert && guide" class="fixed inset-0 z-40 flex justify-end bg-black/30" data-test="alert-detail" @click.self="emit('close')">
-    <aside class="h-full w-full max-w-2xl bg-surface border-l border-border overflow-y-auto p-6">
-      <div class="flex items-start justify-between gap-3 mb-1">
-        <h2 class="font-display text-xl font-bold text-pretty" data-test="alert-detail-title">{{ guide.title }}</h2>
-        <StatusBadge v-bind="alertSeverityMeta(alert.severity)" />
-      </div>
-      <p class="text-xs text-text-muted mb-4">
-        {{ guide.category }} · <span class="font-mono">{{ alert.type }}</span>
-      </p>
+  <article aria-label="Dossier de l’alerte" data-test="alert-case" class="flex flex-col gap-3">
+    <p
+      v-if="!alert || !guide" data-test="alert-case-empty"
+      class="rounded-card border border-border bg-surface px-5 py-8 text-center text-sm text-text-muted"
+    >Aucune alerte sélectionnée.</p>
 
-      <dl class="grid grid-cols-2 gap-3 text-sm mb-5">
-        <div><dt class="text-text-muted">Levée le</dt><dd class="tabular-nums">{{ formatAlertDate(alert.createdAt) }}</dd></div>
-        <div>
-          <dt class="text-text-muted">État</dt>
-          <dd>{{ alert.resolved ? `Résolue${alert.resolvedAt ? ' le ' + formatAlertDate(alert.resolvedAt) : ''}` : 'Ouverte' }}</dd>
+    <template v-else>
+      <header class="rounded-card border border-border bg-surface p-5">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="font-display text-xl font-bold text-pretty" data-test="alert-detail-title">{{ guide.title }}</h2>
+          <StatusBadge v-bind="alertSeverityMeta(alert.severity)" />
+          <span
+            :class="['rounded-full px-2 py-0.5 text-xs', alert.resolved ? 'bg-success/15 text-success' : 'bg-surface-elevated text-text-muted']"
+            data-test="alert-detail-state"
+          >{{ alert.resolved ? `Résolue${alert.resolvedAt ? ' le ' + formatAlertDate(alert.resolvedAt) : ''}` : 'Ouverte' }}</span>
+          <span v-if="age" data-test="alert-detail-age" :class="['text-xs tabular-nums', AGE_TONE[age.tone]]">depuis {{ age.label }}</span>
         </div>
-      </dl>
-
-      <section class="mb-5">
-        <h3 class="text-sm font-semibold mb-1">Ce qui s’est passé</h3>
-        <p class="text-sm text-pretty" data-test="alert-detail-summary">{{ alertSummary(alert) }}</p>
+        <p class="mt-1 text-xs text-text-muted">
+          {{ guide.category }} · <span class="font-mono">{{ alert.type }}</span> · levée le <span class="tabular-nums">{{ formatAlertDate(alert.createdAt) }}</span>
+        </p>
+        <p class="mt-3 text-sm text-pretty" data-test="alert-detail-summary">{{ alertSummary(alert) }}</p>
         <p class="mt-2 text-sm text-text-muted text-pretty" data-test="alert-detail-explanation">{{ guide.explanation }}</p>
-      </section>
+      </header>
 
-      <section class="mb-5 rounded-card border border-primary/30 bg-primary/5 p-4" data-test="alert-detail-actions">
-        <h3 class="text-sm font-semibold mb-2">Que faire</h3>
-        <ol class="list-decimal pl-5 space-y-1.5 text-sm text-pretty">
+      <section class="rounded-card border border-primary/30 bg-primary/5 p-5" data-test="alert-detail-actions">
+        <h3 class="mb-2 font-display text-sm font-semibold">Que faire</h3>
+        <ol class="list-decimal space-y-1.5 pl-5 text-sm text-pretty">
           <li v-for="(step, i) in guide.actions" :key="i">{{ step }}</li>
         </ol>
         <div v-if="links.length" class="mt-3 flex flex-wrap gap-2">
           <NuxtLink
             v-for="link in links" :key="link.label + JSON.stringify(link.to.query)" :to="link.to"
             :data-test="`alert-link-${link.to.path.slice(1)}`"
-            class="rounded-btn px-3 py-1.5 text-sm bg-primary/15 text-primary hover:bg-primary/25"
+            class="rounded-btn bg-primary/15 px-3 py-1.5 text-sm text-primary hover:bg-primary/25"
           >{{ link.label }}</NuxtLink>
         </div>
       </section>
@@ -95,9 +98,9 @@ watch(() => props.alert?.id, (id) => {
         @auto-resolved="(ids) => emit('auto-resolved', ids)" @resolve="(id) => emit('resolve', id)" @changed="emit('changed')"
       />
 
-      <section v-if="moneyInvariant" class="mb-5" data-test="alert-detail-violations">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-semibold">Lignes en faute actuellement</h3>
+      <section v-if="moneyInvariant" class="rounded-card border border-border bg-surface p-5" data-test="alert-detail-violations">
+        <div class="mb-2 flex items-center justify-between">
+          <h3 class="font-display text-sm font-semibold">Lignes en faute actuellement</h3>
           <button
             type="button" data-test="alert-violations-refresh" :disabled="violationsLoading"
             class="text-xs text-primary hover:underline disabled:opacity-40" @click="loadViolations(alert.id)"
@@ -110,7 +113,7 @@ watch(() => props.alert?.id, (id) => {
             Plus aucune ligne en faute : l’anomalie est corrigée, vous pouvez résoudre l’alerte.
           </p>
           <template v-else>
-            <p class="text-sm mb-2" data-test="alert-violations-total">
+            <p class="mb-2 text-sm" data-test="alert-violations-total">
               {{ violations.total }} ligne(s) en faute<span v-if="violations.total > violations.rows.length"> ({{ violations.rows.length }} affichées)</span>.
             </p>
             <AlertRowsTable :rows="violations.rows" :link-for="entityLink" />
@@ -118,29 +121,20 @@ watch(() => props.alert?.id, (id) => {
         </template>
       </section>
 
-      <section v-if="samples.length && (!moneyInvariant || violationsError)" class="mb-5">
-        <h3 class="text-sm font-semibold mb-2">Exemples au moment de l’alerte</h3>
+      <section v-if="samples.length && (!moneyInvariant || violationsError)" class="rounded-card border border-border bg-surface p-5">
+        <h3 class="mb-2 font-display text-sm font-semibold">Exemples au moment de l’alerte</h3>
         <AlertRowsTable :rows="samples" :link-for="entityLink" />
       </section>
 
-      <section v-if="facts.length" class="mb-5">
-        <h3 class="text-sm font-semibold mb-2">Données de l’alerte</h3>
-        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm" data-test="alert-detail-facts">
+      <section v-if="facts.length" class="rounded-card border border-border bg-surface p-5">
+        <h3 class="mb-2 font-display text-sm font-semibold">Données de l’alerte</h3>
+        <dl class="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2" data-test="alert-detail-facts">
           <div v-for="f in facts" :key="f.key" class="min-w-0">
             <dt class="text-text-muted">{{ f.label }}</dt>
             <dd class="break-all font-mono text-xs">{{ f.value }}</dd>
           </div>
         </dl>
       </section>
-
-      <div class="mt-6 flex flex-wrap gap-2">
-        <button
-          v-if="!alert.resolved && auth.can('ALERT_RESOLVE')" type="button" data-test="alert-detail-resolve"
-          class="rounded-btn px-4 py-2 text-sm bg-success/20 text-success hover:bg-success/30"
-          @click="emit('resolve', alert.id)"
-        >Marquer comme résolue</button>
-        <button type="button" data-test="alert-detail-close" class="rounded-btn px-4 py-2 text-sm border border-border" @click="emit('close')">Fermer</button>
-      </div>
-    </aside>
-  </div>
+    </template>
+  </article>
 </template>
