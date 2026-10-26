@@ -102,3 +102,13 @@ export function quickNotesFor(action: string): string[] {
   if (action === 'RESOLVE') return ['Pris en compte', 'Corrigé', 'Déjà traité']
   return []
 }
+
+/**
+ * Textes que le back envoie (messages_fr.properties : `notification.admin-warning.*` et
+ * `notification.report-resolved.*`), pour l'aperçu « Ce qui sera envoyé ». Une copie, pas la
+ * source : si le back change ses textes, l'aperçu doit suivre.
+ */
+export const WARNING_TITLE = 'Avertissement Yadony'
+export const WARNING_DEFAULT_BODY = 'Un comportement signalé sur votre compte a été examiné.'
+export const REPORTER_THANKS_TITLE = 'Signalement traité'
+export const REPORTER_THANKS_BODY = 'Merci, votre signalement a été traité.'

@@ -76,8 +76,8 @@ test('rapport de bug : répondre, lien vers le fil, puis retour au signalement d
   await expect(page.locator('[data-test="reports-reply-sent"]')).toContainText('Réponse envoyée, conversation créée. Awa la verra dans Yadony Support.')
   expect(replies).toEqual([{ message: 'Merci Awa, corrigé.', attachmentKeys: [] }])
   // Le signalement reste ouvert, le traitement reste proposé, la conversation est signalée.
-  await expect(row).toContainText('Ouvert')
-  await expect(page.locator('[data-test="resolve-r1"]')).toBeVisible()
+  await expect(row).not.toContainText('Résolu')
+  await expect(page.locator('[data-test="resolve-confirm"]')).toBeVisible()
   await expect(page.locator('[data-test="report-conversation-r1"]')).toContainText('Conversation ouverte')
   await expect(page.locator('[data-test="reply-r1"]')).toHaveText('Répondre à nouveau')
 
@@ -88,7 +88,7 @@ test('rapport de bug : répondre, lien vers le fil, puis retour au signalement d
   await source.locator('a').click()
   await expect(page).toHaveURL(/\/signalements\?open=r1/)
   await expect(page.locator('[data-test="reports-focus"]')).toBeVisible()
-  await expect(page.locator('[data-test="report-row-r1"]')).toHaveAttribute('data-highlighted', 'true')
+  await expect(page.locator('[data-test="report-row-r1"]')).toHaveAttribute('data-selected', 'true')
 })
 
 test('conversation existante : « Répondre à nouveau » ajoute au même fil', async ({ page }) => {
@@ -122,7 +122,7 @@ test('422 report-not-app-bug : l’erreur reste dans la fenêtre', async ({ page
 test('signalement déjà traité : Répondre reste proposé ; signalant injoignable (422)', async ({ page }) => {
   await mockBackend(page, bug({ status: 'RESOLVED', actionTaken: 'RESOLVE', availableActions: [] }), 'reporter-unavailable')
   await page.goto('/signalements')
-  await expect(page.locator('[data-test="resolve-r1"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="resolve-confirm"]')).toHaveCount(0)
   await page.locator('[data-test="reply-r1"]').click()
   const dialog = page.locator('[data-test="reply-dialog"]')
   await dialog.locator('[data-test="reply-message"]').fill('Bonjour')

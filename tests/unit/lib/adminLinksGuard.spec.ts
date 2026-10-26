@@ -13,7 +13,7 @@ const UNCHECKED_ALLOWED = [
   'app/features/alerts/lib/alertCatalog.ts',
   'app/features/bids/lib/bidLinks.ts',
   'app/features/search/services/globalSearchService.ts',
-  'app/features/signalements/components/ReportsTable.vue',
+  'app/features/signalements/components/ReportCase.vue',
   'app/features/user-profile/lib/objectLinks.ts',
   'app/features/user-profile/lib/sectionColumns.ts',
 ]
