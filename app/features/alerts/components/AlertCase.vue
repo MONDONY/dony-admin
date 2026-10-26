@@ -6,9 +6,10 @@ import AlertRowsTable from './AlertRowsTable.vue'
 import AlertStripeFix from './AlertStripeFix.vue'
 import { alertPaymentId } from '@/features/payments/lib/stripeResync'
 import { alertFacts, alertGuide, alertLinks, alertSampleRows, alertSummary, entityLink, isMoneyInvariant } from '@/features/alerts/lib/alertCatalog'
-import { alertAge } from '@/features/alerts/lib/alertWorkbench'
+import ReportTimeline from '@/features/signalements/components/ReportTimeline.vue'
+import { alertAge, buildAlertTimeline, isSnoozed } from '@/features/alerts/lib/alertWorkbench'
 import { alertsService } from '@/features/alerts/services/alertsService'
-import type { AdminAlert, AlertViolations } from '@/features/alerts/types/index'
+import type { AdminAlert, AlertContext, AlertViolations } from '@/features/alerts/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { formatAlertDate } from '@/features/alerts/lib/alertDate'
 
@@ -16,8 +17,15 @@ import { formatAlertDate } from '@/features/alerts/lib/alertDate'
  * Dossier de l'alerte, au centre du poste : ce qui s'est passé, les étapes à suivre, les gestes
  * directs (resynchroniser, forcer le versement), les lignes en faute et les données de la levée.
  */
-const props = defineProps<{ alert: AdminAlert | null; now?: number }>()
-const emit = defineEmits<{ 'auto-resolved': [ids: string[]]; changed: []; resolve: [id: string] }>()
+const props = withDefaults(defineProps<{
+  alert: AdminAlert | null
+  now?: number
+  /** Autres alertes sur le même paiement ou colis, et historique ; null tant qu'il charge ou sur un ancien back. */
+  context?: AlertContext | null
+  contextLoading?: boolean
+  contextError?: string | null
+}>(), { now: undefined, context: null, contextLoading: false, contextError: null })
+const emit = defineEmits<{ 'auto-resolved': [ids: string[]]; changed: []; resolve: [id: string]; openAlert: [id: string] }>()
 
 const guide = computed(() => props.alert ? alertGuide(props.alert.type) : null)
 const facts = computed(() => props.alert ? alertFacts(props.alert) : [])
@@ -27,6 +35,9 @@ const samples = computed(() => props.alert ? alertSampleRows(props.alert) : [])
 const fixPaymentId = computed(() => props.alert ? alertPaymentId(props.alert) : null)
 const moneyInvariant = computed(() => !!props.alert && isMoneyInvariant(props.alert.type))
 const age = computed(() => (props.alert && !props.alert.resolved ? alertAge(props.alert, props.now) : null))
+const snoozed = computed(() => !!props.alert && isSnoozed(props.alert, props.now))
+const related = computed(() => props.context?.related ?? [])
+const timeline = computed(() => (props.alert && props.context ? buildAlertTimeline(props.alert, props.context.history) : []))
 const AGE_TONE = { neutral: 'text-text-muted', warning: 'text-warning', danger: 'text-danger' } as const
 
 const violations = ref<AlertViolations | null>(null)
@@ -70,6 +81,10 @@ watch(() => props.alert?.id, (id) => {
             :class="['rounded-full px-2 py-0.5 text-xs', alert.resolved ? 'bg-success/15 text-success' : 'bg-surface-elevated text-text-muted']"
             data-test="alert-detail-state"
           >{{ alert.resolved ? `Résolue${alert.resolvedAt ? ' le ' + formatAlertDate(alert.resolvedAt) : ''}` : 'Ouverte' }}</span>
+          <span
+            v-if="snoozed" data-test="alert-detail-snoozed"
+            class="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning"
+          >Reportée jusqu’au {{ formatAlertDate(alert.snoozedUntil) }}</span>
           <span v-if="age" data-test="alert-detail-age" :class="['text-xs tabular-nums', AGE_TONE[age.tone]]">depuis {{ age.label }}</span>
         </div>
         <p class="mt-1 text-xs text-text-muted">
@@ -124,6 +139,32 @@ watch(() => props.alert?.id, (id) => {
       <section v-if="samples.length && (!moneyInvariant || violationsError)" class="rounded-card border border-border bg-surface p-5">
         <h3 class="mb-2 font-display text-sm font-semibold">Exemples au moment de l’alerte</h3>
         <AlertRowsTable :rows="samples" :link-for="entityLink" />
+      </section>
+
+      <p v-if="contextLoading" data-test="alert-context-loading" role="status" class="px-1 text-xs text-text-muted">Chargement du contexte…</p>
+      <p v-else-if="contextError" data-test="alert-context-error" role="status" class="px-1 text-xs text-text-muted">{{ contextError }}</p>
+
+      <section v-if="related.length" aria-label="Autres alertes sur le même objet" data-test="alert-related" class="rounded-card border border-border bg-surface p-5">
+        <h3 class="mb-2 font-display text-sm font-semibold">Autres alertes sur ce paiement ou ce colis</h3>
+        <ul class="flex flex-col gap-1">
+          <li v-for="r in related" :key="r.id">
+            <button
+              type="button" :data-test="`alert-related-${r.id}`"
+              class="flex w-full items-baseline justify-between gap-3 rounded-btn px-2 py-1.5 text-left text-sm hover:bg-surface-elevated"
+              @click="emit('openAlert', r.id)"
+            >
+              <span class="min-w-0 truncate">{{ alertGuide(r.type).title }}</span>
+              <span :class="['shrink-0 text-xs tabular-nums', r.resolved ? 'text-success' : 'text-text-muted']">
+                {{ r.resolved ? 'Résolue' : 'Ouverte' }} · {{ formatAlertDate(r.createdAt) }}
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="context" aria-label="Historique" data-test="alert-history" class="rounded-card border border-border bg-surface p-5">
+        <h3 class="mb-3 font-display text-sm font-semibold">Historique</h3>
+        <ReportTimeline :items="timeline" />
       </section>
 
       <section v-if="facts.length" class="rounded-card border border-border bg-surface p-5">

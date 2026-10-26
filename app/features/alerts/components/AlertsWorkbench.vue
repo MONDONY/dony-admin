@@ -6,6 +6,7 @@ import AlertQueue from './AlertQueue.vue'
 import AlertCase from './AlertCase.vue'
 import AlertDecisionPanel from './AlertDecisionPanel.vue'
 import { useAlerts } from '@/features/alerts/composables/useAlerts'
+import { useAlertContext } from '@/features/alerts/composables/useAlertContext'
 import { useAlertSummary } from '@/features/alerts/composables/useAlertSummary'
 import { useOpenAlert } from '@/features/alerts/composables/useOpenAlert'
 import { useWorkbenchShortcuts } from '@/features/signalements/composables/useWorkbenchShortcuts'
@@ -16,6 +17,7 @@ import {
   filterAlerts,
   followingAlertId,
   groupAlerts,
+  isSnoozed,
   neighbourAlertId,
   queueOrder,
   type AlertAction,
@@ -23,15 +25,17 @@ import {
 } from '@/features/alerts/lib/alertWorkbench'
 import type { AlertSeverity, ResolvedFilter } from '@/features/alerts/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { isEndpointMissing } from '@/lib/endpointMissing'
 
 /**
  * Poste de traitement des alertes : file (alertes de même type regroupées) à gauche, dossier au
  * centre, décision à droite. L'alerte ouverte vit dans l'URL (`?open=<id>`), écrite sans pile
  * d'historique : un lien « Ouvrir l'alerte » d'une autre page atterrit dessus.
  */
-const { alerts, isLoading, error: alertsError, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, resolveMany, markResolvedLocally } = useAlerts()
+const { alerts, isLoading, error: alertsError, totalPages, currentPage, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, resolveMany, reopen, snooze, unsnooze, markResolvedLocally } = useAlerts()
 const { selected, openError, open, close, openById } = useOpenAlert(alerts)
 const { summary, loaded: summaryLoaded, refresh: refreshSummary } = useAlertSummary()
+const ctx = useAlertContext()
 
 const query = ref('')
 const category = ref<string | null>(null)
@@ -41,6 +45,8 @@ const busy = ref(false)
 const decisionError = ref<string | null>(null)
 const doneMessage = ref('')
 const decisionPanel = ref<InstanceType<typeof AlertDecisionPanel> | null>(null)
+/** Gestes que le serveur ne connaît pas encore (ancien back) : retirés de la décision. */
+const unavailable = ref<AlertAction[]>([])
 let ready = false
 
 const route = useRoute()
@@ -58,7 +64,10 @@ function writeOpen(id: string | null) {
 }
 
 // ---- File ----
-const visible = computed(() => filterAlerts(alerts.value, { query: query.value, category: category.value }))
+// Les onglets « ouvertes » et « reportées » se recoupent côté serveur ; un ancien back, qui ignore le
+// report, rend tout dans « ouvertes » : l'écran refait le tri sur la date de report.
+const visible = computed(() => filterAlerts(alerts.value, { query: query.value, category: category.value })
+  .filter((a) => (filters.resolved === 'OPEN' ? !isSnoozed(a) : filters.resolved === 'SNOOZED' ? isSnoozed(a) : true)))
 const groups = computed(() => groupAlerts(visible.value))
 const order = computed(() => queueOrder(groups.value))
 const categories = computed(() => alertCategories(alerts.value))
@@ -108,6 +117,7 @@ watch(order, (list) => {
   else if (selected.value) selected.value = null
 })
 // Liste rechargée : l'alerte ouverte reprend ses données fraîches (état, date de résolution).
+watch(selectedId, (id) => { void ctx.load(id) })
 watch(alerts, (list) => {
   const fresh = list.find((a) => a.id === selected.value?.id)
   if (fresh) selected.value = fresh
@@ -122,6 +132,7 @@ async function toggleSeverity(s: AlertSeverity) {
 async function showResolved() { await setTab('RESOLVED') }
 const TABS: { value: ResolvedFilter; label: string }[] = [
   { value: 'OPEN', label: 'Ouvertes' },
+  { value: 'SNOOZED', label: 'Reportées' },
   { value: 'RESOLVED', label: 'Résolues' },
   { value: 'ALL', label: 'Toutes' },
 ]
@@ -131,33 +142,61 @@ const catChip = (on: boolean) => ['rounded-full border px-2.5 py-0.5 text-xs tra
   on ? 'border-primary font-medium text-primary' : 'border-border text-text-muted hover:text-text']
 
 // ---- Décision ----
-async function confirm(action: AlertAction, note: string, scope: DecisionScope) {
+const DONE_MESSAGES: Record<AlertAction, string> = {
+  FIXED: 'Alerte résolue.',
+  FALSE_POSITIVE: 'Alerte résolue.',
+  SNOOZE: 'Alerte reportée : elle reviendra dans la file à la date choisie.',
+  UNSNOOZE: 'Alerte remise dans la file.',
+  REOPEN: 'Alerte rouverte.',
+}
+const UNAVAILABLE_MESSAGE = 'Indisponible tant que le serveur n’est pas mis à jour.'
+
+async function confirm(action: AlertAction, note: string, scope: DecisionScope, hours: number) {
   const s = selected.value
   if (!s) return
   const text = alertNoteFor(action, note)
   const ids = scope === 'group' ? groupOpenAlerts.value.map((a) => a.id) : [s.id]
-  // Le suivant se lit AVANT le geste : une alerte résolue quitte la liste « Ouvertes ».
+  // Le suivant se lit AVANT le geste : une alerte résolue ou reportée quitte la liste « Ouvertes ».
   const next = followingAlertId(order.value.filter((a) => !ids.includes(a.id) || a.id === s.id), s.id)
   busy.value = true
   resetFeedback()
   let failed: string[] = []
   try {
-    if (scope === 'group') failed = await resolveMany(ids, text)
+    if (action === 'SNOOZE') await snooze(s.id, hours, text)
+    else if (action === 'UNSNOOZE') await unsnooze(s.id)
+    else if (action === 'REOPEN') await reopen(s.id, text)
+    else if (scope === 'group') failed = await resolveMany(ids, text)
     else await resolve(s.id, text)
   } catch (e) {
     busy.value = false
-    decisionError.value = extractProblemMessage(e, 'Résolution refusée')
+    if (isEndpointMissing(e) && (action === 'SNOOZE' || action === 'UNSNOOZE' || action === 'REOPEN')) {
+      unavailable.value = [...unavailable.value, action]
+      decisionError.value = UNAVAILABLE_MESSAGE
+    } else {
+      decisionError.value = extractProblemMessage(e, 'Geste refusé')
+    }
     return
   }
   busy.value = false
   void refreshSummary()
   if (failed.length) decisionError.value = `${failed.length} alerte${failed.length > 1 ? 's' : ''} n’${failed.length > 1 ? 'ont' : 'a'} pas pu être résolue${failed.length > 1 ? 's' : ''} : elle${failed.length > 1 ? 's restent ouvertes' : ' reste ouverte'}.`
   const done = ids.length - failed.length
-  doneMessage.value = done > 1 ? `${done} alertes résolues.` : 'Alerte résolue.'
+  doneMessage.value = done > 1 ? `${done} alertes résolues.` : DONE_MESSAGES[action]
   const list = order.value
   const target = next && list.some((a) => a.id === next) ? next : (list.some((a) => a.id === s.id) ? s.id : defaultAlertId(list))
   const a = target ? alerts.value.find((x) => x.id === target) : null
   if (a) { open(a); writeOpen(a.id); scrollTo(a.id) } else { close(); writeOpen(null) }
+  // Même dossier : sa chronologie doit montrer le geste.
+  if (target === s.id) void ctx.load(s.id)
+}
+
+/** Une autre alerte du même paiement, ouverte depuis le dossier : dans la file, sinon lue par identifiant. */
+async function openRelated(id: string) {
+  resetFeedback()
+  const inList = alerts.value.find((x) => x.id === id)
+  if (inList) { selectAlert(id); return }
+  await openFromQuery(id)
+  writeOpen(id)
 }
 
 /** Résolution automatique par la resynchronisation Stripe : liste et dossier ouvert à jour. */
@@ -320,14 +359,17 @@ watch(() => (onThisPage() ? queryOpen() : null), (id) => {
 
         <!-- 2. Dossier -->
         <div class="max-h-[calc(100vh-18rem)] min-h-[24rem] overflow-y-auto">
-          <AlertCase :alert="selected" @auto-resolved="onAutoResolved" @changed="onChanged" @resolve="focusDecision" />
+          <AlertCase
+            :alert="selected" :context="ctx.context.value" :context-loading="ctx.isLoading.value" :context-error="ctx.error.value"
+            @auto-resolved="onAutoResolved" @changed="onChanged" @resolve="focusDecision" @open-alert="openRelated"
+          />
         </div>
 
         <!-- 3. Décision -->
         <div class="sticky top-0">
           <AlertDecisionPanel
             ref="decisionPanel"
-            :alert="selected" :group-open-count="groupOpenAlerts.length || 1" :busy="busy" :error="decisionError" :has-next="hasNext"
+            :alert="selected" :group-open-count="groupOpenAlerts.length || 1" :busy="busy" :error="decisionError" :has-next="hasNext" :unavailable="unavailable"
             @confirm="confirm"
           />
         </div>

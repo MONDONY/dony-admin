@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  alertAge, alertCategories, alertNoteError, alertNoteFor, defaultAlertId, filterAlerts, followingAlertId,
+  alertActionsFor, alertAge, alertCategories, buildAlertTimeline, isGroupAction, isNoteRequired, isSnoozed, alertNoteError, alertNoteFor, defaultAlertId, filterAlerts, followingAlertId,
   groupAlerts, neighbourAlertId, queueOrder, summarizeAlerts,
 } from '@/features/alerts/lib/alertWorkbench'
 import { alertGuide } from '@/features/alerts/lib/alertCatalog'
@@ -168,5 +168,53 @@ describe('sélection', () => {
     expect(followingAlertId([alert('a')], 'a')).toBeNull()
     expect(followingAlertId(order, 'inconnue')).toBe('a')
     expect(followingAlertId([], null)).toBeNull()
+  })
+})
+
+describe('report, réouverture', () => {
+  it('une alerte est reportée tant que sa date est à venir, et seulement si elle est ouverte', () => {
+    expect(isSnoozed({ resolved: false, snoozedUntil: iso(-HOUR) }, NOW)).toBe(true)
+    expect(isSnoozed({ resolved: false, snoozedUntil: iso(HOUR) }, NOW)).toBe(false)
+    expect(isSnoozed({ resolved: false, snoozedUntil: null }, NOW)).toBe(false)
+    expect(isSnoozed({ resolved: false, snoozedUntil: 'illisible' }, NOW)).toBe(false)
+    expect(isSnoozed({ resolved: true, snoozedUntil: iso(-HOUR) }, NOW)).toBe(false)
+  })
+
+  it('gestes selon l’état : résoudre ou reporter, rouvrir une résolue, remettre une reportée', () => {
+    expect(alertActionsFor({ resolved: false, snoozedUntil: null }, NOW)).toEqual(['FIXED', 'FALSE_POSITIVE', 'SNOOZE'])
+    expect(alertActionsFor({ resolved: false, snoozedUntil: iso(-HOUR) }, NOW)).toEqual(['FIXED', 'FALSE_POSITIVE', 'UNSNOOZE'])
+    expect(alertActionsFor({ resolved: true, snoozedUntil: null }, NOW)).toEqual(['REOPEN'])
+  })
+
+  it('seul le retour dans la file se passe de note ; seuls résoudre se fait en groupe', () => {
+    expect(isNoteRequired('UNSNOOZE')).toBe(false)
+    expect(isNoteRequired('SNOOZE')).toBe(true)
+    expect(alertNoteError('', 'UNSNOOZE')).toBeNull()
+    expect(alertNoteError('ab', 'UNSNOOZE')).toMatch(/3 caractères au moins/)
+    expect(isGroupAction('FIXED')).toBe(true)
+    expect(isGroupAction('FALSE_POSITIVE')).toBe(true)
+    expect(isGroupAction('SNOOZE')).toBe(false)
+    expect(isGroupAction('REOPEN')).toBe(false)
+  })
+})
+
+describe('buildAlertTimeline', () => {
+  const a = { id: 'a1', createdAt: '2026-10-17T06:30:00' }
+
+  it('la levée d’abord, puis les gestes du plus ancien au plus récent', () => {
+    const t = buildAlertTimeline(a, [
+      { action: 'ADMIN_ALERT_RESOLVED', at: '2026-10-19T10:00:00', actorEmail: 'moussa@yadony.com', note: 'Corrigé' },
+      { action: 'ADMIN_ALERT_REOPENED', at: '2026-10-20T10:00:00', actorEmail: null, note: null },
+    ])
+    expect(t.map((i) => i.label)).toEqual(['Alerte levée', 'Alerte rouverte', 'Alerte résolue'])
+    expect(t[2]).toMatchObject({ by: 'par moussa@yadony.com', note: 'Corrigé' })
+    expect(t[1]!.by).toBeNull()
+  })
+
+  it('code d’audit inconnu laissé tel quel ; sans historique, la levée seule', () => {
+    expect(buildAlertTimeline(a, [{ action: 'ADMIN_ALERT_SNOOZED' }, { action: 'AUTRE' }]).map((i) => i.label))
+      .toEqual(['Alerte levée', 'AUTRE', 'Alerte reportée'])
+    expect(buildAlertTimeline(a, null)).toHaveLength(1)
+    expect(buildAlertTimeline(a, [{ action: 'ADMIN_ALERT_UNSNOOZED' }])[1]!.label).toBe('Alerte remise dans la file')
   })
 })

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { svc } = vi.hoisted(() => ({
-  svc: { list: vi.fn(), resolve: vi.fn() }
+  svc: { list: vi.fn(), resolve: vi.fn(), resolveBatch: vi.fn(), reopen: vi.fn(), snooze: vi.fn(), unsnooze: vi.fn() }
 }))
 
 vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc }))
@@ -9,7 +9,7 @@ vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc 
 import { useAlerts } from '@/features/alerts/composables/useAlerts'
 
 describe('useAlerts', () => {
-  beforeEach(() => { svc.list.mockReset(); svc.resolve.mockReset() })
+  beforeEach(() => { Object.values(svc).forEach(m => m.mockReset()) })
 
   it('fetchAlerts loads a page', async () => {
     svc.list.mockResolvedValue({ content: [{ id: 'a1' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
@@ -52,14 +52,51 @@ describe('useAlerts', () => {
     expect(svc.list).toHaveBeenCalledOnce()
   })
 
-  it('resolveMany résout chaque alerte avec la même note, recharge une fois et rend les refusées', async () => {
+  it('resolveMany : une seule requête de résolution groupée, puis un rechargement ; rend les introuvables', async () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
-    svc.resolve.mockImplementation((id: string) => (id === 'a2' ? Promise.reject(new Error('403')) : Promise.resolve({ id, resolved: true })))
+    svc.resolveBatch.mockResolvedValue({ resolved: ['a1', 'a3'], alreadyResolved: [], notFound: ['a2'] })
     const a = useAlerts()
     const failed = await a.resolveMany(['a1', 'a2', 'a3'], 'Versement forcé')
-    expect(svc.resolve.mock.calls).toEqual([['a1', 'Versement forcé'], ['a2', 'Versement forcé'], ['a3', 'Versement forcé']])
+    expect(svc.resolveBatch).toHaveBeenCalledWith(['a1', 'a2', 'a3'], 'Versement forcé')
+    expect(svc.resolve).not.toHaveBeenCalled()
     expect(failed).toEqual(['a2'])
     expect(svc.list).toHaveBeenCalledOnce()
+  })
+
+  it('resolveMany : une alerte déjà résolue n’est pas un échec', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    svc.resolveBatch.mockResolvedValue({ resolved: ['a1'], alreadyResolved: ['a2'], notFound: [] })
+    expect(await useAlerts().resolveMany(['a1', 'a2'], 'ok ok')).toEqual([])
+  })
+
+  it('resolveMany : ancien back (404 sans code) → une requête par alerte, les refusées rendues', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    svc.resolveBatch.mockRejectedValue(Object.assign(new Error('Not Found'), { statusCode: 404 }))
+    svc.resolve.mockImplementation((id: string) => (id === 'a2' ? Promise.reject(new Error('403')) : Promise.resolve({ id, resolved: true })))
+    const failed = await useAlerts().resolveMany(['a1', 'a2', 'a3'], 'Versement forcé')
+    expect(svc.resolve.mock.calls.map(c => c[0])).toEqual(['a1', 'a2', 'a3'])
+    expect(failed).toEqual(['a2'])
+    expect(svc.list).toHaveBeenCalledOnce()
+  })
+
+  it('resolveMany : un vrai refus du back remonte, la liste est rechargée', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    svc.resolveBatch.mockRejectedValue(Object.assign(new Error('Unprocessable'), { statusCode: 422, data: { code: 'alert-note-invalid' } }))
+    await expect(useAlerts().resolveMany(['a1'], 'ab')).rejects.toThrow('Unprocessable')
+    expect(svc.resolve).not.toHaveBeenCalled()
+    expect(svc.list).toHaveBeenCalledOnce()
+  })
+
+  it('reopen, snooze et unsnooze appellent le service puis rechargent la liste', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    const a = useAlerts()
+    await a.reopen('a1', 'revenue')
+    await a.snooze('a2', 24, 'colis en route')
+    await a.unsnooze('a3')
+    expect(svc.reopen).toHaveBeenCalledWith('a1', 'revenue')
+    expect(svc.snooze).toHaveBeenCalledWith('a2', 24, 'colis en route')
+    expect(svc.unsnooze).toHaveBeenCalledWith('a3')
+    expect(svc.list).toHaveBeenCalledTimes(3)
   })
 
   it('une page large garde les groupes entiers', async () => {

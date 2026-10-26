@@ -54,6 +54,39 @@ describe('AlertCase', () => {
     expect(w.find('[data-test="alert-detail-age"]').exists()).toBe(false)
   })
 
+  it('alerte reportée : la date est dite dans l’en-tête', () => {
+    const w = mountPanel(alert({ snoozedUntil: '2999-01-01T00:00:00Z' }))
+    expect(w.find('[data-test="alert-detail-snoozed"]').text()).toContain('Reportée jusqu’au')
+    expect(mountPanel(alert()).find('[data-test="alert-detail-snoozed"]').exists()).toBe(false)
+  })
+
+  it('contexte : autres alertes sur le même objet, ouvrables, et historique', async () => {
+    const w = mount(AlertCase, {
+      props: {
+        alert: alert(),
+        context: {
+          related: [{ id: 'r1', type: 'RETURN_DEADLINE_EXPIRED', severity: 'WARN', resolved: true, createdAt: '2026-10-01T10:00:00' }],
+          history: [{ action: 'ADMIN_ALERT_RESOLVED', at: '2026-10-02T10:00:00', actorEmail: 'moussa@yadony.com', note: 'ok' }],
+        },
+      },
+      global: { stubs: { NuxtLink } },
+    })
+    expect(w.find('[data-test="alert-related"]').text()).toContain('Colis non rendu après annulation')
+    expect(w.find('[data-test="alert-related"]').text()).toContain('Résolue')
+    await w.find('[data-test="alert-related-r1"]').trigger('click')
+    expect(w.emitted('openAlert')![0]).toEqual(['r1'])
+    expect(w.find('[data-test="alert-history"]').text()).toContain('Alerte levée')
+    expect(w.find('[data-test="alert-history"]').text()).toContain('par moussa@yadony.com')
+  })
+
+  it('sans contexte : ni autres alertes ni historique ; chargement et erreur dits discrètement', () => {
+    expect(mountPanel(alert()).find('[data-test="alert-history"]').exists()).toBe(false)
+    const loading = mount(AlertCase, { props: { alert: alert(), contextLoading: true }, global: { stubs: { NuxtLink } } })
+    expect(loading.find('[data-test="alert-context-loading"]').exists()).toBe(true)
+    const failed = mount(AlertCase, { props: { alert: alert(), contextError: 'Contexte indisponible' }, global: { stubs: { NuxtLink } } })
+    expect(failed.find('[data-test="alert-context-error"]').text()).toBe('Contexte indisponible')
+  })
+
   it('règle de cohérence : recalcule et montre les lignes en faute avec liens', async () => {
     svc.violations.mockResolvedValue({ invariant: 'INV-05', title: 't', severity: 'CRITIQUE', total: 3, rows: [{ payment_id: P, anomaly: 'X' }] })
     const w = mountPanel(alert({ type: 'MONEY_INVARIANT_INV-05', detail: null, payload: { lignesEnFaute: 3 } }))
