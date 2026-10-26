@@ -2,25 +2,43 @@
 import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ReportRatingPreview from './ReportRatingPreview.vue'
+import ReportContextMessages from './ReportContextMessages.vue'
+import ReportTimeline from './ReportTimeline.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportDescriptionText, reportKind, reportKindLabel } from '@/features/signalements/reportKind'
 import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
 import { reportReasonTitle, reportTargetLabel } from '@/features/signalements/reportDisplay'
 import { canReplyToReport, hasSupportConversation, supportConversationLink } from '@/features/signalements/reportReply'
-import type { AdminReport } from '@/features/signalements/types/index'
+import {
+  accountStatusMeta,
+  buildTimeline,
+  memberSinceLabel,
+  receivedReportsText,
+  reporterHistoryText,
+  reporterTrust,
+} from '@/features/signalements/reportContext'
+import { reportReasonLabel } from '@/features/signalements/reportReasons'
+import type { AdminReport, ReportContext } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
-import { gate, toHref, unchecked } from '@/lib/adminLinks'
+import { gate, toHref, unchecked, userRoute } from '@/lib/adminLinks'
 
 const props = withDefaults(defineProps<{
   report: AdminReport | null
   /** Endpoints de restauration absents (ancien back) : le bouton Restaurer disparaît. */
   restoreUnavailable?: boolean
-}>(), { restoreUnavailable: false })
+  /** Contexte du dossier (fiches, message, historique) ; null tant qu'il charge ou sur un ancien back. */
+  context?: ReportContext | null
+  contextLoading?: boolean
+  /** Échec inattendu de la lecture du contexte : le dossier reste lisible sans lui. */
+  contextError?: string | null
+}>(), { restoreUnavailable: false, context: null, contextLoading: false, contextError: null })
 const emit = defineEmits<{
   viewPhotos: [urls: string[]]
   reply: [id: string]
   delete: [id: string]
   restore: [id: string]
+  /** Un autre signalement sur la même cible : la page l'ouvre. */
+  openRelated: [id: string]
 }>()
 
 const auth = useAuthStore()
@@ -50,6 +68,26 @@ const deletedInfo = computed(() => {
 })
 const description = computed(() => (props.report ? reportDescriptionText(props.report) : null))
 const kind = computed(() => (props.report ? reportKind(props.report) : null))
+
+// ---- Contexte ----
+const reporter = computed(() => props.context?.reporter ?? null)
+const subject = computed(() => props.context?.subject ?? null)
+const trust = computed(() => (reporter.value ? reporterTrust(reporter.value) : null))
+const subjectStatus = computed(() => accountStatusMeta(subject.value?.accountStatus))
+/** Déjà signalé : au moins un autre signalement visait ce compte (celui-ci compris sur une cible USER). */
+const alreadyReported = computed(() => {
+  const s = subject.value
+  if (!s) return false
+  return s.reportsReceived - (props.report?.targetType === 'USER' ? 1 : 0) >= 1
+})
+const timeline = computed(() => (props.report && props.context ? buildTimeline(props.report, props.context.history) : []))
+const related = computed(() => props.context?.relatedReports ?? [])
+/** Fiche du compte, si l'admin a le droit de la voir. */
+function accountLink(userId: string): string | null {
+  const route = gate(auth.can, 'USER_VIEW', userRoute(userId))
+  return route ? toHref(route) : null
+}
+function relatedAge(iso?: string | null): string { return iso ? fmt(iso) : '' }
 </script>
 
 <template>
@@ -93,13 +131,52 @@ const kind = computed(() => (props.report ? reportKind(props.report) : null))
         </div>
       </header>
 
+      <p v-if="contextLoading" data-test="context-loading" role="status" class="px-1 text-xs text-text-muted">Chargement du contexte…</p>
+      <p v-else-if="contextError" data-test="context-error" role="status" class="px-1 text-xs text-text-muted">{{ contextError }}</p>
+
+      <!-- Le message dans sa conversation -->
+      <section
+        v-if="context?.messages?.length" aria-label="Le message en contexte" data-test="case-context-messages"
+        class="rounded-card border border-border bg-surface p-5"
+      >
+        <h3 class="mb-3 font-display text-sm font-semibold">Le message en contexte</h3>
+        <ReportContextMessages :messages="context.messages" />
+      </section>
+      <p
+        v-else-if="context?.messagesRestricted" data-test="context-messages-restricted"
+        class="rounded-card border border-border bg-surface px-5 py-3 text-xs text-text-muted text-pretty"
+      >Les messages autour de celui-ci ne sont pas visibles avec votre rôle.</p>
+
       <!-- Cible et signalant -->
       <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
         <section class="rounded-card border border-border bg-surface p-5" aria-label="Cible">
           <p class="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">Cible</p>
           <p class="text-sm font-semibold text-pretty">{{ reportTargetLabel(report) }}</p>
           <p class="text-xs text-text-muted">{{ reportTargetTypeLabel(report.targetType) }}</p>
-          <p v-if="report.targetAuthor?.name" class="mt-1 text-xs text-text-muted">Auteur : {{ report.targetAuthor.name }}</p>
+          <!-- Personne visée : le compte signalé, ou l'auteur du contenu signalé -->
+          <div v-if="subject" data-test="case-subject" class="mt-3 border-t border-border pt-3">
+            <p class="text-xs text-text-muted">{{ report.targetType === 'USER' ? 'Compte signalé' : 'Auteur' }}</p>
+            <p class="text-sm font-semibold">
+              <NuxtLink
+                v-if="accountLink(subject.userId)" :to="accountLink(subject.userId)!" data-test="case-subject-link"
+                class="text-primary underline-offset-2 hover:underline"
+              >{{ subject.displayName ?? 'Compte' }}</NuxtLink>
+              <template v-else>{{ subject.displayName ?? 'Compte' }}</template>
+            </p>
+            <div class="mt-1.5 flex flex-wrap gap-1.5">
+              <StatusBadge v-if="subjectStatus" data-test="case-subject-status" v-bind="subjectStatus" />
+              <StatusBadge v-if="subject.identityVerified" data-test="case-subject-identity" label="Identité vérifiée" tone="success" />
+              <StatusBadge v-if="alreadyReported" data-test="case-subject-repeat" label="Déjà signalé" tone="warning" />
+            </div>
+            <ul class="mt-2 space-y-0.5 text-xs text-text-muted">
+              <li v-if="memberSinceLabel(subject.memberSince)">{{ memberSinceLabel(subject.memberSince) }}</li>
+              <li data-test="case-subject-received">{{ receivedReportsText(subject) }}</li>
+              <li v-if="subject.cancellationCount > 0" data-test="case-subject-cancellations">
+                {{ subject.cancellationCount }} annulation{{ subject.cancellationCount > 1 ? 's' : '' }}
+              </li>
+            </ul>
+          </div>
+          <p v-else-if="report.targetAuthor?.name" class="mt-1 text-xs text-text-muted">Auteur : {{ report.targetAuthor.name }}</p>
           <NuxtLink
             v-if="requestLink" :to="requestLink" :data-test="`report-open-request-${report.id}`"
             class="mt-2 inline-block text-xs text-primary underline-offset-2 hover:underline"
@@ -116,7 +193,20 @@ const kind = computed(() => (props.report ? reportKind(props.report) : null))
 
         <section class="rounded-card border border-border bg-surface p-5" aria-label="Signalant">
           <p class="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">Signalant</p>
-          <p class="text-sm font-semibold">{{ report.reporterName ?? 'Inconnu' }}</p>
+          <p class="text-sm font-semibold">
+            <NuxtLink
+              v-if="reporter && accountLink(reporter.userId)" :to="accountLink(reporter.userId)!" data-test="case-reporter-link"
+              class="text-primary underline-offset-2 hover:underline"
+            >{{ report.reporterName ?? reporter.displayName ?? 'Inconnu' }}</NuxtLink>
+            <template v-else>{{ report.reporterName ?? 'Inconnu' }}</template>
+          </p>
+          <div v-if="reporter && trust" data-test="case-reporter" class="mt-1.5">
+            <StatusBadge data-test="case-reporter-trust" :label="trust.label" :tone="trust.tone" />
+            <ul class="mt-2 space-y-0.5 text-xs text-text-muted">
+              <li v-if="memberSinceLabel(reporter.memberSince)">{{ memberSinceLabel(reporter.memberSince) }}</li>
+              <li data-test="case-reporter-history">{{ reporterHistoryText(reporter) }}</li>
+            </ul>
+          </div>
           <!-- Réponse au signalant : la conversation support reste accessible d'ici -->
           <div v-if="hasSupportConversation(report)" :data-test="`report-conversation-${report.id}`" class="mt-2">
             <StatusBadge label="Conversation ouverte" tone="info" />
@@ -129,15 +219,47 @@ const kind = computed(() => (props.report ? reportKind(props.report) : null))
         </section>
       </div>
 
-      <!-- Issue (déjà traité) et suppression -->
+      <!-- Autres signalements sur la même cible -->
       <section
-        v-if="actionTaken || report.resolutionNote || deletedInfo" aria-label="Issue"
+        v-if="related.length" aria-label="Autres signalements sur cette cible" data-test="case-related"
+        class="rounded-card border border-border bg-surface p-5"
+      >
+        <h3 class="mb-2 font-display text-sm font-semibold">Autres signalements sur cette cible</h3>
+        <ul class="divide-y divide-border">
+          <li v-for="o in related" :key="o.id">
+            <button
+              type="button" :data-test="`related-${o.id}`"
+              class="flex w-full items-center justify-between gap-3 py-2 text-left text-sm transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.99]"
+              @click="emit('openRelated', o.id)"
+            >
+              <span class="min-w-0">
+                <span class="block truncate font-medium">{{ o.reason ? reportReasonLabel(o.reason) : 'Motif inconnu' }}</span>
+                <span class="block truncate text-xs text-text-muted">{{ o.reporterName ?? 'Signalant inconnu' }} · {{ relatedAge(o.createdAt) }}</span>
+              </span>
+              <StatusBadge v-if="o.status" v-bind="reportStatusMeta(o.status as 'OPEN' | 'RESOLVED' | 'DISMISSED')" />
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Historique du dossier -->
+      <section
+        v-if="context" aria-label="Historique" data-test="case-history"
+        class="rounded-card border border-border bg-surface p-5"
+      >
+        <h3 class="mb-3 font-display text-sm font-semibold">Historique</h3>
+        <ReportTimeline :items="timeline" />
+      </section>
+
+      <!-- Issue (déjà traité) et suppression : la chronologie la porte quand elle est là -->
+      <section
+        v-if="(!context && (actionTaken || report.resolutionNote)) || deletedInfo" aria-label="Issue"
         class="rounded-card border border-border bg-surface p-5 text-sm"
       >
         <p class="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">Issue</p>
-        <p v-if="actionTaken" :data-test="`report-action-taken-${report.id}`" class="font-medium text-pretty">{{ actionTaken }}</p>
-        <p v-if="report.resolutionNote" class="mt-1 text-text-muted text-pretty">Note interne : {{ report.resolutionNote }}</p>
-        <p v-if="report.resolvedAt" class="mt-1 text-xs text-text-muted tabular-nums">Le {{ fmt(report.resolvedAt) }}</p>
+        <p v-if="actionTaken && !context" :data-test="`report-action-taken-${report.id}`" class="font-medium text-pretty">{{ actionTaken }}</p>
+        <p v-if="report.resolutionNote && !context" class="mt-1 text-text-muted text-pretty">Note interne : {{ report.resolutionNote }}</p>
+        <p v-if="report.resolvedAt && !context" class="mt-1 text-xs text-text-muted tabular-nums">Le {{ fmt(report.resolvedAt) }}</p>
         <p
           v-if="deletedInfo" :data-test="`report-deleted-info-${report.id}`"
           class="mt-1 text-xs text-text-muted text-pretty tabular-nums"
