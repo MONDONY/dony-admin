@@ -97,11 +97,10 @@ test('fiche utilisateur : écrire à l’utilisateur ouvre le fil sur la page Su
   await dialog.locator('[data-test="start-submit"]').click()
 
   await expect(page).toHaveURL(/\/support\?ticket=t9/)
-  await expect(page.locator('aside h2')).toHaveText('Votre paiement du 28/09')
-  await expect(page.locator('aside').filter({ hasText: 'Votre paiement du 28/09' }))
-    .toContainText('Bonjour Jean, pouvez-vous nous confirmer la réception ?')
+  await expect(page.locator('[data-test="support-subject"]')).toHaveText('Votre paiement du 28/09')
+  const thread = page.locator('[data-test="support-conversation"]')
+  await expect(thread).toContainText('Bonjour Jean, pouvez-vous nous confirmer la réception ?')
   // 201 : WAITING_USER, assigné à l'admin appelant, donc le fil s'ouvre directement en mode réponse.
-  const thread = page.locator('aside').filter({ hasText: 'Votre paiement du 28/09' })
   await expect(thread.getByPlaceholder('Votre réponse…')).toBeVisible()
   await expect(thread.getByText('M\'assigner ce ticket')).toHaveCount(0)
   await expect(thread).toContainText('Attente utilisateur')
@@ -113,8 +112,13 @@ test('fiche utilisateur : écrire à l’utilisateur ouvre le fil sur la page Su
 
 test('page Support : nouvelle conversation avec recherche de l’utilisateur', async ({ page }) => {
   const state = await mockBackend(page)
+  const loaded = page.waitForResponse((r) => /\/admin\/support\/tickets\?/.test(r.url()))
   await page.goto('/support')
-  await expect(page.getByText('Sujet t1')).toBeVisible()
+  // Page hydratée une fois la file lue : un clic plus tôt serait perdu.
+  await loaded
+  // Le ticket t1 est à moi : « Non assignés » ne le montre pas, « Tous » oui.
+  await page.locator('[data-test="scope-all"]').click()
+  await expect(page.locator('[data-test="support-row-t1"]')).toBeVisible()
 
   await page.locator('[data-test="support-new-conversation"]').click()
   const dialog = page.locator('[data-test="start-dialog"]')
@@ -127,7 +131,7 @@ test('page Support : nouvelle conversation avec recherche de l’utilisateur', a
   await dialog.locator('[data-test="start-submit"]').click()
 
   await expect(page).toHaveURL(/\/support\?ticket=t9/)
-  await expect(page.locator('aside h2')).toHaveText('Point sur votre colis')
+  await expect(page.locator('[data-test="support-subject"]')).toHaveText('Point sur votre colis')
   expect(state.created[0]).toMatchObject({ userId: 'u1', category: 'OTHER', subject: 'Point sur votre colis' })
 })
 
@@ -136,15 +140,17 @@ test('page Support : filtre ?userId= avec bandeau et retrait du filtre', async (
   await page.goto('/support?userId=u1')
   const banner = page.locator('[data-test="support-user-filter"]')
   await expect(banner).toContainText('Conversations de Jean Dupont')
-  await expect(page.getByText('Sujet t1')).toBeVisible()
-  await expect(page.getByText('Autre compte')).toHaveCount(0)
+  await expect(page.locator('[data-test="support-row-t1"]')).toBeVisible()
+  await expect(page.locator('[data-test="support-row-t2"]')).toHaveCount(0)
   await expect(page.locator('[data-test="support-user-filter-ignored"]')).toHaveCount(0)
   expect(state.listQueries.at(-1)?.get('userId')).toBe('u1')
 
   await page.locator('[data-test="support-user-filter-clear"]').click()
   await expect(banner).toHaveCount(0)
   await expect(page).not.toHaveURL(/userId=/)
-  await expect(page.getByText('Autre compte')).toBeVisible()
+  await expect(page.locator('[data-test="scope-all"]')).toBeVisible()
+  await page.locator('[data-test="scope-all"]').click()
+  await expect(page.locator('[data-test="support-row-t2"]')).toBeVisible()
 })
 
 test('ancien back : envoi indisponible et section de fiche masquée', async ({ page }) => {
@@ -169,6 +175,6 @@ test('ancien back : filtre ?userId= appliqué côté client, avertissement affic
   await page.goto('/support?userId=u1')
   await expect(page.locator('[data-test="support-user-filter"]')).toContainText('Conversations de Jean Dupont')
   await expect(page.locator('[data-test="support-user-filter-ignored"]')).toBeVisible()
-  await expect(page.getByText('Sujet t1')).toBeVisible()
-  await expect(page.getByText('Autre compte')).toHaveCount(0)
+  await expect(page.locator('[data-test="support-row-t1"]')).toBeVisible()
+  await expect(page.locator('[data-test="support-row-t2"]')).toHaveCount(0)
 })

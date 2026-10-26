@@ -19,7 +19,7 @@ vi.mock('@/features/support/services/supportService', () => ({
     resolve: (...a: unknown[]) => resolveMock(...a),
   },
 }))
-import { useSupportTickets } from '@/features/support/composables/useSupportTickets'
+import { SUPPORT_PAGE_SIZE, useSupportTickets } from '@/features/support/composables/useSupportTickets'
 
 const ticket = {
   id: 't1', category: 'PAYMENT', subject: 'Paiement bloque', status: 'NEW',
@@ -28,7 +28,7 @@ const ticket = {
   createdAt: '2026-09-05T10:00:00', lastMessageAt: '2026-09-05T10:00:00',
   resolvedAt: null, messages: null,
 }
-const page = { content: [ticket], totalElements: 1, totalPages: 1, number: 0, size: 20 }
+const page = { content: [ticket], totalElements: 1, totalPages: 1, number: 0, size: 100 }
 
 describe('useSupportTickets', () => {
   beforeEach(() => {
@@ -37,30 +37,30 @@ describe('useSupportTickets', () => {
     }
   })
 
-  it('fetchTickets charge la page du scope courant', async () => {
+  it('fetchTickets charge une page de 100 sur « Tous », sans statut', async () => {
     listMock.mockResolvedValue(page)
     const s = useSupportTickets()
     await s.fetchTickets()
-    expect(listMock).toHaveBeenCalledWith('unassigned', 'TOUS', 0, 20)
+    expect(listMock).toHaveBeenCalledWith('all', 'TOUS', 0, SUPPORT_PAGE_SIZE)
+    expect(SUPPORT_PAGE_SIZE).toBe(100)
     expect(s.tickets.value).toHaveLength(1)
-    expect(s.totalElements.value).toBe(1)
+    expect(s.truncated.value).toBe(false)
     expect(s.isLoading.value).toBe(false)
   })
 
-  it('setScope repart page 0 et recharge', async () => {
-    listMock.mockResolvedValue(page)
+  it('signale une page tronquée quand le serveur a plus de conversations', async () => {
+    listMock.mockResolvedValue({ ...page, totalElements: 250 })
     const s = useSupportTickets()
-    await s.goToPage(3)
-    await s.setScope('mine')
-    expect(s.currentPage.value).toBe(0)
-    expect(listMock).toHaveBeenLastCalledWith('mine', 'TOUS', 0, 20)
+    await s.fetchTickets()
+    expect(s.truncated.value).toBe(true)
   })
 
-  it('setStatusFilter recharge avec le statut', async () => {
-    listMock.mockResolvedValue(page)
+  it('un échec de lecture laisse une phrase', async () => {
+    listMock.mockRejectedValue(Object.assign(new Error('x'), { data: { detail: 'Base indisponible' } }))
     const s = useSupportTickets()
-    await s.setStatusFilter('RESOLVED')
-    expect(listMock).toHaveBeenLastCalledWith('unassigned', 'RESOLVED', 0, 20)
+    await s.fetchTickets()
+    expect(s.error.value).toBe('Base indisponible')
+    expect(s.isLoading.value).toBe(false)
   })
 
   it('openTicket charge le détail, closeTicket le vide', async () => {
@@ -68,8 +68,37 @@ describe('useSupportTickets', () => {
     const s = useSupportTickets()
     await s.openTicket('t1')
     expect(s.selected.value?.id).toBe('t1')
+    expect(s.isDetailLoading.value).toBe(false)
     s.closeTicket()
     expect(s.selected.value).toBeNull()
+  })
+
+  it('deux ouvertures rapprochées : seule la dernière compte', async () => {
+    let releaseFirst: (_t: unknown) => void = () => {}
+    getMock.mockImplementationOnce(() => new Promise((resolve) => { releaseFirst = resolve }))
+    getMock.mockResolvedValueOnce({ ...ticket, id: 't2', messages: [] })
+    const s = useSupportTickets()
+    const first = s.openTicket('t1')
+    await s.openTicket('t2')
+    releaseFirst({ ...ticket, id: 't1', messages: [] })
+    await first
+    expect(s.selected.value?.id).toBe('t2')
+    expect(s.isDetailLoading.value).toBe(false)
+  })
+
+  it('un échec de lecture du fil laisse une phrase ; fermer pendant la lecture l’annule', async () => {
+    getMock.mockRejectedValueOnce(Object.assign(new Error('x'), { data: { detail: 'Ticket introuvable.' } }))
+    const s = useSupportTickets()
+    await s.openTicket('zz')
+    expect(s.actionError.value).toBe('Ticket introuvable.')
+    let release: (_t: unknown) => void = () => {}
+    getMock.mockImplementationOnce(() => new Promise((resolve) => { release = resolve }))
+    const pending = s.openTicket('t1')
+    s.closeTicket()
+    release({ ...ticket, messages: [] })
+    await pending
+    expect(s.selected.value).toBeNull()
+    expect(s.isDetailLoading.value).toBe(false)
   })
 
   it('assign recharge le détail et la liste après succès', async () => {
@@ -85,6 +114,18 @@ describe('useSupportTickets', () => {
     expect(s.selected.value?.status).toBe('ASSIGNED')
   })
 
+  it('reassign et resolve passent par le même rechargement', async () => {
+    reassignMock.mockResolvedValue({})
+    resolveMock.mockResolvedValue({})
+    getMock.mockResolvedValue({ ...ticket, messages: [] })
+    listMock.mockResolvedValue(page)
+    const s = useSupportTickets()
+    expect(await s.reassign('t1', 'a2')).toBe(true)
+    expect(reassignMock).toHaveBeenCalledWith('t1', 'a2')
+    expect(await s.resolve('t1')).toBe(true)
+    expect(resolveMock).toHaveBeenCalledWith('t1')
+  })
+
   it('reply envoie le contenu puis recharge', async () => {
     replyMock.mockResolvedValue({ id: 'm1' })
     getMock.mockResolvedValue({ ...ticket, status: 'WAITING_USER', messages: [] })
@@ -94,6 +135,15 @@ describe('useSupportTickets', () => {
     expect(ok).toBe(true)
     expect(replyMock).toHaveBeenCalledWith('t1', 'Bonjour', [])
     expect(s.selected.value?.status).toBe('WAITING_USER')
+  })
+
+  it('une réponse avec seulement des images envoie un contenu nul', async () => {
+    replyMock.mockResolvedValue({ id: 'm1' })
+    getMock.mockResolvedValue({ ...ticket, messages: [] })
+    listMock.mockResolvedValue(page)
+    const s = useSupportTickets()
+    await s.reply('t1', '', ['k1'])
+    expect(replyMock).toHaveBeenCalledWith('t1', null, ['k1'])
   })
 
   it("une action refusée capture l'erreur sans écraser le détail", async () => {
@@ -116,15 +166,12 @@ describe('useSupportTickets', () => {
     expect(getMock).not.toHaveBeenCalled()
   })
 
-  it('setUserFilter bascule sur « Tous », page 0, et transmet userId', async () => {
+  it('setUserFilter transmet userId', async () => {
     listMock.mockResolvedValue({ ...page, content: [{ ...ticket, userId: 'u1' }] })
     const s = useSupportTickets()
-    await s.goToPage(2)
     await s.setUserFilter('u1')
-    expect(s.scope.value).toBe('all')
-    expect(s.currentPage.value).toBe(0)
     expect(s.userId.value).toBe('u1')
-    expect(listMock).toHaveBeenLastCalledWith('all', 'TOUS', 0, 20, 'u1')
+    expect(listMock).toHaveBeenLastCalledWith('all', 'TOUS', 0, 100, 'u1')
   })
 
   it('ancien back qui ignore userId : les tickets d’autres utilisateurs sont écartés', async () => {
@@ -152,6 +199,6 @@ describe('useSupportTickets', () => {
     await s.setUserFilter('u1')
     await s.setUserFilter(null)
     expect(s.userId.value).toBeNull()
-    expect(listMock).toHaveBeenLastCalledWith('all', 'TOUS', 0, 20)
+    expect(listMock).toHaveBeenLastCalledWith('all', 'TOUS', 0, 100)
   })
 })
