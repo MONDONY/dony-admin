@@ -76,10 +76,12 @@ test('admin excludes a rating with a reason', async ({ page }) => {
   await page.goto('/signalements')
   await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
   await page.locator('[data-test="tab-ratings"]').click()
-  await page.locator('[data-test="exclude-rt1"]').click()
-  await page.locator('[data-test="reason"]').fill('avis diffamatoire')
-  await page.locator('[data-test="confirm"]').click()
-  await expect(page.locator('[data-test="reason"]')).toHaveCount(0)
+  // Le premier avis signalé est ouvert d'office, « Exclure » est le premier geste proposé.
+  await expect(page.locator('[data-test="rating-action-EXCLUDE"]')).toBeVisible()
+  await expect(page.locator('[data-test="rating-confirm"]')).toBeDisabled()
+  await page.locator('[data-test="rating-reason"]').fill('avis diffamatoire')
+  await page.locator('[data-test="rating-confirm"]').click()
+  await expect(page.locator('[data-test="ratings-done"]')).toHaveText('Avis exclu de la moyenne.')
 })
 
 test('admin removes a rating', async ({ page }) => {
@@ -88,12 +90,14 @@ test('admin removes a rating', async ({ page }) => {
   await page.goto('/signalements')
   await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
   await page.locator('[data-test="tab-ratings"]').click()
-  await page.locator('[data-test="remove-rt1"]').click()
-  // Le motif est désormais exigé et transmis au back (paramètre `reason`).
-  await expect(page.locator('[data-test="confirm"]')).toBeDisabled()
-  await page.locator('[data-test="reason"]').fill('propos injurieux')
-  await page.locator('[data-test="confirm"]').click()
-  await expect(page.locator('[data-test="overlay"]')).toHaveCount(0)
+  await page.locator('[data-test="rating-action-DELETE"]').click()
+  // Le motif est exigé, la conséquence confirmée, et le motif transmis au back (paramètre `reason`).
+  await expect(page.locator('[data-test="rating-confirm"]')).toBeDisabled()
+  await page.locator('[data-test="rating-reason"]').fill('propos injurieux')
+  await expect(page.locator('[data-test="rating-confirm"]')).toBeDisabled()
+  await page.locator('[data-test="rating-acknowledge"]').check()
+  await page.locator('[data-test="rating-confirm"]').click()
+  await expect(page.locator('[data-test="ratings-done"]')).toHaveText('Avis supprimé.')
   await expect.poll(() => deleteUrl).toMatch(/reason=propos(\+|%20)injurieux/)
 })
 
@@ -135,8 +139,11 @@ test('un refus de suppression d’avis s’affiche au lieu d’être avalé', as
   await page.goto('/signalements')
   await expect(page.locator('[data-test="report-row-r1"]')).toBeVisible()
   await page.locator('[data-test="tab-ratings"]').click()
-  await page.locator('[data-test="remove-rt1"]').click()
-  await page.locator('[data-test="reason"]').fill('spam')
-  await page.locator('[data-test="confirm"]').click()
-  await expect(page.locator('[data-test="ratings-error"]')).toHaveText('Avis déjà supprimé')
+  await page.locator('[data-test="rating-action-DELETE"]').click()
+  await page.locator('[data-test="rating-reason"]').fill('spam')
+  await page.locator('[data-test="rating-acknowledge"]').check()
+  await page.locator('[data-test="rating-confirm"]').click()
+  // Le refus se lit dans le panneau de décision, la saisie est conservée.
+  await expect(page.locator('[data-test="rating-error"]')).toHaveText('Avis déjà supprimé')
+  await expect(page.locator('[data-test="rating-reason"]')).toHaveValue('spam')
 })

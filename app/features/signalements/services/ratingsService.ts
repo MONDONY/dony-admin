@@ -1,9 +1,10 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminRating, AdminRatingPage, RatingsFilterState } from '@/features/signalements/types/index'
+import type { AdminRating, AdminRatingPage, RatingContext, RatingsFilterState } from '@/features/signalements/types/index'
 
 function buildQuery(f: RatingsFilterState, page: number, size: number): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = { page, size }
   if (f.flaggedOnly) q.flaggedOnly = true
+  if (f.lowOnly) q.maxScore = 2
   if (f.deleted) q.deleted = true
   return q
 }
@@ -11,6 +12,13 @@ function buildQuery(f: RatingsFilterState, page: number, size: number): Record<s
 export const ratingsService = {
   list(filters: RatingsFilterState, page: number, size: number): Promise<AdminRatingPage> {
     return useApi()<AdminRatingPage>('/admin/ratings', { query: buildQuery(filters, page, size) })
+  },
+  /**
+   * Contexte du dossier : notant, noté, notes du même notant, signalements, historique. 404
+   * `rating-not-found` ; 404/405 sans code sur un ancien back. Un avis supprimé reste lisible.
+   */
+  getContext(id: string): Promise<RatingContext> {
+    return useApi()<RatingContext>(`/admin/ratings/${id}/context`)
   },
   exclude(id: string, excluded: boolean, reason: string): Promise<AdminRating> {
     return useApi()<AdminRating>(`/admin/ratings/${id}/exclude`, { method: 'POST', body: { excluded, reason } })
