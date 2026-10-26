@@ -27,17 +27,43 @@ const ESCROW = (id: string, createdAt: string) => ({
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
   let open = [OPEN_PAGE.content[0]!, INVARIANT_ALERT, ESCROW('al4', '2026-10-01T10:00:00'), ESCROW('al5', '2026-10-02T10:00:00')]
+  let snoozed: typeof open = []
+  let resolved: Record<string, unknown>[] = [{ ...ESCROW('al6', '2026-09-20T10:00:00'), resolved: true, resolvedAt: '2026-09-21T10:00:00Z' }]
   await page.route('**/api/v1/admin/alerts**', (route) => {
     const url = route.request().url()
     const method = route.request().method()
-    if (method === 'POST' && url.includes('/resolve')) {
-      const id = url.split('/alerts/')[1]!.split('/')[0]!
-      open = open.filter(a => a.id !== id)
+    const idOf = () => url.split('/alerts/')[1]!.split('/')[0]!
+    if (method === 'POST' && url.endsWith('/resolve-batch')) {
+      const ids: string[] = route.request().postDataJSON().ids
+      open = open.filter(a => !ids.includes(a.id))
+      return route.fulfill({ json: { resolved: ids, alreadyResolved: [], notFound: [] } })
+    }
+    if (method === 'POST' && url.endsWith('/resolve')) {
+      open = open.filter(a => a.id !== idOf())
       return route.fulfill({ json: RESOLVED_ALERT })
     }
+    if (method === 'POST' && url.endsWith('/snooze')) {
+      const hit = open.find(a => a.id === idOf())!
+      open = open.filter(a => a.id !== hit.id)
+      snoozed = [...snoozed, hit]
+      return route.fulfill({ json: { ...hit, snoozedUntil: '2999-01-01T00:00:00Z' } })
+    }
+    if (method === 'POST' && url.endsWith('/reopen')) {
+      const hit = resolved.find(a => a.id === idOf())!
+      resolved = resolved.filter(a => a.id !== hit.id)
+      open = [...open, { ...hit, resolved: false, resolvedAt: null } as (typeof open)[number]]
+      return route.fulfill({ json: hit })
+    }
     if (url.includes('/al2/violations')) return route.fulfill({ json: VIOLATIONS })
-    const resolved = new URL(url).searchParams.get('resolved')
-    const content = resolved === 'true' ? [] : open
+    if (url.includes('/context')) {
+      const related = idOf() === 'al2'
+        ? [{ id: 'al4', type: 'ESCROW_J48_TIMEOUT', severity: 'WARN', resolved: false, createdAt: '2026-10-01T10:00:00' }] : []
+      const history = idOf() === 'al6'
+        ? [{ action: 'ADMIN_ALERT_RESOLVED', at: '2026-09-21T10:00:00', actorEmail: 'moussa@yadony.com', note: 'Versement forcé' }] : []
+      return route.fulfill({ json: { related, history } })
+    }
+    const params = new URL(url).searchParams
+    const content = params.get('resolved') === 'true' ? resolved : params.get('snoozed') === 'true' ? snoozed.map(a => ({ ...a, snoozedUntil: '2999-01-01T00:00:00Z' })) : open
     return route.fulfill({ json: { ...OPEN_PAGE, content, totalElements: content.length } })
   })
 })
@@ -83,11 +109,48 @@ test('l’admin résout les deux alertes d’un groupe d’un coup', async ({ pa
   await page.locator('[data-test="scope-group"]').click()
   await page.locator('[data-test="alert-note"]').fill('Versement forcé')
   await page.locator('[data-test="alert-acknowledge"]').check()
-  const posts: string[] = []
-  page.on('request', r => { if (r.method() === 'POST' && r.url().includes('/resolve')) posts.push(r.url()) })
+  const posted = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/resolve-batch'))
   await page.locator('[data-test="alert-confirm"]').click()
+  const body = (await posted).postDataJSON()
+  expect([...body.ids].sort()).toEqual(['al4', 'al5'])
+  expect(body.note).toBe('Versement forcé')
   await expect(page.locator('[data-test="alerts-done"]')).toHaveText('2 alertes résolues.')
-  expect(posts.map(u => u.split('/alerts/')[1]!.split('/')[0]).sort()).toEqual(['al4', 'al5'])
+})
+
+test('l’admin reporte une alerte : elle quitte la file et se retrouve dans « Reportées »', async ({ page }) => {
+  await page.goto('/alertes')
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveAttribute('data-selected', 'true')
+  await page.locator('[data-test="alert-action-SNOOZE"]').click()
+  await page.locator('[data-test="snooze-72"]').click()
+  await page.locator('[data-test="alert-note"]').fill('Colis encore en route')
+  const posted = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/al1/snooze'))
+  await page.locator('[data-test="alert-confirm"]').click()
+  expect((await posted).postDataJSON()).toEqual({ hours: 72, note: 'Colis encore en route' })
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveCount(0)
+  await page.locator('[data-test="tab-SNOOZED"]').click()
+  await expect(page.locator('[data-test="alert-row-al1"]')).toBeVisible()
+  await expect(page.locator('[data-test="alert-detail-snoozed"]')).toContainText('Reportée jusqu’au')
+  await expect(page.locator('[data-test="alert-action-UNSNOOZE"]')).toBeVisible()
+})
+
+test('l’admin rouvre une alerte résolue et lit son historique', async ({ page }) => {
+  await page.goto('/alertes')
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveAttribute('data-selected', 'true')
+  await page.locator('[data-test="tab-RESOLVED"]').click()
+  await expect(page.locator('[data-test="alert-history"]')).toContainText('par moussa@yadony.com')
+  const posted = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/al6/reopen'))
+  await page.locator('[data-test="alert-quick-L’anomalie est revenue"]').click()
+  await page.locator('[data-test="alert-confirm"]').click()
+  expect((await posted).postDataJSON()).toEqual({ note: 'L’anomalie est revenue' })
+  await expect(page.locator('[data-test="alerts-done"]')).toHaveText('Alerte rouverte.')
+})
+
+test('le dossier montre les autres alertes du même paiement, ouvrables d’un clic', async ({ page }) => {
+  await page.goto('/alertes')
+  await page.locator('[data-test="alert-open-al2"]').click()
+  await expect(page.locator('[data-test="alert-related"]')).toContainText('Paiement en séquestre depuis plus de 48 h')
+  await page.locator('[data-test="alert-related-al4"]').click()
+  await expect(page.locator('[data-test="alert-row-al4"]')).toHaveAttribute('data-selected', 'true')
 })
 
 test('la recherche réduit la file', async ({ page }) => {

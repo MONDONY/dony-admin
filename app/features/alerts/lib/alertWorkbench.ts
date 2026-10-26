@@ -1,5 +1,6 @@
 import { alertGuide } from '@/features/alerts/lib/alertCatalog'
-import type { AdminAlert, AlertSeverity } from '@/features/alerts/types/index'
+import type { TimelineItem } from '@/features/signalements/reportContext'
+import type { AdminAlert, AlertHistoryEntry, AlertSeverity } from '@/features/alerts/types/index'
 import { parseServerDate } from '@/lib/serverDate'
 
 const HOUR = 3_600_000
@@ -119,17 +120,23 @@ export function summarizeAlerts(open: readonly AdminAlert[], resolved: readonly 
 
 // ---- Décision ----
 
-export type AlertAction = 'FIXED' | 'FALSE_POSITIVE'
+export type AlertAction = 'FIXED' | 'FALSE_POSITIVE' | 'SNOOZE' | 'UNSNOOZE' | 'REOPEN'
 /** Une alerte, ou toutes les alertes ouvertes de son groupe. */
 export type DecisionScope = 'one' | 'group'
 
 export const ALERT_ACTION_LABELS: Record<AlertAction, string> = {
   FIXED: 'Résoudre : corrigé',
   FALSE_POSITIVE: 'Résoudre : faux positif',
+  SNOOZE: 'Reporter',
+  UNSNOOZE: 'Remettre dans la file',
+  REOPEN: 'Rouvrir l’alerte',
 }
 export const ALERT_ACTION_HELP: Record<AlertAction, string> = {
   FIXED: 'Le problème a été traité ou n’existe plus.',
   FALSE_POSITIVE: 'La règle s’est trompée : rien à corriger.',
+  SNOOZE: 'Reste ouverte mais quitte la file jusqu’à la date choisie.',
+  UNSNOOZE: 'L’alerte reportée revient dans la file tout de suite.',
+  REOPEN: 'L’anomalie est revenue ou la résolution était trop rapide.',
 }
 /** Préfixe de la note quand le geste est un faux positif : l'Audit le dit sans que l'admin l'écrive. */
 const FALSE_POSITIVE_PREFIX = 'Faux positif : '
@@ -140,9 +147,45 @@ export const ALERT_NOTE_MAX = 500
 export const QUICK_NOTES: Record<AlertAction, string[]> = {
   FIXED: ['Corrigé manuellement', 'Remboursé via Stripe', 'Versement forcé', 'Déjà traité'],
   FALSE_POSITIVE: ['Règle trop sensible', 'Opération en cours, rien à faire', 'Doublon d’une autre alerte'],
+  SNOOZE: ['Colis encore en route', 'En attente du voyageur', 'À revoir demain'],
+  UNSNOOZE: [],
+  REOPEN: ['L’anomalie est revenue', 'Résolue trop vite'],
 }
 
-export function alertNoteError(note: string): string | null {
+/** Durées de report proposées ; le back accepte 1 à 168 h. */
+export const SNOOZE_CHOICES: { hours: number; label: string }[] = [
+  { hours: 4, label: '4 h' },
+  { hours: 24, label: '24 h' },
+  { hours: 72, label: '3 jours' },
+  { hours: 168, label: '7 jours' },
+]
+export const DEFAULT_SNOOZE_HOURS = 24
+
+/** Reportée jusqu'à une date encore à venir. */
+export function isSnoozed(alert: Pick<AdminAlert, 'resolved' | 'snoozedUntil'>, now: number = Date.now()): boolean {
+  if (alert.resolved || !alert.snoozedUntil) return false
+  const until = parseServerDate(alert.snoozedUntil)
+  return !Number.isNaN(until) && until > now
+}
+
+/** Gestes proposés selon l'état : résoudre (ou rouvrir si déjà résolue), reporter ou remettre dans la file. */
+export function alertActionsFor(alert: Pick<AdminAlert, 'resolved' | 'snoozedUntil'>, now: number = Date.now()): AlertAction[] {
+  if (alert.resolved) return ['REOPEN']
+  return ['FIXED', 'FALSE_POSITIVE', isSnoozed(alert, now) ? 'UNSNOOZE' : 'SNOOZE']
+}
+
+/** Le retour dans la file n'a besoin d'aucune note ; tout autre geste est tracé avec la sienne. */
+export function isNoteRequired(action: AlertAction): boolean {
+  return action !== 'UNSNOOZE'
+}
+
+/** Gestes qu'on peut appliquer à tout un groupe d'un coup. */
+export function isGroupAction(action: AlertAction): boolean {
+  return action === 'FIXED' || action === 'FALSE_POSITIVE'
+}
+
+export function alertNoteError(note: string, action: AlertAction = 'FIXED'): string | null {
+  if (!isNoteRequired(action) && !note.trim()) return null
   const n = note.trim().length
   if (n < ALERT_NOTE_MIN) return `Indiquez ce qui a été fait (${ALERT_NOTE_MIN} caractères au moins).`
   if (n > ALERT_NOTE_MAX) return `Note trop longue (${ALERT_NOTE_MAX} caractères au plus).`
@@ -153,6 +196,31 @@ export function alertNoteError(note: string): string | null {
 export function alertNoteFor(action: AlertAction, note: string): string {
   const clean = note.trim()
   return action === 'FALSE_POSITIVE' ? `${FALSE_POSITIVE_PREFIX}${clean}` : clean
+}
+
+// ---- Historique ----
+
+const AUDIT_LABELS: Record<string, string> = {
+  ADMIN_ALERT_RESOLVED: 'Alerte résolue',
+  ADMIN_ALERT_REOPENED: 'Alerte rouverte',
+  ADMIN_ALERT_SNOOZED: 'Alerte reportée',
+  ADMIN_ALERT_UNSNOOZED: 'Alerte remise dans la file',
+}
+
+/**
+ * Chronologie d'une alerte, de la plus ancienne à la plus récente : la levée, puis chaque geste tracé
+ * (le back les rend du plus récent au plus ancien).
+ */
+export function buildAlertTimeline(
+  alert: Pick<AdminAlert, 'id' | 'createdAt'>,
+  history: readonly AlertHistoryEntry[] | null | undefined,
+): TimelineItem[] {
+  const raised: TimelineItem = { key: `raised-${alert.id}`, label: 'Alerte levée', at: alert.createdAt, by: null, note: null }
+  const steps = [...(history ?? [])].reverse().map((e, i): TimelineItem => ({
+    key: `${e.action}-${i}`, label: AUDIT_LABELS[e.action] ?? e.action, at: e.at ?? null,
+    by: e.actorEmail ? `par ${e.actorEmail}` : null, note: e.note ?? null,
+  }))
+  return [raised, ...steps]
 }
 
 // ---- Sélection ----

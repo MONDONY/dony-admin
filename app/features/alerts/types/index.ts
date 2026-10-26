@@ -1,5 +1,6 @@
 export type AlertSeverity = 'INFO' | 'WARN' | 'CRITICAL'
-export type ResolvedFilter = 'ALL' | 'OPEN' | 'RESOLVED'
+/** `OPEN` = à traiter (hors reportées) ; `SNOOZED` = ouvertes mais reportées. */
+export type ResolvedFilter = 'ALL' | 'OPEN' | 'SNOOZED' | 'RESOLVED'
 
 export interface AdminAlert {
   id: string
@@ -16,6 +17,8 @@ export interface AdminAlert {
    * du type. Absent d'un ancien back, null si l'alerte ne vise pas un paiement.
    */
   paymentId?: string | null
+  /** Reportée jusqu'à cette date (back #657) : cachée de la file « ouvertes ». Absente d'un ancien back. */
+  snoozedUntil?: string | null
 }
 
 export interface AdminAlertPage {
@@ -39,4 +42,35 @@ export interface AlertViolations {
   severity: string
   total: number
   rows: Record<string, unknown>[]
+}
+
+/** Geste tracé sur une alerte dans l'audit (résolution, réouverture, report). */
+export interface AlertHistoryEntry {
+  action: string
+  detail?: string | null
+  at?: string | null
+  actorEmail?: string | null
+  note?: string | null
+}
+
+export interface RelatedAlert {
+  id: string
+  type: string
+  severity: AlertSeverity
+  resolved: boolean
+  createdAt: string
+  resolvedAt?: string | null
+}
+
+/** Contexte d'une alerte (back #657) : autres alertes sur le même paiement ou colis, et historique. */
+export interface AlertContext {
+  related: RelatedAlert[]
+  history: AlertHistoryEntry[]
+}
+
+/** Résultat d'une résolution groupée : chaque identifiant demandé est dans une liste. */
+export interface AlertBatchResult {
+  resolved: string[]
+  alreadyResolved: string[]
+  notFound: string[]
 }

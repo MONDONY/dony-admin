@@ -10,7 +10,10 @@ vi.stubGlobal('useRouter', () => ({ replace: replaceMock }))
 const route = reactive<{ path: string; query: Record<string, string> }>({ path: '/alertes', query: {} })
 vi.stubGlobal('useRoute', () => route)
 
-const svc = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), violations: vi.fn(), get: vi.fn() }))
+const svc = vi.hoisted(() => ({
+  list: vi.fn(), resolve: vi.fn(), violations: vi.fn(), get: vi.fn(),
+  getContext: vi.fn(), resolveBatch: vi.fn(), reopen: vi.fn(), snooze: vi.fn(), unsnooze: vi.fn(),
+}))
 vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc }))
 const paySvc = vi.hoisted(() => ({ get: vi.fn(), resyncStripe: vi.fn(), forceRelease: vi.fn() }))
 vi.mock('@/features/payments/services/paymentsService', () => ({ paymentsService: paySvc }))
@@ -66,6 +69,13 @@ describe('pages/alertes', () => {
       return { id, resolved: true }
     })
     svc.violations.mockReset()
+    // Ancien back par défaut : pas de contexte, pas de résolution groupée ; chaque test le branche s'il en a besoin.
+    const missing = () => Object.assign(new Error('Not Found'), { statusCode: 404 })
+    svc.getContext.mockReset().mockRejectedValue(missing())
+    svc.resolveBatch.mockReset().mockRejectedValue(missing())
+    svc.reopen.mockReset()
+    svc.snooze.mockReset()
+    svc.unsnooze.mockReset()
   })
 
   it('ouvre d’emblée la première alerte de la file : dossier et décision à côté', async () => {
@@ -227,6 +237,130 @@ describe('pages/alertes', () => {
     expect(w.find('[data-test="alert-row-a3"]').exists()).toBe(false)
   })
 
+  it('serveur à jour : le groupe part en une seule requête', async () => {
+    openRows = [row, escrow('a3', '2026-10-01T12:00:00'), escrow('a4', '2026-10-02T12:00:00')]
+    svc.resolveBatch.mockImplementation(async (ids: string[]) => {
+      openRows = openRows.filter(a => !ids.includes(a.id as string))
+      return { resolved: ids, alreadyResolved: [], notFound: [] }
+    })
+    const w = await mountPage()
+    await w.get('[data-test="scope-group"]').trigger('click')
+    await w.get('[data-test="alert-note"]').setValue('Versement forcé')
+    await w.get('[data-test="alert-acknowledge"]').setValue(true)
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.resolveBatch).toHaveBeenCalledTimes(1)
+    expect([...svc.resolveBatch.mock.calls[0]![0]].sort()).toEqual(['a1', 'a3', 'a4'])
+    expect(svc.resolve).not.toHaveBeenCalled()
+    expect(w.get('[data-test="alerts-done"]').text()).toBe('3 alertes résolues.')
+  })
+
+  it('reporter : la note et la durée partent au back, l’alerte quitte la file ouverte', async () => {
+    openRows = [recon, row]
+    svc.snooze.mockImplementation(async (id: string) => {
+      openRows = openRows.filter(a => a.id !== id)
+      return { id }
+    })
+    const w = await mountPage()
+    await w.get('[data-test="alert-action-SNOOZE"] input').setValue(true)
+    await w.get('[data-test="snooze-72"]').trigger('click')
+    await w.get('[data-test="alert-note"]').setValue('Colis encore en route')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.snooze).toHaveBeenCalledWith('a2', 72, 'Colis encore en route')
+    expect(w.get('[data-test="alerts-done"]').text()).toContain('reportée')
+    expect(w.get('[data-test="alert-row-a1"]').attributes('data-selected')).toBe('true')
+  })
+
+  it('reporter sur un ancien back : message clair, le geste disparaît de la décision', async () => {
+    svc.snooze.mockRejectedValue(Object.assign(new Error('Not Found'), { statusCode: 404 }))
+    const w = await mountPage()
+    await w.get('[data-test="alert-action-SNOOZE"] input').setValue(true)
+    await w.get('[data-test="alert-note"]').setValue('Colis encore en route')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="alert-error"]').text()).toContain('Indisponible tant que le serveur n’est pas mis à jour')
+    expect(w.find('[data-test="alert-action-SNOOZE"]').exists()).toBe(false)
+  })
+
+  it('l’onglet Reportées interroge le back et n’affiche que les alertes reportées', async () => {
+    const snoozed = { ...recon, snoozedUntil: '2999-01-01T00:00:00Z' }
+    svc.list.mockImplementation(async (f: { resolved: string }) => (f.resolved === 'SNOOZED' ? pageOf([snoozed, row]) : pageOf([])))
+    const w = await mountPage()
+    await w.get('[data-test="tab-SNOOZED"]').trigger('click')
+    await flushPromises()
+    expect(svc.list.mock.calls.at(-1)![0].resolved).toBe('SNOOZED')
+    expect(w.find('[data-test="alert-row-a2"]').exists()).toBe(true)
+    // Un ancien back rend aussi les non reportées : l'écran les écarte.
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(false)
+    expect(w.get('[data-test="alert-detail-snoozed"]').text()).toContain('Reportée jusqu’au')
+    expect(w.find('[data-test="alert-action-UNSNOOZE"]').exists()).toBe(true)
+  })
+
+  it('un ancien back qui rend une alerte reportée dans « Ouvertes » : elle en est écartée', async () => {
+    openRows = [{ ...recon, snoozedUntil: '2999-01-01T00:00:00Z' }, row]
+    const w = await mountPage()
+    expect(w.find('[data-test="alert-row-a2"]').exists()).toBe(false)
+    expect(w.find('[data-test="alert-row-a1"]').exists()).toBe(true)
+  })
+
+  it('remettre dans la file : sans note', async () => {
+    svc.list.mockImplementation(async (f: { resolved: string }) => (f.resolved === 'SNOOZED' ? pageOf([{ ...recon, snoozedUntil: '2999-01-01T00:00:00Z' }]) : pageOf([])))
+    svc.unsnooze.mockResolvedValue({})
+    const w = await mountPage()
+    await w.get('[data-test="tab-SNOOZED"]').trigger('click')
+    await flushPromises()
+    await w.get('[data-test="alert-action-UNSNOOZE"] input').setValue(true)
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.unsnooze).toHaveBeenCalledWith('a2')
+    expect(w.get('[data-test="alerts-done"]').text()).toBe('Alerte remise dans la file.')
+  })
+
+  it('rouvrir une alerte résolue depuis l’onglet Résolues, puis son historique est relu', async () => {
+    const done = { ...recon, resolved: true, resolvedAt: '2026-10-11T10:00:00Z' }
+    svc.list.mockImplementation(async (f: { resolved: string }) => (f.resolved === 'RESOLVED' ? pageOf([done]) : pageOf([])))
+    svc.reopen.mockResolvedValue({})
+    const w = await mountPage()
+    await w.get('[data-test="tab-RESOLVED"]').trigger('click')
+    await flushPromises()
+    svc.getContext.mockClear()
+    await w.get('[data-test="alert-quick-L’anomalie est revenue"]').trigger('click')
+    await w.get('[data-test="alert-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.reopen).toHaveBeenCalledWith('a2', 'L’anomalie est revenue')
+    expect(w.get('[data-test="alerts-done"]').text()).toBe('Alerte rouverte.')
+    expect(svc.getContext).toHaveBeenCalledWith('a2')
+  })
+
+  it('contexte : autres alertes du même paiement et historique ; un clic ouvre l’autre alerte', async () => {
+    openRows = [recon, row]
+    svc.getContext.mockImplementation(async (id: string) => (id === 'a2'
+      ? { related: [{ id: 'a1', type: 'ESCROW_J48_TIMEOUT', severity: 'WARN', resolved: false, createdAt: '2026-10-06T12:00:00' }],
+          history: [{ action: 'ADMIN_ALERT_RESOLVED', at: '2026-10-12T10:00:00', actorEmail: 'moussa@yadony.com', note: 'ok' }] }
+      : { related: [], history: [] }))
+    const w = await mountPage()
+    expect(w.get('[data-test="alert-related"]').text()).toContain('Paiement en séquestre depuis plus de 48 h')
+    expect(w.get('[data-test="alert-history"]').text()).toContain('par moussa@yadony.com')
+    await w.get('[data-test="alert-related-a1"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="alert-row-a1"]').attributes('data-selected')).toBe('true')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'a1' } })
+  })
+
+  it('autre alerte hors de la file : lue par identifiant', async () => {
+    const A = '0a1b2c3d-1111-4222-8333-444455556666'
+    openRows = [recon]
+    svc.getContext.mockResolvedValue({ related: [{ id: A, type: 'ESCROW_J48_TIMEOUT', severity: 'WARN', resolved: true, createdAt: '2026-10-06T12:00:00' }], history: [] })
+    svc.get.mockResolvedValue(escrow(A, '2026-10-06T12:00:00', { detail: 'Hors de la file', resolved: true, resolvedAt: '2026-10-07T12:00:00' }))
+    const w = await mountPage()
+    await w.get(`[data-test="alert-related-${A}"]`).trigger('click')
+    await flushPromises()
+    expect(svc.get).toHaveBeenCalledWith(A)
+    expect(w.get('[data-test="alert-detail-summary"]').text()).toBe('Hors de la file')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: A } })
+  })
+
   it('J / K parcourent la file, ⏎ confirme la décision, 2 choisit le faux positif', async () => {
     openRows = [recon, row]
     const w = await mountPage()
@@ -255,7 +389,7 @@ describe('pages/alertes', () => {
     expect(w.get('[data-test="alert-row-a2"]').text()).toContain('Résolue')
     expect(w.get('[data-test="alert-row-a1"]').text()).not.toContain('Résolue')
     expect(w.get('[data-test="alert-detail-state"]').text()).toContain('Résolue le')
-    expect(w.find('[data-test="alert-decision-resolved"]').exists()).toBe(true)
+    expect(w.find('[data-test="alert-action-REOPEN"]').exists()).toBe(true)
     expect(queueReads()).toHaveLength(1)
   })
 
@@ -311,7 +445,7 @@ describe('pages/alertes', () => {
       const w = await mountPage()
       expect(svc.get).toHaveBeenCalledWith(A)
       expect(w.get('[data-test="alert-detail-summary"]').text()).toBe('Hors de la page')
-      expect(w.find('[data-test="alert-decision-resolved"]').exists()).toBe(true)
+      expect(w.find('[data-test="alert-action-REOPEN"]').exists()).toBe(true)
     })
 
     it('404 : « Alerte introuvable », la file reste utilisable et ouvre la première alerte', async () => {

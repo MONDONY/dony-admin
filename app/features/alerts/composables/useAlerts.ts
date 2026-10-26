@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue'
 import { alertsService } from '@/features/alerts/services/alertsService'
 import type { AdminAlert, AlertsFilterState, AlertSeverity, ResolvedFilter } from '@/features/alerts/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { isEndpointMissing } from '@/lib/endpointMissing'
 
 export function useAlerts() {
   const alerts = ref<AdminAlert[]>([])
@@ -33,17 +34,31 @@ export function useAlerts() {
   async function resolve(id: string, note: string) { await alertsService.resolve(id, note); await fetchAlerts() }
 
   /**
-   * Résout plusieurs alertes avec la même note, une par une (chacune garde sa ligne d'Audit), puis
-   * recharge une fois. Rend les identifiants refusés : l'appelant dit lesquels restent ouverts.
+   * Résout plusieurs alertes avec la même note (chacune garde sa ligne d'Audit), puis recharge une
+   * fois. Une seule requête côté back récent ; un ancien back sans cette route (404/405 sans code)
+   * reçoit une requête par alerte. Rend les identifiants non résolus : l'appelant dit lesquels restent.
    */
   async function resolveMany(ids: string[], note: string): Promise<string[]> {
-    const failed: string[] = []
-    for (const id of ids) {
-      try { await alertsService.resolve(id, note) } catch { failed.push(id) }
+    let failed: string[] = []
+    try {
+      const result = await alertsService.resolveBatch(ids, note)
+      failed = ids.filter((id) => !result.resolved.includes(id) && !result.alreadyResolved.includes(id))
+    } catch (e) {
+      if (!isEndpointMissing(e)) {
+        await fetchAlerts()
+        throw e
+      }
+      for (const id of ids) {
+        try { await alertsService.resolve(id, note) } catch { failed.push(id) }
+      }
     }
     await fetchAlerts()
     return failed
   }
+
+  async function reopen(id: string, note: string) { await alertsService.reopen(id, note); await fetchAlerts() }
+  async function snooze(id: string, hours: number, note: string) { await alertsService.snooze(id, hours, note); await fetchAlerts() }
+  async function unsnooze(id: string) { await alertsService.unsnooze(id); await fetchAlerts() }
 
   /**
    * Alertes résolues par le back pendant une resynchronisation Stripe : marquées dans la liste
@@ -53,5 +68,5 @@ export function useAlerts() {
     alerts.value = alerts.value.map(a => (ids.includes(a.id) && !a.resolved ? { ...a, resolved: true, resolvedAt: at } : a))
   }
 
-  return { markResolvedLocally, alerts, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, resolveMany }
+  return { markResolvedLocally, alerts, isLoading, error, totalPages, currentPage, pageSize, filters, fetchAlerts, goToPage, setResolvedFilter, setSeverityFilter, resolve, resolveMany, reopen, snooze, unsnooze }
 }
