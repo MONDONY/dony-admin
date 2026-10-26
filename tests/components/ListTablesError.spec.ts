@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import UserTable from '@/features/users/components/UserTable.vue'
 import BidsTable from '@/features/bids/components/BidsTable.vue'
-import DisputesTable from '@/features/incidents/components/DisputesTable.vue'
+import IncidentQueue from '@/features/incidents/components/IncidentQueue.vue'
 import AlertQueue from '@/features/alerts/components/AlertQueue.vue'
 import { seedAuth } from '~/tests/helpers/auth'
 
@@ -10,7 +10,7 @@ const NuxtLinkStub = { name: 'NuxtLink', template: '<a><slot /></a>', props: ['t
 const cases = [
   ['UserTable', UserTable, { users: [], loading: false }, 'Aucun utilisateur'],
   ['BidsTable', BidsTable, { bids: [], loading: false }, 'Aucun colis'],
-  ['DisputesTable', DisputesTable, { disputes: [], loading: false }, 'Aucun litige'],
+  ['IncidentQueue', IncidentQueue, { groups: [], loading: false }, 'Aucun incident'],
   ['AlertQueue', AlertQueue, { groups: [], loading: false }, 'Aucune alerte'],
 ] as const
 

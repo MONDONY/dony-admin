@@ -157,7 +157,3 @@ export type NoShowDecision = 'confirm' | 'reject'
 export type NoShowDecisionResult = { ok: true; message: string; disputePending?: boolean } | { ok: false; message: string; code: string | null }
 export const NOSHOW_REASON_MIN = 10
 export const NOSHOW_REASON_MAX = 500
-/** Signature de l'action « trancher » passée au panneau de détail. */
-// Paramètres nommés d'un type de fonction : le no-unused-vars de base les prend pour des variables.
-// eslint-disable-next-line no-unused-vars
-export type NoShowDecideFn = (decision: NoShowDecision, reason: string) => Promise<NoShowDecisionResult>

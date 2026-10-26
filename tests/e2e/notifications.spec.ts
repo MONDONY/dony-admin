@@ -208,13 +208,13 @@ test('notification no-show : clic vers l’onglet No-shows, y compris depuis la 
     { id: 'c1', bidId: 'b9', cancelledBy: 'TRAVELER', reason: 'SENDER_NO_SHOW', noShowStatus: 'PENDING_CONFIRMATION', contestationDeadline: '2026-09-30T10:00:00Z', createdAt: '2026-09-28T11:50:00Z' },
   ]) }))
   await page.goto('/incidents')
-  await expect(page.locator('[data-test="tab-disputes"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="kind-ALL"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(bellBadge(page)).toHaveText('1')
   await bell(page).click()
   await page.locator('[data-test="notif-item"]').first().click()
   await expect(page).toHaveURL(/\/incidents\?tab=noshows$/)
-  await expect(page.locator('[data-test="tab-noshows"]')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('[data-test="noshow-row-c1"]')).toBeVisible()
+  await expect(page.locator('[data-test="kind-NOSHOW"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="incident-row-noshow:c1"]')).toBeVisible()
 })
 
 test('lien profond ?tab=wallet-refunds combiné à ?held=true : onglet ouvert au chargement', async ({ page }) => {
