@@ -26,7 +26,6 @@ const DELIVERY = {
 }
 const page = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 100 })
 const noShowRow = (id: string) => `[data-test="incident-row-noshow:${id}"]`
-const open = (p: Page, key: string) => p.locator(`[data-test="incident-open-${key}"]`).click()
 
 interface Mocks { disputes?: unknown[]; noshows?: unknown[]; onNoShowPost?: (_route: Route, _action: string, _id: string) => Promise<void> | void }
 async function setup(p: Page, role: 'ADMIN' | 'SUPPORT', { disputes = [], noshows = [], onNoShowPost }: Mocks = {}) {
