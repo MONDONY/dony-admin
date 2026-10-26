@@ -65,4 +65,15 @@ describe('SupportQueue', () => {
     expect(failed.emitted('retry')).toBeTruthy()
     expect(mountQueue([], { loading: true }).text()).toContain('Chargement')
   })
+
+  it('aperçu du dernier message avec son auteur, sans ligne quand le back n’en donne pas', () => {
+    const w = mountQueue([
+      ticket({ id: 'a', lastMessagePreview: 'Bonjour, mon colis', lastMessageAuthor: 'USER' }),
+      ticket({ id: 'b', lastMessagePreview: 'Je regarde.', lastMessageAuthor: 'ADMIN' }),
+      ticket({ id: 'c' }),
+    ])
+    expect(w.get('[data-test="support-preview-a"]').text()).toBe('user D : Bonjour, mon colis')
+    expect(w.get('[data-test="support-preview-b"]').text()).toBe('Support : Je regarde.')
+    expect(w.find('[data-test="support-preview-c"]').exists()).toBe(false)
+  })
 })

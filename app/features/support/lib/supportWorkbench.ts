@@ -1,4 +1,4 @@
-import type { AdminSupportTicket, SupportMessage, SupportTicketScope } from '@/features/support/types/index'
+import type { AdminSupportTicket, SupportHistoryEntry, SupportMessage, SupportPriority, SupportTicketScope } from '@/features/support/types/index'
 import { categoryLabel } from '@/features/support/utils/format'
 import type { TimelineItem } from '@/features/signalements/reportContext'
 import { parseServerDate, serverDateIso } from '@/lib/serverDate'
@@ -63,7 +63,22 @@ export function priorityMeta(priority: string): { label: string; tone: Tone } | 
   return { label: PRIORITY[priority]!.label, tone: PRIORITY[priority]!.tone }
 }
 
+/** Priorités proposées à l'agent, de la plus pressante à la moins pressante. */
+export const PRIORITY_CHOICES: { value: SupportPriority; label: string }[] = [
+  { value: 'URGENT', label: 'Urgent' },
+  { value: 'HIGH', label: 'Haute' },
+  { value: 'NORMAL', label: 'Normale' },
+  { value: 'LOW', label: 'Basse' },
+]
+
 export const isHighPriority = (t: Pick<AdminSupportTicket, 'priority'>): boolean => priorityRank(t.priority) >= 2
+
+/** « user D : Bonjour, mon colis… » : l'aperçu du dernier message avec son auteur ; null sans aperçu (ancien back, fil vide). */
+export function previewLine(t: Pick<AdminSupportTicket, 'lastMessagePreview' | 'lastMessageAuthor' | 'userDisplayName'>): string | null {
+  const text = t.lastMessagePreview?.trim()
+  if (!text) return null
+  return `${t.lastMessageAuthor === 'ADMIN' ? 'Support' : t.userDisplayName} : ${text}`
+}
 
 // ---- File ----
 
@@ -229,10 +244,64 @@ export const REPLY_MAX = 4000
 
 // ---- Historique ----
 
-/** Ce que le ticket porte seul : ouverture, assignation (sans date), résolution. Le détail des gestes viendra du back. */
-export function ticketTimeline(t: Pick<AdminSupportTicket, 'id' | 'createdAt' | 'assignedAdminEmail' | 'resolvedAt'>): TimelineItem[] {
-  const items: TimelineItem[] = [{ key: `opened-${t.id}`, label: 'Ticket ouvert', at: serverDateIso(t.createdAt), by: null, note: null }]
+const AUDIT_LABELS: Record<string, string> = {
+  SUPPORT_TICKET_ASSIGNED: 'Ticket assigné',
+  SUPPORT_TICKET_REASSIGNED: 'Ticket repris',
+  SUPPORT_TICKET_ADMIN_REPLIED: 'Réponse envoyée',
+  SUPPORT_TICKET_ADMIN_ATTACHED: 'Image jointe',
+  SUPPORT_TICKET_ADMIN_STARTED: 'Conversation ouverte par le support',
+  SUPPORT_TICKET_NOTE_ADDED: 'Note interne ajoutée',
+  SUPPORT_TICKET_RESOLVED: 'Ticket résolu',
+  SUPPORT_TICKET_HIDDEN_BY_USER: 'Masqué par l’utilisateur',
+}
+const PRIORITY_NAMES: Record<string, string> = { URGENT: 'urgente', HIGH: 'haute', NORMAL: 'normale', LOW: 'basse' }
+
+function auditLabel(e: SupportHistoryEntry): string {
+  if (e.action === 'SUPPORT_TICKET_PRIORITY_CHANGED') return `Priorité ${PRIORITY_NAMES[e.detail ?? ''] ?? 'modifiée'}`
+  return AUDIT_LABELS[e.action] ?? e.action
+}
+
+/**
+ * Chronologie d'un ticket, de la plus ancienne à la plus récente. Avec le contexte, chaque geste tracé dans
+ * l'audit (le back les rend du plus récent au plus ancien) ; sans lui (ancien back), ce que le ticket porte
+ * seul : ouverture, assignation sans date, résolution. La création tracée par le back se fond dans l'ouverture.
+ */
+export function ticketTimeline(
+  t: Pick<AdminSupportTicket, 'id' | 'createdAt' | 'assignedAdminEmail' | 'resolvedAt'>,
+  history?: readonly SupportHistoryEntry[] | null,
+): TimelineItem[] {
+  const opened: TimelineItem = { key: `opened-${t.id}`, label: 'Ticket ouvert', at: serverDateIso(t.createdAt), by: null, note: null }
+  if (history) {
+    const steps = [...history].filter((e) => e.action !== 'SUPPORT_TICKET_CREATED').reverse().map((e, n): TimelineItem => ({
+      key: `${e.action}-${n}`, label: auditLabel(e), at: e.at ? serverDateIso(e.at) : null,
+      by: e.actorEmail ? `par ${e.actorEmail}` : null, note: e.note ?? null,
+    }))
+    return [opened, ...steps]
+  }
+  const items = [opened]
   if (t.assignedAdminEmail) items.push({ key: `assigned-${t.id}`, label: `Assigné à ${t.assignedAdminEmail}`, at: null, by: null, note: null })
   if (t.resolvedAt) items.push({ key: `resolved-${t.id}`, label: 'Résolu', at: serverDateIso(t.resolvedAt), by: null, note: null })
   return items
+}
+
+// ---- Notes et réponses types ----
+
+export const NOTE_MIN = 3
+export const NOTE_MAX = 1000
+export const TEMPLATE_LABEL_MAX = 60
+export const TEMPLATE_CONTENT_MAX = 4000
+
+export function noteError(note: string): string | null {
+  const n = note.trim().length
+  if (n < NOTE_MIN) return `Écrivez ce qu'il faut savoir (${NOTE_MIN} caractères au moins).`
+  if (n > NOTE_MAX) return `Note trop longue (${NOTE_MAX} caractères au plus).`
+  return null
+}
+
+/** Le libellé et le texte d'une réponse type : tous deux obligatoires, dans les bornes du back. */
+export function templateError(label: string, content: string): string | null {
+  if (!label.trim() || !content.trim()) return 'Le libellé et le texte sont obligatoires.'
+  if (label.trim().length > TEMPLATE_LABEL_MAX) return `Libellé trop long (${TEMPLATE_LABEL_MAX} caractères au plus).`
+  if (content.trim().length > TEMPLATE_CONTENT_MAX) return `Texte trop long (${TEMPLATE_CONTENT_MAX} caractères au plus).`
+  return null
 }

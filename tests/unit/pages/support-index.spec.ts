@@ -16,6 +16,7 @@ vi.stubGlobal('useRoute', () => route)
 
 const support = vi.hoisted(() => ({
   list: vi.fn(), get: vi.fn(), listByUser: vi.fn(), assign: vi.fn(), reassign: vi.fn(), reply: vi.fn(), resolve: vi.fn(),
+  setPriority: vi.fn(), getContext: vi.fn(), addNote: vi.fn(), listTemplates: vi.fn(), createTemplate: vi.fn(), updateTemplate: vi.fn(), deleteTemplate: vi.fn(),
 }))
 vi.mock('@/features/support/services/supportService', () => ({ supportService: support }))
 const users = vi.hoisted(() => ({ get: vi.fn() }))
@@ -64,6 +65,13 @@ describe('pages/support', () => {
     support.listByUser.mockResolvedValue(page([]))
     support.assign.mockResolvedValue({}); support.reassign.mockResolvedValue({}); support.resolve.mockResolvedValue({})
     support.reply.mockResolvedValue({ id: 'm1' })
+    // Ancien back par défaut : ni contexte ni réponses types serveur ; chaque test le branche s'il en a besoin.
+    const missing = () => Object.assign(new Error('Not Found'), { statusCode: 404 })
+    support.getContext.mockReset().mockRejectedValue(missing())
+    support.listTemplates.mockReset().mockRejectedValue(missing())
+    support.setPriority.mockReset().mockResolvedValue({})
+    support.addNote.mockReset().mockResolvedValue({})
+    support.createTemplate.mockReset().mockResolvedValue({}); support.updateTemplate.mockReset().mockResolvedValue({}); support.deleteTemplate.mockReset().mockResolvedValue(undefined)
     users.get.mockResolvedValue({ id: UID, firstName: 'Awa', lastName: 'Diallo', status: 'ACTIVE', kycStatus: 'VERIFIED', createdAt: '2026-08-12T10:00:00Z' })
   })
 
@@ -389,6 +397,203 @@ describe('pages/support', () => {
       await flushPromises()
       expect(support.get).not.toHaveBeenCalled()
       expect(subject(w)).toBe('Où est mon colis ?')
+    })
+  })
+
+  describe('outils des agents (back #660)', () => {
+    const history = [{ action: 'SUPPORT_TICKET_ASSIGNED', at: '2026-10-25T09:00:00', actorEmail: 'sira@yadony.com' }]
+    const notes = [{ id: 'n1', adminEmail: 'sira@yadony.com', content: 'Appel passé, sans réponse', createdAt: '2026-10-25T10:00:00' }]
+    const serverTemplates = [{ id: 'x1', label: 'Merci', content: 'Merci de votre patience.', sortOrder: 10 }, { id: 'x2', label: 'Clôture', content: 'Demande traitée.', sortOrder: 20 }]
+
+    it('aperçu du dernier message dans la file', async () => {
+      support.list.mockResolvedValue(page([{ ...t1, lastMessagePreview: 'Bonjour, mon colis', lastMessageAuthor: 'USER' }]))
+      const w = await mountPage()
+      expect(w.get('[data-test="support-preview-t1"]').text()).toBe('user D : Bonjour, mon colis')
+    })
+
+    it('contexte du ticket ouvert : historique de l’audit, notes, priorité', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      const w = await mountPage()
+      expect(support.getContext).toHaveBeenCalledWith('t1')
+      expect(w.get('[data-test="report-timeline"]').text()).toContain('Ticket assigné')
+      expect(w.get('[data-test="support-note-n1"]').text()).toContain('Appel passé')
+      expect(w.find('[data-test="support-priority"]').exists()).toBe(true)
+    })
+
+    it('un autre ticket relit son contexte', async () => {
+      support.getContext.mockResolvedValue({ history: [], notes: [] })
+      const w = await mountPage()
+      await w.get('[data-test="scope-all"]').trigger('click')
+      await w.get('[data-test="support-open-t3"]').trigger('click')
+      await flushPromises()
+      expect(support.getContext).toHaveBeenLastCalledWith('t3')
+    })
+
+    it('ancien back : pas de priorité ni de notes, rien à dire', async () => {
+      const w = await mountPage()
+      expect(w.find('[data-test="support-priority"]').exists()).toBe(false)
+      expect(w.find('[data-test="support-notes"]').exists()).toBe(false)
+    })
+
+    it('changer la priorité : appel, ticket, file et contexte relus', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      const w = await mountPage()
+      const reads = support.getContext.mock.calls.length
+      await w.get('[data-test="support-priority-URGENT"]').trigger('click')
+      await flushPromises()
+      expect(support.setPriority).toHaveBeenCalledWith('t1', 'URGENT')
+      expect(support.list).toHaveBeenCalledTimes(2)
+      expect(support.getContext.mock.calls.length).toBe(reads + 1)
+    })
+
+    it('refus du changement de priorité : la phrase du back dans la colonne d’actions', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      support.setPriority.mockRejectedValue(Object.assign(new Error('422'), { data: { detail: 'Ticket résolu.' } }))
+      const w = await mountPage()
+      await w.get('[data-test="support-priority-URGENT"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="support-action-error"]').text()).toBe('Ticket résolu.')
+    })
+
+    it('ajouter une note : appel, contexte relu, zone vidée', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      const w = await mountPage()
+      const reads = support.getContext.mock.calls.length
+      await w.get('[data-test="support-note-input"]').setValue('À rappeler demain')
+      await w.get('[data-test="support-note-add"]').trigger('click')
+      await flushPromises()
+      expect(support.addNote).toHaveBeenCalledWith('t1', 'À rappeler demain')
+      expect(support.getContext.mock.calls.length).toBe(reads + 1)
+      expect((w.get('[data-test="support-note-input"]').element as HTMLTextAreaElement).value).toBe('')
+    })
+
+    it('note refusée : la phrase du back, la saisie conservée', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      support.addNote.mockRejectedValue(Object.assign(new Error('422'), { data: { detail: 'La note doit faire entre 3 et 1000 caractères' } }))
+      const w = await mountPage()
+      await w.get('[data-test="support-note-input"]').setValue('Une note')
+      await w.get('[data-test="support-note-add"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="support-note-error"]').text()).toContain('entre 3 et 1000')
+      expect((w.get('[data-test="support-note-input"]').element as HTMLTextAreaElement).value).toBe('Une note')
+    })
+
+    it('note refusée sans phrase : message par défaut', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      support.addNote.mockRejectedValue({})
+      const w = await mountPage()
+      await w.get('[data-test="support-note-input"]').setValue('Une note')
+      await w.get('[data-test="support-note-add"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="support-note-error"]').text()).toBe('Note refusée')
+    })
+
+    it('les gestes relisent le contexte : assignation, réponse, résolution', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      const w = await mountPage()
+      let reads = support.getContext.mock.calls.length
+      await w.get('[data-test="support-action-assign"]').trigger('click')
+      await flushPromises()
+      expect(support.getContext.mock.calls.length).toBeGreaterThan(reads)
+      await w.get('[data-test="scope-mine"]').trigger('click')
+      await flushPromises()
+      reads = support.getContext.mock.calls.length
+      await w.get('[data-test="support-reply"]').setValue('Bonjour')
+      await w.get('[data-test="support-send"]').trigger('click')
+      await flushPromises()
+      expect(support.getContext.mock.calls.length).toBeGreaterThan(reads)
+    })
+
+    it('résoudre le seul ticket : le contexte du même ticket est relu', async () => {
+      support.getContext.mockResolvedValue({ history, notes })
+      support.list.mockResolvedValueOnce(page([t2])).mockResolvedValue(page([{ ...t2, status: 'RESOLVED', resolvedAt: ago(0.1) }]))
+      const w = await mountPage()
+      await w.get('[data-test="scope-mine"]').trigger('click')
+      await flushPromises()
+      const reads = support.getContext.mock.calls.length
+      await w.get('[data-test="support-action-resolve"]').trigger('click')
+      await w.get('[data-test="support-action-resolve"]').trigger('click')
+      await flushPromises()
+      expect(support.getContext.mock.calls.length).toBeGreaterThan(reads)
+    })
+
+    describe('réponses types du serveur', () => {
+      beforeEach(() => { support.listTemplates.mockResolvedValue(serverTemplates) })
+
+      it('remplacent la liste fixe, numérotées', async () => {
+        const w = await mountPage()
+        await w.get('[data-test="scope-mine"]').trigger('click')
+        await flushPromises()
+        expect(w.findAll('button[data-test^="support-quick-"]').map((b) => b.text())).toEqual(['1Merci', '2Clôture'])
+        await press('2')
+        expect((w.get('[data-test="support-reply"]').element as HTMLTextAreaElement).value).toBe('Demande traitée.')
+      })
+
+      it('« Gérer » ouvre la fenêtre ; créer, modifier, supprimer relisent la liste', async () => {
+        const w = await mountPage()
+        await w.get('[data-test="scope-mine"]').trigger('click')
+        await flushPromises()
+        await w.get('[data-test="support-manage-templates"]').trigger('click')
+        expect(w.get('[data-test="templates-dialog"]').exists()).toBe(true)
+        await w.get('[data-test="template-new"]').trigger('click')
+        await w.get('[data-test="template-label"]').setValue('Neuf')
+        await w.get('[data-test="template-content"]').setValue('Texte neuf')
+        support.listTemplates.mockResolvedValue([...serverTemplates, { id: 'x3', label: 'Neuf', content: 'Texte neuf', sortOrder: 30 }])
+        await w.get('[data-test="template-save"]').trigger('click')
+        await flushPromises()
+        expect(support.createTemplate).toHaveBeenCalledWith('Neuf', 'Texte neuf')
+        expect(w.findAll('button[data-test^="support-quick-"]')).toHaveLength(3)
+        await w.get('[data-test="template-edit-x3"]').trigger('click')
+        await w.get('[data-test="template-content"]').setValue('Texte neuf 2')
+        await w.get('[data-test="template-save"]').trigger('click')
+        await flushPromises()
+        expect(support.updateTemplate).toHaveBeenCalledWith('x3', 'Neuf', 'Texte neuf 2')
+        await w.get('[data-test="template-remove-x3"]').trigger('click')
+        await w.get('[data-test="template-remove-x3"]').trigger('click')
+        await flushPromises()
+        expect(support.deleteTemplate).toHaveBeenCalledWith('x3')
+      })
+
+      it('refus de création : la phrase du back dans la fenêtre', async () => {
+        support.createTemplate.mockRejectedValue(Object.assign(new Error('422'), { data: { detail: 'Réponse type invalide' } }))
+        const w = await mountPage()
+        await w.get('[data-test="scope-mine"]').trigger('click')
+        await flushPromises()
+        await w.get('[data-test="support-manage-templates"]').trigger('click')
+        await w.get('[data-test="template-new"]').trigger('click')
+        await w.get('[data-test="template-label"]').setValue('Neuf')
+        await w.get('[data-test="template-content"]').setValue('Texte')
+        await w.get('[data-test="template-save"]').trigger('click')
+        await flushPromises()
+        expect(w.get('[data-test="templates-error"]').text()).toBe('Réponse type invalide')
+      })
+
+      it('fenêtre ouverte : les raccourcis sont suspendus, fermée ils reprennent', async () => {
+        const w = await mountPage()
+        await w.get('[data-test="scope-all"]').trigger('click')
+        await w.get('[data-test="support-open-t2"]').trigger('click')
+        await flushPromises()
+        await w.get('[data-test="support-manage-templates"]').trigger('click')
+        await press('j')
+        expect(subject(w)).toBe('Remboursement')
+        await w.get('[data-test="templates-close"]').trigger('click')
+        await press('j')
+        expect(subject(w)).not.toBe('Remboursement')
+      })
+
+      it('sans SUPPORT_TICKET_MANAGE : les réponses sont proposées, pas de « Gérer »', async () => {
+        seedAuth('SUPPORT', { SUPPORT_TICKET_MANAGE: false })
+        const w = await mountPage()
+        expect(w.find('[data-test="support-manage-templates"]').exists()).toBe(false)
+      })
+    })
+
+    it('ancien back : liste fixe des réponses types, pas de « Gérer »', async () => {
+      const w = await mountPage()
+      await w.get('[data-test="scope-mine"]').trigger('click')
+      await flushPromises()
+      expect(w.findAll('button[data-test^="support-quick-"]')).toHaveLength(5)
+      expect(w.find('[data-test="support-manage-templates"]').exists()).toBe(false)
     })
   })
 

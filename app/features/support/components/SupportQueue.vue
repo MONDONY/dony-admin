@@ -2,7 +2,7 @@
 import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { categoryLabel } from '@/features/support/utils/format'
-import { priorityMeta, ticketGroupOf, waitingAge, type TicketGroup } from '@/features/support/lib/supportWorkbench'
+import { previewLine, priorityMeta, ticketGroupOf, waitingAge, type TicketGroup } from '@/features/support/lib/supportWorkbench'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { parseServerDate, serverDateIso } from '@/lib/serverDate'
 
@@ -69,6 +69,7 @@ function owner(t: AdminSupportTicket): string | null {
                 <span class="min-w-0 truncate">{{ t.userDisplayName }}</span>
                 <span v-if="caption(t)" class="shrink-0">{{ caption(t) }}</span>
               </span>
+              <span v-if="previewLine(t)" class="mt-0.5 block truncate text-xs text-text-muted" :data-test="`support-preview-${t.id}`">{{ previewLine(t) }}</span>
               <span class="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                 <StatusBadge :label="categoryLabel(t.category)" tone="neutral" />
                 <StatusBadge v-if="priorityMeta(t.priority)" v-bind="priorityMeta(t.priority)!" />

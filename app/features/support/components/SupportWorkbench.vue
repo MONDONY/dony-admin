@@ -2,11 +2,14 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import KeyHint from '@/components/ui/KeyHint.vue'
 import StartSupportConversationDialog from './StartSupportConversationDialog.vue'
+import SupportTemplatesDialog from './SupportTemplatesDialog.vue'
 import SupportQueue from './SupportQueue.vue'
 import SupportConversation from './SupportConversation.vue'
 import SupportContextPanel from './SupportContextPanel.vue'
 import { useSupportTickets } from '@/features/support/composables/useSupportTickets'
 import { useReplyDrafts } from '@/features/support/composables/useReplyDrafts'
+import { useSupportContext } from '@/features/support/composables/useSupportContext'
+import { useReplyTemplates } from '@/features/support/composables/useReplyTemplates'
 import { useContextLoader } from '@/features/signalements/composables/useContextLoader'
 import { useWorkbenchShortcuts } from '@/features/signalements/composables/useWorkbenchShortcuts'
 import { supportService } from '@/features/support/services/supportService'
@@ -14,8 +17,9 @@ import {
   defaultTicketId, filterTickets, groupTickets, neighbourTicketId, queueOrder, scopeCounts, summarizeTickets, ticketCategories,
 } from '@/features/support/lib/supportWorkbench'
 import { categoryLabel } from '@/features/support/utils/format'
-import type { AdminSupportTicketPage, SupportTicketScope } from '@/features/support/types/index'
+import type { AdminSupportTicketPage, SupportPriority, SupportTicketScope } from '@/features/support/types/index'
 import type { AdminUserDetail } from '@/features/users/types/index'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import { userDisplayName } from '@/features/broadcast/composables/useUserSearch'
 import { usersService } from '@/features/users/services/usersService'
 import { useAuthStore } from '@/stores/auth'
@@ -27,6 +31,11 @@ import { useAuthStore } from '@/stores/auth'
  */
 const s = useSupportTickets()
 const drafts = useReplyDrafts()
+const ctx = useSupportContext()
+const tpl = useReplyTemplates()
+const templatesOpen = ref(false)
+const notesBusy = ref(false)
+const notesError = ref<string | null>(null)
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -98,7 +107,9 @@ function scrollTo(id: string) {
 function activate(id: string, { write = true }: { write?: boolean } = {}) {
   selectedId.value = id
   openError.value = null
+  notesError.value = null
   void s.openTicket(id)
+  void ctx.load(id)
   if (write) writeTicketParam(id)
 }
 function selectTicket(id: string) {
@@ -120,6 +131,7 @@ watch(order, (list) => {
 async function openFromLink(id: string) {
   openError.value = null
   selectedId.value = id
+  void ctx.load(id)
   await s.openTicket(id)
   if (s.selected.value?.id !== id) {
     openError.value = s.actionError.value ?? 'Ticket introuvable'
@@ -162,10 +174,26 @@ function onStarted() {
 }
 
 // ---- Gestes ----
-async function onAssign(id: string) { await s.assign(id) }
-async function onReassign(id: string, adminId: string) { await s.reassign(id, adminId) }
+/** Le geste est tracé dans l'audit : l'historique du même ticket se relit. */
+const reloadContext = () => { if (selectedId.value) void ctx.load(selectedId.value) }
+async function onAssign(id: string) { await s.assign(id); reloadContext() }
+async function onReassign(id: string, adminId: string) { await s.reassign(id, adminId); reloadContext() }
+async function onSetPriority(id: string, priority: SupportPriority) { await s.setPriority(id, priority); reloadContext() }
+async function onAddNote(id: string, content: string) {
+  notesBusy.value = true
+  notesError.value = null
+  try {
+    await supportService.addNote(id, content)
+    await ctx.load(id)
+  } catch (e) {
+    notesError.value = extractProblemMessage(e, 'Note refusée')
+  } finally {
+    notesBusy.value = false
+  }
+}
 async function onReply(id: string, content: string, keys: string[]) {
   if (await s.reply(id, content, keys)) drafts.clear(id)
+  reloadContext()
 }
 /** Résolu, le ticket quitte « À répondre » : le suivant de la file s'ouvre. */
 async function onResolve(id: string) {
@@ -176,7 +204,9 @@ async function onResolve(id: string) {
   const list = order.value
   const target = nextId && list.some((t) => t.id === nextId) ? nextId : defaultTicketId(list)
   if (target && target !== id) { activate(target); scrollTo(target) }
+  else reloadContext()
 }
+const canManageTemplates = computed(() => tpl.loaded.value && !tpl.unavailable.value && auth.can('SUPPORT_TICKET_MANAGE'))
 const draft = computed({
   get: () => (selectedId.value ? drafts.get(selectedId.value) : ''),
   set: (text: string) => { if (selectedId.value) drafts.set(selectedId.value, text) },
@@ -190,7 +220,7 @@ const catChip = (on: boolean) => ['rounded-full border px-2.5 py-0.5 text-xs tra
 
 // ---- Raccourcis : J / K, 1 à 9 (réponse type), ⌘⏎ ----
 useWorkbenchShortcuts({
-  enabled: () => !startOpen.value,
+  enabled: () => !startOpen.value && !templatesOpen.value,
   move: (step) => {
     const id = neighbourTicketId(order.value, selectedId.value, step)
     if (id) selectTicket(id)
@@ -200,6 +230,7 @@ useWorkbenchShortcuts({
 })
 
 onMounted(async () => {
+  void tpl.load()
   const uid = queryValue('userId')
   if (uid) await applyUserFilter(uid)
   else await s.fetchTickets()
@@ -338,17 +369,24 @@ watch(() => queryValue('ticket'), (id) => {
         <SupportConversation
           ref="conversation" v-model:draft="draft"
           :ticket="current" :loading="s.isDetailLoading.value" :acting="s.isActing.value" :now="now"
-          @assign="onAssign" @reply="onReply"
+          :quick-replies="tpl.options.value" :can-manage-templates="canManageTemplates"
+          @assign="onAssign" @reply="onReply" @manage-templates="templatesOpen = true"
         />
 
         <!-- 3. Contexte et actions -->
         <SupportContextPanel
-          :ticket="current" :user="userCtx.context.value" :related="related" :acting="s.isActing.value" :action-error="s.actionError.value"
+          :ticket="current" :user="userCtx.context.value" :related="related" :context="ctx.context.value" :acting="s.isActing.value"
+          :action-error="s.actionError.value" :notes-busy="notesBusy" :notes-error="notesError"
           @assign="onAssign" @reassign="onReassign" @resolve="onResolve" @open-ticket="selectTicket"
+          @set-priority="onSetPriority" @add-note="onAddNote"
         />
       </div>
     </div>
 
+    <SupportTemplatesDialog
+      :open="templatesOpen" :templates="tpl.templates.value" :busy="tpl.busy.value" :error="tpl.error.value"
+      @close="templatesOpen = false" @create="tpl.create" @update="tpl.update" @remove="tpl.remove"
+    />
     <StartSupportConversationDialog
       :open="startOpen" :recipient="startRecipient"
       @close="startOpen = false" @sent="onStarted"

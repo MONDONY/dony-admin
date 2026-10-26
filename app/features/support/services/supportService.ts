@@ -1,7 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
-  AdminSupportTicket, AdminSupportTicketPage, StartSupportTicketPayload, SupportMessage, SupportStatusFilter,
-  SupportTicketScope,
+  AdminSupportTicket, AdminSupportTicketPage, StartSupportTicketPayload, SupportContext, SupportMessage, SupportNote,
+  SupportPriority, SupportReplyTemplate, SupportStatusFilter, SupportTicketScope,
 } from '@/features/support/types/index'
 
 function buildQuery(
@@ -79,5 +79,29 @@ export const supportService = {
   /** Résoudre — définitif, pas de réouverture. */
   resolve(id: string): Promise<AdminSupportTicket> {
     return useApi()<AdminSupportTicket>(`/admin/support/tickets/${id}/resolve`, { method: 'POST' })
+  },
+  /** Change la priorité d'un ticket ouvert (SUPPORT_TICKET_MANAGE). 404/405 sans code sur un ancien back. */
+  setPriority(id: string, priority: SupportPriority): Promise<AdminSupportTicket> {
+    return useApi()<AdminSupportTicket>(`/admin/support/tickets/${id}/priority`, { method: 'POST', body: { priority } })
+  },
+  /** Historique tracé et notes internes du ticket (back #660) ; 404/405 sans code sur un ancien back. */
+  getContext(id: string): Promise<SupportContext> {
+    return useApi()<SupportContext>(`/admin/support/tickets/${id}/context`)
+  },
+  /** Note interne, 3 à 1000 caractères (422 `support-note-invalid` sinon). */
+  addNote(id: string, content: string): Promise<SupportNote> {
+    return useApi()<SupportNote>(`/admin/support/tickets/${id}/notes`, { method: 'POST', body: { content } })
+  },
+  listTemplates(): Promise<SupportReplyTemplate[]> {
+    return useApi()<SupportReplyTemplate[]>('/admin/support/reply-templates')
+  },
+  createTemplate(label: string, content: string): Promise<SupportReplyTemplate> {
+    return useApi()<SupportReplyTemplate>('/admin/support/reply-templates', { method: 'POST', body: { label, content } })
+  },
+  updateTemplate(id: string, label: string, content: string): Promise<SupportReplyTemplate> {
+    return useApi()<SupportReplyTemplate>(`/admin/support/reply-templates/${id}`, { method: 'PUT', body: { label, content } })
+  },
+  deleteTemplate(id: string): Promise<void> {
+    return useApi()<void>(`/admin/support/reply-templates/${id}`, { method: 'DELETE' })
   },
 }

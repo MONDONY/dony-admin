@@ -57,7 +57,34 @@ export interface AdminSupportTicket {
   messages: SupportMessage[] | null
   /** Signalement (rapport de bug) dont la conversation est issue ; absent sur un ancien back. */
   sourceReportId?: string | null
+  /** Aperçu du dernier message et son auteur (liste seulement, back #660) ; absents sur un ancien back. */
+  lastMessagePreview?: string | null
+  lastMessageAuthor?: 'USER' | 'ADMIN' | null
 }
+
+export type SupportPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+
+/** Geste tracé dans l'audit d'un ticket (du plus récent au plus ancien). */
+export interface SupportHistoryEntry {
+  action: string
+  /** Nouvelle priorité pour un changement de priorité. */
+  detail?: string | null
+  at?: string | null
+  actorEmail?: string | null
+  note?: string | null
+}
+/** Note interne d'un agent : vue des seuls administrateurs. */
+export interface SupportNote {
+  id: string
+  adminEmail: string | null
+  content: string
+  createdAt: string
+}
+/** `GET /admin/support/tickets/{id}/context` (back #660). */
+export interface SupportContext { history: SupportHistoryEntry[]; notes: SupportNote[] }
+
+/** Réponse type d'un agent (`/admin/support/reply-templates`, back #660). */
+export interface SupportReplyTemplate { id: string; label: string; content: string; sortOrder: number }
 
 export interface AdminSupportTicketPage {
   content: AdminSupportTicket[]

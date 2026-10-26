@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { STATUS_LABELS, categoryLabel, formatDate, statusTone } from '@/features/support/utils/format'
 import {
-  groupMessagesByDay, insertQuickReply, messageTime, priorityMeta, QUICK_REPLIES, REPLY_MAX, silenceNote,
+  groupMessagesByDay, insertQuickReply, messageTime, priorityMeta, QUICK_REPLIES, REPLY_MAX, silenceNote, type QuickReply,
 } from '@/features/support/lib/supportWorkbench'
 
 /**
@@ -23,9 +23,14 @@ const props = withDefaults(defineProps<{
   acting?: boolean
   /** Brouillon de ce ticket : conservé par la page quand on change de ticket. */
   draft?: string
+  /** Réponses types proposées : celles du serveur, ou la liste fixe de l'app. */
+  quickReplies?: QuickReply[]
+  /** La gestion des réponses types est offerte (serveur à jour et droit de gérer). */
+  canManageTemplates?: boolean
   now?: number
-}>(), { loading: false, acting: false, draft: '', now: undefined })
+}>(), { loading: false, acting: false, draft: '', quickReplies: () => QUICK_REPLIES, canManageTemplates: false, now: undefined })
 const emit = defineEmits<{
+  'manage-templates': []
   'update:draft': [text: string]
   assign: [id: string]
   reply: [id: string, content: string, attachmentKeys: string[]]
@@ -58,7 +63,7 @@ function sendReply() {
 }
 /** Raccourci 1 à 9 : ajoute la réponse type n au brouillon. */
 function quick(n: number) {
-  const reply = QUICK_REPLIES[n - 1]
+  const reply = props.quickReplies[n - 1]
   if (reply && showComposer.value) emit('update:draft', insertQuickReply(props.draft, reply.text))
 }
 function openViewer(url: string) {
@@ -126,10 +131,14 @@ defineExpose({ quick, submit: sendReply, canSubmit })
         <div class="mb-2 flex flex-wrap items-center gap-1.5" data-test="support-quick-replies">
           <span class="mr-1 text-xs font-semibold uppercase tracking-wide text-text-muted">Réponses types</span>
           <button
-            v-for="(q, n) in QUICK_REPLIES" :key="q.label" type="button" :data-test="`support-quick-${n + 1}`" :title="q.text"
+            v-for="(q, n) in quickReplies.slice(0, 9)" :key="`${n}-${q.label}`" type="button" :data-test="`support-quick-${n + 1}`" :title="q.text"
             class="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-text-muted transition-[background-color,scale] hover:bg-surface-elevated hover:text-text active:scale-[0.96]"
             @click="quick(n + 1)"
           ><KeyHint>{{ n + 1 }}</KeyHint>{{ q.label }}</button>
+          <button
+            v-if="canManageTemplates" type="button" data-test="support-manage-templates"
+            class="ml-auto text-xs text-primary underline-offset-2 hover:underline" @click="emit('manage-templates')"
+          >Gérer</button>
         </div>
         <SupportAttachmentUploader :key="`${ticket.id}-${uploaderKey}`" class="mb-2" @change="attachmentKeys = $event" @busy="uploading = $event" />
         <label for="support-reply" class="sr-only">Votre réponse</label>
