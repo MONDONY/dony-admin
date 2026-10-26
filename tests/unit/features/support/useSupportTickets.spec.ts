@@ -9,6 +9,7 @@ const assignMock = vi.fn()
 const reassignMock = vi.fn()
 const replyMock = vi.fn()
 const resolveMock = vi.fn()
+const priorityMock = vi.fn()
 vi.mock('@/features/support/services/supportService', () => ({
   supportService: {
     list: (...a: unknown[]) => listMock(...a),
@@ -17,6 +18,7 @@ vi.mock('@/features/support/services/supportService', () => ({
     reassign: (...a: unknown[]) => reassignMock(...a),
     reply: (...a: unknown[]) => replyMock(...a),
     resolve: (...a: unknown[]) => resolveMock(...a),
+    setPriority: (...a: unknown[]) => priorityMock(...a),
   },
 }))
 import { SUPPORT_PAGE_SIZE, useSupportTickets } from '@/features/support/composables/useSupportTickets'
@@ -32,7 +34,7 @@ const page = { content: [ticket], totalElements: 1, totalPages: 1, number: 0, si
 
 describe('useSupportTickets', () => {
   beforeEach(() => {
-    for (const m of [listMock, getMock, assignMock, reassignMock, replyMock, resolveMock]) {
+    for (const m of [listMock, getMock, assignMock, reassignMock, replyMock, resolveMock, priorityMock]) {
       m.mockReset()
     }
   })
@@ -124,6 +126,16 @@ describe('useSupportTickets', () => {
     expect(reassignMock).toHaveBeenCalledWith('t1', 'a2')
     expect(await s.resolve('t1')).toBe(true)
     expect(resolveMock).toHaveBeenCalledWith('t1')
+  })
+
+  it('setPriority envoie la priorité puis recharge', async () => {
+    priorityMock.mockResolvedValue({})
+    getMock.mockResolvedValue({ ...ticket, priority: 'HIGH', messages: [] })
+    listMock.mockResolvedValue(page)
+    const s = useSupportTickets()
+    expect(await s.setPriority('t1', 'HIGH')).toBe(true)
+    expect(priorityMock).toHaveBeenCalledWith('t1', 'HIGH')
+    expect(s.selected.value?.priority).toBe('HIGH')
   })
 
   it('reply envoie le contenu puis recharge', async () => {

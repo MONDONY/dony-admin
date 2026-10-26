@@ -138,6 +138,36 @@ describe('SupportConversation', () => {
     })
   })
 
+  describe('réponses types du serveur', () => {
+    const replies = [{ label: 'Merci', text: 'Merci de votre patience.' }, { label: 'Clôture', text: 'Votre demande est traitée.' }]
+
+    it('les réponses passées remplacent la liste fixe, numérotées', async () => {
+      const w = mountConv({ ticket: mine(), quickReplies: replies })
+      expect(w.findAll('button[data-test^="support-quick-"]')).toHaveLength(2)
+      expect(w.get('[data-test="support-quick-2"]').text()).toContain('Clôture')
+      await w.get('[data-test="support-quick-1"]').trigger('click')
+      expect(w.emitted('update:draft')![0]).toEqual(['Merci de votre patience.'])
+      ;(w.vm as unknown as { quick: (_n: number) => void }).quick(3)
+      expect(w.emitted('update:draft')).toHaveLength(1)
+    })
+
+    it('aucune réponse type : pas de bouton, mais « Gérer » reste offert', async () => {
+      const w = mountConv({ ticket: mine(), quickReplies: [], canManageTemplates: true })
+      expect(w.findAll('button[data-test^="support-quick-"]')).toHaveLength(0)
+      await w.get('[data-test="support-manage-templates"]').trigger('click')
+      expect(w.emitted('manage-templates')).toHaveLength(1)
+    })
+
+    it('« Gérer » seulement avec le droit et un serveur à jour', () => {
+      expect(mountConv({ ticket: mine() }).find('[data-test="support-manage-templates"]').exists()).toBe(false)
+    })
+
+    it('neuf boutons au plus, comme les neuf touches', () => {
+      const many = Array.from({ length: 12 }, (_, n) => ({ label: `R${n}`, text: `T${n}` }))
+      expect(mountConv({ ticket: mine(), quickReplies: many }).findAll('button[data-test^="support-quick-"]')).toHaveLength(9)
+    })
+  })
+
   describe('sans zone de réponse', () => {
     it('non assigné : invitation et bouton « M’assigner »', async () => {
       const w = mountConv({ ticket: ticket({ messages: [] }) })

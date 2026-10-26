@@ -3,6 +3,7 @@ import {
   defaultTicketId, filterTickets, groupMessagesByDay, groupTickets, insertQuickReply, isHighPriority, messageTime,
   neighbourTicketId, priorityMeta, QUICK_REPLIES, queueOrder, scopeCounts, silenceNote, summarizeTickets,
   ticketCategories, ticketGroupOf, ticketTimeline, waitingAge,
+  noteError, previewLine, PRIORITY_CHOICES, templateError,
 } from '@/features/support/lib/supportWorkbench'
 import { ago, message, NOW, ticket } from './supportFixtures'
 
@@ -162,10 +163,53 @@ describe('réponse et historique', () => {
     expect(new Set(QUICK_REPLIES.map((q) => q.label)).size).toBe(5)
   })
 
-  it('historique : ouverture, assignation (sans date), résolution', () => {
+  it('historique sans contexte (ancien back) : ouverture, assignation sans date, résolution', () => {
     const t = ticket({ createdAt: '2026-10-17T15:19:00', assignedAdminEmail: 'sira@yadony.com', resolvedAt: '2026-10-24T10:12:00Z' })
     expect(ticketTimeline(t).map((i) => i.label)).toEqual(['Ticket ouvert', 'Assigné à sira@yadony.com', 'Résolu'])
     expect(ticketTimeline(t)[0]!.at).toBe('2026-10-17T15:19:00Z')
     expect(ticketTimeline(ticket()).map((i) => i.label)).toEqual(['Ticket ouvert'])
+    expect(ticketTimeline(ticket(), null)).toHaveLength(1)
+  })
+
+  it('historique avec contexte : chaque geste tracé, du plus ancien au plus récent, la création fondue dans l’ouverture', () => {
+    const items = ticketTimeline(ticket(), [
+      { action: 'SUPPORT_TICKET_RESOLVED', at: '2026-10-24T10:12:00', actorEmail: 'sira@yadony.com' },
+      { action: 'SUPPORT_TICKET_PRIORITY_CHANGED', detail: 'URGENT', at: '2026-10-23T10:00:00' },
+      { action: 'SUPPORT_TICKET_PRIORITY_CHANGED', detail: null },
+      { action: 'SUPPORT_TICKET_ADMIN_REPLIED', at: null },
+      { action: 'GESTE_INCONNU', note: 'ok' },
+      { action: 'SUPPORT_TICKET_CREATED' },
+    ])
+    expect(items.map((i) => i.label)).toEqual(['Ticket ouvert', 'GESTE_INCONNU', 'Réponse envoyée', 'Priorité modifiée', 'Priorité urgente', 'Ticket résolu'])
+    expect(items[5]).toMatchObject({ by: 'par sira@yadony.com', at: '2026-10-24T10:12:00Z' })
+    expect(items[2]!.at).toBeNull()
+    expect(items[1]!.note).toBe('ok')
+  })
+})
+
+describe('aperçu, priorités, notes et réponses types', () => {
+  it('aperçu du dernier message avec son auteur', () => {
+    expect(previewLine({ lastMessagePreview: 'Bonjour', lastMessageAuthor: 'USER', userDisplayName: 'user D' })).toBe('user D : Bonjour')
+    expect(previewLine({ lastMessagePreview: 'Je regarde.', lastMessageAuthor: 'ADMIN', userDisplayName: 'user D' })).toBe('Support : Je regarde.')
+    expect(previewLine({ lastMessagePreview: '  ', lastMessageAuthor: 'USER', userDisplayName: 'user D' })).toBeNull()
+    expect(previewLine({ userDisplayName: 'user D' })).toBeNull()
+  })
+
+  it('priorités proposées, de la plus pressante à la moins pressante', () => {
+    expect(PRIORITY_CHOICES.map((p) => p.value)).toEqual(['URGENT', 'HIGH', 'NORMAL', 'LOW'])
+  })
+
+  it('note : 3 à 1000 caractères', () => {
+    expect(noteError('ab')).toMatch(/3 caractères/)
+    expect(noteError('abc')).toBeNull()
+    expect(noteError('x'.repeat(1001))).toMatch(/1000/)
+  })
+
+  it('réponse type : libellé et texte obligatoires, dans les bornes', () => {
+    expect(templateError('', 'x')).toMatch(/obligatoires/)
+    expect(templateError('x', '  ')).toMatch(/obligatoires/)
+    expect(templateError('x'.repeat(61), 'x')).toMatch(/60/)
+    expect(templateError('x', 'y'.repeat(4001))).toMatch(/4000/)
+    expect(templateError('Merci', 'Merci de votre patience.')).toBeNull()
   })
 })

@@ -115,4 +115,26 @@ describe('supportService', () => {
     await supportService.listByUser('user-1')
     expect(apiMock.mock.calls[0][1].query.size).toBe(5)
   })
+
+  it('priorité, contexte, notes', async () => {
+    apiMock.mockResolvedValue({})
+    await supportService.setPriority('t1', 'HIGH')
+    await supportService.getContext('t1')
+    await supportService.addNote('t1', 'Appel passé')
+    expect(apiMock.mock.calls[0]).toEqual(['/admin/support/tickets/t1/priority', { method: 'POST', body: { priority: 'HIGH' } }])
+    expect(apiMock.mock.calls[1]).toEqual(['/admin/support/tickets/t1/context'])
+    expect(apiMock.mock.calls[2]).toEqual(['/admin/support/tickets/t1/notes', { method: 'POST', body: { content: 'Appel passé' } }])
+  })
+
+  it('réponses types : lire, créer, modifier, supprimer', async () => {
+    apiMock.mockResolvedValue({})
+    await supportService.listTemplates()
+    await supportService.createTemplate('Merci', 'Texte')
+    await supportService.updateTemplate('x1', 'Merci !', 'Texte 2')
+    await supportService.deleteTemplate('x1')
+    expect(apiMock.mock.calls[0]).toEqual(['/admin/support/reply-templates'])
+    expect(apiMock.mock.calls[1]).toEqual(['/admin/support/reply-templates', { method: 'POST', body: { label: 'Merci', content: 'Texte' } }])
+    expect(apiMock.mock.calls[2]).toEqual(['/admin/support/reply-templates/x1', { method: 'PUT', body: { label: 'Merci !', content: 'Texte 2' } }])
+    expect(apiMock.mock.calls[3]).toEqual(['/admin/support/reply-templates/x1', { method: 'DELETE' }])
+  })
 })

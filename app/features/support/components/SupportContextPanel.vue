@@ -4,11 +4,12 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ReportTimeline from '@/features/signalements/components/ReportTimeline.vue'
 import { accountStatusMeta, memberSinceLabel } from '@/features/signalements/reportContext'
 import { STATUS_LABELS, statusTone } from '@/features/support/utils/format'
-import { ticketTimeline } from '@/features/support/lib/supportWorkbench'
-import type { AdminSupportTicket } from '@/features/support/types/index'
+import { NOTE_MAX, noteError, PRIORITY_CHOICES, ticketTimeline } from '@/features/support/lib/supportWorkbench'
+import type { AdminSupportTicket, SupportContext, SupportPriority } from '@/features/support/types/index'
 import type { AdminUserDetail } from '@/features/users/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { gate, toHref, userRoute } from '@/lib/adminLinks'
+import { serverDateIso } from '@/lib/serverDate'
 
 /**
  * Colonne de droite du poste : qui écrit (fiche, colis, paiements), les gestes sur le ticket
@@ -20,14 +21,21 @@ const props = withDefaults(defineProps<{
   user?: AdminUserDetail | null
   /** Autres conversations de la personne (le ticket affiché en est exclu par l'appelant). */
   related?: AdminSupportTicket[]
+  /** Historique tracé et notes ; null tant que ça charge ou sur un ancien back (priorité et notes sont alors masquées). */
+  context?: SupportContext | null
   acting?: boolean
   actionError?: string | null
-}>(), { user: null, related: () => [], acting: false, actionError: null })
+  /** Une note est en cours d'enregistrement, ou a été refusée. */
+  notesBusy?: boolean
+  notesError?: string | null
+}>(), { user: null, related: () => [], context: null, acting: false, actionError: null, notesBusy: false, notesError: null })
 const emit = defineEmits<{
   assign: [id: string]
   reassign: [id: string, adminId: string]
   resolve: [id: string]
   openTicket: [id: string]
+  'set-priority': [id: string, priority: SupportPriority]
+  'add-note': [id: string, content: string]
 }>()
 
 const auth = useAuthStore()
@@ -46,7 +54,18 @@ const href = (tab?: 'parcels' | 'money') => {
 const account = computed(() => (props.user ? accountStatusMeta(props.user.status) : null))
 const kyc = computed(() => (props.user ? (props.user.kycStatus === 'VERIFIED' ? 'Identité vérifiée' : 'Identité non vérifiée') : null))
 const since = computed(() => memberSinceLabel(props.user?.createdAt))
-const timeline = computed(() => (props.ticket ? ticketTimeline(props.ticket) : []))
+const timeline = computed(() => (props.ticket ? ticketTimeline(props.ticket, props.context?.history) : []))
+const notes = computed(() => props.context?.notes ?? [])
+const note = ref('')
+const noteProblem = computed(() => (note.value.trim() ? noteError(note.value) : null))
+const canAddNote = computed(() => canManage.value && !props.notesBusy && !!note.value.trim() && !noteError(note.value))
+// Une note enregistrée vide la zone ; refusée, elle reste pour être corrigée.
+watch(() => props.notesBusy, (busy, was) => { if (was && !busy && !props.notesError) note.value = '' })
+watch(() => props.ticket?.id, () => { note.value = '' })
+function addNote() {
+  if (props.ticket && canAddNote.value) emit('add-note', props.ticket.id, note.value.trim())
+}
+const dateOf = (iso: string) => new Date(serverDateIso(iso)).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 
 function resolve() {
   if (!props.ticket) return
@@ -107,6 +126,45 @@ function resolve() {
         <p v-if="actionError" data-test="support-action-error" role="alert" class="mt-2 text-sm text-danger text-pretty">{{ actionError }}</p>
       </div>
       <p v-else-if="actionError" data-test="support-action-error" role="alert" class="text-sm text-danger text-pretty">{{ actionError }}</p>
+
+      <div v-if="context && canManage && !isResolved" class="rounded-card border border-border bg-surface p-4" data-test="support-priority">
+        <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Priorité</h3>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Priorité du ticket">
+          <button
+            v-for="p in PRIORITY_CHOICES" :key="p.value" type="button" :data-test="`support-priority-${p.value}`"
+            :aria-pressed="ticket.priority === p.value ? 'true' : 'false'" :disabled="acting"
+            :class="['rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50',
+              ticket.priority === p.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-muted hover:text-text']"
+            @click="ticket.priority !== p.value && emit('set-priority', ticket.id, p.value)"
+          >{{ p.label }}</button>
+        </div>
+      </div>
+
+      <div v-if="context" class="rounded-card border border-border bg-surface p-4" data-test="support-notes">
+        <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">Notes internes</h3>
+        <p class="mb-2 text-xs text-text-muted text-pretty">Vues des seuls agents, jamais de l’utilisateur.</p>
+        <ul v-if="notes.length" class="mb-3 flex flex-col gap-2">
+          <li v-for="n in notes" :key="n.id" class="rounded-btn bg-surface-elevated px-3 py-2 text-sm" :data-test="`support-note-${n.id}`">
+            <p class="whitespace-pre-wrap text-pretty">{{ n.content }}</p>
+            <p class="mt-1 text-xs text-text-muted tabular-nums">{{ n.adminEmail ?? 'Ancien compte' }} · {{ dateOf(n.createdAt) }}</p>
+          </li>
+        </ul>
+        <p v-else class="mb-3 text-sm text-text-muted" data-test="support-notes-empty">Aucune note.</p>
+        <template v-if="canManage">
+          <label for="support-note" class="sr-only">Nouvelle note interne</label>
+          <textarea
+            id="support-note" v-model="note" data-test="support-note-input" rows="2" :maxlength="NOTE_MAX" :disabled="notesBusy"
+            placeholder="Ce qu'il faut savoir sur ce ticket…" class="w-full rounded-btn border border-border bg-bg p-2 text-sm"
+          />
+          <p v-if="noteProblem" data-test="support-note-problem" class="mt-1 text-xs text-warning">{{ noteProblem }}</p>
+          <p v-if="notesError" data-test="support-note-error" role="alert" class="mt-1 text-xs text-danger text-pretty">{{ notesError }}</p>
+          <button
+            type="button" data-test="support-note-add" :disabled="!canAddNote"
+            class="mt-2 rounded-btn border border-border px-3 py-1.5 text-sm font-medium transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.97] disabled:opacity-40"
+            @click="addNote"
+          >Ajouter la note</button>
+        </template>
+      </div>
 
       <div class="rounded-card border border-border bg-surface p-4">
         <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Autres conversations de cette personne</h3>

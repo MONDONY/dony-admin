@@ -99,6 +99,85 @@ describe('SupportContextPanel', () => {
     })
   })
 
+  describe('priorité et notes (serveur à jour)', () => {
+    const context = { history: [], notes: [{ id: 'n1', adminEmail: 'sira@yadony.com', content: 'Appel passé, sans réponse', createdAt: '2026-10-25T10:00:00' }] }
+
+    it('sans contexte (ancien back) : ni priorité ni notes', () => {
+      const w = mountPanel({ ticket: mine() })
+      expect(w.find('[data-test="support-priority"]').exists()).toBe(false)
+      expect(w.find('[data-test="support-notes"]').exists()).toBe(false)
+    })
+
+    it('priorité : quatre choix, celle du ticket marquée, un clic sur une autre l’envoie', async () => {
+      const w = mountPanel({ ticket: mine({ priority: 'HIGH' }), context })
+      expect(w.findAll('button[data-test^="support-priority-"]').map((b) => b.attributes('data-test'))).toEqual([
+        'support-priority-URGENT', 'support-priority-HIGH', 'support-priority-NORMAL', 'support-priority-LOW',
+      ])
+      expect(w.get('[data-test="support-priority-HIGH"]').attributes('aria-pressed')).toBe('true')
+      await w.get('[data-test="support-priority-HIGH"]').trigger('click')
+      expect(w.emitted('set-priority')).toBeUndefined()
+      await w.get('[data-test="support-priority-URGENT"]').trigger('click')
+      expect(w.emitted('set-priority')![0]).toEqual(['t1', 'URGENT'])
+    })
+
+    it('priorité masquée sur un ticket résolu ou sans le droit de gérer', () => {
+      expect(mountPanel({ ticket: mine({ status: 'RESOLVED' }), context }).find('[data-test="support-priority"]').exists()).toBe(false)
+      seedAuth('SUPPORT', { SUPPORT_TICKET_MANAGE: false })
+      const w = mountPanel({ context })
+      expect(w.find('[data-test="support-priority"]').exists()).toBe(false)
+      expect(w.find('[data-test="support-note-input"]').exists()).toBe(false)
+    })
+
+    it('notes : celles du ticket avec leur auteur, ou « Aucune note »', () => {
+      const w = mountPanel({ ticket: mine(), context })
+      expect(w.get('[data-test="support-note-n1"]').text()).toContain('Appel passé, sans réponse')
+      expect(w.get('[data-test="support-note-n1"]').text()).toContain('sira@yadony.com')
+      expect(w.get('[data-test="support-notes"]').text()).toContain('jamais de l’utilisateur')
+      expect(mountPanel({ ticket: mine(), context: { history: [], notes: [{ ...context.notes[0]!, adminEmail: null }] } }).get('[data-test="support-note-n1"]').text()).toContain('Ancien compte')
+      expect(mountPanel({ ticket: mine(), context: { history: [], notes: [] } }).get('[data-test="support-notes-empty"]').exists()).toBe(true)
+    })
+
+    it('ajouter une note : 3 caractères au moins, envoyée nettoyée', async () => {
+      const w = mountPanel({ ticket: mine(), context })
+      expect(w.get('[data-test="support-note-add"]').attributes('disabled')).toBeDefined()
+      await w.get('[data-test="support-note-input"]').setValue('ab')
+      expect(w.get('[data-test="support-note-problem"]').text()).toContain('3 caractères')
+      expect(w.get('[data-test="support-note-add"]').attributes('disabled')).toBeDefined()
+      await w.get('[data-test="support-note-input"]').setValue('  À rappeler demain  ')
+      await w.get('[data-test="support-note-add"]').trigger('click')
+      expect(w.emitted('add-note')![0]).toEqual(['t1', 'À rappeler demain'])
+    })
+
+    it('note enregistrée : la zone se vide ; refusée : elle reste, avec la phrase', async () => {
+      const w = mountPanel({ ticket: mine(), context })
+      await w.get('[data-test="support-note-input"]').setValue('À rappeler demain')
+      await w.setProps({ notesBusy: true })
+      expect(w.get('[data-test="support-note-add"]').attributes('disabled')).toBeDefined()
+      await w.setProps({ notesBusy: false })
+      expect((w.get('[data-test="support-note-input"]').element as HTMLTextAreaElement).value).toBe('')
+
+      await w.get('[data-test="support-note-input"]').setValue('Note refusée')
+      await w.setProps({ notesBusy: true })
+      await w.setProps({ notesError: 'La note doit faire entre 3 et 1000 caractères', notesBusy: false })
+      expect((w.get('[data-test="support-note-input"]').element as HTMLTextAreaElement).value).toBe('Note refusée')
+      expect(w.get('[data-test="support-note-error"]').text()).toContain('entre 3 et 1000')
+    })
+
+    it('un autre ticket repart d’une zone de note vide', async () => {
+      const w = mountPanel({ ticket: mine(), context })
+      await w.get('[data-test="support-note-input"]').setValue('Brouillon de note')
+      await w.setProps({ ticket: mine({ id: 't2' }) })
+      expect((w.get('[data-test="support-note-input"]').element as HTMLTextAreaElement).value).toBe('')
+    })
+
+    it('historique tiré de l’audit quand le contexte est là', () => {
+      const w = mountPanel({ ticket: mine(), context: { history: [{ action: 'SUPPORT_TICKET_PRIORITY_CHANGED', detail: 'HIGH', at: '2026-10-25T09:00:00', actorEmail: 'sira@yadony.com' }], notes: [] } })
+      const t = w.get('[data-test="report-timeline"]').text()
+      expect(t).toContain('Priorité haute')
+      expect(t).toContain('par sira@yadony.com')
+    })
+  })
+
   it('autres conversations : état, ouverture sans quitter l’écran, ou « aucune »', async () => {
     const w = mountPanel({ related: [ticket({ id: 't9', subject: 'Et si mon colis se fait voler', status: 'WAITING_USER' })] })
     expect(w.get('[data-test="support-related-t9"]').text()).toContain('Et si mon colis se fait voler')

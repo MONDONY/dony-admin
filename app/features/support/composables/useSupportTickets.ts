@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { supportService } from '@/features/support/services/supportService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import type { AdminSupportTicket } from '@/features/support/types/index'
+import type { AdminSupportTicket, SupportPriority } from '@/features/support/types/index'
 
 /** Une page : les 100 conversations les plus récentes. Périmètre, recherche et filtres se font sur cette page. */
 export const SUPPORT_PAGE_SIZE = 100
@@ -103,9 +103,10 @@ export function useSupportTickets() {
   const reply = (id: string, content: string, attachmentKeys: string[] = []) =>
     act(id, () => supportService.reply(id, content || null, attachmentKeys))
   const resolve = (id: string) => act(id, () => supportService.resolve(id))
+  const setPriority = (id: string, priority: SupportPriority) => act(id, () => supportService.setPriority(id, priority))
 
   return {
     tickets, isLoading, error, truncated, userId, userFilterIgnored, selected, isDetailLoading, isActing, actionError,
-    fetchTickets, setUserFilter, openTicket, closeTicket, assign, reassign, reply, resolve,
+    fetchTickets, setUserFilter, openTicket, closeTicket, assign, reassign, reply, resolve, setPriority,
   }
 }
