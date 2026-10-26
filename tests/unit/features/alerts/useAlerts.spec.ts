@@ -52,6 +52,23 @@ describe('useAlerts', () => {
     expect(svc.list).toHaveBeenCalledOnce()
   })
 
+  it('resolveMany résout chaque alerte avec la même note, recharge une fois et rend les refusées', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    svc.resolve.mockImplementation((id: string) => (id === 'a2' ? Promise.reject(new Error('403')) : Promise.resolve({ id, resolved: true })))
+    const a = useAlerts()
+    const failed = await a.resolveMany(['a1', 'a2', 'a3'], 'Versement forcé')
+    expect(svc.resolve.mock.calls).toEqual([['a1', 'Versement forcé'], ['a2', 'Versement forcé'], ['a3', 'Versement forcé']])
+    expect(failed).toEqual(['a2'])
+    expect(svc.list).toHaveBeenCalledOnce()
+  })
+
+  it('une page large garde les groupes entiers', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    const a = useAlerts()
+    await a.fetchAlerts()
+    expect(svc.list.mock.calls[0]![2]).toBe(100)
+  })
+
   it('captures errors', async () => {
     svc.list.mockRejectedValue(new Error('boom'))
     const a = useAlerts()

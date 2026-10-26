@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
 const OPEN_PAGE = {
   content: [
-    { id: 'al1', type: 'ESCROW_J48_TIMEOUT', severity: 'CRITICAL', payload: { bidId: 'b1' }, resolved: false, resolvedAt: null, createdAt: '2026-06-01T10:00:00Z' },
+    { id: 'al1', type: 'RETURN_DEADLINE_EXPIRED', severity: 'CRITICAL', payload: { bidId: 'b1' }, resolved: false, resolvedAt: null, createdAt: '2026-06-01T10:00:00Z' },
   ],
   totalElements: 1, totalPages: 1, number: 0, size: 20,
 }
@@ -19,40 +19,89 @@ const VIOLATIONS = {
 }
 const RESOLVED_ALERT = { ...OPEN_PAGE.content[0], resolved: true, resolvedAt: '2026-06-03T10:00:00Z' }
 
+const ESCROW = (id: string, createdAt: string) => ({
+  id, type: 'ESCROW_J48_TIMEOUT', severity: 'WARN', detail: `Paiement ${id} en séquestre depuis plus de 48 h`,
+  payload: {}, resolved: false, resolvedAt: null, createdAt,
+})
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
+  let open = [OPEN_PAGE.content[0]!, INVARIANT_ALERT, ESCROW('al4', '2026-10-01T10:00:00'), ESCROW('al5', '2026-10-02T10:00:00')]
   await page.route('**/api/v1/admin/alerts**', (route) => {
     const url = route.request().url()
     const method = route.request().method()
-    if (method === 'POST' && url.includes('/resolve')) return route.fulfill({ json: RESOLVED_ALERT })
+    if (method === 'POST' && url.includes('/resolve')) {
+      const id = url.split('/alerts/')[1]!.split('/')[0]!
+      open = open.filter(a => a.id !== id)
+      return route.fulfill({ json: RESOLVED_ALERT })
+    }
     if (url.includes('/al2/violations')) return route.fulfill({ json: VIOLATIONS })
-    if (url.includes('severity=WARN')) return route.fulfill({ json: { ...OPEN_PAGE, content: [INVARIANT_ALERT] } })
-    // list: after a resolve, return empty (the OPEN filter no longer matches)
-    return route.fulfill({ json: OPEN_PAGE })
+    const resolved = new URL(url).searchParams.get('resolved')
+    const content = resolved === 'true' ? [] : open
+    return route.fulfill({ json: { ...OPEN_PAGE, content, totalElements: content.length } })
   })
 })
 
-test('admin sees open alerts', async ({ page }) => {
+test('l’admin voit les alertes groupées par type, la plus grave d’abord, et la première est ouverte', async ({ page }) => {
   await page.goto('/alertes')
   await expect(page.locator('h1').first()).toContainText('Alertes')
-  await expect(page.locator('[data-test="alert-row-al1"]')).toContainText('ESCROW_J48_TIMEOUT')
-  await expect(page.locator('[data-test="resolve-al1"]')).toBeVisible()
+  await expect(page.locator('[data-test="summary-CRITICAL"]')).toContainText('1')
+  await expect(page.locator('[data-test="summary-WARN"]')).toContainText('3')
+  await expect(page.locator('[data-test^="alert-group-toggle-"]')).toContainText('×2')
+  // Critique d'abord : son dossier est déjà ouvert à côté de la décision.
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveAttribute('data-selected', 'true')
+  await expect(page.locator('[data-test="alert-decision-panel"]')).toBeVisible()
 })
 
-test('admin resolves an alert with a note', async ({ page }) => {
+test('l’admin résout une alerte avec une note et passe à la suivante', async ({ page }) => {
   await page.goto('/alertes')
-  await page.locator('[data-test="resolve-al1"]').click()
-  await page.locator('[data-test="reason"]').fill('investigué et corrigé')
-  await page.locator('[data-test="confirm"]').click()
-  // resolve POST fired; the resolve button row reloads — assert the POST happened by confirming dialog closed
-  await expect(page.locator('[data-test="reason"]')).toHaveCount(0)
+  const posted = page.waitForRequest(r => r.method() === 'POST' && r.url().includes('/al1/resolve'))
+  await page.locator('[data-test="alert-quick-Corrigé manuellement"]').click()
+  await page.locator('[data-test="alert-confirm"]').click()
+  const req = await posted
+  expect(req.postDataJSON()).toEqual({ note: 'Corrigé manuellement' })
+  await expect(page.locator('[data-test="alerts-done"]')).toHaveText('Alerte résolue.')
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveCount(0)
 })
 
-test('admin opens an alert and sees what to do and the faulty rows', async ({ page }) => {
+test('J et K parcourent la file, 2 puis ⌘⏎ résolvent en faux positif', async ({ page }) => {
   await page.goto('/alertes')
-  await expect(page.locator('[data-test="alert-row-al1"]')).toBeVisible()
-  await page.locator('[data-test="severity-WARN"]').click()
-  await page.locator('[data-test="details-al2"]').click()
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveAttribute('data-selected', 'true')
+  // Ordre de la file : al1, puis le groupe « séquestre » (al4, al5), puis al2.
+  for (let i = 0; i < 3; i++) await page.keyboard.press('j')
+  await expect(page.locator('[data-test="alert-detail-title"]')).toHaveText('Colis livré mais voyageur pas encore payé')
+  const posted = page.waitForRequest(r => r.method() === 'POST' && r.url().includes('/al2/resolve'))
+  await page.keyboard.press('2')
+  await page.locator('[data-test="alert-note"]').fill('Règle trop sensible')
+  await page.keyboard.press('Control+Enter')
+  expect((await posted).postDataJSON()).toEqual({ note: 'Faux positif : Règle trop sensible' })
+})
+
+test('l’admin résout les deux alertes d’un groupe d’un coup', async ({ page }) => {
+  await page.goto('/alertes')
+  await page.locator('[data-test^="alert-group-toggle-"]').click()
+  await page.locator('[data-test="scope-group"]').click()
+  await page.locator('[data-test="alert-note"]').fill('Versement forcé')
+  await page.locator('[data-test="alert-acknowledge"]').check()
+  const posts: string[] = []
+  page.on('request', r => { if (r.method() === 'POST' && r.url().includes('/resolve')) posts.push(r.url()) })
+  await page.locator('[data-test="alert-confirm"]').click()
+  await expect(page.locator('[data-test="alerts-done"]')).toHaveText('2 alertes résolues.')
+  expect(posts.map(u => u.split('/alerts/')[1]!.split('/')[0]).sort()).toEqual(['al4', 'al5'])
+})
+
+test('la recherche réduit la file', async ({ page }) => {
+  await page.goto('/alertes')
+  // La page est hydratée quand la première alerte est ouverte : avant, le champ ne filtre pas encore.
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveAttribute('data-selected', 'true')
+  await page.locator('[data-test="alert-search"]').fill('INV-06')
+  await expect(page.locator('[data-test="alert-row-al2"]')).toBeVisible()
+  await expect(page.locator('[data-test="alert-row-al1"]')).toHaveCount(0)
+})
+
+test('l’admin ouvre une alerte et voit quoi faire et les lignes en faute', async ({ page }) => {
+  await page.goto('/alertes')
+  await page.locator('[data-test="alert-open-al2"]').click()
   await expect(page.locator('[data-test="alert-detail-title"]')).toHaveText('Colis livré mais voyageur pas encore payé')
   await expect(page.locator('[data-test="alert-detail-actions"]')).toContainText('Débloquer (force-release)')
   await expect(page.locator('[data-test="alert-violations-total"]')).toContainText('1 ligne(s) en faute')
@@ -88,7 +137,6 @@ test.describe('section « Corriger » (super-admin)', () => {
     await page.route(`**/api/v1/admin/payments/${PAY}/resync-stripe`, (route) => { calls++; return route.fulfill({ json: RESYNC }) })
     await page.route(`**/api/v1/admin/payments/${PAY}`, route => route.fulfill({ json: PAYMENT }))
     await page.goto('/alertes')
-    await page.locator('[data-test="details-al3"]').click()
     await expect(page.locator('[data-test="alert-detail-title"]')).toHaveText('Écart de rapprochement Stripe')
     await expect(page.locator('[data-test="alert-detail-actions"] li').first()).toContainText('Resynchroniser avec Stripe')
     await page.locator('[data-test="resync-stripe"]').click()
@@ -103,7 +151,6 @@ test.describe('section « Corriger » (super-admin)', () => {
     await page.route(`**/api/v1/admin/payments/${PAY}/resync-stripe`, route => route.fulfill({ status: 404, json: { status: 404, detail: 'No endpoint' } }))
     await page.route(`**/api/v1/admin/payments/${PAY}`, route => route.fulfill({ json: PAYMENT }))
     await page.goto('/alertes')
-    await page.locator('[data-test="details-al3"]').click()
     await page.locator('[data-test="resync-stripe"]').click()
     await expect(page.locator('[data-test="resync-unavailable"]')).toContainText('Action indisponible sur cet environnement')
     await expect(page.locator('[data-test="resync-stripe"]')).toHaveCount(0)

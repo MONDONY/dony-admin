@@ -13,7 +13,7 @@ vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: aler
 const paySvc = vi.hoisted(() => ({ get: vi.fn(), resyncStripe: vi.fn(), forceRelease: vi.fn() }))
 vi.mock('@/features/payments/services/paymentsService', () => ({ paymentsService: paySvc }))
 
-import AlertDetailPanel from '@/features/alerts/components/AlertDetailPanel.vue'
+import AlertCase from '@/features/alerts/components/AlertCase.vue'
 import { resetStripeResyncAvailability } from '@/features/payments/composables/useStripeResync'
 import { alertFacts, alertGuide, alertSummary } from '@/features/alerts/lib/alertCatalog'
 import { alertPaymentId, isStripeFixAlert } from '@/features/payments/lib/stripeResync'
@@ -81,7 +81,7 @@ describe('alerte LATE_RELEASE_FAILED_ (back #488)', () => {
   })
 
   it('fiche d’alerte : titre, motif, section « Corriger » et forçage proposé', async () => {
-    const w = mount(AlertDetailPanel, { props: { alert: alert() }, global: { stubs: { NuxtLink } } })
+    const w = mount(AlertCase, { props: { alert: alert() }, global: { stubs: { NuxtLink } } })
     await flushPromises()
     expect(w.find('[data-test="alert-detail-title"]').text()).toBe('Colis livré, versement automatique impossible')
     expect(w.find('[data-test="alert-detail-summary"]').text()).toContain(REASON)

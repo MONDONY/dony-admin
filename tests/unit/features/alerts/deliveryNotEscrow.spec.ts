@@ -13,7 +13,7 @@ vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: aler
 const paySvc = vi.hoisted(() => ({ get: vi.fn(), resyncStripe: vi.fn(), forceRelease: vi.fn() }))
 vi.mock('@/features/payments/services/paymentsService', () => ({ paymentsService: paySvc }))
 
-import AlertDetailPanel from '@/features/alerts/components/AlertDetailPanel.vue'
+import AlertCase from '@/features/alerts/components/AlertCase.vue'
 import StripeResyncPanel from '@/features/payments/components/StripeResyncPanel.vue'
 import { resetStripeResyncAvailability } from '@/features/payments/composables/useStripeResync'
 import { alertGuide } from '@/features/alerts/lib/alertCatalog'
@@ -70,7 +70,7 @@ describe('alertes du back #488', () => {
 
   it('fiche d’alerte : resynchroniser, versement parti, « Versé au voyageur »', async () => {
     paySvc.resyncStripe.mockResolvedValue(resync())
-    const w = mount(AlertDetailPanel, { props: { alert: alert() }, global: { stubs: { NuxtLink } } })
+    const w = mount(AlertCase, { props: { alert: alert() }, global: { stubs: { NuxtLink } } })
     await flushPromises()
     expect(w.find('[data-test="alert-fix"]').exists()).toBe(true)
     await w.find('[data-test="resync-stripe"]').trigger('click')
