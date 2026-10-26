@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { seedAuth } from '~/tests/helpers/auth'
 import { reasonViolationMessage } from '@/lib/restoreReason'
 
 vi.mock('@/features/signalements/services/reportsService')
@@ -9,7 +7,6 @@ import { reportsService } from '@/features/signalements/services/reportsService'
 import { ratingsService } from '@/features/signalements/services/ratingsService'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
-import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 
 const reports = reportsService as unknown as Record<string, ReturnType<typeof vi.fn>>
 const ratings = ratingsService as unknown as Record<string, ReturnType<typeof vi.fn>>
@@ -111,17 +108,5 @@ describe('useRatings : contrat du back', () => {
     expect(r.reasonError.value).toBe('motif trop long')
     expect(r.error.value).toBeNull()
     expect(ratings.list).not.toHaveBeenCalled()
-  })
-})
-
-describe('RatingsTable : avis supplanté', () => {
-  beforeEach(() => seedAuth('ADMIN'))
-  it('pas de bouton Restaurer pour un avis supplanté', () => {
-    const rating = {
-      id: 'rt1', bidId: 'b1', raterName: 'Awa', ratedName: 'Karim', score: 1, comment: 'x', flagged: false,
-      excluded: false, excludedReason: null, createdAt: '2026-06-01T10:00:00Z', deletedAt: '2026-09-20T10:00:00Z',
-    }
-    const w = mount(RatingsTable, { props: { ratings: [rating], loading: false, nonRestorableIds: ['rt1'] } })
-    expect(w.find('[data-test="restore-rating-rt1"]').exists()).toBe(false)
   })
 })

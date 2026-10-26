@@ -233,6 +233,46 @@ export interface AdminRating {
   deleteReason?: string | null
 }
 
+// ----- Contexte d'un avis (GET /admin/ratings/{id}/context) -----
+
+/** Le notant : ce qu'il note d'habitude. Absent pour un avis anonyme du destinataire ou un compte supprimé. */
+export interface RatingContextRater {
+  userId: string
+  displayName?: string | null
+  memberSince?: string | null
+  ratingsGiven: number
+  /** Moyenne des notes émises (une décimale) ; absente sans note. */
+  averageGiven?: number | null
+  /** Dont de deux étoiles ou moins. */
+  lowRatingsGiven: number
+}
+
+/** La personne notée et ce que son avis pèse dans sa moyenne. */
+export interface RatingContextRated {
+  userId: string
+  displayName?: string | null
+  memberSince?: string | null
+  /** Moyenne stockée (avis exclus et supprimés écartés) ; absente sans avis. */
+  averageRating?: number | null
+  /** Avis comptés dans cette moyenne. */
+  ratingCount: number
+  excludedCount: number
+  /** Avis comptés par note, clés « 1 » à « 5 » (seulement les valeurs présentes). */
+  distribution?: Record<string, number> | null
+}
+
+export interface RatingContext {
+  rater?: RatingContextRater | null
+  rated?: RatingContextRated | null
+  /** Notes de ce notant à cette personne, celle-ci comprise. */
+  sameRelationCount: number
+  reports?: RelatedReport[] | null
+  openReports: number
+  /** Sans REPORT_VIEW : les signalements sur l'avis (motif, nom du signalant) ne sont pas rendus. */
+  reportsRestricted?: boolean
+  history?: ReportHistoryEntry[] | null
+}
+
 export interface AdminRatingPage {
   content: AdminRating[]
   totalElements: number
@@ -243,6 +283,8 @@ export interface AdminRatingPage {
 
 export interface RatingsFilterState {
   flaggedOnly: boolean
+  /** Notes de deux étoiles ou moins : celles qu'on conteste. */
+  lowOnly?: boolean
   /** « Supprimés » : envoyé en `deleted=true`, jamais quand il est faux. */
   deleted?: boolean
 }

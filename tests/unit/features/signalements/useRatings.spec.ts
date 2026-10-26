@@ -28,6 +28,16 @@ describe('useRatings', () => {
     expect(r.filters.flaggedOnly).toBe(true)
   })
 
+  it('setLowOnly remet à la première page, filtre les notes basses et relit', async () => {
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    const r = useRatings()
+    await r.goToPage(3)
+    await r.setLowOnly(true)
+    expect(r.currentPage.value).toBe(0)
+    expect(r.filters.lowOnly).toBe(true)
+    expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ lowOnly: true }), 0, 20)
+  })
+
   it('exclude calls service then refetches', async () => {
     svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     svc.exclude.mockResolvedValue({ id: 'rt1', excluded: true })
@@ -35,6 +45,33 @@ describe('useRatings', () => {
     await r.exclude('rt1', true, 'diffamatoire')
     expect(svc.exclude).toHaveBeenCalledWith('rt1', true, 'diffamatoire')
     expect(svc.list).toHaveBeenCalled()
+  })
+
+  it('exclude : un refus laisse une phrase, rend false et ne relit pas la liste', async () => {
+    svc.exclude.mockRejectedValue({ statusCode: 403, data: { detail: 'Permission RATING_MODERATE requise' } })
+    svc.list.mockClear()
+    const r = useRatings()
+    await expect(r.exclude('rt1', true, 'diffamatoire')).resolves.toBe(false)
+    expect(r.error.value).toBe('Permission RATING_MODERATE requise')
+    expect(svc.list).not.toHaveBeenCalled()
+  })
+
+  it('exclude : réintégrer (excluded=false) transmet le drapeau et rend true', async () => {
+    svc.exclude.mockResolvedValue({ id: 'rt1', excluded: false })
+    svc.list.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    const r = useRatings()
+    await expect(r.exclude('rt1', false, '')).resolves.toBe(true)
+    expect(svc.exclude).toHaveBeenCalledWith('rt1', false, '')
+    expect(r.error.value).toBeNull()
+  })
+
+  it('exclude : un refus sans détail laisse le repli selon le geste', async () => {
+    svc.exclude.mockRejectedValue({ statusCode: 500 })
+    const r = useRatings()
+    await r.exclude('rt1', true, 'x')
+    expect(r.error.value).toBe('Impossible d’exclure cet avis')
+    await r.exclude('rt1', false, '')
+    expect(r.error.value).toBe('Impossible de réintégrer cet avis')
   })
 
   it('remove calls service then refetches', async () => {

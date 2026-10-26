@@ -20,6 +20,20 @@ describe('ratingsService', () => {
     expect(apiMock.mock.calls[0][1].query).toMatchObject({ flaggedOnly: true, page: 1, size: 20 })
   })
 
+  it('list : notes basses = maxScore 2, rien quand le filtre est coupé', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await ratingsService.list({ flaggedOnly: false, lowOnly: true }, 0, 20)
+    expect(apiMock.mock.calls[0][1].query).toMatchObject({ maxScore: 2 })
+    await ratingsService.list({ flaggedOnly: false, lowOnly: false }, 0, 20)
+    expect(apiMock.mock.calls[1][1].query.maxScore).toBeUndefined()
+  })
+
+  it('getContext lit le contexte d’un avis', async () => {
+    apiMock.mockResolvedValue({ sameRelationCount: 1, openReports: 0 })
+    await expect(ratingsService.getContext('rt1')).resolves.toEqual({ sameRelationCount: 1, openReports: 0 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/ratings/rt1/context')
+  })
+
   it('exclude POSTs excluded + reason', async () => {
     apiMock.mockResolvedValue({ id: 'rt1', excluded: true })
     await ratingsService.exclude('rt1', true, 'avis diffamatoire')

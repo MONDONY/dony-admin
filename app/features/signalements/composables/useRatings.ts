@@ -40,10 +40,22 @@ export function useRatings() {
 
   async function goToPage(p: number) { currentPage.value = p; await fetchRatings() }
   async function setFlaggedOnly(v: boolean) { filters.flaggedOnly = v; currentPage.value = 0; await fetchRatings() }
+  async function setLowOnly(v: boolean) { filters.lowOnly = v; currentPage.value = 0; await fetchRatings() }
   async function setDeletedFilter(v: boolean) { filters.deleted = v; currentPage.value = 0; await fetchRatings() }
-  async function exclude(id: string, excluded: boolean, reason: string) {
-    await ratingsService.exclude(id, excluded, reason)
+  /**
+   * Sort l'avis de la moyenne (ou l'y remet). Rend true si le geste a abouti ; sinon `error` porte le
+   * refus (permission, avis déjà supprimé) et la liste reste telle quelle.
+   */
+  async function exclude(id: string, excluded: boolean, reason: string): Promise<boolean> {
+    error.value = null
+    try {
+      await ratingsService.exclude(id, excluded, reason)
+    } catch (e) {
+      error.value = extractProblemMessage(e, excluded ? 'Impossible d’exclure cet avis' : 'Impossible de réintégrer cet avis')
+      return false
+    }
     await fetchRatings()
+    return true
   }
   /** Retourne true si l'avis est supprimé ; sinon `error` porte le motif du refus. */
   async function remove(id: string, reason?: string): Promise<boolean> {
@@ -83,5 +95,5 @@ export function useRatings() {
     return true
   }
 
-  return { deletedFilterUnsupported, restoreUnavailable, reasonError, supersededIds, setDeletedFilter, restore, ratings, isLoading, error, totalPages, currentPage, pageSize, filters, fetchRatings, goToPage, setFlaggedOnly, exclude, remove }
+  return { deletedFilterUnsupported, restoreUnavailable, reasonError, supersededIds, setDeletedFilter, setLowOnly, restore, ratings, isLoading, error, totalPages, currentPage, pageSize, filters, fetchRatings, goToPage, setFlaggedOnly, exclude, remove }
 }

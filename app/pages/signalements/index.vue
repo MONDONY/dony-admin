@@ -4,13 +4,12 @@ import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
 import ReportQueue from '@/features/signalements/components/ReportQueue.vue'
 import ReportCase from '@/features/signalements/components/ReportCase.vue'
 import KeyHint from '@/components/ui/KeyHint.vue'
-import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
+import RatingsWorkbench from '@/features/signalements/components/RatingsWorkbench.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import PhotoViewer from '@/components/ui/PhotoViewer.vue'
 import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
-import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
 import ReportDecisionPanel from '@/features/signalements/components/ReportDecisionPanel.vue'
 import ReportReplyDialog from '@/features/signalements/components/ReportReplyDialog.vue'
@@ -246,40 +245,10 @@ watch(() => r.displayedReports.value, (list) => {
 })
 
 
-// ---- Avis ----
-const rt = useRatings()
-const pendingExcludeId = ref<string | null>(null)
-const pendingRemoveId = ref<string | null>(null)
-
-async function confirmExclude(reason: string) {
-  if (pendingExcludeId.value) await rt.exclude(pendingExcludeId.value, true, reason)
-  pendingExcludeId.value = null
-}
-async function confirmRemove(reason: string) {
-  if (pendingRemoveId.value) await rt.remove(pendingRemoveId.value, reason)
-  pendingRemoveId.value = null
-}
-const pendingRatingRestoreId = ref<string | null>(null)
-const ratingRestoreBusy = ref(false)
-const ratingRestored = ref(false)
-async function confirmRatingRestore(reason: string) {
-  if (!pendingRatingRestoreId.value) return
-  ratingRestoreBusy.value = true
-  ratingRestored.value = await rt.restore(pendingRatingRestoreId.value, reason)
-  ratingRestoreBusy.value = false
-  if (rt.reasonError.value) return
-  pendingRatingRestoreId.value = null
-}
-async function toggleRatingsDeleted(v: boolean) {
-  ratingRestored.value = false
-  await rt.setDeletedFilter(v)
-}
-
 // Raccourcis du poste de traitement : inactifs sous une fenêtre ouverte ou sur l'onglet Avis.
 const windowOpen = computed(() =>
   pendingDeleteId.value !== null || bulkDeleteOpen.value || pendingRestoreId.value !== null
-  || bulkRestoreOpen.value || pendingReplyId.value !== null || viewerUrls.value !== null
-  || pendingExcludeId.value !== null || pendingRemoveId.value !== null || pendingRatingRestoreId.value !== null)
+  || bulkRestoreOpen.value || pendingReplyId.value !== null || viewerUrls.value !== null)
 useWorkbenchShortcuts({
   enabled: () => activeTab.value === 'reports' && !windowOpen.value,
   move: (step) => {
@@ -292,7 +261,12 @@ useWorkbenchShortcuts({
 
 function switchTab(t: 'reports' | 'ratings') {
   activeTab.value = t
-  if (t === 'ratings' && rt.ratings.value.length === 0) rt.fetchRatings()
+}
+
+/** Depuis un avis : le signalement qui le vise s'ouvre dans l'onglet Signalements. */
+async function openReportFromRating(id: string) {
+  activeTab.value = 'reports'
+  await focusFromLink(id)
 }
 
 onMounted(async () => {
@@ -480,53 +454,12 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- AVIS -->
-    <div v-show="activeTab === 'ratings' && auth.can('RATING_MODERATE')">
-      <label class="flex items-center gap-2 mb-4 text-sm text-text-muted cursor-pointer">
-        <input
-          type="checkbox" data-test="flagged-only"
-          :checked="rt.filters.flaggedOnly"
-          @change="rt.setFlaggedOnly(($event.target as HTMLInputElement).checked)"
-        >
-        Signalés uniquement
-      </label>
-      <label class="flex items-center gap-2 mb-4 text-sm text-text-muted cursor-pointer">
-        <input
-          type="checkbox" data-test="ratings-deleted-only"
-          :checked="rt.filters.deleted"
-          @change="toggleRatingsDeleted(($event.target as HTMLInputElement).checked)"
-        >
-        Supprimés
-      </label>
-
-      <p
-        v-if="rt.deletedFilterUnsupported.value" data-test="ratings-deleted-filter-unsupported"
-        class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
-      >Filtre disponible après mise à jour du serveur : il ne sait pas encore isoler les avis supprimés.</p>
-      <p
-        v-if="rt.restoreUnavailable.value" data-test="ratings-restore-unavailable"
-        class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted text-pretty"
-      >Restauration indisponible tant que le serveur n’est pas mis à jour.</p>
-      <p
-        v-if="ratingRestored" data-test="ratings-restored" role="status"
-        class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
-      >Avis restauré : la note moyenne du voyageur est recalculée.</p>
-
-      <p
-        v-if="rt.error.value" data-test="ratings-error" role="alert"
-        class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
-      >{{ rt.error.value }}</p>
-
-      <RatingsTable
-        :ratings="rt.ratings.value" :loading="rt.isLoading.value" :restore-unavailable="rt.restoreUnavailable.value" :non-restorable-ids="rt.supersededIds.value"
-        @restore="(id) => { ratingRestored = false; pendingRatingRestoreId = id }"
-        @exclude="(id) => pendingExcludeId = id" @remove="(id) => pendingRemoveId = id"
-      />
-
-      <div class="mt-4">
-        <PaginationControls :page="rt.currentPage.value" :total-pages="rt.totalPages.value" @change="rt.goToPage" />
-      </div>
-    </div>
+    <!-- AVIS : même poste de traitement que les signalements -->
+    <RatingsWorkbench
+      v-show="activeTab === 'ratings' && auth.can('RATING_MODERATE')"
+      :active="activeTab === 'ratings' && auth.can('RATING_MODERATE')"
+      @open-report="openReportFromRating"
+    />
 
     <!-- Visionneuse des captures d'écran jointes -->
     <PhotoViewer :urls="viewerUrls" @close="viewerUrls = null" />
@@ -564,40 +497,6 @@ onMounted(async () => {
       confirm-tone="primary"
       @confirm="confirmBulkRestore"
       @cancel="bulkRestoreOpen = false"
-    />
-
-    <!-- Restaurer un avis supprimé -->
-    <RestoreReasonDialog
-      :open="pendingRatingRestoreId !== null"
-      title="Restaurer l’avis"
-      message="L’avis redevient public sur le profil du voyageur."
-      notice="La note moyenne du voyageur sera recalculée avec cet avis."
-      confirm-label="Restaurer"
-      :busy="ratingRestoreBusy" :error="rt.reasonError.value"
-      @confirm="confirmRatingRestore"
-      @cancel="pendingRatingRestoreId = null; rt.reasonError.value = null"
-    />
-
-    <!-- Exclure un avis -->
-    <ConfirmActionDialog
-      :open="pendingExcludeId !== null"
-      title="Exclure l'avis"
-      message="L'avis sera masqué du score public. Documente la raison."
-      confirm-label="Exclure"
-      :require-reason="true"
-      @confirm="confirmExclude"
-      @cancel="pendingExcludeId = null"
-    />
-
-    <!-- Supprimer un avis -->
-    <ConfirmActionDialog
-      :open="pendingRemoveId !== null"
-      title="Supprimer l'avis"
-      message="Suppression définitive (soft delete). Cette action est irréversible côté public."
-      confirm-label="Supprimer"
-      :require-reason="true"
-      @confirm="confirmRemove"
-      @cancel="pendingRemoveId = null"
     />
   </div>
 </template>
