@@ -6,6 +6,9 @@ import {
   receivedReportsText,
   reporterHistoryText,
   reporterTrust,
+  sameScreenSummary,
+  targetKindTitle,
+  targetStatusMeta,
 } from '@/features/signalements/reportContext'
 
 const stats = (total: number, resolved: number, dismissed: number) => ({ totalReports: total, resolvedReports: resolved, dismissedReports: dismissed })
@@ -106,5 +109,56 @@ describe('buildTimeline', () => {
       { key: 'received-r1', label: 'Signalement reçu', at: '2026-10-26T10:55:00Z', by: null, note: null },
     ])
     expect(buildTimeline(report, null)).toHaveLength(1)
+  })
+})
+
+describe('fiche de la cible', () => {
+  it('titre selon le type, un type inconnu reste brut', () => {
+    expect(targetKindTitle('ANNOUNCEMENT')).toBe('L’annonce')
+    expect(targetKindTitle('PACKAGE_REQUEST')).toBe('La demande d’envoi')
+    expect(targetKindTitle('BID')).toBe('L’offre')
+    expect(targetKindTitle('AUTRE')).toBe('AUTRE')
+  })
+
+  it('statuts en français, par type de cible', () => {
+    expect(targetStatusMeta('ANNOUNCEMENT', 'ACTIVE')).toEqual({ label: 'En ligne', tone: 'success' })
+    expect(targetStatusMeta('PACKAGE_REQUEST', 'OPEN')).toEqual({ label: 'Ouverte', tone: 'success' })
+    expect(targetStatusMeta('BID', 'PAYMENT_ESCROWED')).toEqual({ label: 'Paiement bloqué', tone: 'neutral' })
+  })
+
+  it('retrait par l’équipe, refus et absence : teinte d’alerte', () => {
+    expect(targetStatusMeta('ANNOUNCEMENT', 'REMOVED_BY_ADMIN')).toEqual({ label: 'Retirée par l’équipe', tone: 'danger' })
+    expect(targetStatusMeta('BID', 'REJECTED')?.tone).toBe('danger')
+    expect(targetStatusMeta('BID', 'NO_SHOW')?.tone).toBe('danger')
+    expect(targetStatusMeta('BID', 'PARCEL_REFUSED')?.tone).toBe('danger')
+  })
+
+  it('annulée ou expirée : neutre ; terminée ou acceptée : succès', () => {
+    expect(targetStatusMeta('ANNOUNCEMENT', 'CANCELLED')?.tone).toBe('neutral')
+    expect(targetStatusMeta('PACKAGE_REQUEST', 'EXPIRED')?.tone).toBe('neutral')
+    expect(targetStatusMeta('BID', 'COMPLETED')?.tone).toBe('success')
+    expect(targetStatusMeta('BID', 'ACCEPTED')?.tone).toBe('success')
+  })
+
+  it('statut inconnu ou type inconnu : brut et neutre ; sans statut : rien', () => {
+    expect(targetStatusMeta('ANNOUNCEMENT', 'NOUVEAU')).toEqual({ label: 'NOUVEAU', tone: 'neutral' })
+    expect(targetStatusMeta('AUTRE', 'ACTIVE')).toEqual({ label: 'ACTIVE', tone: 'success' })
+    expect(targetStatusMeta('BID', null)).toBeNull()
+    expect(targetStatusMeta('BID', '')).toBeNull()
+  })
+})
+
+describe('sameScreenSummary', () => {
+  it('un seul retour : rien de répété', () => {
+    expect(sameScreenSummary({ total: 1, open: 1 })).toEqual({ text: '1 retour sur cet écran', repeated: false })
+  })
+
+  it('plusieurs, dont ouverts', () => {
+    expect(sameScreenSummary({ total: 2, open: 1 })).toEqual({ text: '2 retours sur cet écran, dont 1 ouvert', repeated: false })
+    expect(sameScreenSummary({ total: 7, open: 5 })).toEqual({ text: '7 retours sur cet écran, dont 5 ouverts', repeated: true })
+  })
+
+  it('aucun ouvert : ne le dit pas ; répété dès trois', () => {
+    expect(sameScreenSummary({ total: 3, open: 0 })).toEqual({ text: '3 retours sur cet écran', repeated: true })
   })
 })

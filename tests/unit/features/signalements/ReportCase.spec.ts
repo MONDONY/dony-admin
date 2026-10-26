@@ -465,4 +465,98 @@ describe('ReportCase', () => {
       })
     })
   })
+
+  describe('fiche de la cible selon son type', () => {
+    const ctx = (extra: Partial<ReportContext> = {}): ReportContext => ({ messagesRestricted: false, history: [], relatedReports: [], ...extra })
+    const announcement: AdminReport = { ...report, targetType: 'ANNOUNCEMENT', targetLabel: 'Paris → Dakar' }
+    const preview = {
+      kind: 'ANNOUNCEMENT', status: 'ACTIVE',
+      facts: [{ label: 'Trajet', value: 'Paris → Dakar' }, { label: 'Prix', value: '8,5 EUR / kg' }, { label: 'Poids', value: '12 kg disponibles sur 20 kg' }],
+      description: 'Valise cabine, pas de liquides.',
+    }
+
+    it('annonce : type, statut en français, faits et texte de l’auteur', () => {
+      const w = mountCase(announcement, { context: ctx({ targetPreview: preview }) })
+      const card = w.find('[data-test="case-target-preview"]')
+      expect(card.text()).toContain('L’annonce')
+      expect(w.find('[data-test="case-target-status"]').text()).toBe('En ligne')
+      expect(w.find('[data-test="case-fact-Prix"]').text()).toContain('8,5 EUR / kg')
+      expect(w.find('[data-test="case-fact-Poids"]').text()).toContain('12 kg disponibles sur 20 kg')
+      expect(w.find('[data-test="case-target-description"]').text()).toBe('Valise cabine, pas de liquides.')
+    })
+
+    it('demande d’envoi et offre : titre propre à chaque type', () => {
+      const request = mountCase({ ...announcement, targetType: 'PACKAGE_REQUEST' }, { context: ctx({ targetPreview: { kind: 'PACKAGE_REQUEST', status: 'NEGOTIATING', facts: [] } }) })
+      expect(request.find('[data-test="case-target-preview"]').text()).toContain('La demande d’envoi')
+      expect(request.find('[data-test="case-target-status"]').text()).toBe('En négociation')
+      const bid = mountCase({ ...announcement, targetType: 'BID' }, { context: ctx({ targetPreview: { kind: 'BID', status: 'REJECTED' } }) })
+      expect(bid.find('[data-test="case-target-preview"]').text()).toContain('L’offre')
+      expect(bid.find('[data-test="case-target-status"]').text()).toBe('Refusée')
+    })
+
+    it('annonce retirée par l’équipe : le statut le dit', () => {
+      const w = mountCase(announcement, { context: ctx({ targetPreview: { ...preview, status: 'REMOVED_BY_ADMIN' } }) })
+      expect(w.find('[data-test="case-target-status"]').text()).toBe('Retirée par l’équipe')
+    })
+
+    it('sans faits, sans texte, sans statut : seul le titre reste', () => {
+      const w = mountCase(announcement, { context: ctx({ targetPreview: { kind: 'ANNOUNCEMENT' } }) })
+      expect(w.find('[data-test="case-target-preview"]').text()).toBe('L’annonce')
+      expect(w.find('[data-test="case-target-status"]').exists()).toBe(false)
+      expect(w.find('[data-test="case-target-description"]').exists()).toBe(false)
+    })
+
+    it('sans aperçu (cible disparue, autre type, ancien back) : aucune section', () => {
+      expect(mountCase(announcement, { context: ctx() }).find('[data-test="case-target-preview"]').exists()).toBe(false)
+      expect(mountCase(announcement, { context: null }).find('[data-test="case-target-preview"]').exists()).toBe(false)
+    })
+  })
+
+  describe('retours du scarabée sur le même écran', () => {
+    const ctx = (extra: Partial<ReportContext> = {}): ReportContext => ({ messagesRestricted: false, history: [], relatedReports: [], ...extra })
+    const recent = [
+      { id: 's1', reason: 'SCREEN_BUG', status: 'OPEN', createdAt: '2026-10-25T08:00:00Z', reporterName: 'Fatou Kane' },
+      { id: 's2', reason: 'SCREEN_BUG', status: 'RESOLVED', createdAt: '2026-10-24T08:00:00Z', reporterName: null },
+    ]
+
+    it('route, total, ouverts et signalement répété', () => {
+      const w = mountCase(bug, { context: ctx({ sameScreen: { route: '/payment/confirm', total: 7, open: 5, recent } }) })
+      const section = w.find('[data-test="case-same-screen"]')
+      expect(section.text()).toContain('/payment/confirm')
+      expect(w.find('[data-test="case-same-screen-summary"]').text()).toBe('7 retours sur cet écran, dont 5 ouverts')
+      expect(w.find('[data-test="case-same-screen-repeated"]').text()).toBe('Signalé plusieurs fois')
+    })
+
+    it('un clic sur un retour émet openRelated', async () => {
+      const w = mountCase(bug, { context: ctx({ sameScreen: { route: '/home', total: 3, open: 1, recent } }) })
+      await w.find('[data-test="case-same-screen"] [data-test="related-s1"]').trigger('click')
+      expect(w.emitted('openRelated')![0]).toEqual(['s1'])
+    })
+
+    it('premier retour sur l’écran : pas d’alerte, pas de liste', () => {
+      const w = mountCase(bug, { context: ctx({ sameScreen: { route: '/home', total: 1, open: 1, recent: [] } }) })
+      expect(w.find('[data-test="case-same-screen-summary"]').text()).toBe('1 retour sur cet écran')
+      expect(w.find('[data-test="case-same-screen-repeated"]').exists()).toBe(false)
+      expect(w.find('[data-test="case-same-screen"] [data-test^="related-"]').exists()).toBe(false)
+    })
+
+    it('hors retour du scarabée ou ancien back : aucune section', () => {
+      expect(mountCase(bug, { context: ctx() }).find('[data-test="case-same-screen"]').exists()).toBe(false)
+      expect(mountCase(bug, { context: null }).find('[data-test="case-same-screen"]').exists()).toBe(false)
+    })
+
+    it('autres signalements sur la cible et retours sur l’écran ne se mélangent pas', async () => {
+      const w = mountCase(bug, {
+        context: ctx({
+          relatedReports: [{ id: 'o1', reason: 'SCAM_ATTEMPT', status: 'OPEN', createdAt: null, reporterName: null }],
+          sameScreen: { route: '/home', total: 3, open: 1, recent },
+        }),
+      })
+      expect(w.find('[data-test="case-related"] [data-test="related-o1"]').exists()).toBe(true)
+      expect(w.find('[data-test="case-related"] [data-test="related-s1"]').exists()).toBe(false)
+      expect(w.find('[data-test="case-same-screen"] [data-test="related-s1"]').exists()).toBe(true)
+      await w.find('[data-test="case-related"] [data-test="related-o1"]').trigger('click')
+      expect(w.emitted('openRelated')![0]).toEqual(['o1'])
+    })
+  })
 })

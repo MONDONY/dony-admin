@@ -4,6 +4,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ReportRatingPreview from './ReportRatingPreview.vue'
 import ReportContextMessages from './ReportContextMessages.vue'
 import ReportTimeline from './ReportTimeline.vue'
+import ReportRelatedList from './ReportRelatedList.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportDescriptionText, reportKind, reportKindLabel } from '@/features/signalements/reportKind'
 import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
@@ -16,8 +17,10 @@ import {
   receivedReportsText,
   reporterHistoryText,
   reporterTrust,
+  sameScreenSummary,
+  targetKindTitle,
+  targetStatusMeta,
 } from '@/features/signalements/reportContext'
-import { reportReasonLabel } from '@/features/signalements/reportReasons'
 import type { AdminReport, ReportContext } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { gate, toHref, unchecked, userRoute } from '@/lib/adminLinks'
@@ -87,7 +90,10 @@ function accountLink(userId: string): string | null {
   const route = gate(auth.can, 'USER_VIEW', userRoute(userId))
   return route ? toHref(route) : null
 }
-function relatedAge(iso?: string | null): string { return iso ? fmt(iso) : '' }
+const preview = computed(() => props.context?.targetPreview ?? null)
+const previewStatus = computed(() => (preview.value ? targetStatusMeta(preview.value.kind, preview.value.status) : null))
+const sameScreen = computed(() => props.context?.sameScreen ?? null)
+const sameScreenInfo = computed(() => (sameScreen.value ? sameScreenSummary(sameScreen.value) : null))
 </script>
 
 <template>
@@ -153,6 +159,24 @@ function relatedAge(iso?: string | null): string { return iso ? fmt(iso) : '' }
           <p class="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">Cible</p>
           <p class="text-sm font-semibold text-pretty">{{ reportTargetLabel(report) }}</p>
           <p class="text-xs text-text-muted">{{ reportTargetTypeLabel(report.targetType) }}</p>
+          <!-- Ce qu'est la cible : annonce, demande d'envoi ou offre -->
+          <div v-if="preview" data-test="case-target-preview" class="mt-3 border-t border-border pt-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-xs text-text-muted">{{ targetKindTitle(preview.kind) }}</p>
+              <StatusBadge v-if="previewStatus" data-test="case-target-status" v-bind="previewStatus" />
+            </div>
+            <dl v-if="preview.facts?.length" class="mt-1.5 space-y-1 text-xs">
+              <div v-for="f in preview.facts" :key="f.label" class="flex gap-2" :data-test="`case-fact-${f.label}`">
+                <dt class="w-24 shrink-0 text-text-muted">{{ f.label }}</dt>
+                <dd class="min-w-0 text-pretty">{{ f.value }}</dd>
+              </div>
+            </dl>
+            <p
+              v-if="preview.description" data-test="case-target-description"
+              class="mt-2 rounded-btn bg-surface-elevated px-3 py-2 text-xs text-pretty"
+            >{{ preview.description }}</p>
+          </div>
+
           <!-- Personne visée : le compte signalé, ou l'auteur du contenu signalé -->
           <div v-if="subject" data-test="case-subject" class="mt-3 border-t border-border pt-3">
             <p class="text-xs text-text-muted">{{ report.targetType === 'USER' ? 'Compte signalé' : 'Auteur' }}</p>
@@ -219,27 +243,27 @@ function relatedAge(iso?: string | null): string { return iso ? fmt(iso) : '' }
         </section>
       </div>
 
+      <!-- Retours du scarabée sur le même écran -->
+      <section
+        v-if="sameScreen && sameScreenInfo" aria-label="Retours sur cet écran" data-test="case-same-screen"
+        class="rounded-card border border-border bg-surface p-5"
+      >
+        <div class="mb-2 flex flex-wrap items-center gap-2">
+          <h3 class="font-display text-sm font-semibold">Sur le même écran</h3>
+          <code class="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-xs text-text-muted">{{ sameScreen.route }}</code>
+          <StatusBadge v-if="sameScreenInfo.repeated" data-test="case-same-screen-repeated" label="Signalé plusieurs fois" tone="warning" />
+        </div>
+        <p data-test="case-same-screen-summary" class="text-sm text-text-muted">{{ sameScreenInfo.text }}</p>
+        <ReportRelatedList v-if="sameScreen.recent?.length" class="mt-2" :items="sameScreen.recent" @open="(id) => emit('openRelated', id)" />
+      </section>
+
       <!-- Autres signalements sur la même cible -->
       <section
         v-if="related.length" aria-label="Autres signalements sur cette cible" data-test="case-related"
         class="rounded-card border border-border bg-surface p-5"
       >
         <h3 class="mb-2 font-display text-sm font-semibold">Autres signalements sur cette cible</h3>
-        <ul class="divide-y divide-border">
-          <li v-for="o in related" :key="o.id">
-            <button
-              type="button" :data-test="`related-${o.id}`"
-              class="flex w-full items-center justify-between gap-3 py-2 text-left text-sm transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.99]"
-              @click="emit('openRelated', o.id)"
-            >
-              <span class="min-w-0">
-                <span class="block truncate font-medium">{{ o.reason ? reportReasonLabel(o.reason) : 'Motif inconnu' }}</span>
-                <span class="block truncate text-xs text-text-muted">{{ o.reporterName ?? 'Signalant inconnu' }} · {{ relatedAge(o.createdAt) }}</span>
-              </span>
-              <StatusBadge v-if="o.status" v-bind="reportStatusMeta(o.status as 'OPEN' | 'RESOLVED' | 'DISMISSED')" />
-            </button>
-          </li>
-        </ul>
+        <ReportRelatedList :items="related" @open="(id) => emit('openRelated', id)" />
       </section>
 
       <!-- Historique du dossier -->

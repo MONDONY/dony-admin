@@ -139,6 +139,31 @@ export interface RelatedReport {
   reporterName?: string | null
 }
 
+/** Une ligne de la fiche de la cible, déjà mise en forme par le back (« Prix » : « 8,5 EUR / kg »). */
+export interface ReportTargetFact {
+  label: string
+  value: string
+}
+
+/** Ce qu'est la cible quand c'est une annonce, une demande d'envoi ou une offre. */
+export interface ReportTargetPreview {
+  kind: 'ANNOUNCEMENT' | 'PACKAGE_REQUEST' | 'BID' | string
+  /** Statut brut du back ; un statut inconnu s'affiche tel quel. */
+  status?: string | null
+  facts?: ReportTargetFact[] | null
+  /** Texte libre de l'auteur (600 caractères au plus) : souvent ce qui est signalé. */
+  description?: string | null
+}
+
+/** Retours du scarabée sur une même route d'écran : plusieurs disent un vrai problème. */
+export interface ReportSameScreen {
+  route: string
+  /** Retours sur cette route, celui en cours compris. */
+  total: number
+  open: number
+  recent?: RelatedReport[] | null
+}
+
 export interface ReportContext {
   reporter?: ReportContextReporter | null
   subject?: ReportContextSubject | null
@@ -148,6 +173,8 @@ export interface ReportContext {
   messagesRestricted?: boolean
   history?: ReportHistoryEntry[] | null
   relatedReports?: RelatedReport[] | null
+  targetPreview?: ReportTargetPreview | null
+  sameScreen?: ReportSameScreen | null
 }
 
 /** Corps de POST /admin/reports/{id}/reply : message obligatoire (1 à 4000 caractères). */
