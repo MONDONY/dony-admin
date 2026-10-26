@@ -8,7 +8,10 @@ import {
   defaultActionFor,
   isNoteRequired,
   notifiesReporter,
+  quickNotesFor,
+  REPORT_MESSAGE_MAX,
   requiresStrongConfirmation,
+  sendsWarning,
 } from '@/features/signalements/reportActions'
 import {
   reportActionConsequence,
@@ -23,11 +26,14 @@ const props = defineProps<{
   /** Refus du back (403, 422, ancien back) à montrer sans fermer le dialogue. */
   error?: string | null
 }>()
-const emit = defineEmits<{ confirm: [action: string, note: string]; cancel: [] }>()
+/** `targetMessage` / `reporterMessage` : chaîne vide quand le geste n'écrit à personne ou que rien n'est saisi. */
+const emit = defineEmits<{ confirm: [action: string, note: string, targetMessage: string, reporterMessage: string]; cancel: [] }>()
 
 const auth = useAuthStore()
 const chosen = ref<string | null>(null)
 const note = ref('')
+const targetMessage = ref('')
+const reporterMessage = ref('')
 const acknowledged = ref(false)
 
 const actions = computed(() => (props.report ? actionsForReport(props.report, auth.permissions) : []))
@@ -42,12 +48,17 @@ const options = computed(() => actions.value.map((value) => ({
 watch(() => props.report?.id, () => {
   chosen.value = defaultActionFor(actions.value)
   note.value = ''
+  targetMessage.value = ''
+  reporterMessage.value = ''
   acknowledged.value = false
 }, { immediate: true })
 // Changer d'action réarme la confirmation : une case cochée pour supprimer un message ne
 // vaut pas accord pour suspendre un compte.
 watch(chosen, () => { acknowledged.value = false })
 
+const warns = computed(() => (chosen.value ? sendsWarning(chosen.value) : false))
+const informsReporter = computed(() => (chosen.value ? notifiesReporter(chosen.value) : false))
+const quickNotes = computed(() => (chosen.value ? quickNotesFor(chosen.value) : []))
 const noteRequired = computed(() => (chosen.value ? isNoteRequired(chosen.value) : false))
 const strong = computed(() => (chosen.value ? requiresStrongConfirmation(chosen.value) : false))
 const consequence = computed(() => (chosen.value ? reportActionConsequence(chosen.value, props.report?.targetAuthor) : null))
@@ -62,7 +73,10 @@ const confirmLabel = computed(() =>
 
 function onConfirm() {
   if (!canConfirm.value || !chosen.value) return
-  emit('confirm', chosen.value, note.value.trim())
+  // Un message saisi puis devenu sans objet (changement d'action) ne part jamais.
+  emit('confirm', chosen.value, note.value.trim(),
+    warns.value ? targetMessage.value.trim() : '',
+    informsReporter.value ? reporterMessage.value.trim() : '')
 }
 </script>
 
@@ -104,17 +118,43 @@ function onConfirm() {
         </label>
       </fieldset>
 
-      <label for="resolve-note" class="mb-1 block text-xs text-text-muted">Note interne</label>
+      <label for="resolve-note" class="mb-1 block text-xs text-text-muted">Note interne <span class="text-text-muted/80">— jamais transmise à personne</span></label>
       <textarea
-        id="resolve-note" v-model="note" data-test="resolve-note" rows="3"
+        id="resolve-note" v-model="note" data-test="resolve-note" rows="2"
         :placeholder="noteRequired ? 'Motif (obligatoire)' : 'Note (facultative)'"
-        class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-3"
+        class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-2"
       />
+      <div v-if="quickNotes.length" class="mb-3 flex flex-wrap gap-1.5" data-test="resolve-quick-notes">
+        <button
+          v-for="q in quickNotes" :key="q" type="button" :data-test="`resolve-quick-${q}`"
+          class="rounded-full border border-border px-2.5 py-1 text-xs text-text-muted transition-[background-color,scale] hover:bg-surface-elevated hover:text-text active:scale-[0.96]"
+          @click="note = q"
+        >{{ q }}</button>
+      </div>
 
-      <p
-        v-if="chosen && notifiesReporter(chosen)" data-test="resolve-reporter-notice"
-        class="mb-3 flex items-start gap-2 text-xs text-text-muted text-pretty"
-      ><Bell class="mt-px size-3.5 shrink-0" aria-hidden="true" /><span>Le signalant sera prévenu que son signalement a été traité, sans détail.</span></p>
+      <template v-if="warns">
+        <label for="resolve-target-message" class="mb-1 block text-xs text-text-muted">Message à la personne avertie <span class="text-text-muted/80">— elle seule le lit</span></label>
+        <textarea
+          id="resolve-target-message" v-model="targetMessage" data-test="resolve-target-message" rows="3"
+          :maxlength="REPORT_MESSAGE_MAX"
+          placeholder="Vide : texte standard « Un comportement signalé sur votre compte a été examiné. »"
+          class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-1"
+        />
+        <p class="mb-3 text-xs text-text-muted text-pretty">Ne nomme pas le signalant et ne cite pas la note interne.</p>
+      </template>
+
+      <template v-if="informsReporter">
+        <label for="resolve-reporter-message" class="mb-1 block text-xs text-text-muted">Mot pour le signalant <span class="text-text-muted/80">— facultatif</span></label>
+        <textarea
+          id="resolve-reporter-message" v-model="reporterMessage" data-test="resolve-reporter-message" rows="2"
+          :maxlength="REPORT_MESSAGE_MAX"
+          placeholder="Ex. « Le contenu a été retiré. » Ajouté à la suite du remerciement."
+          class="w-full rounded-btn border border-border bg-bg p-2 text-sm mb-1"
+        />
+        <p data-test="resolve-reporter-notice" class="mb-3 flex items-start gap-2 text-xs text-text-muted text-pretty">
+          <Bell class="mt-px size-3.5 shrink-0" aria-hidden="true" /><span>Le signalant reçoit « Merci, votre signalement a été traité. », suivi de ce mot s’il y en a un. Jamais la sanction.</span>
+        </p>
+      </template>
 
       <div
         v-if="strong && consequence" data-test="resolve-consequence"

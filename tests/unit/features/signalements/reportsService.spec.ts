@@ -30,6 +30,27 @@ describe('reportsService', () => {
     })
   })
 
+  it('resolve envoie les deux messages quand ils sont saisis, sans jamais mêler la note', async () => {
+    apiMock.mockResolvedValue({ id: 'r1', status: 'RESOLVED' })
+    await reportsService.resolve('r1', 'WARN', 'signalé par Awa', 'Merci de rester courtois', 'Pris en compte.')
+    expect(apiMock).toHaveBeenCalledWith('/admin/reports/r1/resolve', {
+      method: 'POST',
+      body: {
+        action: 'WARN', note: 'signalé par Awa',
+        targetMessage: 'Merci de rester courtois', reporterMessage: 'Pris en compte.',
+      },
+    })
+  })
+
+  it('resolve omet les messages vides (ancien back, aucun mot saisi)', async () => {
+    apiMock.mockResolvedValue({ id: 'r1', status: 'RESOLVED' })
+    await reportsService.resolve('r1', 'RESOLVE', '', '', '')
+    expect(apiMock).toHaveBeenCalledWith('/admin/reports/r1/resolve', {
+      method: 'POST',
+      body: { action: 'RESOLVE', note: '' },
+    })
+  })
+
   it('list envoie le préfixe du type comme q, le texte libre l’emportant', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
     await reportsService.list({ status: 'OPEN', targetType: 'APP', q: '', kind: 'AVIS' }, 0, 20)
