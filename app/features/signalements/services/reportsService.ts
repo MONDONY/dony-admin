@@ -42,8 +42,24 @@ export const reportsService = {
     return useApi()<ReportReplyResponse>(`/admin/reports/${encodeURIComponent(id)}/reply`, { method: 'POST', body: payload })
   },
   /** `action` peut être une valeur de `availableActions` que ce front ne connaît pas encore. */
-  resolve(id: string, action: ReportAction | string, note: string): Promise<AdminReport> {
-    return useApi()<AdminReport>(`/admin/reports/${id}/resolve`, { method: 'POST', body: { action, note } })
+  resolve(
+    id: string,
+    action: ReportAction | string,
+    note: string,
+    targetMessage?: string,
+    reporterMessage?: string,
+  ): Promise<AdminReport> {
+    // Trois textes, trois destinations : `note` reste interne, `targetMessage` est lu par la personne
+    // avertie, `reporterMessage` par le signalant. Les deux derniers sont omis quand ils sont vides.
+    return useApi()<AdminReport>(`/admin/reports/${id}/resolve`, {
+      method: 'POST',
+      body: {
+        action,
+        note,
+        ...(targetMessage ? { targetMessage } : {}),
+        ...(reporterMessage ? { reporterMessage } : {}),
+      },
+    })
   },
   /** Suppression douce d’un signalement (yadony-back #318). */
   remove(id: string): Promise<void> {

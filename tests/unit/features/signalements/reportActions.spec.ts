@@ -6,7 +6,9 @@ import {
   isNoteRequired,
   legacyActionsFor,
   notifiesReporter,
+  quickNotesFor,
   requiresStrongConfirmation,
+  sendsWarning,
   sortActions,
 } from '@/features/signalements/reportActions'
 
@@ -95,5 +97,26 @@ describe('règles du dialogue', () => {
     expect(defaultActionFor(['DELETE_MESSAGE', 'DISMISS'])).toBe('DISMISS')
     expect(defaultActionFor(['WARN_AUTHOR'])).toBeNull()
     expect(defaultActionFor([])).toBeNull()
+  })
+})
+
+describe('sendsWarning : seuls les avertissements écrivent à la personne visée', () => {
+  it('WARN et WARN_AUTHOR uniquement', () => {
+    expect(sendsWarning('WARN')).toBe(true)
+    expect(sendsWarning('WARN_AUTHOR')).toBe(true)
+    for (const a of ['RESOLVE', 'DISMISS', 'SUSPEND_TARGET', 'SUSPEND_AUTHOR', 'DELETE_MESSAGE', 'INCONNUE']) {
+      expect(sendsWarning(a)).toBe(false)
+    }
+  })
+})
+
+describe('quickNotesFor : motifs en un clic pour les décisions courantes', () => {
+  it('propose des motifs pour DISMISS et RESOLVE', () => {
+    expect(quickNotesFor('DISMISS')).toEqual(['Sans fondement', 'Doublon', 'Hors sujet'])
+    expect(quickNotesFor('RESOLVE')).toEqual(['Pris en compte', 'Corrigé', 'Déjà traité'])
+  })
+  it('aucun pour une sanction : elle exige un vrai motif', () => {
+    expect(quickNotesFor('SUSPEND_AUTHOR')).toEqual([])
+    expect(quickNotesFor('WARN')).toEqual([])
   })
 })

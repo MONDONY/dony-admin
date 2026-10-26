@@ -87,3 +87,18 @@ export function notifiesReporter(action: string): boolean {
 export function requiresStrongConfirmation(action: string): boolean {
   return action.startsWith('SUSPEND_') || action.startsWith('DELETE_')
 }
+
+/** Avertissements : seuls gestes qui écrivent à la personne visée (corps = message dédié, jamais la note). */
+export function sendsWarning(action: string): boolean {
+  return action === 'WARN' || action === 'WARN_AUTHOR'
+}
+
+/** Longueur max des messages, miroir du @Size du back (ResolveReportRequest). */
+export const REPORT_MESSAGE_MAX = 1000
+
+/** Motifs de note en un clic : les décisions courantes, pas les sanctions (qui exigent un vrai motif). */
+export function quickNotesFor(action: string): string[] {
+  if (action === 'DISMISS') return ['Sans fondement', 'Doublon', 'Hors sujet']
+  if (action === 'RESOLVE') return ['Pris en compte', 'Corrigé', 'Déjà traité']
+  return []
+}

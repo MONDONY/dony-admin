@@ -38,6 +38,15 @@ describe('useReports', () => {
     expect(r.currentPage.value).toBe(0)
   })
 
+  it('resolve : transmet le message à la personne avertie et le mot au signalant', async () => {
+    svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN' }], totalElements: 1, totalPages: 1, number: 0, size: 20 })
+    svc.resolve.mockResolvedValue({ id: 'r1', status: 'RESOLVED', actionTaken: 'WARN' })
+    const r = useReports()
+    await r.fetchReports()
+    await r.resolve('r1', 'WARN', 'note interne', 'Merci de rester courtois', 'Pris en compte.')
+    expect(svc.resolve).toHaveBeenCalledWith('r1', 'WARN', 'note interne', 'Merci de rester courtois', 'Pris en compte.')
+  })
+
   it('resolve : appelle le service et met la ligne à jour sur place, sans recharger', async () => {
     svc.list.mockResolvedValue({ content: [{ id: 'r1', status: 'OPEN', actionTaken: null, availableActions: ['RESOLVE', 'DISMISS'] }, { id: 'r2', status: 'OPEN' }], totalElements: 2, totalPages: 1, number: 0, size: 20 })
     svc.resolve.mockResolvedValue({ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE' })
@@ -46,7 +55,7 @@ describe('useReports', () => {
     svc.list.mockClear()
     const outcome = await r.resolve('r1', 'RESOLVE', '')
     expect(outcome).toBe('ok')
-    expect(svc.resolve).toHaveBeenCalledWith('r1', 'RESOLVE', '')
+    expect(svc.resolve).toHaveBeenCalledWith('r1', 'RESOLVE', '', undefined, undefined)
     expect(svc.list).not.toHaveBeenCalled()
     expect(r.reports.value[0]).toMatchObject({ id: 'r1', status: 'RESOLVED', actionTaken: 'RESOLVE', availableActions: [] })
     expect(r.reports.value[1]).toMatchObject({ id: 'r2', status: 'OPEN' })

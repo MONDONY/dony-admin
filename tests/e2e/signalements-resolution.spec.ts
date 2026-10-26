@@ -58,7 +58,7 @@ test('bug de l’application : Marquer comme traité, sans note, ligne mise à j
   const labels = await page.locator('[data-test="resolve-action-label"]').allTextContents()
   expect(labels).toEqual(['Marquer comme traité', 'Rejeter le signalement'])
   await expect(page.locator('[data-test="resolve-action-RESOLVE"]')).toContainText('Bug corrigé ou pris en compte')
-  await expect(page.locator('[data-test="resolve-reporter-notice"]')).toHaveText('Le signalant sera prévenu que son signalement a été traité, sans détail.')
+  await expect(page.locator('[data-test="resolve-reporter-notice"]')).toContainText('Merci, votre signalement a été traité.')
   await page.locator('[data-test="resolve-confirm"]').click()
   await expect(page.locator('[data-test="resolve-overlay"]')).toHaveCount(0)
   expect(bodies).toEqual([{ action: 'RESOLVE', note: '' }])

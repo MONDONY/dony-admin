@@ -53,7 +53,7 @@ describe('ReportResolveDialog', () => {
     expect(w.find('[data-test="resolve-note"]').attributes('placeholder')).toContain('facultative')
     expect(confirmBtn(w).attributes('disabled')).toBeUndefined()
     await confirmBtn(w).trigger('click')
-    expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', ''])
+    expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', '', '', ''])
   })
 
   it('DISMISS : note facultative, pas de rappel au signalant', async () => {
@@ -66,7 +66,7 @@ describe('ReportResolveDialog', () => {
   it('rappel au signalant pour toute action sauf DISMISS', async () => {
     const w = mountDialog(messageReport)
     expect(w.find('[data-test="resolve-reporter-notice"]').text())
-      .toBe('Le signalant sera prévenu que son signalement a été traité, sans détail.')
+      .toContain('Merci, votre signalement a été traité.')
     await choose(w, 'WARN_AUTHOR')
     expect(w.find('[data-test="resolve-reporter-notice"]').exists()).toBe(true)
   })
@@ -81,7 +81,7 @@ describe('ReportResolveDialog', () => {
     await w.find('[data-test="resolve-note"]').setValue('insultes répétées')
     expect(confirmBtn(w).attributes('disabled')).toBeUndefined()
     await confirmBtn(w).trigger('click')
-    expect(w.emitted('confirm')![0]).toEqual(['WARN_AUTHOR', 'insultes répétées'])
+    expect(w.emitted('confirm')![0]).toEqual(['WARN_AUTHOR', 'insultes répétées', '', ''])
   })
 
   it('SUSPEND_AUTHOR : confirmation renforcée, conséquence explicite, case à cocher', async () => {
@@ -94,7 +94,54 @@ describe('ReportResolveDialog', () => {
     expect(confirmBtn(w).attributes('disabled')).toBeUndefined()
     expect(confirmBtn(w).text()).toBe('Suspendre Moussa B.')
     await confirmBtn(w).trigger('click')
-    expect(w.emitted('confirm')![0]).toEqual(['SUSPEND_AUTHOR', 'menaces'])
+    expect(w.emitted('confirm')![0]).toEqual(['SUSPEND_AUTHOR', 'menaces', '', ''])
+  })
+
+  it('avertissement : message dédié lu par la personne avertie, distinct de la note interne', async () => {
+    const w = mountDialog(messageReport)
+    expect(w.find('[data-test="resolve-target-message"]').exists()).toBe(false)
+    await choose(w, 'WARN_AUTHOR')
+    await w.find('[data-test="resolve-note"]').setValue('signalé par Awa')
+    await w.find('[data-test="resolve-target-message"]').setValue('  Merci de rester courtois  ')
+    await w.find('[data-test="resolve-reporter-message"]').setValue('Auteur averti.')
+    await confirmBtn(w).trigger('click')
+    expect(w.emitted('confirm')![0]).toEqual(['WARN_AUTHOR', 'signalé par Awa', 'Merci de rester courtois', 'Auteur averti.'])
+  })
+
+  it('le message à la personne avertie n’existe que pour les avertissements', async () => {
+    const w = mountDialog(messageReport)
+    await choose(w, 'WARN_AUTHOR')
+    await w.find('[data-test="resolve-target-message"]').setValue('Texte')
+    await choose(w, 'RESOLVE')
+    expect(w.find('[data-test="resolve-target-message"]').exists()).toBe(false)
+    await confirmBtn(w).trigger('click')
+    expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', '', '', ''])
+  })
+
+  it('rejet : aucun mot pour le signalant, qui n’est pas prévenu', async () => {
+    const w = mountDialog(messageReport)
+    await w.find('[data-test="resolve-reporter-message"]').setValue('Texte')
+    await choose(w, 'DISMISS')
+    expect(w.find('[data-test="resolve-reporter-message"]').exists()).toBe(false)
+    await confirmBtn(w).trigger('click')
+    expect(w.emitted('confirm')![0]).toEqual(['DISMISS', '', '', ''])
+  })
+
+  it('un autre signalement repart de messages vides', async () => {
+    const w = mountDialog(messageReport)
+    await w.find('[data-test="resolve-reporter-message"]').setValue('Texte')
+    await w.setProps({ report: { ...messageReport, id: 'r2' } })
+    expect((w.find('[data-test="resolve-reporter-message"]').element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('motifs rapides : un clic remplit la note, absents pour les sanctions', async () => {
+    const w = mountDialog(messageReport)
+    expect(w.find('[data-test="resolve-quick-Pris en compte"]').exists()).toBe(true)
+    await choose(w, 'DISMISS')
+    await w.find('[data-test="resolve-quick-Doublon"]').trigger('click')
+    expect((w.find('[data-test="resolve-note"]').element as HTMLTextAreaElement).value).toBe('Doublon')
+    await choose(w, 'WARN_AUTHOR')
+    expect(w.find('[data-test="resolve-quick-notes"]').exists()).toBe(false)
   })
 
   it('changer d’action réarme la case de confirmation', async () => {
@@ -155,7 +202,7 @@ describe('ReportResolveDialog', () => {
     expect(labels).toEqual(['Marquer comme traité', 'Rejeter le signalement'])
     expect(w.find('[data-test="resolve-consequence"]').exists()).toBe(false)
     await confirmBtn(w).trigger('click')
-    expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', ''])
+    expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', '', '', ''])
   })
 
   it('Annuler émet cancel', async () => {

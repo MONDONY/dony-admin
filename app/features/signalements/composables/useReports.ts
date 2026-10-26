@@ -195,11 +195,17 @@ export function useReports() {
    * `resolveError`), un signalement déjà traité par un autre admin rend 'closed' après
    * relecture de la liste (avis dans `closedNotice`).
    */
-  async function resolve(id: string, action: ReportAction | string, note: string): Promise<ResolveOutcome> {
+  async function resolve(
+    id: string,
+    action: ReportAction | string,
+    note: string,
+    targetMessage?: string,
+    reporterMessage?: string,
+  ): Promise<ResolveOutcome> {
     clearResolveFeedback()
     let updated: AdminReport | undefined
     try {
-      updated = await reportsService.resolve(id, action, note)
+      updated = await reportsService.resolve(id, action, note, targetMessage, reporterMessage)
     } catch (e) {
       if (problemCode(e) === 'report-already-closed') {
         const data = (e as { data?: { detail?: unknown } }).data

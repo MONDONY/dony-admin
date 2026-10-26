@@ -198,10 +198,10 @@ function cancelResolve() {
   pendingReportId.value = null
   r.resolveError.value = null
 }
-async function confirmResolve(action: string, note: string) {
+async function confirmResolve(action: string, note: string, targetMessage: string, reporterMessage: string) {
   if (!pendingReportId.value) return
   resolveBusy.value = true
-  const outcome = await r.resolve(pendingReportId.value, action, note)
+  const outcome = await r.resolve(pendingReportId.value, action, note, targetMessage, reporterMessage)
   resolveBusy.value = false
   // Refus (403, 422, ancien back) : le dialogue reste ouvert et montre le detail. Déjà
   // traité par un autre admin (409) : on ferme, la liste relue montre son état réel.
