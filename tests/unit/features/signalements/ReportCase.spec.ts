@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ReportCase from '@/features/signalements/components/ReportCase.vue'
-import type { AdminReport } from '@/features/signalements/types/index'
+import type { AdminReport, ReportContext } from '@/features/signalements/types/index'
 import { seedAuth } from '~/tests/helpers/auth'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
@@ -260,6 +260,209 @@ describe('ReportCase', () => {
     it('masque Restaurer sans REPORT_DELETE', () => {
       seedAuth('SUPPORT')
       expect(mountCase(deleted).find('[data-test="restore-r1"]').exists()).toBe(false)
+    })
+  })
+
+  describe('contexte du dossier', () => {
+    const uuid = '11111111-1111-4111-8111-111111111111'
+    const ctx = (extra: Partial<ReportContext> = {}): ReportContext => ({
+      messagesRestricted: false, history: [], relatedReports: [], ...extra,
+    })
+    const mountWith = (r: AdminReport, context: ReportContext | null, extra: Record<string, unknown> = {}) =>
+      mountCase(r, { context, ...extra })
+
+    it('chargement et échec inattendu : une phrase discrète, le dossier reste lisible', () => {
+      const loading = mountWith(report, null, { contextLoading: true })
+      expect(loading.find('[data-test="context-loading"]').text()).toBe('Chargement du contexte…')
+      expect(loading.find('[data-test="case-description"]').exists()).toBe(true)
+      const failed = mountWith(report, null, { contextError: 'Contexte indisponible' })
+      expect(failed.find('[data-test="context-error"]').text()).toBe('Contexte indisponible')
+      expect(failed.find('[data-test="context-loading"]').exists()).toBe(false)
+    })
+
+    it('sans contexte (ancien back) : rien de plus, l’issue garde sa place', () => {
+      const w = mountWith({ ...report, status: 'RESOLVED', actionTaken: 'WARN', resolutionNote: 'ok' }, null)
+      expect(w.find('[data-test="case-history"]').exists()).toBe(false)
+      expect(w.find('[data-test="case-subject"]').exists()).toBe(false)
+      expect(w.find('[data-test="case-reporter"]').exists()).toBe(false)
+      expect(w.find('[data-test="report-action-taken-r1"]').text()).toBe('Utilisateur averti')
+    })
+
+    describe('message en contexte', () => {
+      const messages = [
+        { id: 'm1', senderName: 'Awa Diallo', body: 'Pas plus de 8 €.', sentAt: '2026-10-26T10:12:00Z', flagged: false, deleted: false, fromSubject: false },
+        { id: 'm2', senderName: 'Moussa Ba', body: 'Je te retrouve à l’aéroport.', sentAt: '2026-10-26T10:42:00Z', flagged: true, deleted: false, fromSubject: true },
+        { id: 'm3', senderName: 'Moussa Ba', body: 'Retiré', sentAt: '2026-10-26T10:43:00Z', flagged: false, deleted: true, fromSubject: true },
+      ]
+
+      it('montre les messages, le signalé encadré, un supprimé barré', () => {
+        const w = mountWith(report, ctx({ messages }))
+        expect(w.find('[data-test="case-context-messages"]').exists()).toBe(true)
+        expect(w.findAll('[data-test^="context-message-m"]').length).toBeGreaterThanOrEqual(3)
+        expect(w.find('[data-test="context-message-m2"]').attributes('data-flagged')).toBe('true')
+        expect(w.find('[data-test="context-message-m2"]').text()).toContain('Message signalé')
+        expect(w.find('[data-test="context-message-m1"]').attributes('data-flagged')).toBeUndefined()
+        expect(w.find('[data-test="context-message-m3"] [data-test="context-message-deleted"]').exists()).toBe(true)
+        expect(w.find('[data-test="context-message-m1"]').text()).toContain('Awa Diallo')
+      })
+
+      it('expéditeur inconnu : « Compte inconnu »', () => {
+        const w = mountWith(report, ctx({ messages: [{ ...messages[0]!, senderName: null }] }))
+        expect(w.find('[data-test="context-message-m1"]').text()).toContain('Compte inconnu')
+      })
+
+      it('sans MODERATION_VIEW : une phrase, aucun message', () => {
+        const w = mountWith(report, ctx({ messagesRestricted: true }))
+        expect(w.find('[data-test="case-context-messages"]').exists()).toBe(false)
+        expect(w.find('[data-test="context-messages-restricted"]').text()).toContain('pas visibles avec votre rôle')
+      })
+
+      it('ni messages ni restriction : aucune section', () => {
+        const w = mountWith(report, ctx())
+        expect(w.find('[data-test="case-context-messages"]').exists()).toBe(false)
+        expect(w.find('[data-test="context-messages-restricted"]').exists()).toBe(false)
+      })
+    })
+
+    describe('fiche de la personne visée', () => {
+      const subject = {
+        userId: uuid, displayName: 'Moussa Ba', memberSince: '2026-01-10T08:00:00', accountStatus: 'ACTIVE',
+        identityVerified: true, reportsReceived: 3, openReportsReceived: 1, cancellationCount: 2,
+      }
+
+      it('nom, ancienneté, identité vérifiée, signalements reçus, annulations', () => {
+        const w = mountWith({ ...report, targetType: 'MESSAGE' }, ctx({ subject }))
+        const card = w.find('[data-test="case-subject"]')
+        expect(card.text()).toContain('Auteur')
+        expect(card.text()).toContain('Moussa Ba')
+        expect(card.text()).toContain('Membre depuis janvier 2026')
+        expect(w.find('[data-test="case-subject-identity"]').text()).toBe('Identité vérifiée')
+        expect(w.find('[data-test="case-subject-received"]').text()).toBe('3 signalements reçus, dont 1 ouvert')
+        expect(w.find('[data-test="case-subject-cancellations"]').text()).toContain('2 annulations')
+      })
+
+      it('lien vers la fiche avec USER_VIEW, simple nom sans', () => {
+        const w = mountWith(report, ctx({ subject }))
+        expect(w.find('[data-test="case-subject-link"]').attributes('href')).toBe(`/users/${uuid}`)
+        seedAuth('ADMIN', { USER_VIEW: false })
+        const bare = mountWith(report, ctx({ subject }))
+        expect(bare.find('[data-test="case-subject-link"]').exists()).toBe(false)
+        expect(bare.find('[data-test="case-subject"]').text()).toContain('Moussa Ba')
+      })
+
+      it('compte suspendu ou banni : étiquette de statut ; actif : aucune', () => {
+        expect(mountWith(report, ctx({ subject: { ...subject, accountStatus: 'SUSPENDED' } }))
+          .find('[data-test="case-subject-status"]').text()).toBe('Compte suspendu')
+        expect(mountWith(report, ctx({ subject })).find('[data-test="case-subject-status"]').exists()).toBe(false)
+      })
+
+      it('« Déjà signalé » : un autre signalement a visé ce compte (le dossier en cours déduit sur une cible USER)', () => {
+        // Cible USER : le signalement en cours est compris dans le décompte.
+        const alone = mountWith(report, ctx({ subject: { ...subject, reportsReceived: 1, openReportsReceived: 1 } }))
+        expect(alone.find('[data-test="case-subject-repeat"]').exists()).toBe(false)
+        const repeated = mountWith(report, ctx({ subject: { ...subject, reportsReceived: 2 } }))
+        expect(repeated.find('[data-test="case-subject-repeat"]').text()).toBe('Déjà signalé')
+        // Cible MESSAGE : le décompte ne contient pas le dossier en cours.
+        const viaMessage = mountWith({ ...report, targetType: 'MESSAGE' }, ctx({ subject: { ...subject, reportsReceived: 1 } }))
+        expect(viaMessage.find('[data-test="case-subject-repeat"]').exists()).toBe(true)
+      })
+
+      it('aucun signalement reçu, aucune annulation : lignes sobres', () => {
+        const w = mountWith(report, ctx({ subject: { ...subject, reportsReceived: 0, openReportsReceived: 0, cancellationCount: 0, memberSince: null } }))
+        expect(w.find('[data-test="case-subject-received"]').text()).toBe('Aucun signalement reçu')
+        expect(w.find('[data-test="case-subject-cancellations"]').exists()).toBe(false)
+        expect(w.find('[data-test="case-subject"]').text()).not.toContain('Membre depuis')
+      })
+
+      it('sans fiche : le nom de l’auteur du back reste affiché', () => {
+        const w = mountWith({ ...report, targetType: 'MESSAGE', targetAuthor: { userId: 'u2', name: 'Moussa B.' } }, ctx())
+        expect(w.find('[data-test="case-subject"]').exists()).toBe(false)
+        expect(w.text()).toContain('Auteur : Moussa B.')
+      })
+    })
+
+    describe('fiche du signalant', () => {
+      const reporter = {
+        userId: uuid, displayName: 'Awa Diallo', memberSince: '2026-03-01T09:00:00',
+        totalReports: 4, resolvedReports: 3, dismissedReports: 1,
+      }
+
+      it('repère de fiabilité, ancienneté et historique de signalements', () => {
+        const w = mountWith(report, ctx({ reporter }))
+        expect(w.find('[data-test="case-reporter-trust"]').text()).toBe('Fiable')
+        expect(w.find('[data-test="case-reporter-history"]').text()).toBe('4 signalements, 3 traités, 1 rejeté')
+        expect(w.find('[data-test="case-reporter"]').text()).toContain('Membre depuis mars 2026')
+      })
+
+      it('à prendre avec recul quand la plupart ont été rejetés', () => {
+        const w = mountWith(report, ctx({ reporter: { ...reporter, totalReports: 5, resolvedReports: 1, dismissedReports: 4 } }))
+        expect(w.find('[data-test="case-reporter-trust"]').text()).toBe('À prendre avec recul')
+      })
+
+      it('lien vers la fiche avec USER_VIEW, sans lien sans', () => {
+        expect(mountWith(report, ctx({ reporter })).find('[data-test="case-reporter-link"]').attributes('href')).toBe(`/users/${uuid}`)
+        seedAuth('ADMIN', { USER_VIEW: false })
+        expect(mountWith(report, ctx({ reporter })).find('[data-test="case-reporter-link"]').exists()).toBe(false)
+      })
+
+      it('signalant introuvable côté contexte : le nom de la liste reste, sans fiche', () => {
+        const w = mountWith(report, ctx())
+        expect(w.find('[data-test="case-reporter"]').exists()).toBe(false)
+        expect(w.text()).toContain('Awa')
+      })
+    })
+
+    describe('autres signalements sur la même cible', () => {
+      const relatedReports = [
+        { id: 'o1', reason: 'SCAM_ATTEMPT', status: 'RESOLVED', createdAt: '2026-10-25T08:00:00Z', reporterName: 'Fatou Kane' },
+        { id: 'o2', reason: null, status: 'OPEN', createdAt: null, reporterName: null },
+      ]
+
+      it('liste motif, signalant et statut ; un clic émet openRelated', async () => {
+        const w = mountWith(report, ctx({ relatedReports }))
+        const first = w.find('[data-test="related-o1"]')
+        expect(first.text()).toContain('Tentative d’arnaque')
+        expect(first.text()).toContain('Fatou Kane')
+        expect(first.text()).toContain('Résolu')
+        await first.trigger('click')
+        expect(w.emitted('openRelated')![0]).toEqual(['o1'])
+      })
+
+      it('motif et signalant inconnus : libellés de repli', () => {
+        const second = mountWith(report, ctx({ relatedReports })).find('[data-test="related-o2"]')
+        expect(second.text()).toContain('Motif inconnu')
+        expect(second.text()).toContain('Signalant inconnu')
+      })
+
+      it('aucun autre signalement : pas de section', () => {
+        expect(mountWith(report, ctx()).find('[data-test="case-related"]').exists()).toBe(false)
+      })
+    })
+
+    describe('historique', () => {
+      it('chronologie : la réception puis les gestes, à la place du bloc Issue', () => {
+        const w = mountWith(
+          { ...report, status: 'RESOLVED', actionTaken: 'WARN', resolutionNote: 'ok', createdAt: '2026-10-26T10:55:00Z' },
+          ctx({ history: [{ action: 'REPORT_RESOLVED', detail: 'WARN', at: '2026-10-26T11:00:00Z', actorEmail: 'sira@yadony.com', note: 'Premier avertissement' }] }),
+        )
+        const items = w.findAll('[data-test^="timeline-"]')
+        expect(items).toHaveLength(2)
+        expect(items[0]!.text()).toContain('Signalement reçu')
+        expect(items[1]!.text()).toContain('Utilisateur averti')
+        expect(items[1]!.text()).toContain('sira@yadony.com')
+        expect(items[1]!.text()).toContain('Premier avertissement')
+        // La chronologie porte l'issue : pas de doublon.
+        expect(w.find('[data-test="report-action-taken-r1"]').exists()).toBe(false)
+      })
+
+      it('signalement supprimé : la ligne « Supprimé le … » reste, avec la restauration', () => {
+        const w = mountWith(
+          { ...report, deletedAt: '2026-09-20T10:00:00Z', deletedByAdminEmail: 'mod@yadony.com' },
+          ctx({ history: [{ action: 'REPORT_DELETED', at: '2026-09-20T10:00:00Z', actorEmail: 'mod@yadony.com' }] }),
+        )
+        expect(w.find('[data-test="report-deleted-info-r1"]').text()).toContain('mod@yadony.com')
+        expect(w.text()).toContain('Signalement supprimé')
+      })
     })
   })
 })

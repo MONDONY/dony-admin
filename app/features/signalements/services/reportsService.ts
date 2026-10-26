@@ -1,7 +1,8 @@
 import { useApi } from '@/composables/useApi'
 import { reportKindQuery } from '@/features/signalements/reportKind'
 import type {
-  AdminReport, AdminReportPage, BulkRestoreResult, ReportAction, ReportReplyPayload, ReportReplyResponse, ReportsFilterState,
+  AdminReport, AdminReportPage, BulkRestoreResult, ReportAction, ReportContext, ReportReplyPayload, ReportReplyResponse,
+  ReportsFilterState,
 } from '@/features/signalements/types/index'
 
 /** Recherche envoyée au back : le texte libre, sinon le préfixe du type de retour. */
@@ -28,6 +29,14 @@ export type BulkDeleteInput = { ids: string[] } | { all: true; filters: ReportsF
 export const reportsService = {
   list(filters: ReportsFilterState, page: number, size: number): Promise<AdminReportPage> {
     return useApi()<AdminReportPage>('/admin/reports', { query: buildQuery(filters, page, size) })
+  },
+  /**
+   * Contexte du dossier : fiches du signalant et de la personne visée, message dans sa conversation,
+   * historique, autres signalements sur la cible. 404 `report-not-found` ; 404/405 sans code sur un
+   * ancien back.
+   */
+  getContext(id: string): Promise<ReportContext> {
+    return useApi()<ReportContext>(`/admin/reports/${id}/context`)
   },
   /** Un signalement par son identifiant (lien profond `?open=`). */
   get(id: string): Promise<AdminReport> {

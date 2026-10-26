@@ -83,6 +83,73 @@ export interface AdminReport {
   ratingPreview?: ReportRatingPreview | null
 }
 
+// ----- Contexte d'un signalement (GET /admin/reports/{id}/context) -----
+// Le back n'écrit pas les champs nuls (NON_NULL) : tout ce qui peut manquer est facultatif.
+
+/** Le signalant : `resolvedReports` = traités (toute action sauf rejet), `dismissedReports` = rejetés. */
+export interface ReportContextReporter {
+  userId: string
+  displayName?: string | null
+  memberSince?: string | null
+  totalReports: number
+  resolvedReports: number
+  dismissedReports: number
+}
+
+/** La personne visée : le compte signalé, ou l'auteur du contenu signalé. */
+export interface ReportContextSubject {
+  userId: string
+  displayName?: string | null
+  memberSince?: string | null
+  /** ACTIVE, SUSPENDED, BANNED ou PENDING_DELETION. */
+  accountStatus?: string | null
+  identityVerified: boolean
+  reportsReceived: number
+  openReportsReceived: number
+  cancellationCount: number
+}
+
+export interface ReportContextMessage {
+  id: string
+  senderName?: string | null
+  body: string
+  sentAt?: string | null
+  /** Le message signalé. */
+  flagged: boolean
+  deleted: boolean
+  /** Écrit par la personne visée : sa bulle est à droite. */
+  fromSubject: boolean
+}
+
+export interface ReportHistoryEntry {
+  /** Code d'audit : REPORT_RESOLVED, REPORT_DELETED, REPORT_RESTORED. */
+  action: string
+  /** Action de modération prise, pour une résolution. */
+  detail?: string | null
+  at?: string | null
+  actorEmail?: string | null
+  note?: string | null
+}
+
+export interface RelatedReport {
+  id: string
+  reason?: string | null
+  status?: string | null
+  createdAt?: string | null
+  reporterName?: string | null
+}
+
+export interface ReportContext {
+  reporter?: ReportContextReporter | null
+  subject?: ReportContextSubject | null
+  /** Absent hors cible MESSAGE, ou quand Firestore n'a rien rendu. */
+  messages?: ReportContextMessage[] | null
+  /** Cible MESSAGE sans MODERATION_VIEW : seul le message signalé est lisible. */
+  messagesRestricted?: boolean
+  history?: ReportHistoryEntry[] | null
+  relatedReports?: RelatedReport[] | null
+}
+
 /** Corps de POST /admin/reports/{id}/reply : message obligatoire (1 à 4000 caractères). */
 export interface ReportReplyPayload {
   message: string

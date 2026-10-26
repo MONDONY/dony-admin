@@ -19,6 +19,7 @@ import { REPORT_TARGET_TYPE_LABELS, reportActionTakenLabel } from '@/features/si
 import { REPORT_KINDS } from '@/features/signalements/reportKind'
 import { defaultReportId, neighbourReportId, nextReportId } from '@/features/signalements/reportWorkbench'
 import { useWorkbenchShortcuts } from '@/features/signalements/composables/useWorkbenchShortcuts'
+import { useReportContext } from '@/features/signalements/composables/useReportContext'
 import type { BulkRestoreResult, ReportKind, ReportReplyResponse, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
@@ -54,6 +55,9 @@ const kindFilters: { value: ReportKind | null; label: string }[] = [
 const selectedReportId = ref<string | null>(null)
 const resolveBusy = ref(false)
 const decisionPanel = ref<InstanceType<typeof ReportDecisionPanel> | null>(null)
+// Contexte du dossier ouvert (fiches, message, historique) : lu à chaque changement de dossier.
+const ctx = useReportContext()
+watch(selectedReportId, (id) => { void ctx.load(id) })
 const viewerUrls = ref<string[] | null>(null)
 
 // ---- Recherche (débounce court : une requête par pause de frappe) ----
@@ -129,7 +133,10 @@ async function confirmRestore(reason: string) {
   // Motif refusé (422) : le dialogue reste ouvert, saisie conservée, refus affiché dedans.
   if (r.reasonError.value) return
   pendingRestoreId.value = null
-  if (ok) lastRestored.value = { restored: 1, skipped: 0 }
+  if (ok) {
+    lastRestored.value = { restored: 1, skipped: 0 }
+    void ctx.load(selectedReportId.value)
+  }
 }
 async function confirmBulkRestore() {
   bulkRestoreOpen.value = false
@@ -220,7 +227,16 @@ async function confirmResolve(action: string, note: string, targetMessage: strin
   if (next) {
     selectedReportId.value = next
     void nextTick(() => document.querySelector(`[data-test="report-row-${CSS.escape(next)}"]`)?.scrollIntoView?.({ block: 'nearest' }))
+  } else {
+    // Le dossier reste affiché : sa chronologie doit montrer le geste qui vient d'être fait.
+    void ctx.load(id)
   }
+}
+
+/** Autre signalement sur la même cible : dans la file, on le sélectionne ; sinon on l'ouvre par son identifiant. */
+async function openRelated(id: string) {
+  if (r.displayedReports.value.some((x) => x.id === id)) selectReport(id)
+  else await focusFromLink(id)
 }
 
 // Un dossier est toujours ouvert quand la liste en contient un : au chargement, après un
@@ -444,6 +460,8 @@ onMounted(async () => {
           <div class="max-h-[calc(100vh-13rem)] min-h-[24rem] overflow-y-auto">
             <ReportCase
               :report="selectedReport" :restore-unavailable="r.restoreUnavailable.value"
+              :context="ctx.context.value" :context-loading="ctx.isLoading.value" :context-error="ctx.error.value"
+              @open-related="openRelated"
               @view-photos="(urls) => viewerUrls = urls" @reply="openReply"
               @delete="(id) => pendingDeleteId = id"
               @restore="(id) => { lastRestored = null; pendingRestoreId = id }"
