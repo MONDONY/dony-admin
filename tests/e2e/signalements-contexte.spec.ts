@@ -129,3 +129,66 @@ test('erreur 500 du contexte : une phrase discrète, la décision reste possible
   await expect(page.locator('[data-test="context-error"]')).toBeVisible()
   await expect(page.locator('[data-test="resolve-confirm"]')).toBeEnabled()
 })
+
+test('annonce signalée : trajet, prix, poids, statut et texte de l’auteur sont dans le dossier', async ({ page }) => {
+  const announcement = {
+    ...base, id: 'an', targetType: 'ANNOUNCEMENT', targetLabel: 'Paris → Dakar', reason: 'PROHIBITED_ITEM',
+    description: 'Annonce de cigarettes.', availableActions: ['RESOLVE', 'REMOVE_CONTENT', 'DISMISS'], targetAuthor: null,
+    createdAt: '2026-10-26T10:55:00Z',
+  }
+  await mock(page, {
+    an: {
+      status: 200,
+      json: {
+        messagesRestricted: false, history: [], relatedReports: [],
+        targetPreview: {
+          kind: 'ANNOUNCEMENT', status: 'ACTIVE',
+          facts: [
+            { label: 'Trajet', value: 'Paris → Dakar' }, { label: 'Départ', value: '12/11/2026' }, { label: 'Transport', value: 'Avion' },
+            { label: 'Prix', value: '8,5 EUR / kg' }, { label: 'Poids', value: '12 kg disponibles sur 20 kg' },
+          ],
+          description: 'Cartouches de cigarettes, prix cassés, paiement à la main.',
+        },
+      },
+    },
+  }, [announcement])
+  await page.goto('/signalements')
+
+  const card = page.locator('[data-test="case-target-preview"]')
+  await expect(card).toContainText('L’annonce')
+  await expect(page.locator('[data-test="case-target-status"]')).toHaveText('En ligne')
+  await expect(page.locator('[data-test="case-fact-Prix"]')).toContainText('8,5 EUR / kg')
+  await expect(page.locator('[data-test="case-fact-Transport"]')).toContainText('Avion')
+  await expect(page.locator('[data-test="case-target-description"]')).toContainText('Cartouches de cigarettes')
+  // La décision propose le retrait de l'annonce, dont le contenu est lisible juste à côté.
+  await expect(page.locator('[data-test="resolve-action-REMOVE_CONTENT"]')).toBeVisible()
+})
+
+test('bug de l’app : les autres retours sur le même écran, ouvrables d’un clic', async ({ page }) => {
+  const bug = {
+    ...base, id: 'bg', targetType: 'APP', targetId: null, targetLabel: null, reason: 'SCREEN_BUG', screenRoute: '/payment/confirm',
+    description: '[BUG] Le bouton Payer ne répond pas', availableActions: ['RESOLVE', 'DISMISS'], targetAuthor: null,
+    createdAt: '2026-10-26T10:55:00Z',
+  }
+  const other = { ...bug, id: 'bg2', description: '[BUG] Payer ne fait rien', createdAt: '2026-10-25T10:55:00Z', reporterName: 'Fatou Kane' }
+  await mock(page, {
+    bg: {
+      status: 200,
+      json: {
+        messagesRestricted: false, history: [], relatedReports: [],
+        sameScreen: {
+          route: '/payment/confirm', total: 4, open: 3,
+          recent: [{ id: 'bg2', reason: 'SCREEN_BUG', status: 'OPEN', createdAt: '2026-10-25T10:55:00Z', reporterName: 'Fatou Kane' }],
+        },
+      },
+    },
+    bg2: { status: 200, json: { messagesRestricted: false, history: [], relatedReports: [] } },
+  }, [bug, other])
+  await page.goto('/signalements')
+
+  await expect(page.locator('[data-test="case-same-screen-summary"]')).toHaveText('4 retours sur cet écran, dont 3 ouverts')
+  await expect(page.locator('[data-test="case-same-screen-repeated"]')).toBeVisible()
+  await page.locator('[data-test="case-same-screen"] [data-test="related-bg2"]').click()
+  await expect(page.locator('[data-test="report-case"]')).toContainText('Payer ne fait rien')
+  await expect(page.locator('[data-test="case-same-screen"]')).toHaveCount(0)
+})

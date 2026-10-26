@@ -2,6 +2,7 @@ import { reportActionTakenLabel } from '@/features/signalements/reportActionLabe
 import type {
   AdminReport,
   ReportContextReporter,
+  ReportSameScreen,
   ReportContextSubject,
   ReportHistoryEntry,
 } from '@/features/signalements/types/index'
@@ -92,4 +93,58 @@ export function buildTimeline(report: Pick<AdminReport, 'id' | 'createdAt' | 're
     by: e.actorEmail ? `par ${e.actorEmail}` : null, note: e.note ?? null,
   }))
   return [received, ...steps]
+}
+
+// ----- Fiche de la cible -----
+
+const KIND_TITLES: Record<string, string> = {
+  ANNOUNCEMENT: 'L’annonce',
+  PACKAGE_REQUEST: 'La demande d’envoi',
+  BID: 'L’offre',
+}
+
+/** « L’annonce », « La demande d’envoi », « L’offre » ; un type ajouté côté back s'affiche tel quel. */
+export function targetKindTitle(kind: string): string {
+  return KIND_TITLES[kind] ?? kind
+}
+
+const ANNOUNCEMENT_STATUS: Record<string, string> = {
+  DRAFT: 'Brouillon', ACTIVE: 'En ligne', FULL: 'Complète', IN_PROGRESS: 'En cours', COMPLETED: 'Terminée',
+  CANCELLED: 'Annulée', REMOVED_BY_ADMIN: 'Retirée par l’équipe',
+}
+const REQUEST_STATUS: Record<string, string> = {
+  DRAFT: 'Brouillon', OPEN: 'Ouverte', NEGOTIATING: 'En négociation', ACCEPTED: 'Acceptée', EXPIRED: 'Expirée',
+  CANCELLED: 'Annulée', COMPLETED: 'Terminée', REMOVED_BY_ADMIN: 'Retirée par l’équipe',
+}
+const BID_STATUS: Record<string, string> = {
+  AWAITING_PAYMENT: 'En attente de paiement', PENDING: 'En attente', PAYMENT_ESCROWED: 'Paiement bloqué',
+  ACCEPTED: 'Acceptée', HANDED_OVER: 'Colis remis', IN_TRANSIT: 'En transit', ARRIVED: 'Arrivé', REJECTED: 'Refusée',
+  CANCELLED: 'Annulée', COMPLETED: 'Terminée', NO_SHOW: 'Absence', PARCEL_REFUSED: 'Colis refusé',
+  EXPIRED: 'Expirée', NEGOTIATING: 'En négociation',
+}
+const STATUS_BY_KIND: Record<string, Record<string, string>> = {
+  ANNOUNCEMENT: ANNOUNCEMENT_STATUS, PACKAGE_REQUEST: REQUEST_STATUS, BID: BID_STATUS,
+}
+
+/** Statut lisible de la cible et sa teinte ; un statut inconnu reste brut, en neutre. */
+export function targetStatusMeta(kind: string, status?: string | null): { label: string; tone: Tone } | null {
+  if (!status) return null
+  const label = STATUS_BY_KIND[kind]?.[status] ?? status
+  const removed = status === 'REMOVED_BY_ADMIN' || status === 'REJECTED' || status === 'PARCEL_REFUSED' || status === 'NO_SHOW'
+  const live = status === 'ACTIVE' || status === 'OPEN' || status === 'ACCEPTED' || status === 'COMPLETED'
+  const tone: Tone = removed ? 'danger' : live ? 'success' : 'neutral'
+  return { label, tone }
+}
+
+/** À partir de combien de retours sur une même route on parle d'un problème qui se répète. */
+const REPEATED_SCREEN = 3
+
+/** « 7 retours sur cet écran, dont 5 ouverts », avec un repère quand ça se répète. */
+export function sameScreenSummary(s: Pick<ReportSameScreen, 'total' | 'open'>): { text: string; repeated: boolean } {
+  const plural = (n: number) => (n > 1 ? 's' : '')
+  const base = `${s.total} retour${plural(s.total)} sur cet écran`
+  return {
+    text: s.open > 0 && s.total > 1 ? `${base}, dont ${s.open} ouvert${plural(s.open)}` : base,
+    repeated: s.total >= REPEATED_SCREEN,
+  }
 }
