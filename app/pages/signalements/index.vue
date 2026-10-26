@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import TabBar, { type TabItem } from '@/components/ui/TabBar.vue'
-import ReportsTable from '@/features/signalements/components/ReportsTable.vue'
+import ReportQueue from '@/features/signalements/components/ReportQueue.vue'
+import ReportCase from '@/features/signalements/components/ReportCase.vue'
+import KeyHint from '@/components/ui/KeyHint.vue'
 import RatingsTable from '@/features/signalements/components/RatingsTable.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
@@ -10,11 +12,13 @@ import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
 import { useReports } from '@/features/signalements/composables/useReports'
 import { useRatings } from '@/features/signalements/composables/useRatings'
 import { useAuthStore } from '@/stores/auth'
-import ReportResolveDialog from '@/features/signalements/components/ReportResolveDialog.vue'
+import ReportDecisionPanel from '@/features/signalements/components/ReportDecisionPanel.vue'
 import ReportReplyDialog from '@/features/signalements/components/ReportReplyDialog.vue'
 import { replySentMessage, reporterFirstName, supportConversationLink } from '@/features/signalements/reportReply'
 import { REPORT_TARGET_TYPE_LABELS, reportActionTakenLabel } from '@/features/signalements/reportActionLabels'
 import { REPORT_KINDS } from '@/features/signalements/reportKind'
+import { defaultReportId, neighbourReportId, nextReportId } from '@/features/signalements/reportWorkbench'
+import { useWorkbenchShortcuts } from '@/features/signalements/composables/useWorkbenchShortcuts'
 import type { BulkRestoreResult, ReportKind, ReportReplyResponse, ReportStatusFilter, ReportTargetType } from '@/features/signalements/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'REPORT_VIEW', pageTitle: 'Signalements & avis', pageSubtitle: 'Modération des signalements et des avis' })
@@ -46,8 +50,10 @@ const kindFilters: { value: ReportKind | null; label: string }[] = [
   { value: null, label: 'Tous retours' },
   ...REPORT_KINDS,
 ]
-const pendingReportId = ref<string | null>(null)
+// Signalement ouvert dans le dossier ; le panneau de décision traite celui-là.
+const selectedReportId = ref<string | null>(null)
 const resolveBusy = ref(false)
+const decisionPanel = ref<InstanceType<typeof ReportDecisionPanel> | null>(null)
 const viewerUrls = ref<string[] | null>(null)
 
 // ---- Recherche (débounce court : une requête par pause de frappe) ----
@@ -131,9 +137,10 @@ async function confirmBulkRestore() {
   if (res) lastRestored.value = res
 }
 
-// Le signalement en cours de traitement : le dialogue en tire ses actions (availableActions
-// du back, ou repli local sur un ancien back).
-const pendingReport = computed(() => r.findReport(pendingReportId.value))
+// Le signalement ouvert : le panneau de décision en tire ses actions (availableActions du
+// back, ou repli local sur un ancien back).
+const selectedReport = computed(() => r.findReport(selectedReportId.value))
+const hasNextReport = computed(() => nextReportId(r.displayedReports.value, selectedReportId.value) !== null)
 const resolvedMessage = computed(() => {
   const done = r.lastResolved.value
   if (!done) return ''
@@ -174,6 +181,7 @@ function openParam(): string | null {
 async function focusFromLink(id: string) {
   await r.openReport(id)
   if (!r.focusedReport.value) return
+  selectedReportId.value = id
   await nextTick()
   document.querySelector(`[data-test="report-row-${CSS.escape(id)}"]`)?.scrollIntoView?.({ block: 'center' })
 }
@@ -189,24 +197,38 @@ watch(() => route.query?.open, (v) => {
   if (typeof v === 'string' && v && v !== r.focusedReport.value?.id) void focusFromLink(v)
 })
 
-function openResolve(id: string) {
+/** Choix de l'admin (clic ou J / K) : les messages du traitement précédent n'ont plus d'objet. */
+function selectReport(id: string) {
+  if (id === selectedReportId.value) return
   lastReply.value = null
   r.clearResolveFeedback()
-  pendingReportId.value = id
-}
-function cancelResolve() {
-  pendingReportId.value = null
-  r.resolveError.value = null
+  selectedReportId.value = id
+  void nextTick(() => document.querySelector(`[data-test="report-row-${CSS.escape(id)}"]`)?.scrollIntoView?.({ block: 'nearest' }))
 }
 async function confirmResolve(action: string, note: string, targetMessage: string, reporterMessage: string) {
-  if (!pendingReportId.value) return
+  const id = selectedReportId.value
+  if (!id) return
+  lastReply.value = null
   resolveBusy.value = true
-  const outcome = await r.resolve(pendingReportId.value, action, note, targetMessage, reporterMessage)
+  const outcome = await r.resolve(id, action, note, targetMessage, reporterMessage)
   resolveBusy.value = false
-  // Refus (403, 422, ancien back) : le dialogue reste ouvert et montre le detail. Déjà
-  // traité par un autre admin (409) : on ferme, la liste relue montre son état réel.
-  if (outcome !== 'error') pendingReportId.value = null
+  // Refus (403, 422, ancien back) : on reste sur le dossier, le panneau montre le détail et
+  // garde la saisie. Traité, ou déjà traité par un autre admin (409) : on passe au suivant ;
+  // le bandeau de résultat survit au changement de dossier.
+  if (outcome === 'error') return
+  const next = nextReportId(r.displayedReports.value, id)
+  if (next) {
+    selectedReportId.value = next
+    void nextTick(() => document.querySelector(`[data-test="report-row-${CSS.escape(next)}"]`)?.scrollIntoView?.({ block: 'nearest' }))
+  }
 }
+
+// Un dossier est toujours ouvert quand la liste en contient un : au chargement, après un
+// changement de filtre ou de page, ou quand celui qui était ouvert a disparu de la liste.
+watch(() => r.displayedReports.value, (list) => {
+  if (!list.some((x) => x.id === selectedReportId.value)) selectedReportId.value = defaultReportId(list)
+})
+
 
 // ---- Avis ----
 const rt = useRatings()
@@ -237,6 +259,21 @@ async function toggleRatingsDeleted(v: boolean) {
   await rt.setDeletedFilter(v)
 }
 
+// Raccourcis du poste de traitement : inactifs sous une fenêtre ouverte ou sur l'onglet Avis.
+const windowOpen = computed(() =>
+  pendingDeleteId.value !== null || bulkDeleteOpen.value || pendingRestoreId.value !== null
+  || bulkRestoreOpen.value || pendingReplyId.value !== null || viewerUrls.value !== null
+  || pendingExcludeId.value !== null || pendingRemoveId.value !== null || pendingRatingRestoreId.value !== null)
+useWorkbenchShortcuts({
+  enabled: () => activeTab.value === 'reports' && !windowOpen.value,
+  move: (step) => {
+    const id = neighbourReportId(r.displayedReports.value, selectedReportId.value, step)
+    if (id) selectReport(id)
+  },
+  pick: (n) => decisionPanel.value?.pick(n),
+  confirm: () => decisionPanel.value?.submit(),
+})
+
 function switchTab(t: 'reports' | 'ratings') {
   activeTab.value = t
   if (t === 'ratings' && rt.ratings.value.length === 0) rt.fetchRatings()
@@ -257,51 +294,8 @@ onMounted(async () => {
       aria-label="Sections des signalements" @update:model-value="switchTab"
     />
 
-    <!-- SIGNALEMENTS -->
+    <!-- SIGNALEMENTS : poste de traitement, file à gauche, dossier au centre, décision à droite -->
     <div v-show="activeTab === 'reports'">
-      <div class="flex flex-wrap items-center gap-3 mb-4">
-        <div class="flex gap-1">
-          <button
-            v-for="t in reportStatusTabs" :key="t.value" type="button" :data-test="`report-tab-${t.value}`"
-            :disabled="r.filters.deleted"
-            :class="['rounded-full px-3 py-1.5 text-sm transition-colors disabled:opacity-40',
-              r.filters.status === t.value && !r.filters.deleted ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
-            @click="r.setStatusFilter(t.value)"
-          >{{ t.label }}</button>
-          <button
-            v-if="auth.can('REPORT_VIEW')" type="button" data-test="report-filter-deleted"
-            :aria-pressed="r.filters.deleted ? 'true' : 'false'"
-            :class="['ml-1 rounded-full px-3 py-1.5 text-sm transition-colors',
-              r.filters.deleted ? 'bg-danger text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
-            @click="toggleDeletedFilter"
-          >Supprimés</button>
-        </div>
-        <input
-          type="search" data-test="report-search" :value="searchInput"
-          :placeholder="searchPlaceholder"
-          class="min-w-64 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm"
-          @input="onSearchInput" @keydown.enter.prevent="submitSearch"
-        >
-        <!-- Type de retour du scarabée (préfixe [BUG] / [AVIS] / [SUGGESTION] de la description) -->
-        <div class="flex gap-1" role="group" aria-label="Type de retour">
-          <button
-            v-for="k in kindFilters" :key="k.value ?? 'all'" type="button" :data-test="`report-kind-filter-${k.value ?? 'ALL'}`"
-            :aria-pressed="(r.filters.kind ?? null) === k.value ? 'true' : 'false'"
-            :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
-              (r.filters.kind ?? null) === k.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
-            @click="onKindFilter(k.value)"
-          >{{ k.label }}</button>
-        </div>
-        <select
-          data-test="report-target-type-filter"
-          :value="r.filters.targetType ?? ''"
-          class="rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm text-text-muted"
-          @change="onTargetTypeFilterChange"
-        >
-          <option v-for="t in targetTypeFilters" :key="t.value ?? 'all'" :value="t.value ?? ''">{{ t.label }}</option>
-        </select>
-      </div>
-
       <p v-if="r.error.value" data-test="reports-error" class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{{ r.error.value }}</p>
       <p
         v-if="r.deletedFilterUnsupported.value" data-test="reports-deleted-filter-unsupported"
@@ -379,17 +373,92 @@ onMounted(async () => {
         >Supprimer ({{ r.selectedCount.value }})</button>
       </div>
 
-      <ReportsTable
-        :reports="r.displayedReports.value" :loading="r.isLoading.value" :selected="r.selectedIds.value"
-        :highlight-id="r.focusedReport.value?.id ?? null"
-        :restore-unavailable="r.restoreUnavailable.value"
-        @restore="(id) => { lastRestored = null; pendingRestoreId = id }"
-        @resolve="openResolve" @reply="openReply" @view-photos="(urls) => viewerUrls = urls"
-        @toggle="r.toggleSelect" @toggle-page="r.togglePage" @delete="(id) => pendingDeleteId = id"
-      />
+      <!-- Trois colonnes à toute largeur : sous le minimum, la page défile à l'horizontale plutôt que de replier la décision sous le dossier -->
+      <div class="overflow-x-auto">
+        <div class="grid min-w-[840px] grid-cols-[minmax(240px,1fr)_minmax(300px,1.6fr)_minmax(280px,1.1fr)] items-start gap-4">
+          <!-- 1. File d'attente -->
+          <section
+            aria-label="File des signalements" data-test="report-queue-panel"
+            class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
+          >
+            <div class="flex flex-col gap-2.5 border-b border-border p-3">
+              <div class="flex flex-wrap gap-1">
+                <button
+                  v-for="t in reportStatusTabs" :key="t.value" type="button" :data-test="`report-tab-${t.value}`"
+                  :disabled="r.filters.deleted"
+                  :class="['rounded-full px-3 py-1 text-sm transition-colors disabled:opacity-40',
+                    r.filters.status === t.value && !r.filters.deleted ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+                  @click="r.setStatusFilter(t.value)"
+                >{{ t.label }}</button>
+                <button
+                  v-if="auth.can('REPORT_VIEW')" type="button" data-test="report-filter-deleted"
+                  :aria-pressed="r.filters.deleted ? 'true' : 'false'"
+                  :class="['rounded-full px-3 py-1 text-sm transition-colors',
+                    r.filters.deleted ? 'bg-danger text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+                  @click="toggleDeletedFilter"
+                >Supprimés</button>
+              </div>
+              <input
+                type="search" data-test="report-search" :value="searchInput"
+                :placeholder="searchPlaceholder" aria-label="Rechercher un signalement"
+                class="w-full rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm"
+                @input="onSearchInput" @keydown.enter.prevent="submitSearch"
+              >
+              <!-- Type de retour du scarabée (préfixe [BUG] / [AVIS] / [SUGGESTION] de la description) -->
+              <div class="flex flex-wrap gap-1" role="group" aria-label="Type de retour">
+                <button
+                  v-for="k in kindFilters" :key="k.value ?? 'all'" type="button" :data-test="`report-kind-filter-${k.value ?? 'ALL'}`"
+                  :aria-pressed="(r.filters.kind ?? null) === k.value ? 'true' : 'false'"
+                  :class="['rounded-full px-2.5 py-1 text-xs transition-colors',
+                    (r.filters.kind ?? null) === k.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+                  @click="onKindFilter(k.value)"
+                >{{ k.label }}</button>
+              </div>
+              <select
+                data-test="report-target-type-filter" aria-label="Type de cible"
+                :value="r.filters.targetType ?? ''"
+                class="w-full rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-sm text-text-muted"
+                @change="onTargetTypeFilterChange"
+              >
+                <option v-for="t in targetTypeFilters" :key="t.value ?? 'all'" :value="t.value ?? ''">{{ t.label }}</option>
+              </select>
+            </div>
 
-      <div class="mt-4">
-        <PaginationControls :page="r.currentPage.value" :total-pages="r.totalPages.value" @change="r.goToPage" />
+            <ReportQueue
+              class="min-h-0 flex-1 overflow-hidden"
+              :reports="r.displayedReports.value" :loading="r.isLoading.value"
+              :selected-id="selectedReportId" :checked="r.selectedIds.value"
+              @select="selectReport" @toggle="r.toggleSelect" @toggle-page="r.togglePage"
+            />
+
+            <div class="flex flex-col gap-2 border-t border-border bg-bg/50 p-3">
+              <PaginationControls :page="r.currentPage.value" :total-pages="r.totalPages.value" @change="r.goToPage" />
+              <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                <span class="inline-flex items-center gap-1"><KeyHint>J</KeyHint><KeyHint>K</KeyHint> naviguer</span>
+                <span class="inline-flex items-center gap-1"><KeyHint>⏎</KeyHint> confirmer</span>
+              </p>
+            </div>
+          </section>
+
+          <!-- 2. Dossier -->
+          <div class="max-h-[calc(100vh-13rem)] min-h-[24rem] overflow-y-auto">
+            <ReportCase
+              :report="selectedReport" :restore-unavailable="r.restoreUnavailable.value"
+              @view-photos="(urls) => viewerUrls = urls" @reply="openReply"
+              @delete="(id) => pendingDeleteId = id"
+              @restore="(id) => { lastRestored = null; pendingRestoreId = id }"
+            />
+          </div>
+
+          <!-- 3. Décision -->
+          <div class="sticky top-0">
+            <ReportDecisionPanel
+              ref="decisionPanel"
+              :report="selectedReport" :busy="resolveBusy" :error="r.resolveError.value" :has-next="hasNextReport"
+              @confirm="confirmResolve"
+            />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -443,12 +512,6 @@ onMounted(async () => {
 
     <!-- Visionneuse des captures d'écran jointes -->
     <PhotoViewer :urls="viewerUrls" @close="viewerUrls = null" />
-
-    <!-- Dialogue de résolution d'un signalement (action + note) -->
-    <ReportResolveDialog
-      :report="pendingReport" :busy="resolveBusy" :error="r.resolveError.value"
-      @confirm="confirmResolve" @cancel="cancelResolve"
-    />
 
     <!-- Répondre au signalant d'un rapport de bug -->
     <ReportReplyDialog :report="replyReport" @close="pendingReplyId = null" @sent="onReplySent" />
