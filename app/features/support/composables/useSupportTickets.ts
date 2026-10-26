@@ -1,26 +1,22 @@
 import { ref } from 'vue'
 import { supportService } from '@/features/support/services/supportService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import type {
-  AdminSupportTicket, SupportStatusFilter, SupportTicketScope,
-} from '@/features/support/types/index'
+import type { AdminSupportTicket } from '@/features/support/types/index'
+
+/** Une page : les 100 conversations les plus récentes. Périmètre, recherche et filtres se font sur cette page. */
+export const SUPPORT_PAGE_SIZE = 100
 
 /**
- * File support : liste par onglet (non assignés / mes tickets / tous) et
- * détail sélectionné. Après chaque action (assign/reply/resolve), la liste
- * ET le détail sont rechargés : le serveur fait foi, notamment pour les 409
- * de garde (ticket pris par un collègue entre-temps).
+ * File support : toutes les conversations (une page), et le détail sélectionné. Après chaque action
+ * (assign/reply/resolve), la liste ET le détail sont rechargés : le serveur fait foi, notamment pour les
+ * 409 de garde (ticket pris par un collègue entre-temps).
  */
 export function useSupportTickets() {
   const tickets = ref<AdminSupportTicket[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-  const totalElements = ref(0)
-  const totalPages = ref(0)
-  const currentPage = ref(0)
-  const pageSize = ref(20)
-  const scope = ref<SupportTicketScope>('unassigned')
-  const statusFilter = ref<SupportStatusFilter>('TOUS')
+  /** Le serveur a plus de conversations que la page chargée. */
+  const truncated = ref(false)
   /** Filtre ?userId= : les conversations d'un seul utilisateur. */
   const userId = ref<string | null>(null)
   /** L'ancien back ignore ?userId= : des tickets d'autres comptes ont dû être écartés ici. */
@@ -30,20 +26,21 @@ export function useSupportTickets() {
   const isDetailLoading = ref(false)
   const isActing = ref(false)
   const actionError = ref<string | null>(null)
+  let openCount = 0
 
   async function fetchTickets() {
     isLoading.value = true
     error.value = null
     try {
       const filter = userId.value
-      const args = [scope.value, statusFilter.value, currentPage.value, pageSize.value] as const
-      const page = filter ? await supportService.list(...args, filter) : await supportService.list(...args)
+      const page = filter
+        ? await supportService.list('all', 'TOUS', 0, SUPPORT_PAGE_SIZE, filter)
+        : await supportService.list('all', 'TOUS', 0, SUPPORT_PAGE_SIZE)
       // Une ligne sans userId ne peut pas être vérifiée : elle reste affichée.
       const kept = filter ? page.content.filter((t) => !t.userId || t.userId === filter) : page.content
       userFilterIgnored.value = kept.length < page.content.length
       tickets.value = kept
-      totalElements.value = page.totalElements
-      totalPages.value = page.totalPages
+      truncated.value = page.totalElements > page.content.length
     } catch (e) {
       error.value = extractProblemMessage(e, 'Impossible de charger les tickets')
     } finally {
@@ -51,46 +48,32 @@ export function useSupportTickets() {
     }
   }
 
-  async function setScope(s: SupportTicketScope) {
-    scope.value = s
-    currentPage.value = 0
-    await fetchTickets()
-  }
-
-  async function setStatusFilter(s: SupportStatusFilter) {
-    statusFilter.value = s
-    currentPage.value = 0
-    await fetchTickets()
-  }
-
-  /** Poser ou retirer le filtre utilisateur ; avec userId le back ignore le périmètre (tout l'historique). */
+  /** Poser ou retirer le filtre utilisateur ; avec userId le back renvoie tout l'historique du compte. */
   async function setUserFilter(id: string | null) {
     userId.value = id
-    if (id) scope.value = 'all'
-    currentPage.value = 0
     await fetchTickets()
   }
 
-  async function goToPage(p: number) {
-    currentPage.value = p
-    await fetchTickets()
-  }
-
+  /** Lit le fil d'un ticket ; deux ouvertures rapprochées (J / K) ne mélangent pas leurs réponses. */
   async function openTicket(id: string) {
+    const mine = ++openCount
     isDetailLoading.value = true
     actionError.value = null
     try {
-      selected.value = await supportService.get(id)
+      const ticket = await supportService.get(id)
+      if (mine === openCount) selected.value = ticket
     } catch (e) {
-      actionError.value = extractProblemMessage(e, 'Action impossible')
+      if (mine === openCount) actionError.value = extractProblemMessage(e, 'Action impossible')
     } finally {
-      isDetailLoading.value = false
+      if (mine === openCount) isDetailLoading.value = false
     }
   }
 
   function closeTicket() {
+    openCount += 1
     selected.value = null
     actionError.value = null
+    isDetailLoading.value = false
   }
 
   /** Recharge détail + liste après une mutation réussie. */
@@ -122,9 +105,7 @@ export function useSupportTickets() {
   const resolve = (id: string) => act(id, () => supportService.resolve(id))
 
   return {
-    tickets, isLoading, error, totalElements, totalPages, currentPage, pageSize,
-    scope, statusFilter, userId, userFilterIgnored, selected, isDetailLoading, isActing, actionError,
-    fetchTickets, setScope, setStatusFilter, setUserFilter, goToPage,
-    openTicket, closeTicket, assign, reassign, reply, resolve,
+    tickets, isLoading, error, truncated, userId, userFilterIgnored, selected, isDetailLoading, isActing, actionError,
+    fetchTickets, setUserFilter, openTicket, closeTicket, assign, reassign, reply, resolve,
   }
 }

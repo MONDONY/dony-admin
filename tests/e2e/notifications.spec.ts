@@ -194,7 +194,7 @@ test('notification support : clic vers le fil du ticket ouvert, périmètre « T
   await expect(row).toContainText(/il y a [45]\smin/) // microsecondes acceptées
   await row.click()
   await expect(page).toHaveURL(/\/support\?ticket=t9$/)
-  await expect(page.locator('aside').getByText('Bonjour, je n’ai rien reçu.')).toBeVisible()
+  await expect(page.locator('[data-test="support-conversation"]').getByText('Bonjour, je n’ai rien reçu.')).toBeVisible()
   await expect.poll(() => scopes.at(-1)).toBe('all')
 })
 
