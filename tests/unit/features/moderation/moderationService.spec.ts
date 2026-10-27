@@ -6,19 +6,10 @@ import { moderationService } from '@/features/moderation/services/moderationServ
 describe('moderationService', () => {
   beforeEach(() => apiMock.mockReset())
 
-  it('listConversations omits flagged when false', async () => {
-    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    await moderationService.listConversations({ flaggedOnly: false }, 0, 20)
-    const q = apiMock.mock.calls[0][1].query
-    expect(q).toMatchObject({ page: 0, size: 20 })
-    expect(q.flagged).toBeUndefined()
-  })
-
-  it('listConversations passes flagged when true', async () => {
-    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
-    await moderationService.listConversations({ flaggedOnly: true }, 1, 20)
-    expect(apiMock.mock.calls[0][1].query).toMatchObject({ flagged: true, page: 1, size: 20 })
-    expect(apiMock.mock.calls[0][0]).toBe('/admin/conversations')
+  it('listConversations lit une page, sans filtre signalées (le back n’en connaît pas)', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
+    await moderationService.listConversations(0, 100)
+    expect(apiMock).toHaveBeenCalledWith('/admin/conversations', { query: { page: 0, size: 100 } })
   })
 
   it('encode les identifiants : pas de traversée de chemin', async () => {
@@ -38,6 +29,18 @@ describe('moderationService', () => {
   it('deleteMessage DELETEs', async () => {
     apiMock.mockResolvedValue(undefined)
     await moderationService.deleteMessage('c1', 'm1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/conversations/c1/messages/m1', { method: 'DELETE' })
+  })
+
+  it('deleteMessage envoie le motif en paramètre de requête', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await moderationService.deleteMessage('c1', 'm1', '  propos haineux  ')
+    expect(apiMock).toHaveBeenCalledWith('/admin/conversations/c1/messages/m1', { method: 'DELETE', query: { reason: 'propos haineux' } })
+  })
+
+  it('deleteMessage omet un motif vide', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await moderationService.deleteMessage('c1', 'm1', '   ')
     expect(apiMock).toHaveBeenCalledWith('/admin/conversations/c1/messages/m1', { method: 'DELETE' })
   })
 })

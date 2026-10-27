@@ -15,38 +15,61 @@ export function useConversationThread() {
   const restoreError = ref<string | null>(null)
   /** Motif refusé (422 `violations`) : affiché dans le dialogue, saisie conservée. */
   const restoreReasonError = ref<string | null>(null)
+  const deleteError = ref<string | null>(null)
+
+  /** Une lecture plus récente a été lancée : la réponse de la précédente n'est plus la bonne conversation. */
+  let reads = 0
 
   async function load() {
-    if (!activeId.value) return
+    const id = activeId.value
+    if (!id) return
+    const mine = ++reads
     isLoading.value = true
     error.value = null
     try {
-      messages.value = await moderationService.getMessages(activeId.value)
+      const list = await moderationService.getMessages(id)
+      if (mine === reads) messages.value = list
     } catch (e) {
-      error.value = extractProblemMessage(e, 'Impossible de charger la conversation')
+      if (mine === reads) error.value = extractProblemMessage(e, 'Impossible de charger la conversation')
     } finally {
-      isLoading.value = false
+      if (mine === reads) isLoading.value = false
     }
   }
 
   async function open(conversationId: string) {
     activeId.value = conversationId
+    messages.value = []
+    restoreUnavailableIds.value = []
+    restoreError.value = null
+    restoreReasonError.value = null
+    deleteError.value = null
     await load()
   }
 
   function close() {
+    reads += 1
+    isLoading.value = false
     activeId.value = null
     messages.value = []
     error.value = null
     restoreUnavailableIds.value = []
     restoreError.value = null
     restoreReasonError.value = null
+    deleteError.value = null
   }
 
-  async function deleteMessage(id: string) {
-    if (!activeId.value) return
-    await moderationService.deleteMessage(activeId.value, id)
+  /** Rend true si le message est supprimé (puis la conversation relue). */
+  async function deleteMessage(id: string, reason?: string): Promise<boolean> {
+    if (!activeId.value) return false
+    deleteError.value = null
+    try {
+      await moderationService.deleteMessage(activeId.value, id, reason)
+    } catch (e) {
+      deleteError.value = extractProblemMessage(e, 'Impossible de supprimer ce message')
+      return false
+    }
     await load()
+    return true
   }
 
   /** Rend true si le message est restauré (puis la conversation relue). */
@@ -72,7 +95,7 @@ export function useConversationThread() {
   }
 
   return {
-    activeId, messages, isLoading, error, restoreUnavailableIds, restoreError, restoreReasonError,
-    open, close, deleteMessage, restoreMessage,
+    activeId, messages, isLoading, error, restoreUnavailableIds, restoreError, restoreReasonError, deleteError,
+    open, load, close, deleteMessage, restoreMessage,
   }
 }

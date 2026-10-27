@@ -1,21 +1,23 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminConversationPage, AdminMessage, ModerationFilterState } from '@/features/moderation/types/index'
-
-function buildQuery(f: ModerationFilterState, page: number, size: number): Record<string, string | number | boolean> {
-  const q: Record<string, string | number | boolean> = { page, size }
-  if (f.flaggedOnly) q.flagged = true
-  return q
-}
+import type { AdminConversationPage, AdminMessage } from '@/features/moderation/types/index'
 
 export const moderationService = {
-  listConversations(filters: ModerationFilterState, page: number, size: number): Promise<AdminConversationPage> {
-    return useApi()<AdminConversationPage>('/admin/conversations', { query: buildQuery(filters, page, size) })
+  /** Pas de filtre « signalées » : le back n'en connaît pas, les signalements ouverts viennent de `/admin/reports`. */
+  listConversations(page: number, size: number): Promise<AdminConversationPage> {
+    return useApi()<AdminConversationPage>('/admin/conversations', { query: { page, size } })
   },
   getMessages(conversationId: string): Promise<AdminMessage[]> {
     return useApi()<AdminMessage[]>(`/admin/conversations/${encodeURIComponent(conversationId)}/messages`)
   },
-  deleteMessage(conversationId: string, messageId: string): Promise<void> {
-    return useApi()<void>(`/admin/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' })
+  /**
+   * Le motif part en paramètre de requête (un DELETE ne porte pas de corps fiable), omis s'il est
+   * vide : un back qui ne le lit pas encore l'ignore sans erreur.
+   */
+  deleteMessage(conversationId: string, messageId: string, reason?: string): Promise<void> {
+    const url = `/admin/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`
+    const trimmed = reason?.trim()
+    if (!trimmed) return useApi()<void>(url, { method: 'DELETE' })
+    return useApi()<void>(url, { method: 'DELETE', query: { reason: trimmed } })
   },
   /**
    * Restaure un message supprimé par un admin (MESSAGE_DELETE). Peut ne pas exister : le back
