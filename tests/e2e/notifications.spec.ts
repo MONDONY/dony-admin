@@ -21,6 +21,7 @@ interface Backend {
   missing: boolean
   countersCalls: number
   markSeen: unknown[]
+  reads: string[]
 }
 
 async function mockBackend(page: Page, init: Partial<Backend> = {}): Promise<Backend> {
@@ -30,6 +31,7 @@ async function mockBackend(page: Page, init: Partial<Backend> = {}): Promise<Bac
     missing: false,
     countersCalls: 0,
     markSeen: [],
+    reads: [],
     ...init,
   }
   await page.clock.install({ time: new Date('2026-09-28T12:00:00Z') })
@@ -45,6 +47,12 @@ async function mockBackend(page: Page, init: Partial<Backend> = {}): Promise<Bac
     if (state.missing) return route.fulfill(problem(404, null, 'No endpoint matches this path'))
     if (path.endsWith('/counters')) return route.fulfill({ json: state.counters })
     if (path.endsWith('/feed')) return route.fulfill({ json: state.feed })
+    const read = /\/notifications\/(.+)\/read$/.exec(path)
+    if (read && req.method() === 'POST') {
+      state.reads.push(decodeURIComponent(read[1]!))
+      state.counters = { ...state.counters, unreadCount: Math.max(0, state.counters.unreadCount - 1) }
+      return route.fulfill({ status: 204, body: '' })
+    }
     if (path.endsWith('/mark-seen') && req.method() === 'POST') {
       state.markSeen.push(req.postDataJSON())
       state.counters = { ...state.counters, unreadCount: 0 }
@@ -107,8 +115,31 @@ test('« Tout marquer comme lu » retire la pastille et le préfixe du titre', a
   expect(state.markSeen).toEqual([{ upTo: REPORT.createdAt }])
 })
 
-test('le panneau ouvert 2 s marque les nouveautés comme lues ; Échap ferme et rend le focus', async ({ page }) => {
+test('ouvrir la cloche ne marque rien ; un clic marque seulement cette notification', async ({ page }) => {
   const state = await mockBackend(page, {
+    counters: { counts: {}, unreadCount: 2 },
+    feed: { items: [REPORT, KYC], unreadCount: 2, lastSeenAt: null },
+  })
+  await page.route('**/api/v1/admin/signalements**', (route) => route.abort())
+  await page.goto('/audit')
+  await expect(bellBadge(page)).toHaveText('2')
+  await bell(page).click()
+  await expect(page.locator('[data-test="notif-item"]')).toHaveCount(2)
+  // Longtemps ouverte : rien n'est marqué, la pastille reste.
+  await page.clock.fastForward(60_000)
+  await expect(bellBadge(page)).toHaveText('2')
+  expect(state.markSeen).toEqual([])
+  expect(state.reads).toEqual([])
+  await expect(page.locator('[data-test="notif-item"]').first()).toHaveAttribute('data-unread', 'true')
+
+  await page.locator('[data-test="notif-item"]').first().click()
+  await expect.poll(() => state.reads).toEqual([REPORT.id])
+  expect(state.markSeen).toEqual([])
+  await expect(bellBadge(page)).toHaveText('1')
+})
+
+test('Échap ferme le panneau et rend le focus à la cloche', async ({ page }) => {
+  await mockBackend(page, {
     counters: { counts: {}, unreadCount: 1 },
     feed: { items: [REPORT], unreadCount: 1, lastSeenAt: null },
   })
@@ -116,12 +147,6 @@ test('le panneau ouvert 2 s marque les nouveautés comme lues ; Échap ferme et 
   await expect(bellBadge(page)).toHaveText('1')
   await bell(page).click()
   await expect(page.locator('[data-test="notif-item"]')).toHaveCount(1)
-  await page.clock.fastForward(2_000)
-  await expect(bellBadge(page)).toHaveCount(0)
-  expect(state.markSeen).toEqual([{ upTo: REPORT.createdAt }])
-  // l'élément reste mis en évidence le temps de la lecture
-  await expect(page.locator('[data-test="notif-item"]').first()).toHaveAttribute('data-unread', 'true')
-
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-test="notif-panel"]')).toHaveCount(0)
   await expect(bell(page)).toBeFocused()

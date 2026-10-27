@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Bell, BellOff, CheckCheck, RefreshCw } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useNotificationsStore, MARK_SEEN_DELAY_MS } from '@/stores/notifications'
+import { useNotificationsStore } from '@/stores/notifications'
 import {
-  formatFullDate, formatRelativeFr, isSafeInternalLink, isUnread,
+  formatFullDate, formatRelativeFr, isSafeInternalLink,
 } from '@/features/notifications/lib/format'
 import { notificationIcon, severityClasses } from '@/features/notifications/lib/notificationMeta'
 import type { AdminNotification } from '@/features/notifications/types/index'
@@ -14,12 +14,9 @@ const isOpen = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLButtonElement | null>(null)
 const panelRef = ref<HTMLElement | null>(null)
-/** lastSeenAt figé à l'ouverture : les nouveautés restent en évidence même une fois marquées lues. */
-const highlightSince = ref<string | null>(null)
 const now = ref(Date.now())
 
 let openSession = 0
-let markTimer: ReturnType<typeof setTimeout> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
 let unsubscribe: (() => void) | null = null
 
@@ -32,42 +29,28 @@ const showMarkAll = computed(() =>
   !store.unavailable && store.feedStatus === 'ready' && store.unreadCount > 0)
 
 function clearTimers() {
-  if (markTimer !== null) clearTimeout(markTimer)
   if (clockTimer !== null) clearInterval(clockTimer)
-  markTimer = null
   clockTimer = null
 }
 
 /**
- * Marquage automatique après 2 s d'affichage plutôt qu'à la fermeture : un clic sur une
- * notification navigue et ferme, et une fermeture involontaire (clic à côté) marquerait aussi.
- * Une ouverture furtive (moins de 2 s) ne compte pas comme une lecture.
+ * Ouvrir la cloche ne marque RIEN comme lu : une notification devient lue quand on la clique, ou
+ * toutes d'un coup avec « Tout marquer comme lu ».
  */
-function scheduleMarkSeen(session: number) {
-  if (store.unreadCount === 0) return
-  markTimer = setTimeout(() => {
-    markTimer = null
-    if (isOpen.value && session === openSession) void store.markAllSeen()
-  }, MARK_SEEN_DELAY_MS)
-}
-
 async function load(session: number) {
   await store.openPanel()
   if (!isOpen.value || session !== openSession) return
   now.value = Date.now()
-  if (store.feedStatus === 'ready') scheduleMarkSeen(session)
 }
 
 async function openPanel() {
   const session = ++openSession
   isOpen.value = true
-  highlightSince.value = store.lastSeenAt
   now.value = Date.now()
   clockTimer = setInterval(() => { now.value = Date.now() }, 30_000)
   await nextTick()
   panelRef.value?.focus()
   await load(session)
-  if (isOpen.value && session === openSession) highlightSince.value = store.lastSeenAt
 }
 
 function close(returnFocus: boolean) {
@@ -86,10 +69,10 @@ function toggle() {
 async function retry() {
   const session = openSession
   await load(session)
-  if (isOpen.value && session === openSession) highlightSince.value = store.lastSeenAt
 }
 
 function select(n: AdminNotification) {
+  void store.markRead(n)
   close(false)
   if (isSafeInternalLink(n.link)) void navigateTo(n.link)
 }
@@ -217,9 +200,9 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 data-test="notif-item"
-                :data-unread="isUnread(n.createdAt, highlightSince)"
+                :data-unread="store.isUnread(n)"
                 class="relative flex w-full gap-3 px-4 py-3 text-left hover:bg-surface-elevated focus-visible:bg-surface-elevated focus-visible:outline-none transition-colors"
-                :class="isUnread(n.createdAt, highlightSince) ? 'bg-primary/5' : ''"
+                :class="store.isUnread(n) ? 'bg-primary/5' : ''"
                 @click="select(n)"
               >
                 <span
@@ -231,7 +214,7 @@ onBeforeUnmount(() => {
                 </span>
                 <span class="min-w-0 flex-1">
                   <span class="flex items-start justify-between gap-2">
-                    <span class="text-sm font-medium text-text" :class="isUnread(n.createdAt, highlightSince) ? 'font-semibold' : ''">{{ n.title }}</span>
+                    <span class="text-sm font-medium text-text" :class="store.isUnread(n) ? 'font-semibold' : ''">{{ n.title }}</span>
                     <time
                       :datetime="n.createdAt"
                       :title="formatFullDate(n.createdAt)"
@@ -241,11 +224,11 @@ onBeforeUnmount(() => {
                   <span v-if="n.summary" class="mt-0.5 block text-xs text-text-muted line-clamp-2 text-pretty">{{ n.summary }}</span>
                 </span>
                 <span
-                  v-if="isUnread(n.createdAt, highlightSince)"
+                  v-if="store.isUnread(n)"
                   class="absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-primary"
                   aria-hidden="true"
                 />
-                <span v-if="isUnread(n.createdAt, highlightSince)" class="sr-only">Non lue</span>
+                <span v-if="store.isUnread(n)" class="sr-only">Non lue</span>
               </button>
             </li>
           </ul>

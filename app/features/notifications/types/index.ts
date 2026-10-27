@@ -34,6 +34,8 @@ export interface NotificationFeed {
   unreadCount: number
   unreadCapped?: boolean
   lastSeenAt: string | null
+  /** Entrées de cette page déjà lues une à une par l'admin. Absent sur un back plus ancien (yadony-back V352). */
+  readIds?: string[]
 }
 
 export const COUNTER_KEYS = [

@@ -5,11 +5,13 @@ import { setActivePinia, createPinia } from 'pinia'
 const countersMock = vi.fn()
 const feedMock = vi.fn()
 const markSeenMock = vi.fn()
+const markReadMock = vi.fn()
 vi.mock('@/features/notifications/services/notificationsService', () => ({
   notificationsService: {
     counters: (...a: unknown[]) => countersMock(...a),
     feed: (...a: unknown[]) => feedMock(...a),
     markSeen: (...a: unknown[]) => markSeenMock(...a),
+    markRead: (...a: unknown[]) => markReadMock(...a),
   },
 }))
 const navigateToMock = vi.fn()
@@ -17,7 +19,7 @@ vi.stubGlobal('navigateTo', navigateToMock)
 
 import NotificationBell from '@/features/notifications/components/NotificationBell.vue'
 import { useAuthStore } from '@/stores/auth'
-import { useNotificationsStore, FEED_PAGE_SIZE, MARK_SEEN_DELAY_MS } from '@/stores/notifications'
+import { useNotificationsStore, FEED_PAGE_SIZE } from '@/stores/notifications'
 import { makeAdmin } from '../../../helpers/auth'
 
 const item = (id: string, createdAt: string, extra: Record<string, unknown> = {}) => ({
@@ -54,6 +56,7 @@ describe('NotificationBell', () => {
     countersMock.mockReset().mockResolvedValue({ counts: {}, unreadCount: 1 })
     feedMock.mockReset().mockResolvedValue(FEED)
     markSeenMock.mockReset().mockResolvedValue(undefined)
+    markReadMock.mockReset().mockResolvedValue(undefined)
     navigateToMock.mockReset()
   })
   afterEach(() => {
@@ -176,34 +179,61 @@ describe('NotificationBell', () => {
       expect(wrapper!.find('[data-test="notif-mark-error"]').text()).toContain('Impossible pour le moment.')
     })
 
-    it('marque comme lu après 2 s d’affichage, en gardant la mise en évidence pendant la session', async () => {
+    it('ouvrir la cloche ne marque rien comme lu, même après longtemps', async () => {
       await mountBell()
       await open()
-      await vi.advanceTimersByTimeAsync(MARK_SEEN_DELAY_MS - 1)
-      expect(markSeenMock).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(60_000)
       await flushPromises()
-      expect(markSeenMock).toHaveBeenCalledOnce()
-      expect(wrapper!.find('[data-test="notif-badge"]').exists()).toBe(false)
+      expect(markSeenMock).not.toHaveBeenCalled()
+      expect(markReadMock).not.toHaveBeenCalled()
+      expect(wrapper!.find('[data-test="notif-badge"]').text()).toBe('1')
       expect(wrapper!.findAll('[data-test="notif-item"]')[0]!.attributes('data-unread')).toBe('true')
     })
 
-    it('une ouverture furtive (< 2 s) ne marque rien', async () => {
+    it('un clic marque cette notification lue, elle seule, et la pastille baisse de un', async () => {
+      feedMock.mockResolvedValue({ ...FEED, unreadCount: 2, lastSeenAt: '2026-09-28T07:00:00Z' })
+      countersMock.mockResolvedValue({ counts: {}, unreadCount: 2 })
       await mountBell()
+      expect(wrapper!.find('[data-test="notif-badge"]').text()).toBe('2')
       await open()
-      await vi.advanceTimersByTimeAsync(500)
-      await trigger().trigger('click') // referme
-      await vi.advanceTimersByTimeAsync(MARK_SEEN_DELAY_MS * 2)
+      await wrapper!.findAll('[data-test="notif-item"]')[0]!.trigger('click')
+      await flushPromises()
+      expect(markReadMock).toHaveBeenCalledOnce()
+      expect(markReadMock).toHaveBeenCalledWith('new')
       expect(markSeenMock).not.toHaveBeenCalled()
+      expect(wrapper!.find('[data-test="notif-badge"]').text()).toBe('1')
+      // Rouvrir : la notification cliquée est lue, l'autre reste non lue.
+      await open()
+      const items = wrapper!.findAll('[data-test="notif-item"]')
+      expect(items[0]!.attributes('data-unread')).toBe('false')
+      expect(items[1]!.attributes('data-unread')).toBe('true')
     })
 
-    it('aucun non lu : pas de marquage automatique', async () => {
-      countersMock.mockResolvedValue({ counts: {}, unreadCount: 0 })
-      feedMock.mockResolvedValue({ ...FEED, unreadCount: 0 })
+    it('une notification déjà lue côté serveur (readIds) n’est pas mise en évidence', async () => {
+      feedMock.mockResolvedValue({ ...FEED, unreadCount: 1, lastSeenAt: '2026-09-28T07:00:00Z', readIds: ['new'] })
       await mountBell()
       await open()
-      await vi.advanceTimersByTimeAsync(MARK_SEEN_DELAY_MS * 2)
-      expect(markSeenMock).not.toHaveBeenCalled()
+      const items = wrapper!.findAll('[data-test="notif-item"]')
+      expect(items[0]!.attributes('data-unread')).toBe('false')
+      expect(items[1]!.attributes('data-unread')).toBe('true')
+    })
+
+    it('cliquer une notification déjà lue ne renvoie rien au serveur', async () => {
+      feedMock.mockResolvedValue({ ...FEED, readIds: ['new'] })
+      await mountBell()
+      await open()
+      await wrapper!.findAll('[data-test="notif-item"]')[0]!.trigger('click')
+      expect(markReadMock).not.toHaveBeenCalled()
+      expect(navigateToMock).toHaveBeenCalledWith('/kyc?status=IN_REVIEW&open=u1')
+    })
+
+    it('échec du marquage : la notification reste non lue et le message s’affiche', async () => {
+      markReadMock.mockRejectedValue(Object.assign(new Error('500'), { statusCode: 500, data: { detail: 'Impossible pour le moment.' } }))
+      await mountBell()
+      await open()
+      await wrapper!.findAll('[data-test="notif-item"]')[0]!.trigger('click')
+      await flushPromises()
+      expect(wrapper!.find('[data-test="notif-badge"]').text()).toBe('1')
     })
 
     it('« Charger plus » via before', async () => {
