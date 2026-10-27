@@ -4,11 +4,13 @@ import { setActivePinia, createPinia } from 'pinia'
 const countersMock = vi.fn()
 const feedMock = vi.fn()
 const markSeenMock = vi.fn()
+const markReadMock = vi.fn()
 vi.mock('@/features/notifications/services/notificationsService', () => ({
   notificationsService: {
     counters: (...a: unknown[]) => countersMock(...a),
     feed: (...a: unknown[]) => feedMock(...a),
     markSeen: (...a: unknown[]) => markSeenMock(...a),
+    markRead: (...a: unknown[]) => markReadMock(...a),
   },
 }))
 
@@ -53,6 +55,7 @@ describe('store notifications', () => {
     countersMock.mockReset().mockResolvedValue(counters(0))
     feedMock.mockReset().mockResolvedValue({ items: [], unreadCount: 0, lastSeenAt: null })
     markSeenMock.mockReset().mockResolvedValue(undefined)
+    markReadMock.mockReset().mockResolvedValue(undefined)
     visibility = 'visible'
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility })
   })
@@ -426,6 +429,131 @@ describe('store notifications', () => {
       await s.markAllSeen()
       expect(s.markSeenError).toBeNull()
       expect(s.unavailable).toBe(true)
+    })
+  })
+
+  describe('lecture notification par notification', () => {
+    const A = item('REPORT_CREATED:a', '2026-09-28T11:00:00Z')
+    const B = item('REPORT_CREATED:b', '2026-09-28T10:00:00Z')
+    const OLD = item('REPORT_CREATED:old', '2026-09-28T06:00:00Z')
+
+    async function loaded(extra: Record<string, unknown> = {}) {
+      login()
+      countersMock.mockResolvedValue(counters(2))
+      feedMock.mockResolvedValue({ items: [A, B, OLD], unreadCount: 2, lastSeenAt: '2026-09-28T08:00:00Z', ...extra })
+      const s = useNotificationsStore()
+      sub(s)
+      await flush()
+      await s.openPanel()
+      return s
+    }
+
+    it('marque UNE notification : POST, lue localement, pastille moins un, rien d’autre marqué', async () => {
+      const s = await loaded()
+      expect(s.unreadCount).toBe(2)
+      await s.markRead(A)
+      expect(markReadMock).toHaveBeenCalledOnce()
+      expect(markReadMock).toHaveBeenCalledWith('REPORT_CREATED:a')
+      expect(markSeenMock).not.toHaveBeenCalled()
+      expect(s.unreadCount).toBe(1)
+      expect(s.isUnread(A)).toBe(false)
+      expect(s.isUnread(B)).toBe(true)
+    })
+
+    it('ouvrir le panneau ne marque rien', async () => {
+      const s = await loaded()
+      await s.openPanel()
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(markReadMock).not.toHaveBeenCalled()
+      expect(markSeenMock).not.toHaveBeenCalled()
+      expect(s.isUnread(A)).toBe(true)
+    })
+
+    it('une notification antérieure à « tout lu » ou déjà lue : aucun appel', async () => {
+      const s = await loaded({ readIds: ['REPORT_CREATED:b'] })
+      await s.markRead(OLD)
+      await s.markRead(B)
+      expect(markReadMock).not.toHaveBeenCalled()
+      expect(s.unreadCount).toBe(2)
+    })
+
+    it('les lectures du serveur (readIds) sont reprises', async () => {
+      const s = await loaded({ readIds: ['REPORT_CREATED:a', 42, null] })
+      expect(s.readIds).toEqual(['REPORT_CREATED:a'])
+      expect(s.isUnread(A)).toBe(false)
+    })
+
+    it('échec : la notification redevient non lue, la pastille revient, un message est exposé', async () => {
+      markReadMock.mockRejectedValue(boom())
+      const s = await loaded()
+      await s.markRead(A)
+      expect(s.isUnread(A)).toBe(true)
+      expect(s.unreadCount).toBe(2)
+      expect(s.markSeenError).toBe('Panne du serveur.')
+      await s.markRead(A)
+      expect(markReadMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('endpoint absent (ancien back) : lue pour la session, silencieux, la pastille ne revient pas au prochain tour', async () => {
+      markReadMock.mockRejectedValue(missing())
+      const s = await loaded()
+      await s.markRead(A)
+      expect(s.markSeenError).toBeNull()
+      expect(s.unavailable).toBe(false)
+      expect(s.isUnread(A)).toBe(false)
+      expect(s.unreadCount).toBe(1)
+      // Le back, qui ne connaît pas la lecture individuelle, compte encore 2.
+      countersMock.mockResolvedValue(counters(2))
+      await s.refreshCounters()
+      expect(s.unreadCount).toBe(1)
+      // Un rafraîchissement du fil garde la lecture de la session.
+      await s.openPanel()
+      expect(s.isUnread(A)).toBe(false)
+    })
+
+    it('un fil arrivé avant la fin du POST (readIds sans la notification) ne la rallume pas', async () => {
+      const s = await loaded()
+      await s.markRead(A)
+      feedMock.mockResolvedValue({ items: [A, B, OLD], unreadCount: 2, lastSeenAt: '2026-09-28T08:00:00Z', readIds: [] })
+      await s.openPanel()
+      expect(s.isUnread(A)).toBe(false)
+      expect(s.isUnread(B)).toBe(true)
+    })
+
+    it('un rafraîchissement du fil pendant le POST ne rallume pas la notification cliquée', async () => {
+      let release: () => void = () => {}
+      markReadMock.mockImplementation(() => new Promise<void>((r) => { release = r }))
+      const s = await loaded()
+      const pending = s.markRead(A)
+      await s.openPanel()
+      expect(s.isUnread(A)).toBe(false)
+      release()
+      await pending
+      expect(s.isUnread(A)).toBe(false)
+    })
+
+    it('« Tout marquer comme lu » après des lectures individuelles : tout est lu', async () => {
+      markReadMock.mockRejectedValue(missing())
+      const s = await loaded()
+      await s.markRead(A)
+      await s.markAllSeen()
+      expect(s.unreadCount).toBe(0)
+      expect(s.isUnread(B)).toBe(false)
+    })
+
+    it('rien ne part quand les notifications sont indisponibles', async () => {
+      const s = await loaded()
+      countersMock.mockRejectedValue(missing())
+      await s.refreshCounters()
+      await s.markRead(A)
+      expect(markReadMock).not.toHaveBeenCalled()
+    })
+
+    it('la déconnexion efface les lectures', async () => {
+      const s = await loaded({ readIds: ['REPORT_CREATED:a'] })
+      expect(s.readIds).toEqual(['REPORT_CREATED:a'])
+      useAuthStore().clear()
+      expect(s.readIds).toEqual([])
     })
   })
 })

@@ -26,4 +26,11 @@ describe('notificationsService', () => {
     await notificationsService.markSeen()
     expect(apiMock).toHaveBeenLastCalledWith('/admin/notifications/mark-seen', { method: 'POST', body: {} })
   })
+
+  it('markRead : POST /admin/notifications/{id}/read, identifiant encodé', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await notificationsService.markRead('REPORT_CREATED:3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b')
+    expect(apiMock).toHaveBeenCalledWith(
+      '/admin/notifications/REPORT_CREATED%3A3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b/read', { method: 'POST' })
+  })
 })

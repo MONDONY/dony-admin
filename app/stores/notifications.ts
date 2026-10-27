@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { notificationsService } from '@/features/notifications/services/notificationsService'
-import { badgeLabel } from '@/features/notifications/lib/format'
+import { badgeLabel, isUnread as isUnreadByDate } from '@/features/notifications/lib/format'
 import { isEndpointMissing } from '@/lib/endpointMissing'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import {
@@ -12,8 +12,6 @@ import {
 export const POLL_INTERVAL_MS = 30_000
 export const MAX_BACKOFF_MS = 120_000
 export const FEED_PAGE_SIZE = 30
-/** Délai d'affichage du panneau avant de considérer les nouveautés comme vues. */
-export const MARK_SEEN_DELAY_MS = 2_000
 
 const FEED_ERROR = 'Impossible de charger les notifications.'
 
@@ -64,6 +62,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const loadingMore = ref(false)
   const loadMoreError = ref<string | null>(null)
   const markSeenError = ref<string | null>(null)
+  /** Notifications lues une à une : celles du serveur, plus celles cliquées depuis le dernier chargement. */
+  const readIds = ref<string[]>([])
   /** Ancien back : endpoints absents, on se tait jusqu'à la prochaine session. */
   const unavailable = ref(false)
 
@@ -75,6 +75,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
   let ticking = false
   let failures = 0
   let visibilityBound = false
+  /** Clics dont le POST n'a pas encore répondu. */
+  const pendingReads = new Set<string>()
+  /** Lectures dont le serveur a répondu 204 : un fil arrivé avant ce POST ne doit pas les rallumer. */
+  const confirmedReads = new Set<string>()
+  /** Lectures gardées pour la session faute d'endpoint côté serveur. */
+  const localReads = new Set<string>()
 
   function currentDelay(): number {
     return failures === 0 ? POLL_INTERVAL_MS : Math.min(POLL_INTERVAL_MS * 2 ** failures, MAX_BACKOFF_MS)
@@ -131,6 +137,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
     hasMore.value = false
     loadMoreError.value = null
     markSeenError.value = null
+    readIds.value = []
+    pendingReads.clear()
+    confirmedReads.clear()
+    localReads.clear()
     unavailable.value = false
   }
 
@@ -142,12 +152,56 @@ export const useNotificationsStore = defineStore('notifications', () => {
       failures = 0
       const previous = unreadCount.value
       counts.value = sanitizeCounts(res?.counts)
-      unreadCount.value = toCount(res?.unreadCount)
+      // Back sans lecture individuelle : il compte encore ce que la session a lu, on le retranche.
+      unreadCount.value = Math.max(0, toCount(res?.unreadCount) - localReads.size)
       unreadCapped.value = res?.unreadCapped === true
       if (unreadCount.value > previous && feedLoaded.value) void fetchFeed()
     } catch (e) {
       if (isEndpointMissing(e)) markUnavailable()
       else failures++
+    }
+  }
+
+  /**
+   * Lectures du serveur pour la page chargée, plus les clics encore en vol : un rafraîchissement
+   * qui arrive avant la fin d'un POST ne doit pas rallumer la notification qu'on vient de lire.
+   * Un back plus ancien n'envoie pas `readIds` : on garde ce que la session a lu.
+   */
+  function mergeReadIds(raw: unknown) {
+    const fromServer = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []
+    readIds.value = [...new Set([...fromServer, ...pendingReads, ...confirmedReads, ...localReads])]
+  }
+
+  /** Non lue : plus récente que « Tout marquer comme lu » et pas lue individuellement. */
+  function isUnread(n: AdminNotification): boolean {
+    return isUnreadByDate(n.createdAt, lastSeenAt.value) && !readIds.value.includes(n.id)
+  }
+
+  /**
+   * Un clic sur une notification la marque lue, elle seule : la pastille baisse tout de suite, le
+   * POST suit. Un échec rend la notification non lue et le dit ; un back sans l'endpoint garde la
+   * lecture pour la session (rien n'est marqué automatiquement, jamais).
+   */
+  async function markRead(n: AdminNotification) {
+    if (unavailable.value || !isUnread(n)) return
+    const wasUnread = unreadCount.value
+    markSeenError.value = null
+    pendingReads.add(n.id)
+    readIds.value = [...readIds.value, n.id]
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+    try {
+      await notificationsService.markRead(n.id)
+      confirmedReads.add(n.id)
+    } catch (e) {
+      if (isEndpointMissing(e)) {
+        localReads.add(n.id)
+      } else {
+        readIds.value = readIds.value.filter((id) => id !== n.id)
+        unreadCount.value = Math.max(unreadCount.value, wasUnread)
+        markSeenError.value = extractProblemMessage(e, 'Impossible de marquer la notification comme lue.')
+      }
+    } finally {
+      pendingReads.delete(n.id)
     }
   }
 
@@ -161,6 +215,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       unreadCount.value = toCount(res?.unreadCount)
       unreadCapped.value = res?.unreadCapped === true
       lastSeenAt.value = typeof res?.lastSeenAt === 'string' ? res.lastSeenAt : null
+      mergeReadIds(res?.readIds)
       hasMore.value = items.value.length >= FEED_PAGE_SIZE
       loadMoreError.value = null
       feedLoaded.value = true
@@ -211,6 +266,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
       unreadCount.value = 0
       unreadCapped.value = false
       lastSeenAt.value = upTo ?? new Date().toISOString()
+      localReads.clear()
+      confirmedReads.clear()
     } catch (e) {
       if (isEndpointMissing(e)) markUnavailable()
       else markSeenError.value = extractProblemMessage(e, 'Impossible de marquer les notifications comme lues.')
@@ -254,7 +311,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   return {
     items, unreadCount, unreadCapped, lastSeenAt, counts, feedStatus, feedError, hasMore,
-    loadingMore, loadMoreError, markSeenError, unavailable, badge,
-    subscribe, refreshCounters, openPanel, loadMore, markAllSeen,
+    loadingMore, loadMoreError, markSeenError, unavailable, badge, readIds,
+    isUnread, subscribe, refreshCounters, openPanel, loadMore, markAllSeen, markRead,
   }
 })

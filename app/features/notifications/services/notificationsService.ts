@@ -16,4 +16,12 @@ export const notificationsService = {
   markSeen(upTo?: string): Promise<void> {
     return useApi()<void>('/admin/notifications/mark-seen', { method: 'POST', body: upTo ? { upTo } : {} })
   },
+
+  /**
+   * Marque UNE notification comme lue (idempotent, 204). 404/405 sans code sur un back qui n'a pas
+   * encore l'endpoint : le store garde alors la lecture pour la session seulement.
+   */
+  markRead(id: string): Promise<void> {
+    return useApi()<void>(`/admin/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' })
+  },
 }
