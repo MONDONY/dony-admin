@@ -189,11 +189,11 @@ const dayFormat = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'lon
 const dayYearFormat = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' })
 const timeFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 
-export interface MessageDay { key: string; label: string; messages: SupportMessage[] }
+export interface MessageDay<T extends { createdAt: string } = SupportMessage> { key: string; label: string; messages: T[] }
 
 /** Messages regroupés par jour (heure de Paris), du plus ancien au plus récent ; l'année s'ajoute hors de l'année en cours. */
-export function groupMessagesByDay(messages: readonly SupportMessage[], now: number = Date.now()): MessageDay[] {
-  const days: MessageDay[] = []
+export function groupMessagesByDay<T extends { createdAt: string }>(messages: readonly T[], now: number = Date.now()): MessageDay<T>[] {
+  const days: MessageDay<T>[] = []
   const parisDay = (at: number) => new Date(at).toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' })
   const thisYear = parisDay(now).slice(0, 4)
   for (const m of messages) {

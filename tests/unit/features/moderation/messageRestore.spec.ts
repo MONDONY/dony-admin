@@ -6,12 +6,13 @@ const apiMock = vi.fn()
 vi.mock('@/composables/useApi', () => ({ useApi: () => apiMock }))
 import { moderationService } from '@/features/moderation/services/moderationService'
 import { useConversationThread } from '@/features/moderation/composables/useConversationThread'
-import MessageThread from '@/features/moderation/components/MessageThread.vue'
+import ModerationThread from '@/features/moderation/components/ModerationThread.vue'
 
 const adminDeleted = {
   id: 'm3', conversationId: 'c1', senderName: 'Awa', content: 'propos déplacés', flagged: false,
   deleted: true, deletedAt: '2026-09-20T10:00:00Z', deletedByAdmin: true, createdAt: '2026-06-01T10:06:00Z',
 }
+const CONV = { id: 'c1', participantA: 'Awa', participantB: 'Karim', lastMessageAt: null, createdAt: '2026-06-01T10:00:00Z', closedAt: null, reports: [], partial: false }
 const selfDeleted = { ...adminDeleted, id: 'm4', deletedByAdmin: false, deletedAt: undefined, content: '' }
 
 describe('moderationService.restoreMessage', () => {
@@ -79,27 +80,28 @@ describe('useConversationThread : restauration', () => {
   })
 })
 
-describe('MessageThread : message supprimé par un admin', () => {
+describe('ModerationThread : message supprimé par un admin', () => {
   beforeEach(() => seedAuth('ADMIN'))
 
-  it('grisé « Supprimé par un admin le … » avec Restaurer', async () => {
-    const w = mount(MessageThread, { props: { messages: [adminDeleted], loading: false } })
+  it('barré « Supprimé par un admin le … » avec Annuler la suppression', async () => {
+    const w = mount(ModerationThread, { props: { conversation: CONV, messages: [adminDeleted], loading: false } })
     const info = w.find('[data-test="msg-deleted-by-admin-m3"]')
     expect(info.text()).toContain('Supprimé par un admin le')
     expect(info.text()).toContain('20/09/2026')
     expect(w.find('[data-test="message-m3"]').text()).toContain('propos déplacés')
+    expect(w.find('[data-test="restore-msg-m3"]').text()).toBe('Annuler la suppression')
     await w.find('[data-test="restore-msg-m3"]').trigger('click')
     expect(w.emitted('restore')![0]).toEqual(['m3'])
   })
 
   it('restauration indisponible : bouton masqué, mention discrète', () => {
-    const w = mount(MessageThread, { props: { messages: [adminDeleted], loading: false, restoreUnavailableIds: ['m3'] } })
+    const w = mount(ModerationThread, { props: { conversation: CONV, messages: [adminDeleted], loading: false, restoreUnavailableIds: ['m3'] } })
     expect(w.find('[data-test="restore-msg-m3"]').exists()).toBe(false)
     expect(w.find('[data-test="msg-restore-unavailable-m3"]').text()).toBe('Restauration indisponible pour ce message')
   })
 
   it('supprimé par son auteur (ou ancien back) : pas de restauration', () => {
-    const w = mount(MessageThread, { props: { messages: [selfDeleted], loading: false } })
+    const w = mount(ModerationThread, { props: { conversation: CONV, messages: [selfDeleted], loading: false } })
     expect(w.find('[data-test="restore-msg-m4"]').exists()).toBe(false)
     expect(w.find('[data-test="msg-deleted-by-admin-m4"]').exists()).toBe(false)
     expect(w.find('[data-test="message-m4"]').text()).toContain('Message supprimé')
@@ -107,13 +109,13 @@ describe('MessageThread : message supprimé par un admin', () => {
 
   it('sans MESSAGE_DELETE, pas de bouton Restaurer', () => {
     seedAuth('ADMIN', { MESSAGE_DELETE: false })
-    const w = mount(MessageThread, { props: { messages: [adminDeleted], loading: false } })
+    const w = mount(ModerationThread, { props: { conversation: CONV, messages: [adminDeleted], loading: false } })
     expect(w.find('[data-test="msg-deleted-by-admin-m3"]').exists()).toBe(true)
     expect(w.find('[data-test="restore-msg-m3"]').exists()).toBe(false)
   })
 
   it('sans date de suppression, reste lisible', () => {
-    const w = mount(MessageThread, { props: { messages: [{ ...adminDeleted, deletedAt: undefined }], loading: false } })
+    const w = mount(ModerationThread, { props: { conversation: CONV, messages: [{ ...adminDeleted, deletedAt: undefined }], loading: false } })
     expect(w.find('[data-test="msg-deleted-by-admin-m3"]').text()).toBe('Supprimé par un admin')
   })
 })

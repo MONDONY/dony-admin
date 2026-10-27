@@ -7,6 +7,10 @@ export interface AdminConversation {
   messageCount: number
   flagged: boolean
   createdAt: string
+  /** `SENDER_TRAVELER` ou `RECIPIENT_TRAVELER` ; absent sur un ancien back. */
+  kind?: string | null
+  /** Conversation destinataire fermée après un changement de destinataire. */
+  closedAt?: string | null
 }
 
 export interface AdminMessage {
@@ -33,8 +37,4 @@ export interface AdminConversationPage {
   totalPages: number
   number: number
   size: number
-}
-
-export interface ModerationFilterState {
-  flaggedOnly: boolean
 }
