@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import KeyHint from '@/components/ui/KeyHint.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import RestoreReasonDialog from '@/components/ui/RestoreReasonDialog.vue'
@@ -9,9 +9,12 @@ import ModerationDecisionPanel from './ModerationDecisionPanel.vue'
 import { useModerationQueue } from '@/features/moderation/composables/useModerationQueue'
 import { useConversationThread } from '@/features/moderation/composables/useConversationThread'
 import { useModerationReportContext } from '@/features/moderation/composables/useModerationReportContext'
+import { useModerationContext } from '@/features/moderation/composables/useModerationContext'
+import { moderationService } from '@/features/moderation/services/moderationService'
+import { extractProblemMessage } from '@/lib/problemDetail'
 import { useWorkbenchShortcuts } from '@/features/signalements/composables/useWorkbenchShortcuts'
 import {
-  defaultConversationId, filterQueue, flaggedMessageId, groupQueue, neighbourConversationId, queueOrder, scopeCounts,
+  defaultConversationId, filterQueue, flaggedMessageId, groupQueue, isReported, neighbourConversationId, queueOrder, scopeCounts,
   summarizeQueue, type ConversationScope, type QueueConversation,
 } from '@/features/moderation/lib/moderationWorkbench'
 import { firestoreIdParam } from '@/lib/safeInput'
@@ -26,6 +29,9 @@ import { useAuthStore } from '@/stores/auth'
 const q = useModerationQueue()
 const thread = useConversationThread()
 const rctx = useModerationReportContext()
+const mctx = useModerationContext()
+const notesBusy = ref(false)
+const notesError = ref<string | null>(null)
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -80,7 +86,9 @@ function scrollTo(id: string) {
 /** Ouvre une conversation : sa ligne est choisie tout de suite, son fil et le contexte de son signalement se lisent ensuite. */
 function activate(id: string, { write = true }: { write?: boolean } = {}) {
   selectedId.value = id
+  notesError.value = null
   void thread.open(id)
+  void mctx.load(id)
   const firstReport = q.items.value.find((c) => c.id === id)?.reports[0]?.id ?? null
   void rctx.load(firstReport && auth.can('REPORT_VIEW') ? firstReport : null)
   if (write) writeOpenParam(id)
@@ -104,26 +112,46 @@ function openFromLink(raw: string | null) {
   if (!id) return
   const known = q.items.value.find((c) => c.id === id)
   if (!known) {
-    pinned.value = { id, participantA: null, participantB: null, lastMessageAt: null, createdAt: null, closedAt: null, reports: [], partial: true }
-  } else if (known.reports.length === 0) scope.value = 'all'
+    pinned.value = {
+      id, conversationId: null, participantA: null, participantB: null, participantAId: null, participantBId: null,
+      lastMessageAt: null, lastMessagePreview: null, createdAt: null, closedAt: null, reports: [], openReportCount: 0, partial: true,
+    }
+  } else if (!isReported(known)) scope.value = 'all'
   activate(id, { write: false })
   scrollTo(id)
 }
 
-// ---- Gestes : supprimer, annuler la suppression ----
+// ---- Gestes : supprimer, annuler la suppression, noter ----
+/** Chaque geste est tracé dans l'audit : l'historique de la même conversation se relit. */
+const reloadContext = () => { if (selectedId.value) void mctx.load(selectedId.value) }
+async function onAddNote(content: string) {
+  const id = selectedId.value
+  if (!id) return
+  notesBusy.value = true
+  notesError.value = null
+  try {
+    await moderationService.addNote(id, content)
+    await mctx.load(id)
+  } catch (e) {
+    notesError.value = extractProblemMessage(e, 'Note refusée')
+  } finally {
+    notesBusy.value = false
+  }
+}
 const pendingDeleteId = ref<string | null>(null)
 async function confirmDelete(reason: string) {
   const id = pendingDeleteId.value
   pendingDeleteId.value = null
-  if (id) await thread.deleteMessage(id, reason)
+  if (id && (await thread.deleteMessage(id, reason))) reloadContext()
 }
 const pendingRestoreId = ref<string | null>(null)
 const restoreBusy = ref(false)
 async function confirmRestore(reason: string) {
   if (!pendingRestoreId.value) return
   restoreBusy.value = true
-  await thread.restoreMessage(pendingRestoreId.value, reason)
+  const restored = await thread.restoreMessage(pendingRestoreId.value, reason)
   restoreBusy.value = false
+  if (restored) reloadContext()
   // Motif refusé (422) : le dialogue reste ouvert, saisie conservée.
   if (thread.restoreReasonError.value) return
   pendingRestoreId.value = null
@@ -131,6 +159,23 @@ async function confirmRestore(reason: string) {
 
 const chip = (on: boolean) => ['rounded-full px-3 py-1 text-sm transition-colors',
   on ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']
+
+// ---- Recherche : la page récente se filtre tout de suite, le serveur cherche au-delà (après 300 ms) ----
+const SEARCH_DELAY_MS = 300
+const MIN_SEARCH = 2
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+let searched = ''
+watch(query, (value) => {
+  if (searchTimer !== null) clearTimeout(searchTimer)
+  const wanted = value.trim().length >= MIN_SEARCH ? value.trim() : ''
+  if (wanted === searched) return
+  searchTimer = setTimeout(() => {
+    searchTimer = null
+    searched = wanted
+    void q.fetchQueue({ q: wanted })
+  }, SEARCH_DELAY_MS)
+})
+onBeforeUnmount(() => { if (searchTimer !== null) clearTimeout(searchTimer) })
 
 // ---- Raccourcis : J / K ----
 useWorkbenchShortcuts({
@@ -190,6 +235,11 @@ watch(() => queryValue('open'), (id) => {
       class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
     >Les signalements ne se sont pas chargés : la file n’indique pas les conversations signalées.</p>
 
+    <p
+      v-if="q.flagsUnsupported.value" data-test="moderation-flags-unsupported" role="status"
+      class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning text-pretty"
+    >Le serveur ne rapproche pas encore les signalements des conversations : aucune conversation n’apparaît signalée ici. Les signalements restent traitables dans Signalements.</p>
+
     <div class="overflow-x-auto">
       <div class="grid min-w-[840px] grid-cols-[minmax(280px,1fr)_minmax(340px,1.9fr)_minmax(260px,0.95fr)] items-start gap-4">
         <!-- 1. File -->
@@ -246,8 +296,9 @@ watch(() => queryValue('open'), (id) => {
 
         <!-- 3. Décision -->
         <ModerationDecisionPanel
-          :conversation="current" :context="rctx.context.value" :flagged-message="flaggedMessage" :now="now"
-          @delete="(id) => pendingDeleteId = id"
+          :conversation="current" :context="rctx.context.value" :conversation-context="mctx.context.value"
+          :flagged-message="flaggedMessage" :notes-busy="notesBusy" :notes-error="notesError" :now="now"
+          @delete="(id) => pendingDeleteId = id" @add-note="onAddNote"
         />
       </div>
     </div>

@@ -1,6 +1,7 @@
-import type { AdminConversation, AdminMessage } from '@/features/moderation/types/index'
+import type { AdminConversation, AdminMessage, ConversationHistoryEntry } from '@/features/moderation/types/index'
+import type { TimelineItem } from '@/features/signalements/reportContext'
 import type { AdminReport } from '@/features/signalements/types/index'
-import { parseServerDate } from '@/lib/serverDate'
+import { parseServerDate, serverDateIso } from '@/lib/serverDate'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -18,14 +19,23 @@ export interface OpenReport {
 
 /** Une ligne de la file : une conversation et les signalements ouverts qui la visent. */
 export interface QueueConversation {
+  /** Identifiant Firestore : celui des appels de lecture et de suppression. */
   id: string
+  /** Identifiant interne : celui que porte `targetId` d'un signalement de message. Null sur un ancien back. */
+  conversationId: string | null
   participantA: string | null
   participantB: string | null
+  participantAId: string | null
+  participantBId: string | null
   lastMessageAt: string | null
+  lastMessagePreview: string | null
   createdAt: string | null
   closedAt: string | null
+  /** Détail des signalements ouverts (motif, signalant, date) : lu avec REPORT_VIEW, sinon vide. */
   reports: OpenReport[]
-  /** Conversation hors de la page chargée, connue par son seul signalement : participants inconnus. */
+  /** Nombre de signalements ouverts que le serveur compte ; vaut au moins `reports.length`. */
+  openReportCount: number
+  /** Conversation ouverte par un lien alors qu'elle n'est pas dans la file : participants inconnus. */
   partial: boolean
 }
 
@@ -52,40 +62,64 @@ function span(elapsed: number): string {
 // ---- File ----
 
 /**
- * Fusionne les conversations chargées et les signalements ouverts sur un message. Une conversation
- * signalée hors de la page chargée est ajoutée depuis son signalement (la modération ne doit jamais
- * perdre un signalement parce que la conversation est ancienne).
+ * Fusionne les conversations chargées (la page récente et celle des signalées, déjà dédoublonnées par
+ * identifiant) et le détail des signalements ouverts sur un message. Un signalement porte l'identifiant
+ * INTERNE de la conversation (`conversationId`), jamais son identifiant Firestore : le rapprochement se
+ * fait donc sur lui. Un signalement dont la conversation n'est pas chargée est ignoré ici (le serveur la
+ * rend dans la liste des signalées, avec son identifiant Firestore).
  */
 export function buildQueue(conversations: readonly AdminConversation[], reports: readonly AdminReport[]): QueueConversation[] {
   const byConversation = new Map<string, OpenReport[]>()
-  const labels = new Map<string, string | null>()
   for (const r of reports) {
     if (r.targetType !== 'MESSAGE' || r.status !== 'OPEN' || !r.targetId) continue
     const list = byConversation.get(r.targetId) ?? []
     list.push({ id: r.id, reason: r.reason, reporterName: r.reporterName ?? null, createdAt: r.createdAt })
     byConversation.set(r.targetId, list)
-    if (!labels.has(r.targetId)) labels.set(r.targetId, r.targetLabel ?? null)
   }
-  const known = new Set<string>()
-  const items: QueueConversation[] = conversations.map((c) => {
-    known.add(c.id)
+  return conversations.map((c) => {
+    const detail = c.conversationId ? (byConversation.get(c.conversationId) ?? []) : []
     return {
       id: c.id,
+      conversationId: c.conversationId ?? null,
       participantA: c.participantA,
       participantB: c.participantB,
+      participantAId: c.participantAId ?? null,
+      participantBId: c.participantBId ?? null,
       lastMessageAt: c.lastMessageAt,
+      lastMessagePreview: c.lastMessagePreview?.trim() || null,
       createdAt: c.createdAt,
       closedAt: c.closedAt ?? null,
-      reports: byConversation.get(c.id) ?? [],
+      reports: detail,
+      openReportCount: Math.max(detail.length, typeof c.openReportCount === 'number' ? c.openReportCount : 0),
       partial: false,
     }
   })
-  for (const [id, list] of byConversation) {
-    if (known.has(id)) continue
-    items.push({ id, participantA: labels.get(id) ?? null, participantB: null, lastMessageAt: null, createdAt: null, closedAt: null, reports: list, partial: true })
-  }
-  return items
 }
+
+/** Réunit deux pages de conversations sans doublon (la page récente d'abord). */
+export function mergeConversations(...pages: readonly (readonly AdminConversation[])[]): AdminConversation[] {
+  const seen = new Set<string>()
+  const out: AdminConversation[] = []
+  for (const page of pages) {
+    for (const c of page) {
+      if (seen.has(c.id)) continue
+      seen.add(c.id)
+      out.push(c)
+    }
+  }
+  return out
+}
+
+/**
+ * Le serveur sait rapprocher les signalements des conversations : il rend `conversationId`. Un ancien back
+ * ne le fait pas, et aucune conversation n'y apparaît signalée. Sans conversation, rien à dire.
+ */
+export function flagsSupported(conversations: readonly AdminConversation[]): boolean {
+  return conversations.length === 0 || conversations.some((c) => !!c.conversationId)
+}
+
+/** Une conversation qui a au moins un signalement ouvert sur un message. */
+export const isReported = (c: Pick<QueueConversation, 'openReportCount'>): boolean => c.openReportCount > 0
 
 const oldestReportAt = (c: QueueConversation): number => Math.min(...c.reports.map((r) => ms(r.createdAt)).filter((v) => !Number.isNaN(v)), Infinity)
 const activityAt = (c: QueueConversation): number => {
@@ -101,7 +135,7 @@ export interface QueueFilter { scope: ConversationScope; query: string }
 export function filterQueue(items: readonly QueueConversation[], f: QueueFilter): QueueConversation[] {
   const q = fold(f.query.trim())
   return items.filter((c) => {
-    if (f.scope === 'reported' && c.reports.length === 0) return false
+    if (f.scope === 'reported' && !isReported(c)) return false
     if (!q) return true
     return fold(`${c.participantA ?? ''} ${c.participantB ?? ''}`).includes(q)
   })
@@ -109,8 +143,8 @@ export function filterQueue(items: readonly QueueConversation[], f: QueueFilter)
 
 /** Signalées d'abord (le plus ancien signalement en tête), puis l'activité la plus récente. */
 export function groupQueue(items: readonly QueueConversation[]): QueueGroup[] {
-  const reported = items.filter((c) => c.reports.length > 0).sort((a, b) => oldestReportAt(a) - oldestReportAt(b))
-  const recent = items.filter((c) => c.reports.length === 0).sort((a, b) => activityAt(b) - activityAt(a))
+  const reported = items.filter(isReported).sort((a, b) => oldestReportAt(a) - oldestReportAt(b) || activityAt(b) - activityAt(a))
+  const recent = items.filter((c) => !isReported(c)).sort((a, b) => activityAt(b) - activityAt(a))
   const groups: QueueGroup[] = [
     { key: 'REPORTED', title: GROUP_TITLES.REPORTED, items: reported },
     { key: 'RECENT', title: GROUP_TITLES.RECENT, items: recent },
@@ -131,7 +165,7 @@ export function neighbourConversationId(order: readonly QueueConversation[], cur
 }
 
 export const scopeCounts = (items: readonly QueueConversation[]): Record<ConversationScope, number> => ({
-  reported: items.filter((c) => c.reports.length > 0).length,
+  reported: items.filter(isReported).length,
   all: items.length,
 })
 
@@ -162,7 +196,7 @@ export interface QueueSummary {
 }
 
 export function summarizeQueue(items: readonly QueueConversation[], now: number = Date.now()): QueueSummary {
-  const reported = items.filter((c) => c.reports.length > 0)
+  const reported = items.filter(isReported)
   let oldest: QueueSummary['oldest'] = null
   let oldestAt = Infinity
   for (const c of reported) {
@@ -175,7 +209,7 @@ export function summarizeQueue(items: readonly QueueConversation[], now: number 
   }
   return {
     reportedConversations: reported.length,
-    openReports: reported.reduce((n, c) => n + c.reports.length, 0),
+    openReports: reported.reduce((n, c) => n + c.openReportCount, 0),
     oldest,
   }
 }
@@ -200,4 +234,23 @@ export const isRightSide = (m: Pick<AdminMessage, 'senderName'>, c: Pick<QueueCo
 /** Le message signalé de la conversation, tel que le contexte du signalement le désigne. */
 export function flaggedMessageId(messages: readonly { id: string; flagged: boolean }[] | null | undefined): string | null {
   return messages?.find((m) => m.flagged)?.id ?? null
+}
+
+// ---- Historique ----
+
+const AUDIT_LABELS: Record<string, string> = {
+  MESSAGE_ADMIN_DELETED: 'Message supprimé',
+  MESSAGE_ADMIN_RESTORED: 'Message rétabli',
+  CONVERSATION_NOTE_ADDED: 'Note ajoutée',
+}
+
+/** Gestes de modération de la conversation, du plus ancien au plus récent (le back les rend du plus récent au plus ancien). */
+export function conversationTimeline(history: readonly ConversationHistoryEntry[] | null | undefined): TimelineItem[] {
+  return [...(history ?? [])].reverse().map((e, n): TimelineItem => ({
+    key: `${e.action}-${n}`,
+    label: AUDIT_LABELS[e.action] ?? e.action,
+    at: e.at ? serverDateIso(e.at) : null,
+    by: e.actorEmail ? `par ${e.actorEmail}` : null,
+    note: e.note ?? null,
+  }))
 }

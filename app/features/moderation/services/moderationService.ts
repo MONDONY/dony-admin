@@ -1,10 +1,25 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminConversationPage, AdminMessage } from '@/features/moderation/types/index'
+import type { AdminConversationPage, AdminMessage, ConversationContext, ConversationNote, ConversationQuery } from '@/features/moderation/types/index'
 
 export const moderationService = {
-  /** Pas de filtre « signalées » : le back n'en connaît pas, les signalements ouverts viennent de `/admin/reports`. */
-  listConversations(page: number, size: number): Promise<AdminConversationPage> {
-    return useApi()<AdminConversationPage>('/admin/conversations', { query: { page, size } })
+  /**
+   * `flagged` et `q` sont lus par un back qui les connaît (yadony-back #667) ; un ancien back les ignore
+   * (`flagged` lui rend une page vide, `q` toute la page).
+   */
+  listConversations(page: number, size: number, filters: ConversationQuery = {}): Promise<AdminConversationPage> {
+    const query: Record<string, string | number | boolean> = { page, size }
+    if (filters.flagged) query.flagged = true
+    const q = filters.q?.trim()
+    if (q) query.q = q
+    return useApi()<AdminConversationPage>('/admin/conversations', { query })
+  },
+  /** Historique, notes, signalements et participants. 404/405 sans code sur un ancien back. */
+  getContext(conversationId: string): Promise<ConversationContext> {
+    return useApi()<ConversationContext>(`/admin/conversations/${encodeURIComponent(conversationId)}/context`)
+  },
+  /** Note interne (MESSAGE_DELETE), 3 à 1000 caractères : 201 avec la note créée. */
+  addNote(conversationId: string, content: string): Promise<ConversationNote> {
+    return useApi()<ConversationNote>(`/admin/conversations/${encodeURIComponent(conversationId)}/notes`, { method: 'POST', body: { content } })
   },
   getMessages(conversationId: string): Promise<AdminMessage[]> {
     return useApi()<AdminMessage[]>(`/admin/conversations/${encodeURIComponent(conversationId)}/messages`)
