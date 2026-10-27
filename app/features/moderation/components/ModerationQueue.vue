@@ -55,9 +55,11 @@ const lastSeen = (c: QueueGroup['items'][number]) => (c.lastMessageAt ? formatIn
                 <span v-if="age(c)" :class="['shrink-0 text-xs tabular-nums', age(c)!.cls]" :data-test="`conv-age-${c.id}`">{{ age(c)!.label }}</span>
                 <span v-else-if="lastSeen(c)" class="shrink-0 text-xs text-text-muted">{{ lastSeen(c) }}</span>
               </span>
-              <span v-if="c.reports.length" class="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+              <span v-if="c.lastMessagePreview" class="mt-0.5 block truncate text-xs text-text-muted" :data-test="`conv-preview-${c.id}`">{{ c.lastMessagePreview }}</span>
+              <span v-if="c.openReportCount > 0" class="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                 <StatusBadge v-for="r in reasons(c)" :key="r" :data-test="`conv-flagged-${c.id}`" :label="r" tone="danger" />
-                <span v-if="c.reports.length > 1" class="text-text-muted">{{ c.reports.length }} signalements</span>
+                <StatusBadge v-if="reasons(c).length === 0" :data-test="`conv-flagged-${c.id}`" label="Signalée" tone="danger" />
+                <span v-if="c.openReportCount > 1" class="text-text-muted">{{ c.openReportCount }} signalements</span>
               </span>
               <span v-if="c.closedAt" class="mt-1 block text-xs text-text-muted">Conversation fermée</span>
             </button>

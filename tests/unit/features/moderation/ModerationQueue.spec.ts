@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ModerationQueue from '@/features/moderation/components/ModerationQueue.vue'
 import { groupQueue, buildQueue } from '@/features/moderation/lib/moderationWorkbench'
-import { ago, conversation, NOW, queue, report } from './moderationFixtures'
+import { conversation, NOW, queue, report } from './moderationFixtures'
 
 const mountQueue = (props: Record<string, unknown> = {}) =>
   mount(ModerationQueue, { props: { groups: groupQueue(queue()), loading: false, now: NOW, ...props } })
@@ -26,17 +26,26 @@ describe('ModerationQueue', () => {
   })
 
   it('plusieurs signalements : motifs distincts et compte', () => {
-    const items = buildQueue([conversation('c1')], [report('r1', 'c1'), report('r2', 'c1'), report('r3', 'c1', { reason: 'HARASSMENT' })])
+    const items = buildQueue([conversation('c1', { openReportCount: 3 })], [report('r1', 'c1'), report('r2', 'c1'), report('r3', 'c1', { reason: 'HARASSMENT' })])
     const w = mountQueue({ groups: groupQueue(items) })
     const row = w.find('[data-test="conv-row-c1"]')
     expect(row.findAll('[data-test="conv-flagged-c1"]').map((b) => b.text())).toEqual(['Spam', 'Harcèlement ou comportement abusif'])
     expect(row.text()).toContain('3 signalements')
   })
 
-  it('conversation hors page : le libellé du signalement tient lieu de titre', () => {
-    const items = buildQueue([], [report('r1', 'old', { targetLabel: 'Awa ↔ Cheikh', createdAt: ago(2) })])
+  it('sans détail de signalement (sans REPORT_VIEW) : badge « Signalée » et compte du serveur, pas d’âge', () => {
+    const items = buildQueue([conversation('c1', { openReportCount: 3 })], [])
     const w = mountQueue({ groups: groupQueue(items) })
-    expect(w.find('[data-test="conv-row-old"]').text()).toContain('Awa ↔ Cheikh')
+    expect(w.find('[data-test="conv-flagged-c1"]').text()).toBe('Signalée')
+    expect(w.find('[data-test="conv-row-c1"]').text()).toContain('3 signalements')
+    expect(w.find('[data-test="conv-age-c1"]').exists()).toBe(false)
+  })
+
+  it('aperçu du dernier message sous le titre', () => {
+    const items = buildQueue([conversation('c1', { lastMessagePreview: 'C’est quoi ce message ?' }), conversation('c2')], [])
+    const w = mountQueue({ groups: groupQueue(items) })
+    expect(w.find('[data-test="conv-preview-c1"]').text()).toBe('C’est quoi ce message ?')
+    expect(w.find('[data-test="conv-preview-c2"]').exists()).toBe(false)
   })
 
   it('mentionne une conversation fermée', () => {

@@ -8,7 +8,8 @@ const SENDER = '11111111-1111-4111-8111-111111111111'
 const AUTHOR = '22222222-2222-4222-8222-222222222222'
 
 const conv = (id: string, a: string, b: string, over: Record<string, unknown> = {}) => ({
-  id, bidId: null, participantA: a, participantB: b, lastMessageAt: ago(30), messageCount: 0, flagged: false, createdAt: '2026-10-12T10:00:00Z', ...over,
+  id, bidId: null, participantA: a, participantB: b, lastMessageAt: ago(30), messageCount: 0, flagged: false, createdAt: '2026-10-12T10:00:00Z',
+  conversationId: `int-${id}`, participantAId: AUTHOR, participantBId: SENDER, openReportCount: 0, lastMessagePreview: null, ...over,
 })
 const page1 = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 100 })
 const msg = (id: string, over: Record<string, unknown> = {}) => ({
@@ -19,19 +20,32 @@ let conversations: Record<string, unknown>[]
 let threads: Record<string, Record<string, unknown>[]>
 let reports: Record<string, unknown>[]
 let reportsFail = false
+let contextMissing = false
+let notes: Record<string, unknown>[] = []
+let history: Record<string, unknown>[] = []
+const noteBodies: unknown[] = []
 const deletes: string[] = []
+const listQueries: string[] = []
 
 async function setup(p: Page) {
   deletes.length = 0
+  noteBodies.length = 0
+  listQueries.length = 0
   reportsFail = false
-  conversations = [conv('c1', 'Aïcha', 'Moussa'), conv('c2', 'Mariam', 'Ousmane', { lastMessageAt: ago(1) })]
+  contextMissing = false
+  notes = []
+  history = []
+  conversations = [
+    conv('c1', 'Aïcha', 'Moussa', { openReportCount: 1, lastMessagePreview: 'Gagnez 500 € vite' }),
+    conv('c2', 'Mariam', 'Ousmane', { lastMessageAt: ago(1) }),
+  ]
   threads = {
     c1: [msg('m1'), msg('m2', { senderName: 'Moussa', content: 'Gagnez 500 € vite', createdAt: '2026-10-23T09:40:00Z' })],
     c2: [msg('m3', { conversationId: 'c2', senderName: 'Mariam', content: 'Merci, bien reçu !' })],
     old: [msg('m9', { conversationId: 'old', senderName: 'Awa', content: 'Ancienne conversation' })],
   }
   reports = [{
-    id: R1, targetType: 'MESSAGE', targetId: 'c1', targetLabel: 'Aïcha ↔ Moussa', reason: 'SPAM', description: null, reporterName: 'Aïcha', status: 'OPEN',
+    id: R1, targetType: 'MESSAGE', targetId: 'int-c1', targetLabel: 'Aïcha ↔ Moussa', reason: 'SPAM', description: null, reporterName: 'Aïcha', status: 'OPEN',
     actionTaken: null, resolutionNote: null, resolvedAt: null, createdAt: ago(100), photoUrls: [],
   }]
   await p.addInitScript((u) => { (window as unknown as { __yadonyAuthSeed: typeof u }).__yadonyAuthSeed = u }, ADMIN)
@@ -49,6 +63,17 @@ async function setup(p: Page) {
   })
   await p.route('**/api/v1/admin/conversations**', (route: Route) => {
     const req = route.request()
+    const ctx = /\/admin\/conversations\/([^/?]+)\/(context|notes)/.exec(req.url())
+    if (ctx) {
+      if (contextMissing) return route.fulfill({ status: 404, json: { title: 'Not Found', status: 404 } })
+      if (ctx[2] === 'notes' && req.method() === 'POST') {
+        const body = req.postDataJSON() as { content: string }
+        noteBodies.push(body)
+        notes = [{ id: `n${notes.length + 1}`, adminEmail: 'admin.1@yadony.com', content: body.content, createdAt: '2026-10-27T10:00:00' }, ...notes]
+        return route.fulfill({ status: 201, json: notes[0] })
+      }
+      return route.fulfill({ json: { history, notes, reports: [], participants: [] } })
+    }
     const m = /\/admin\/conversations\/([^/?]+)\/messages(?:\/([^/?]+))?/.exec(req.url())
     if (m) {
       if (req.method() === 'DELETE') {
@@ -58,11 +83,17 @@ async function setup(p: Page) {
         target.deleted = true
         target.deletedAt = '2026-10-27T10:00:00Z'
         target.deletedByAdmin = true
+        history = [{ action: 'MESSAGE_ADMIN_DELETED', at: '2026-10-27T10:00:00', actorEmail: 'admin.1@yadony.com', note: new URL(req.url()).searchParams.get('reason') }, ...history]
         return route.fulfill({ status: 204, body: '' })
       }
       return route.fulfill({ json: threads[m[1]!] ?? [] })
     }
-    return route.fulfill({ json: page1(conversations) })
+    const url = new URL(req.url())
+    listQueries.push(url.search)
+    const flagged = url.searchParams.get('flagged') === 'true'
+    const q = url.searchParams.get('q')?.toLowerCase()
+    return route.fulfill({ json: page1(conversations.filter((c) => (!flagged || (c.openReportCount as number) > 0)
+      && (!q || String(c.participantA).toLowerCase().includes(q)))) })
   })
 }
 
@@ -73,13 +104,15 @@ test('la file met la conversation signalée en tête, ouverte avec son message e
   await expect(page.locator('h1').first()).toContainText('Modération')
   await expect(page.locator('[data-test="moderation-group-REPORTED"] [data-test="conv-row-c1"]')).toContainText('Aïcha ↔ Moussa')
   await expect(page.locator('[data-test="conv-flagged-c1"]')).toHaveText('Spam')
+  await expect(page.locator('[data-test="conv-preview-c1"]')).toHaveText('Gagnez 500 € vite')
   await expect(page.locator('[data-test="summary-open"]')).toHaveText('1')
   // La conversation signalée s'ouvre d'office ; le message visé est encadré.
   await expect(page.locator('[data-test="thread-title"]')).toHaveText('Aïcha ↔ Moussa')
   await expect(page.locator('[data-test="message-m2"]')).toHaveAttribute('data-flagged', 'true')
   await expect(page.locator('[data-test="decision-flagged-quote"]')).toContainText('Gagnez 500 € vite')
   await expect(page.locator(`[data-test="decision-report-link-${R1}"]`)).toHaveAttribute('href', new RegExp(`/signalements\\?open=${R1}$`))
-  await expect(page.locator('[data-test="decision-person-link-subject"]')).toHaveAttribute('href', new RegExp(`/users/${AUTHOR}$`))
+  await expect(page.locator('[data-test="decision-person-link-b"]')).toHaveAttribute('href', new RegExp(`/users/${SENDER}$`))
+  await expect(page.locator('[data-test="decision-person-link-a"]')).toHaveAttribute('href', new RegExp(`/users/${AUTHOR}$`))
 })
 
 test('« Toutes » ajoute l’activité récente, la recherche ignore les accents', async ({ page }) => {
@@ -105,8 +138,59 @@ test('supprimer le message signalé avec un motif', async ({ page }) => {
   expect(deletes[0]).toContain('/messages/m2')
   expect(deletes[0]).toContain('reason=spam')
   await expect(page.locator('[data-test="msg-deleted-by-admin-m2"]')).toContainText('Supprimé par un admin le')
+  // L'historique du contexte relu porte le geste et son motif.
+  await expect(page.locator('[data-test="decision-history"]')).toContainText('Message supprimé')
+  await expect(page.locator('[data-test="decision-history"]')).toContainText('spam avéré')
   await expect(page.locator('[data-test="decision-flagged-deleted"]')).toBeVisible()
   await expect(page.locator('[data-test="restore-msg-m2"]')).toHaveText('Annuler la suppression')
+})
+
+test('notes internes : ajout, puis la note s’affiche avec son auteur', async ({ page }) => {
+  await page.goto('/moderation')
+  await expect(page.locator('[data-test="decision-notes-empty"]')).toBeVisible()
+  await page.locator('[data-test="decision-note-input"]').fill('Même lien repéré dans 2 autres conversations')
+  await page.locator('[data-test="decision-note-add"]').click()
+  await expect.poll(() => noteBodies).toEqual([{ content: 'Même lien repéré dans 2 autres conversations' }])
+  await expect(page.locator('[data-test="decision-note-n1"]')).toContainText('admin.1@yadony.com')
+  await expect(page.locator('[data-test="decision-note-input"]')).toHaveValue('')
+})
+
+test('ancien back : sans contexte, ni notes ni historique, la conversation reste lisible', async ({ page }) => {
+  contextMissing = true
+  await page.goto('/moderation')
+  await expect(page.locator('[data-test="thread-title"]')).toHaveText('Aïcha ↔ Moussa')
+  await expect(page.locator('[data-test="decision-notes"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="decision-history"]')).toHaveCount(0)
+})
+
+test('conversation signalée ancienne, hors de la page récente : elle est dans la file grâce à la liste des signalées', async ({ page }) => {
+  conversations = [conv('c2', 'Mariam', 'Ousmane'), conv('old', 'Awa', 'Cheikh', { openReportCount: 1, createdAt: '2026-01-02T10:00:00Z', lastMessageAt: '2026-01-02T10:00:00Z' })]
+  // La page récente ne contient pas `old` : le serveur la rend seulement avec ?flagged=true.
+  await page.route('**/api/v1/admin/conversations?*', async (route) => {
+    const url = new URL(route.request().url())
+    const flagged = url.searchParams.get('flagged') === 'true'
+    return route.fulfill({ json: page1(flagged ? [conversations[1]!] : [conversations[0]!]) })
+  })
+  await page.goto('/moderation')
+  await expect(page.locator('[data-test="moderation-group-REPORTED"] [data-test="conv-row-old"]')).toContainText('Awa ↔ Cheikh')
+  await expect(page.locator('[data-test="thread-title"]')).toHaveText('Awa ↔ Cheikh')
+})
+
+test('la recherche par nom interroge le serveur', async ({ page }) => {
+  await page.goto('/moderation')
+  await expect(page.locator('[data-test="conv-row-c1"]')).toBeVisible()
+  await page.locator('[data-test="scope-all"]').click()
+  await page.locator('[data-test="moderation-search"]').fill('mariam')
+  await expect.poll(() => listQueries.some((q) => q.includes('q=mariam'))).toBe(true)
+  await expect(page.locator('[data-test="conv-row-c2"]')).toBeVisible()
+  await expect(page.locator('[data-test="conv-row-c1"]')).toHaveCount(0)
+})
+
+test('ancien back qui ne rapproche pas les signalements : la file le dit', async ({ page }) => {
+  conversations = conversations.map((c) => ({ ...c, conversationId: undefined }))
+  await page.goto('/moderation')
+  await expect(page.locator('[data-test="moderation-flags-unsupported"]')).toBeVisible()
+  await expect(page.locator('[data-test="conv-row-c1"]')).toBeVisible()
 })
 
 test('lien profond vers une conversation hors de la page chargée', async ({ page }) => {

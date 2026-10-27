@@ -10,7 +10,9 @@ const replace = vi.fn()
 vi.stubGlobal('useRoute', () => route)
 vi.stubGlobal('useRouter', () => ({ replace }))
 
-const svc = vi.hoisted(() => ({ listConversations: vi.fn(), getMessages: vi.fn(), deleteMessage: vi.fn(), restoreMessage: vi.fn() }))
+const svc = vi.hoisted(() => ({
+  listConversations: vi.fn(), getMessages: vi.fn(), deleteMessage: vi.fn(), restoreMessage: vi.fn(), getContext: vi.fn(), addNote: vi.fn(),
+}))
 const reports = vi.hoisted(() => ({ list: vi.fn(), getContext: vi.fn() }))
 vi.mock('@/features/moderation/services/moderationService', () => ({ moderationService: svc }))
 vi.mock('@/features/signalements/services/reportsService', () => ({ reportsService: reports }))
@@ -19,13 +21,14 @@ const R1 = '33333333-3333-4333-8333-333333333333'
 const page = (content: unknown[], totalElements = content.length) => ({ content, totalElements, totalPages: 1, number: 0, size: 100 })
 const conv = (id: string, a: string, b: string, over: Record<string, unknown> = {}) => ({
   id, bidId: null, participantA: a, participantB: b, lastMessageAt: new Date(Date.now() - 3_600_000).toISOString(), messageCount: 0,
-  flagged: false, createdAt: '2026-10-12T10:00:00Z', ...over,
+  flagged: false, createdAt: '2026-10-12T10:00:00Z', conversationId: `int-${id}`, openReportCount: 0, lastMessagePreview: null, ...over,
 })
+const EMPTY_CONTEXT = { history: [], notes: [], reports: [], participants: [] }
 const msg = (id: string, over: Record<string, unknown> = {}) => ({
   id, conversationId: 'c1', senderName: 'Aïcha', content: 'Bonjour', flagged: false, deleted: false, createdAt: '2026-10-20T16:02:00Z', ...over,
 })
 const openReport = {
-  id: R1, targetType: 'MESSAGE', targetId: 'c1', targetLabel: 'Aïcha ↔ Moussa', reason: 'SPAM', description: null, reporterName: 'Aïcha',
+  id: R1, targetType: 'MESSAGE', targetId: 'int-c1', targetLabel: 'Aïcha ↔ Moussa', reason: 'SPAM', description: null, reporterName: 'Aïcha',
   status: 'OPEN', actionTaken: null, resolutionNote: null, resolvedAt: null, createdAt: new Date(Date.now() - 100 * 3_600_000).toISOString(), photoUrls: [],
 }
 
@@ -51,7 +54,14 @@ describe('/moderation', () => {
     vi.clearAllMocks()
     seedAuth('ADMIN')
     route.query = {}
-    svc.listConversations.mockResolvedValue(page([conv('c1', 'Aïcha', 'Moussa'), conv('c2', 'Mariam', 'Ousmane')]))
+    svc.listConversations.mockImplementation((_p: number, _s: number, filters: { flagged?: boolean; q?: string } = {}) => {
+      const all = [conv('c1', 'Aïcha', 'Moussa', { openReportCount: 1, lastMessagePreview: 'Gagnez 500 € vite' }), conv('c2', 'Mariam', 'Ousmane')]
+      if (filters.flagged) return Promise.resolve(page(all.filter((c) => c.openReportCount > 0)))
+      if (filters.q) return Promise.resolve(page(all.filter((c) => c.participantA.toLowerCase().includes(filters.q!.toLowerCase()))))
+      return Promise.resolve(page(all))
+    })
+    svc.getContext.mockResolvedValue(EMPTY_CONTEXT)
+    svc.addNote.mockResolvedValue({ id: 'n1' })
     svc.getMessages.mockImplementation((id: string) => Promise.resolve(id === 'c1'
       ? [msg('m1'), msg('m2', { senderName: 'Moussa', content: 'Gagnez 500 € vite' })]
       : [msg('m3', { conversationId: 'c2', senderName: 'Mariam', content: 'Merci' })]))
@@ -107,6 +117,7 @@ describe('/moderation', () => {
 
   it('sans signalement ouvert : la file montre toute l’activité d’office', async () => {
     reports.list.mockResolvedValue(page([]))
+    svc.listConversations.mockResolvedValue(page([conv('c1', 'Aïcha', 'Moussa'), conv('c2', 'Mariam', 'Ousmane')]))
     const w = await mountPage()
     expect(w.find('[data-test="scope-all"]').attributes('aria-pressed')).toBe('true')
     expect(w.find('[data-test="summary-oldest"]').text()).toBe('—')
@@ -225,5 +236,140 @@ describe('/moderation', () => {
     await w.find('[data-test="restore-confirm"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="thread-restore-error"]').text()).toBe('Déjà visible.')
+  })
+
+  // ---- Lot B : contexte du serveur, notes, historique, recherche ----
+
+  it('le contexte de la conversation s’affiche : notes et historique, avec le motif de suppression', async () => {
+    svc.getContext.mockResolvedValue({
+      ...EMPTY_CONTEXT,
+      notes: [{ id: 'n1', adminEmail: 'sira@yadony.com', content: 'Même lien dans 2 conversations', createdAt: '2026-10-24T10:00:00' }],
+      history: [{ action: 'MESSAGE_ADMIN_DELETED', at: '2026-10-25T15:02:00', actorEmail: 'sara@yadony.com', note: 'propos haineux' }],
+    })
+    const w = await mountPage()
+    expect(svc.getContext).toHaveBeenCalledWith('c1')
+    expect(w.find('[data-test="decision-note-n1"]').text()).toContain('Même lien dans 2 conversations')
+    expect(w.find('[data-test="decision-history"]').text()).toContain('propos haineux')
+  })
+
+  it('la liste porte l’aperçu, le compte et les comptes des participants (liens vers les fiches)', async () => {
+    const w = await mountPage()
+    expect(w.find('[data-test="conv-preview-c1"]').text()).toBe('Gagnez 500 € vite')
+    expect(svc.listConversations).toHaveBeenCalledWith(0, 100, { flagged: true })
+  })
+
+  it('ancien back : contexte absent (404 sans code), ni notes ni historique, la conversation reste lisible', async () => {
+    svc.getContext.mockRejectedValue(Object.assign(new Error('404'), { statusCode: 404, data: {} }))
+    const w = await mountPage()
+    expect(w.find('[data-test="decision-notes"]').exists()).toBe(false)
+    expect(w.find('[data-test="decision-history"]').exists()).toBe(false)
+    expect(title(w)).toBe('Aïcha ↔ Moussa')
+  })
+
+  it('ancien back qui ne rapproche pas les signalements : la file le dit', async () => {
+    svc.listConversations.mockResolvedValue(page([conv('c1', 'Aïcha', 'Moussa', { conversationId: undefined })]))
+    const w = await mountPage()
+    expect(w.find('[data-test="moderation-flags-unsupported"]').exists()).toBe(true)
+  })
+
+  it('ajouter une note : envoyée au serveur, puis le contexte est relu', async () => {
+    const w = await mountPage()
+    svc.getContext.mockClear()
+    await w.find('[data-test="decision-note-input"]').setValue('Appel passé, sans réponse')
+    await w.find('[data-test="decision-note-add"]').trigger('click')
+    await flushPromises()
+    expect(svc.addNote).toHaveBeenCalledWith('c1', 'Appel passé, sans réponse')
+    expect(svc.getContext).toHaveBeenCalledWith('c1')
+    expect(w.find('[data-test="decision-note-error"]').exists()).toBe(false)
+  })
+
+  it('note refusée : la phrase du serveur s’affiche et le texte reste', async () => {
+    svc.addNote.mockRejectedValue(Object.assign(new Error('422'), { statusCode: 422, data: { detail: 'La note doit faire entre 3 et 1000 caracteres' } }))
+    const w = await mountPage()
+    await w.find('[data-test="decision-note-input"]').setValue('Une note')
+    await w.find('[data-test="decision-note-add"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="decision-note-error"]').text()).toContain('entre 3 et 1000')
+    expect((w.find('[data-test="decision-note-input"]').element as HTMLTextAreaElement).value).toBe('Une note')
+  })
+
+  it('une suppression réussie relit le contexte (l’historique en porte la trace)', async () => {
+    const w = await mountPage()
+    await w.find('[data-test="decision-delete"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('spam avéré')
+    svc.getContext.mockClear()
+    await w.find('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.getContext).toHaveBeenCalledWith('c1')
+  })
+
+  it('une restauration réussie relit le contexte', async () => {
+    svc.getMessages.mockResolvedValue([msg('m3', { deleted: true, deletedByAdmin: true, deletedAt: '2026-10-25T15:02:00Z' })])
+    const w = await mountPage()
+    await w.find('[data-test="restore-msg-m3"]').trigger('click')
+    await w.find('[data-test="restore-reason"]').setValue('suppression abusive')
+    svc.getContext.mockClear()
+    await w.find('[data-test="restore-confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.getContext).toHaveBeenCalledWith('c1')
+  })
+
+  it('la recherche part au serveur après 300 ms (au moins 2 caractères) et se vide en rechargeant la file', async () => {
+    vi.useFakeTimers()
+    try {
+      const w = await mountPage()
+      svc.listConversations.mockClear()
+      await w.find('[data-test="moderation-search"]').setValue('m')
+      await vi.advanceTimersByTimeAsync(400)
+      expect(svc.listConversations).not.toHaveBeenCalled()
+
+      await w.find('[data-test="moderation-search"]').setValue('mar')
+      await vi.advanceTimersByTimeAsync(299)
+      expect(svc.listConversations).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(svc.listConversations).toHaveBeenCalledWith(0, 100, { q: 'mar' })
+
+      svc.listConversations.mockClear()
+      await w.find('[data-test="moderation-search"]').setValue('')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(svc.listConversations).toHaveBeenCalledWith(0, 100, {})
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('frappe rapide : seule la dernière recherche part', async () => {
+    vi.useFakeTimers()
+    try {
+      const w = await mountPage()
+      svc.listConversations.mockClear()
+      const input = w.find('[data-test="moderation-search"]')
+      await input.setValue('ma')
+      await vi.advanceTimersByTimeAsync(100)
+      await input.setValue('mar')
+      await vi.advanceTimersByTimeAsync(100)
+      await input.setValue('mari')
+      await vi.advanceTimersByTimeAsync(300)
+      const searches = svc.listConversations.mock.calls.filter((c) => c[2]?.q)
+      expect(searches).toHaveLength(1)
+      expect(searches[0]![2]).toEqual({ q: 'mari' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('quitter la page annule la recherche en attente', async () => {
+    vi.useFakeTimers()
+    try {
+      const w = await mountPage()
+      svc.listConversations.mockClear()
+      await w.find('[data-test="moderation-search"]').setValue('mar')
+      w.unmount()
+      mounted.splice(mounted.indexOf(w), 1)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(svc.listConversations).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -6,10 +6,30 @@ import { moderationService } from '@/features/moderation/services/moderationServ
 describe('moderationService', () => {
   beforeEach(() => apiMock.mockReset())
 
-  it('listConversations lit une page, sans filtre signalées (le back n’en connaît pas)', async () => {
+  it('listConversations lit une page, sans filtre par défaut', async () => {
     apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 })
     await moderationService.listConversations(0, 100)
     expect(apiMock).toHaveBeenCalledWith('/admin/conversations', { query: { page: 0, size: 100 } })
+  })
+
+  it('listConversations envoie flagged seulement s’il est vrai, et la recherche nettoyée', async () => {
+    apiMock.mockResolvedValue({ content: [] })
+    await moderationService.listConversations(1, 50, { flagged: true, q: '  Aicha ' })
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/conversations', { query: { page: 1, size: 50, flagged: true, q: 'Aicha' } })
+    await moderationService.listConversations(0, 50, { flagged: false, q: '   ' })
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/conversations', { query: { page: 0, size: 50 } })
+  })
+
+  it('getContext : GET …/context, identifiant encodé', async () => {
+    apiMock.mockResolvedValue({ history: [], notes: [] })
+    await moderationService.getContext('../x')
+    expect(apiMock).toHaveBeenCalledWith('/admin/conversations/..%2Fx/context')
+  })
+
+  it('addNote : POST …/notes avec le texte', async () => {
+    apiMock.mockResolvedValue({ id: 'n1' })
+    await moderationService.addNote('c/1', 'Une note')
+    expect(apiMock).toHaveBeenCalledWith('/admin/conversations/c%2F1/notes', { method: 'POST', body: { content: 'Une note' } })
   })
 
   it('encode les identifiants : pas de traversée de chemin', async () => {
