@@ -140,8 +140,12 @@ export interface AdminCashCommissionPage { content: AdminCashCommission[]; total
 /** Statuts d'une demande de remboursement wallet, miroir du backend. */
 export type WalletRefundRequestStatus = 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'REFUNDED' | 'FAILED'
 
-/** Canal d'une demande : automatique (rien à faire) ou ticket manuel à rembourser hors plateforme. */
-export type WalletRefundChannel = 'AUTOMATIC_STRIPE' | 'AUTOMATIC_PAWAPAY' | 'MANUAL_ADMIN'
+/**
+ * Canal d'une demande : automatique (rien à faire) ou ticket manuel à rembourser hors plateforme.
+ * AUTOMATIC_MIXED (yadony-back) : recharges carte ET mobile money dans la même devise, chaque
+ * recharge repart automatiquement vers son rail d'origine.
+ */
+export type WalletRefundChannel = 'AUTOMATIC_STRIPE' | 'AUTOMATIC_PAWAPAY' | 'AUTOMATIC_MIXED' | 'MANUAL_ADMIN'
 /** Origine déduite par le backend : suppression du compte, ou demande depuis l'écran portefeuille. */
 export type WalletRefundOrigin = 'ACCOUNT_DELETION' | 'WALLET'
 
@@ -238,6 +242,7 @@ export interface AdminWalletRefundRequestPage { content: AdminWalletRefundReques
 export const WALLET_REFUND_CHANNEL_LABELS: Record<WalletRefundChannel, string> = {
   AUTOMATIC_STRIPE: 'Carte, automatique',
   AUTOMATIC_PAWAPAY: 'Mobile money, automatique',
+  AUTOMATIC_MIXED: 'Carte et mobile money, automatique',
   MANUAL_ADMIN: 'Manuel',
 }
 
