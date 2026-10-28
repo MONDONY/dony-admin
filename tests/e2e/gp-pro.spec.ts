@@ -1,19 +1,19 @@
 import { test, expect, type Page } from '@playwright/test'
 
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
-const SUPPORT = { ...ADMIN, id: 'a2', email: 'support@yadony.com', role: 'SUPPORT' }
+const SUPPORT = { ...ADMIN, id: '7a2e4b1c-0000-4a00-8000-0000000000a2', email: 'support@yadony.com', role: 'SUPPORT' }
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 const A1 = { applicationId: 'a1', userId: 'u1', displayName: 'Moussa Traoré', source: 'SIGNUP', travelFrequency: 'WEEKLY', documentCount: 1, createdAt: daysAgo(5) }
-const A2 = { applicationId: 'a2', userId: 'u2', displayName: 'Fatou Ndiaye', source: 'PROFILE', travelFrequency: 'MONTHLY', documentCount: 0, createdAt: daysAgo(2) }
+const A2 = { applicationId: '7a2e4b1c-0000-4a00-8000-0000000000a2', userId: 'u2', displayName: 'Fatou Ndiaye', source: 'PROFILE', travelFrequency: 'MONTHLY', documentCount: 0, createdAt: daysAgo(2) }
 const R1 = { userId: 'r1', displayName: 'Cheikh Ba', detectedAt: daysAgo(6), flags: [{ flagId: 'f1', reason: 'OPEN_DISPUTE' }, { flagId: 'f2', reason: 'LOW_RATING' }] }
-const R2 = { userId: 'r2', displayName: 'Mariam Sow', detectedAt: daysAgo(2), flags: [{ flagId: 'f3', reason: 'INACTIVE' }] }
+const R2 = { userId: '7a2e4b1c-0000-4a00-8000-0000000000b2', displayName: 'Mariam Sow', detectedAt: daysAgo(2), flags: [{ flagId: 'f3', reason: 'INACTIVE' }] }
 const detail = (id: string, extra: Record<string, unknown> = {}) => ({
   applicationId: id, userId: id === 'a1' ? 'u1' : 'u2', displayName: id === 'a1' ? 'Moussa Traoré' : 'Fatou Ndiaye', status: 'PENDING',
   source: 'SIGNUP', travelFrequency: 'WEEKLY', commercialName: 'Traoré Express', createdAt: daysAgo(5), kycStatus: 'VERIFIED',
   publishedTrips: 9, tripsLast56Days: 6, completedDeliveries: 14, averageRating: 4.8, lastFiveRatings: [5, 5, 4, 5, 5],
   openDisputes: 0, openReports: 0, memberSince: '2026-06-02T00:00:00Z',
-  documents: id === 'a1' ? [{ id: 'd1', type: 'BUSINESS_REGISTRATION', url: 'https://r2.example/presigned?x=1' }] : [], ...extra,
+  documents: id === 'a1' ? [{ id: 'd1', type: 'BUSINESS_REGISTRATION', url: 'https://7a2e4b1c-0000-4a00-8000-0000000000b2.example/presigned?x=1' }] : [], ...extra,
 })
 const page = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 20 })
 const problem = (status: number, code: string | null, detail: string) => ({
@@ -69,7 +69,7 @@ test('la demande la plus ancienne s’ouvre seule, avec son profil et ses justif
   await expect(page.locator('[data-test="summary-oldest"]')).toHaveText('5 j')
   await expect(page.locator('[data-test="gp-pro-tab-revue"]')).toContainText('2')
   const doc = page.locator('[data-test="gp-pro-doc-d1"]')
-  await expect(doc).toHaveAttribute('href', 'https://r2.example/presigned?x=1')
+  await expect(doc).toHaveAttribute('href', 'https://7a2e4b1c-0000-4a00-8000-0000000000b2.example/presigned?x=1')
   await expect(doc).toHaveAttribute('rel', 'noopener noreferrer')
 })
 
@@ -116,7 +116,7 @@ test('J passe à la demande suivante et l’écrit dans l’URL', async ({ page 
   await expect(page.locator('[data-test="gp-pro-approve"]')).toBeEnabled()
   await page.keyboard.press('j')
   await expect(page.locator('[data-test="gp-pro-case-title"]')).toHaveText('Fatou Ndiaye')
-  await expect(page).toHaveURL(/open=a2/)
+  await expect(page).toHaveURL(/open=7a2e4b1c-0000-4a00-8000-0000000000a2/)
 })
 
 test('titulaires à revoir : écarter les alertes une à une, puis passage au suivant', async ({ page }) => {

@@ -20,9 +20,9 @@ vi.mock('@/features/gp-pro/services/gpProService', () => ({ gpProService: svc })
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 const A1 = { applicationId: 'a1', userId: 'u1', displayName: 'Awa Diop', source: 'SIGNUP', travelFrequency: 'WEEKLY', documentCount: 0, createdAt: day(5) }
-const A2 = { applicationId: 'a2', userId: 'u2', displayName: 'Moussa Ba', source: 'PROFILE', travelFrequency: 'MONTHLY', documentCount: 1, createdAt: day(1) }
+const A2 = { applicationId: '7a2e4b1c-0000-4a00-8000-0000000000a2', userId: 'u2', displayName: 'Moussa Ba', source: 'PROFILE', travelFrequency: 'MONTHLY', documentCount: 1, createdAt: day(1) }
 const R1 = { userId: 'r1', displayName: 'Cheikh Sow', detectedAt: day(6), flags: [{ flagId: 'f1', reason: 'OPEN_DISPUTE' }, { flagId: 'f2', reason: 'LOW_RATING' }] }
-const R2 = { userId: 'r2', displayName: 'Mariam Kane', detectedAt: day(2), flags: [{ flagId: 'f3', reason: 'INACTIVE' }] }
+const R2 = { userId: '7a2e4b1c-0000-4a00-8000-0000000000b2', displayName: 'Mariam Kane', detectedAt: day(2), flags: [{ flagId: 'f3', reason: 'INACTIVE' }] }
 const page = (content: unknown[], totalPages = 1) => ({ content, totalElements: content.length, totalPages, number: 0, size: 20 })
 const detailFor = (id: string, extra: Record<string, unknown> = {}) => ({
   applicationId: id, userId: id === 'a1' ? 'u1' : 'u2', displayName: id === 'a1' ? 'Awa Diop' : 'Moussa Ba', status: 'PENDING', source: 'SIGNUP',
@@ -59,7 +59,7 @@ describe('/gp-pro', () => {
     expect(svc.getApplication).toHaveBeenCalledWith('a1')
     expect(w.find('[data-test="gp-pro-case-title"]').text()).toBe('Awa Diop')
     expect(w.find('[data-test="gp-pro-row-a1"]').attributes('data-selected')).toBe('true')
-    expect(w.findAll('[data-test^="gp-pro-row-"]').map((r) => r.attributes('data-test'))).toEqual(['gp-pro-row-a1', 'gp-pro-row-a2'])
+    expect(w.findAll('[data-test^="gp-pro-row-"]').map((r) => r.attributes('data-test'))).toEqual(['gp-pro-row-a1', 'gp-pro-row-7a2e4b1c-0000-4a00-8000-0000000000a2'])
     expect(replaceMock).not.toHaveBeenCalled()
   })
 
@@ -74,13 +74,13 @@ describe('/gp-pro', () => {
 
   it('un clic sur une autre demande l’ouvre et l’écrit dans l’URL', async () => {
     const w = await mountPage()
-    await w.find('[data-test="open-a2"]').trigger('click')
+    await w.find('[data-test="open-7a2e4b1c-0000-4a00-8000-0000000000a2"]').trigger('click')
     await flushPromises()
-    expect(svc.getApplication).toHaveBeenLastCalledWith('a2')
+    expect(svc.getApplication).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
     expect(w.find('[data-test="gp-pro-case-title"]').text()).toBe('Moussa Ba')
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'a2' } })
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: '7a2e4b1c-0000-4a00-8000-0000000000a2' } })
     const calls = svc.getApplication.mock.calls.length
-    await w.find('[data-test="open-a2"]').trigger('click')
+    await w.find('[data-test="open-7a2e4b1c-0000-4a00-8000-0000000000a2"]').trigger('click')
     expect(svc.getApplication.mock.calls.length).toBe(calls)
   })
 
@@ -88,7 +88,7 @@ describe('/gp-pro', () => {
     const w = await mountPage()
     press('j')
     await flushPromises()
-    expect(svc.getApplication).toHaveBeenLastCalledWith('a2')
+    expect(svc.getApplication).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
     press('k')
     await flushPromises()
     expect(svc.getApplication).toHaveBeenLastCalledWith('a1')
@@ -221,19 +221,47 @@ describe('/gp-pro', () => {
     expect(svc.listReview).toHaveBeenCalledTimes(2)
   })
 
-  it('lien profond ?open=a2 : ouvre cette demande, pas la première', async () => {
-    query = { open: 'a2' }
+  it('lien profond ?open=7a2e4b1c-0000-4a00-8000-0000000000a2 : ouvre cette demande, pas la première', async () => {
+    query = { open: '7a2e4b1c-0000-4a00-8000-0000000000a2' }
     const w = await mountPage()
     expect(svc.getApplication).toHaveBeenCalledTimes(1)
-    expect(svc.getApplication).toHaveBeenCalledWith('a2')
+    expect(svc.getApplication).toHaveBeenCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
     expect(w.find('[data-test="gp-pro-case-title"]').text()).toBe('Moussa Ba')
   })
 
   it('lien profond vers un titulaire absent de la page : message, sans appel de demande', async () => {
-    query = { tab: 'revue', open: 'zzz' }
+    query = { tab: 'revue', open: '11111111-2222-4333-8444-555555555555' }
     const w = await mountPage()
     expect(w.find('[data-test="gp-pro-review-gone"]').exists()).toBe(true)
     expect(svc.getApplication).not.toHaveBeenCalled()
+  })
+
+  it('un ?open= qui n’est pas un UUID est ignoré : la première demande s’ouvre, aucun appel sur ce segment', async () => {
+    query = { open: '../../admin/users/x' }
+    const w = await mountPage()
+    expect(svc.getApplication).toHaveBeenCalledTimes(1)
+    expect(svc.getApplication).toHaveBeenCalledWith('a1')
+    expect(w.find('[data-test="gp-pro-case-title"]').text()).toBe('Awa Diop')
+  })
+
+  it('une réponse tardive d’une autre demande n’écrase pas celle qui est ouverte, ni ne la rend décidable', async () => {
+    const w = await mountPage()
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    let releaseSlow: (v: unknown) => void = () => {}
+    svc.getApplication.mockImplementationOnce(() => new Promise((r) => { releaseSlow = r }))
+    await w.find('[data-test="open-7a2e4b1c-0000-4a00-8000-0000000000a2"]').trigger('click')
+    // l'admin change d'avis avant la fin de la lecture lente
+    svc.getApplication.mockImplementationOnce((id: string) => Promise.resolve(detailFor(id)))
+    await w.find('[data-test="open-a1"]').trigger('click')
+    await flushPromises()
+    releaseSlow(detailFor('7a2e4b1c-0000-4a00-8000-0000000000a2'))
+    await flushPromises()
+    expect(w.find('[data-test="gp-pro-case-title"]').text()).toBe('Awa Diop')
+    svc.approve.mockResolvedValue(undefined)
+    await w.find('[data-test="gp-pro-approve"]').trigger('click')
+    await w.find('[data-test="gp-pro-dialog-submit"]').trigger('click')
+    await flushPromises()
+    expect(svc.approve).toHaveBeenCalledWith('a1')
   })
 
   it('navigation interne vers ?open= et ?tab= alors que la page est ouverte', async () => {
@@ -242,14 +270,14 @@ describe('/gp-pro', () => {
     try {
       const w = await mountPage()
       expect(svc.getApplication).toHaveBeenCalledTimes(1)
-      route.query = { open: 'a2' }
+      route.query = { open: '7a2e4b1c-0000-4a00-8000-0000000000a2' }
       await flushPromises()
-      expect(svc.getApplication).toHaveBeenLastCalledWith('a2')
+      expect(svc.getApplication).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
       // même id : rien à recharger
-      route.query = { open: 'a2' }
+      route.query = { open: '7a2e4b1c-0000-4a00-8000-0000000000a2' }
       await flushPromises()
       expect(svc.getApplication).toHaveBeenCalledTimes(2)
-      route.query = { tab: 'revue', open: 'r2' }
+      route.query = { tab: 'revue', open: '7a2e4b1c-0000-4a00-8000-0000000000b2' }
       await flushPromises()
       expect(w.find('[data-test="gp-pro-review-title"]').text()).toBe('Mariam Kane')
       route.query = { tab: 'revue' }

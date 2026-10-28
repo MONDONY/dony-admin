@@ -19,6 +19,7 @@ import {
 import type { GpProScope } from '@/features/gp-pro/lib/gpProWorkbench'
 import { GP_PRO_UNAVAILABLE } from '@/features/gp-pro/types/index'
 import type { AdminGpProApplicationRow, AdminGpProReviewRow } from '@/features/gp-pro/types/index'
+import { uuidParam } from '@/lib/safeInput'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -52,10 +53,12 @@ const keys = computed(() => (scope.value === 'revue' ? reviewKeys.value : applic
 const list = computed(() => (scope.value === 'revue' ? review : applications))
 const summary = computed(() => summarizeGpPro(applications.items.value, applications.totalElements.value, review.totalElements.value, now.value))
 
+/** La fiche chargée appartient bien à la demande ouverte : jamais la réponse tardive d'une autre. */
+const openDetail = computed(() => (detail.detail.value?.applicationId === openId.value ? detail.detail.value : null))
 const openApplicationRow = computed(() =>
   applications.items.value.find((r) => r.applicationId === openId.value) ?? openedApplication.value)
 const openReviewRow = computed(() => review.items.value.find((r) => r.userId === openId.value) ?? null)
-const title = computed(() => detail.detail.value?.displayName
+const title = computed(() => openDetail.value?.displayName
   ?? (openApplicationRow.value ? applicantName(openApplicationRow.value) : `Demande ${(openId.value ?? '').slice(0, 8)}`))
 
 // ---- URL ----
@@ -63,6 +66,8 @@ const queryValue = (name: string) => {
   const v = route.query?.[name]
   return typeof v === 'string' && v ? v : null
 }
+/** Les identifiants de l'URL deviennent des segments d'appel d'API : seul un UUID valide est suivi. */
+const openParam = () => uuidParam(queryValue('open'))
 /** Dernière valeur de `open` écrite par l'écran : son écho ne doit pas rouvrir le dossier. */
 let lastWritten: string | null = null
 function syncQuery() {
@@ -150,14 +155,14 @@ useWorkbenchShortcuts({
 })
 
 onMounted(async () => {
-  const deepLink = queryValue('open')
+  const deepLink = openParam()
   // Les deux files se lisent : l'onglet inactif affiche tout de même son nombre.
   await Promise.all([applications.load(0), review.load(0)])
   if (deepLink) await open(deepLink, { write: false })
   else await openFirst()
 })
 // Page déjà ouverte : un clic sur une notification change seulement la query.
-watch(() => queryValue('open'), (v) => {
+watch(openParam, (v) => {
   if (v === lastWritten) return
   if (v && v !== openId.value) void open(v, { write: false })
 })
@@ -167,7 +172,7 @@ watch(() => queryValue('tab'), async (v) => {
   scope.value = next
   clearOpen()
   await (next === 'revue' ? review.load(0) : applications.load(0))
-  const deepLink = queryValue('open')
+  const deepLink = openParam()
   if (deepLink) await open(deepLink, { write: false })
   else await openFirst()
 })
@@ -250,13 +255,13 @@ const unavailable = computed(() => list.value.unavailable.value)
           >Choisissez une demande dans la file.</p>
           <GpProApplicationCase
             v-else
-            :row="openApplicationRow" :application-id="openId" :detail="detail.detail.value"
+            :row="openApplicationRow" :application-id="openId" :detail="openDetail"
             :loading="detail.isLoading.value" :error="detail.error.value" :now="now"
             @refresh="() => openId && detail.refresh(openId)"
           />
           <GpProDecisionPanel
-            v-if="openId && detail.detail.value" ref="decisionPanel"
-            :application-id="openId" :detail="detail.detail.value" :title="title"
+            v-if="openId && openDetail" ref="decisionPanel"
+            :application-id="openDetail.applicationId" :detail="openDetail" :title="title"
             @decided="refreshAfterDecision" @stale="refreshAfterDecision"
           />
           <div v-else />

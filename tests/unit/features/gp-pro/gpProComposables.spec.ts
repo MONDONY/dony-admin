@@ -126,3 +126,68 @@ describe('useGpProApplication', () => {
     expect(d.error.value).toBe('Impossible de relire la demande')
   })
 })
+
+describe('useGpProApplication, lectures concurrentes', () => {
+  beforeEach(() => getApplication.mockReset())
+
+  it('une réponse tardive d’une lecture plus ancienne est écartée', async () => {
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    let releaseSlow: (v: unknown) => void = () => {}
+    getApplication.mockImplementationOnce(() => new Promise((r) => { releaseSlow = r }))
+    getApplication.mockResolvedValueOnce({ applicationId: 'b', status: 'PENDING', userId: 'u' })
+    const app = useGpProApplication()
+    const slow = app.load('a')
+    await app.load('b')
+    releaseSlow({ applicationId: 'a', status: 'PENDING', userId: 'u' })
+    await slow
+    expect(app.detail.value?.applicationId).toBe('b')
+    expect(app.isLoading.value).toBe(false)
+  })
+
+  it('une erreur tardive d’une lecture plus ancienne n’efface pas la fiche affichée', async () => {
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    let failSlow: (e: unknown) => void = () => {}
+    getApplication.mockImplementationOnce(() => new Promise((_, rej) => { failSlow = rej }))
+    getApplication.mockResolvedValueOnce({ applicationId: 'b', status: 'PENDING', userId: 'u' })
+    const app = useGpProApplication()
+    const slow = app.load('a')
+    await app.load('b')
+    failSlow({ statusCode: 500, data: { detail: 'Panne' } })
+    await slow
+    expect(app.error.value).toBeNull()
+    expect(app.detail.value?.applicationId).toBe('b')
+  })
+
+  it('refresh : une relecture plus récente l’emporte ; clear écarte une lecture en vol', async () => {
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    let releaseSlow: (v: unknown) => void = () => {}
+    getApplication.mockImplementationOnce(() => new Promise((r) => { releaseSlow = r }))
+    getApplication.mockResolvedValueOnce({ applicationId: 'a', status: 'APPROVED', userId: 'u' })
+    const app = useGpProApplication()
+    const slow = app.refresh('a')
+    await app.refresh('a')
+    releaseSlow({ applicationId: 'a', status: 'PENDING', userId: 'u' })
+    await slow
+    expect(app.detail.value?.status).toBe('APPROVED')
+    getApplication.mockImplementationOnce(() => new Promise((r) => { releaseSlow = r }))
+    const pending = app.load('c')
+    app.clear()
+    releaseSlow({ applicationId: 'c', status: 'PENDING', userId: 'u' })
+    await pending
+    expect(app.detail.value).toBeNull()
+    expect(app.isLoading.value).toBe(false)
+  })
+
+  it('refresh en échec ne touche pas une fiche plus récente', async () => {
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    let failSlow: (e: unknown) => void = () => {}
+    getApplication.mockImplementationOnce(() => new Promise((_, rej) => { failSlow = rej }))
+    getApplication.mockResolvedValueOnce({ applicationId: 'b', status: 'PENDING', userId: 'u' })
+    const app = useGpProApplication()
+    const slow = app.refresh('a')
+    await app.load('b')
+    failSlow({ statusCode: 500, data: {} })
+    await slow
+    expect(app.error.value).toBeNull()
+  })
+})
