@@ -314,7 +314,7 @@ watch(() => (onThisPage() ? queryOpen() : null), (id) => {
         <!-- 1. File des alertes -->
         <section
           aria-label="File des alertes" data-test="alert-queue-panel"
-          class="flex max-h-[calc(100vh-18rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
+          class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
         >
           <div class="flex flex-col gap-2 border-b border-border p-3">
             <div class="flex flex-wrap gap-1">
@@ -349,7 +349,7 @@ watch(() => (onThisPage() ? queryOpen() : null), (id) => {
           />
 
           <div class="flex flex-col gap-2 border-t border-border bg-bg/50 p-3">
-            <PaginationControls :page="currentPage" :total-pages="totalPages" @change="goToPage" />
+            <PaginationControls v-if="totalPages > 1" :page="currentPage" :total-pages="totalPages" @change="goToPage" />
             <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
               <span class="inline-flex items-center gap-1"><KeyHint>J</KeyHint><KeyHint>K</KeyHint> naviguer</span>
               <span class="inline-flex items-center gap-1"><KeyHint>⏎</KeyHint> confirmer</span>
@@ -358,7 +358,7 @@ watch(() => (onThisPage() ? queryOpen() : null), (id) => {
         </section>
 
         <!-- 2. Dossier -->
-        <div class="max-h-[calc(100vh-18rem)] min-h-[24rem] overflow-y-auto">
+        <div class="max-h-[calc(100vh-13rem)] min-h-[24rem] overflow-y-auto">
           <AlertCase
             :alert="selected" :context="ctx.context.value" :context-loading="ctx.isLoading.value" :context-error="ctx.error.value"
             @auto-resolved="onAutoResolved" @changed="onChanged" @resolve="focusDecision" @open-alert="openRelated"

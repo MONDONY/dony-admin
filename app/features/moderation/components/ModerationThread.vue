@@ -72,7 +72,7 @@ function reload() {
 <template>
   <section
     aria-label="Conversation" data-test="moderation-thread"
-    class="flex max-h-[calc(100vh-18rem)] min-h-[24rem] min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface"
+    class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface"
   >
     <template v-if="conversation">
       <header class="border-b border-border p-4">

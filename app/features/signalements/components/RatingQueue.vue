@@ -20,12 +20,12 @@ function age(r: AdminRating) { return reportAge(r.createdAt, props.now).label }
 
 <template>
   <div class="flex min-h-0 flex-col">
-    <ul v-if="ratings.length" class="flex flex-col gap-0.5 overflow-y-auto p-1.5" data-test="rating-queue">
+    <ul v-if="ratings.length" class="flex flex-col gap-1.5 overflow-y-auto p-3" data-test="rating-queue">
       <li v-for="r in ratings" :key="r.id" :data-test="`rating-row-${r.id}`" :data-selected="selectedId === r.id ? 'true' : undefined">
         <button
           type="button" :data-test="`rating-open-${r.id}`"
           :aria-current="selectedId === r.id ? 'true' : undefined"
-          :class="['w-full rounded-btn border px-3 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+          :class="['w-full rounded-btn border px-4 py-3 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
             selectedId === r.id ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-surface-elevated',
             r.deletedAt ? 'text-text-muted' : '']"
           @click="emit('select', r.id)"

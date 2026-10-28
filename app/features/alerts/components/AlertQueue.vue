@@ -36,13 +36,13 @@ function isOpen(g: AlertGroup) {
 
 <template>
   <div class="flex min-h-0 flex-col">
-    <ul v-if="groups.length" class="flex flex-col gap-0.5 overflow-y-auto p-1.5" data-test="alert-queue">
+    <ul v-if="groups.length" class="flex flex-col gap-1.5 overflow-y-auto p-3" data-test="alert-queue">
       <li v-for="g in groups" :key="g.key" :data-test="`alert-group-${g.key}`">
         <!-- Groupe de plusieurs alertes du même type -->
         <template v-if="g.alerts.length > 1">
           <button
             type="button" :data-test="`alert-group-toggle-${g.key}`" :aria-expanded="isOpen(g) ? 'true' : 'false'"
-            :class="['w-full rounded-btn border border-l-4 px-3 py-2.5 text-left transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.99]',
+            :class="['w-full rounded-btn border border-l-4 px-4 py-3 text-left transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.99]',
               BORDER[g.severity], 'border-y-transparent border-r-transparent']"
             @click="emit('toggle', g.key)"
           >
@@ -56,11 +56,11 @@ function isOpen(g: AlertGroup) {
               <span class="tabular-nums">· la plus ancienne : {{ age(g.alerts[0]!).label }}</span>
             </span>
           </button>
-          <ul v-if="isOpen(g)" class="mb-1 ml-3 flex flex-col gap-0.5 border-l border-border pl-1.5">
+          <ul v-if="isOpen(g)" class="mb-1 ml-4 flex flex-col gap-1 border-l border-border pl-2">
             <li v-for="a in g.alerts" :key="a.id" :data-test="`alert-row-${a.id}`" :data-selected="selectedId === a.id ? 'true' : undefined">
               <button
                 type="button" :data-test="`alert-open-${a.id}`" :aria-current="selectedId === a.id ? 'true' : undefined"
-                :class="['w-full rounded-btn border px-3 py-2 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+                :class="['w-full rounded-btn border px-4 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
                   selectedId === a.id ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-surface-elevated',
                   a.resolved ? 'text-text-muted' : '']"
                 @click="emit('select', a.id)"
@@ -79,7 +79,7 @@ function isOpen(g: AlertGroup) {
         <div v-else :data-test="`alert-row-${g.alerts[0]!.id}`" :data-selected="selectedId === g.alerts[0]!.id ? 'true' : undefined">
           <button
             type="button" :data-test="`alert-open-${g.alerts[0]!.id}`" :aria-current="selectedId === g.alerts[0]!.id ? 'true' : undefined"
-            :class="['w-full rounded-btn border border-l-4 px-3 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+            :class="['w-full rounded-btn border border-l-4 px-4 py-3 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
               BORDER[g.severity],
               selectedId === g.alerts[0]!.id ? 'border-y-primary border-r-primary bg-primary/5' : 'border-y-transparent border-r-transparent hover:bg-surface-elevated',
               g.alerts[0]!.resolved ? 'text-text-muted' : '']"

@@ -36,7 +36,7 @@ describe('GpProQueue', () => {
     expect(row.text()).toContain('Chaque semaine · Inscription')
     expect(w.get('[data-test="gp-pro-age-a1"]').text()).toBe('5 j')
     expect(w.find('[data-test="gp-pro-age-a2"]').exists()).toBe(false)
-    expect(w.get('[data-test="gp-pro-docs-a1"]').text()).toBe('Aucun justificatif')
+    expect(w.find('[data-test="gp-pro-docs-a1"]').exists()).toBe(false)
     expect(w.get('[data-test="gp-pro-docs-a2"]').text()).toBe('2 justificatifs')
     expect(w.get('[data-test="gp-pro-row-a2"]').text()).toContain('Nom non renseigné')
     await w.get('[data-test="open-a1"]').trigger('click')

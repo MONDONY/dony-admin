@@ -312,7 +312,7 @@ watch(() => queryValue('ticket'), (id) => {
         <!-- 1. File -->
         <section
           aria-label="File des tickets" data-test="support-queue-panel"
-          class="flex max-h-[calc(100vh-18rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
+          class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
         >
           <div class="flex flex-col gap-2 border-b border-border p-3">
             <div class="flex items-center justify-between gap-2">
