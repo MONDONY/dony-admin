@@ -21,6 +21,8 @@ export interface AdminUserWallet { accounts: AdminWalletAccount[] }
 export const WALLET_TRANSACTION_TYPES = [
   'TOP_UP', 'BID_PAYMENT', 'COMMISSION_DEDUCTED', 'REFUND', 'REFERRAL_REWARD',
   'ADMIN_REFUND_OUT', 'SELF_REFUND_OUT', 'FORFEITED_ON_DELETION', 'ADMIN_CREDIT', 'ADMIN_DEBIT',
+  'TOP_UP_CODE', 'SUPPLEMENT_COMMISSION_DEDUCTED', 'AMENDMENT_COMMISSION_DEDUCTED',
+  'TOPUP_DISPUTED', 'TOPUP_DISPUTE_REVERSED',
 ] as const
 export type WalletTransactionType = typeof WALLET_TRANSACTION_TYPES[number]
 
@@ -35,6 +37,11 @@ const TYPE_LABELS: Record<WalletTransactionType, string> = {
   FORFEITED_ON_DELETION: 'Solde non remboursable perdu à la suppression',
   ADMIN_CREDIT: 'Crédit manuel par un admin',
   ADMIN_DEBIT: 'Débit manuel par un admin',
+  TOP_UP_CODE: 'Code de recharge',
+  SUPPLEMENT_COMMISSION_DEDUCTED: 'Commission d\'un supplément',
+  AMENDMENT_COMMISSION_DEDUCTED: 'Commission d\'une modification de colis',
+  TOPUP_DISPUTED: 'Recharge contestée (litige carte)',
+  TOPUP_DISPUTE_REVERSED: 'Litige carte gagné : reprise rendue',
 }
 
 /** Libellé lisible ; un type ajouté côté back avant le front s'affiche tel quel. */
