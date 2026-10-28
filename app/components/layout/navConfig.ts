@@ -58,6 +58,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { to: '/transactions', label: 'Transactions', permission: 'PAYMENT_VIEW', icon: CreditCard, shortcut: 't' },
       { to: '/promo', label: 'Codes promo', permission: 'PROMO_MANAGE', icon: Ticket },
       { to: '/topup-codes', label: 'Codes de recharge', permission: 'TOPUP_CODE_MANAGE', icon: Coins },
+      { to: '/ajustements-solde', label: 'Corrections à approuver', permission: 'WALLET_ADJUST', icon: ShieldCheck },
       { to: '/tarification', label: 'Tarification', permission: 'CONFIG_MANAGE', icon: Percent },
     ],
   },

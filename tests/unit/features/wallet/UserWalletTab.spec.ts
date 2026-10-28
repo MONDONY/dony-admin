@@ -186,6 +186,22 @@ describe('UserWalletTab', () => {
     expect(w.find('[data-test="wallet-success"]').text()).toContain('17,50 EUR')
   })
 
+  it('au-delà de 100 € : envoyée pour approbation, rien n’est rafraîchi', async () => {
+    adjustMock.mockResolvedValue({
+      account: null, transaction: null,
+      pendingRequest: { id: 'r1', userId: 'u1', currency: 'EUR', direction: 'CREDIT', amount: 150, eurEquivalent: 150,
+        reason: REASON, status: 'PENDING', requestedBy: 'a1', requestedByEmail: 'a@yadony.com', decidedBy: null,
+        decidedByEmail: null, decidedAt: null, decisionNote: null, transactionId: null, createdAt: '2026-10-28T10:00:00' },
+    })
+    const w = await mountTab()
+    getMock.mockClear(); listMock.mockClear()
+    await submitCredit(w)
+    expect(w.find('[data-test="adj-dialog"]').exists()).toBe(false)
+    expect(w.find('[data-test="wallet-success"]').text()).toContain('envoyée pour approbation')
+    expect(w.find('[data-test="wallet-success"]').text()).toContain('150,00 EUR')
+    expect(getMock).not.toHaveBeenCalled()
+  })
+
   it('refus 422 : le detail du back reste affiché dans le dialogue, rien n’est rafraîchi', async () => {
     adjustMock.mockRejectedValue({
       statusCode: 422,

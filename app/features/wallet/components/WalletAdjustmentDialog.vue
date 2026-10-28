@@ -114,7 +114,8 @@ const directionClass = (d: WalletAdjustmentDirection) => direction.value === d
 
       <template v-if="step === 'form'">
         <p class="text-sm text-text-muted mb-4 text-pretty">
-          Chaque correction est journalisée avec son motif et votre identifiant. Plafond : 500 € d'équivalent par opération.
+          Chaque correction est journalisée avec son motif et votre identifiant. Plafond : 500 € d'équivalent par
+          opération et sur 24 h. Au-delà de 100 €, un autre admin doit approuver la correction avant qu'elle s'applique.
         </p>
 
         <div class="mb-4 grid grid-cols-2 gap-2" role="group" aria-label="Sens de la correction">

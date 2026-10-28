@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import SettingsForm from '@/features/settings/components/SettingsForm.vue'
 import { usePlatformSettings } from '@/features/settings/composables/usePlatformSettings'
 import ExchangeRatesTable from '@/features/exchange-rates/components/ExchangeRatesTable.vue'
+import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useExchangeRates } from '@/features/exchange-rates/composables/useExchangeRates'
 import PhotoStorageCard from '@/features/photo-storage/components/PhotoStorageCard.vue'
 import MaintenanceCard from '@/features/maintenance/components/MaintenanceCard.vue'
@@ -21,6 +22,7 @@ const {
   rates, isLoading: ratesLoading, busy: ratesBusy, error: ratesError,
   load: loadRates, update: updateRate,
   syncing: ratesSyncing, syncMessage: ratesSyncMessage, sync: syncRates,
+  largeChange: rateLargeChange, confirmLargeChange: confirmRateChange, cancelLargeChange: cancelRateChange,
 } = useExchangeRates()
 const auth = useAuthStore()
 
@@ -85,6 +87,14 @@ onMounted(() => {
 
       <p v-if="ratesLoading" class="text-sm text-text-muted">Chargement…</p>
       <ExchangeRatesTable v-else :rates="rates" :busy="ratesBusy" @update="updateRate" />
+      <ConfirmActionDialog
+        :open="rateLargeChange !== null" title="Confirmer un écart important"
+        :message="rateLargeChange
+          ? `Le nouveau taux ${rateLargeChange.currency} (${rateLargeChange.unitsPerEur}) s'écarte de ${rateLargeChange.changePercent} % du taux en place (${rateLargeChange.currentRate}). Toutes les conversions vont changer : vérifiez qu'il ne s'agit pas d'une faute de frappe.`
+          : ''"
+        confirm-label="Appliquer ce taux"
+        @confirm="confirmRateChange" @cancel="cancelRateChange"
+      />
     </div>
   </div>
 </template>

@@ -84,7 +84,43 @@ export interface WalletAdjustmentRequest {
   amount: number
   reason: string
 }
-export interface WalletAdjustmentResult { account: AdminWalletAccount; transaction: AdminWalletTransaction }
+/**
+ * Correction appliquée : `account` et `transaction`. Au-delà du seuil de double validation
+ * (HTTP 202, yadony-back), rien n'est écrit : seul `pendingRequest` est rempli.
+ */
+export interface WalletAdjustmentResult {
+  account: AdminWalletAccount | null
+  transaction: AdminWalletTransaction | null
+  pendingRequest?: AdminWalletAdjustmentRequest | null
+}
+
+/** Au-delà, une correction attend l'approbation d'un second admin (miroir du back). */
+export const WALLET_ADJUSTMENT_APPROVAL_THRESHOLD_EUR = 100
+
+export type WalletAdjustmentRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+/** Correction soumise à la double validation, telle que la renvoie le back. */
+export interface AdminWalletAdjustmentRequest {
+  id: string
+  userId: string
+  currency: string
+  direction: WalletAdjustmentDirection
+  amount: number
+  eurEquivalent: number
+  reason: string
+  status: WalletAdjustmentRequestStatus
+  requestedBy: string
+  requestedByEmail: string | null
+  decidedBy: string | null
+  decidedByEmail: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  transactionId: string | null
+  createdAt: string
+}
+export interface AdminWalletAdjustmentRequestPage {
+  content: AdminWalletAdjustmentRequest[]; totalElements: number; totalPages: number; number: number; size: number
+}
 
 /** Bornes du motif, miroir de la validation backend (400 `wallet-adjustment-reason-invalid`). */
 export const WALLET_ADJUSTMENT_REASON_MIN = 10

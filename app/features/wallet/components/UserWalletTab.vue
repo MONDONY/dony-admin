@@ -6,7 +6,8 @@ import { useUserWallet } from '@/features/wallet/composables/useUserWallet'
 import { useWalletAdjustment } from '@/features/wallet/composables/useWalletAdjustment'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import {
-  formatSignedAmount, isAdjustmentTransaction, walletTransactionTypeLabel, WALLET_TRANSACTION_TYPES,
+  formatSignedAmount, isAdjustmentTransaction, walletTransactionTypeLabel, WALLET_ADJUSTMENT_APPROVAL_THRESHOLD_EUR,
+  WALLET_TRANSACTION_TYPES,
 } from '@/features/wallet/types/index'
 import type { WalletAdjustmentRequest } from '@/features/wallet/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -34,8 +35,17 @@ async function onSubmit(request: WalletAdjustmentRequest) {
   const result = await adjustment.submit(request)
   if (!result) return
   dialogOpen.value = false
-  const c = result.account.currency
-  success.value = `Solde corrigé : ${formatMajorAmount(result.account.balance, c)} sur le compte ${c}.`
+  const pending = result.pendingRequest
+  if (!result.transaction && pending) {
+    // Au-delà du seuil : rien n'est écrit tant qu'un autre admin n'a pas approuvé.
+    success.value = `Correction de ${formatMajorAmount(pending.amount, pending.currency)} envoyée pour approbation : `
+      + `au-delà de ${WALLET_ADJUSTMENT_APPROVAL_THRESHOLD_EUR} €, un autre admin doit la valider (Corrections à approuver).`
+    return
+  }
+  if (result.account) {
+    const c = result.account.currency
+    success.value = `Solde corrigé : ${formatMajorAmount(result.account.balance, c)} sur le compte ${c}.`
+  }
   await wallet.refresh()
 }
 
