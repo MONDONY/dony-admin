@@ -15,8 +15,15 @@ export function useUserKyc() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const busy = ref(false)
+  /**
+   * Dernière lecture ou écriture lancée : une réponse plus ancienne (clics rapides d'un dossier à
+   * l'autre) est écartée. Sans cela, le dossier d'un utilisateur pourrait s'afficher, et se
+   * décider, sous un autre.
+   */
+  let calls = 0
 
   async function load(userId: string) {
+    const mine = ++calls
     isLoading.value = true
     error.value = null
     // Vidé AVANT l'appel, et de nouveau en cas d'échec : ce composable vit au niveau de la
@@ -24,20 +31,31 @@ export function useUserKyc() {
     // d'un utilisateur dont le chargement échoue afficherait le dossier — pièces, motif de
     // rejet, session Stripe — de l'utilisateur consulté juste avant, sous son nom à lui.
     kyc.value = null
-    try { kyc.value = await usersService.getKyc(userId) }
-    catch (e) {
-      kyc.value = null
-      error.value = extractProblemMessage(e, 'Impossible de charger le KYC')
+    try {
+      const res = await usersService.getKyc(userId)
+      if (mine === calls) kyc.value = res
+    } catch (e) {
+      if (mine === calls) {
+        kyc.value = null
+        error.value = extractProblemMessage(e, 'Impossible de charger le KYC')
+      }
+    } finally {
+      if (mine === calls) isLoading.value = false
     }
-    finally { isLoading.value = false }
   }
 
   async function reset(userId: string, reason: string) {
+    const mine = ++calls
     error.value = null
     busy.value = true
-    try { kyc.value = await usersService.resetKyc(userId, reason) }
-    catch (e) { error.value = extractProblemMessage(e, 'Réinitialisation impossible') }
-    finally { busy.value = false }
+    try {
+      const res = await usersService.resetKyc(userId, reason)
+      if (mine === calls) kyc.value = res
+    } catch (e) {
+      if (mine === calls) error.value = extractProblemMessage(e, 'Réinitialisation impossible')
+    } finally {
+      busy.value = false
+    }
   }
 
   /**
@@ -46,12 +64,16 @@ export function useUserKyc() {
    * qui démonterait le dialogue de décision et son message d'erreur.
    */
   async function refresh(userId: string) {
-    try { kyc.value = await usersService.getKyc(userId) }
-    catch { /* la fiche affichée reste la dernière connue */ }
+    const mine = ++calls
+    try {
+      const res = await usersService.getKyc(userId)
+      if (mine === calls) kyc.value = res
+    } catch { /* la fiche affichée reste la dernière connue */ }
   }
 
   /** Remplace la fiche par celle renvoyée par une décision admin. */
   function set(next: AdminKycDetail) {
+    calls++
     kyc.value = next
     error.value = null
   }

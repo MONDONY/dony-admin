@@ -88,4 +88,70 @@ describe('useUserKyc', () => {
     expect(c.kyc.value?.kycStatus).toBe('VERIFIED')
     expect(c.error.value).toBeNull()
   })
+
+  describe('lectures concurrentes', () => {
+    const other = { ...KYC, userId: 'u2' }
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    const deferred = () => { let release: (v: unknown) => void = () => {}; const promise = new Promise((r) => { release = r }); return { promise, release } }
+
+    it('une réponse tardive d’un autre utilisateur n’écrase pas le dossier affiché', async () => {
+      const slow = deferred()
+      getKyc.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(other)
+      const c = useUserKyc()
+      const first = c.load('u1')
+      await c.load('u2')
+      slow.release(KYC)
+      await first
+      expect(c.kyc.value?.userId).toBe('u2')
+      expect(c.isLoading.value).toBe(false)
+    })
+
+    it('une erreur tardive n’efface ni le dossier ni ne pose de message', async () => {
+      // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+      let fail: (e: unknown) => void = () => {}
+      getKyc.mockReturnValueOnce(new Promise((_, rej) => { fail = rej })).mockResolvedValueOnce(other)
+      const c = useUserKyc()
+      const first = c.load('u1')
+      await c.load('u2')
+      fail({ data: { detail: 'Panne' } })
+      await first
+      expect(c.error.value).toBeNull()
+      expect(c.kyc.value?.userId).toBe('u2')
+    })
+
+    it('refresh, reset et set écartent une lecture plus ancienne encore en vol', async () => {
+      const slow = deferred()
+      getKyc.mockReturnValueOnce(slow.promise)
+      const c = useUserKyc()
+      const pending = c.load('u1')
+      c.set(other as never)
+      slow.release(KYC)
+      await pending
+      expect(c.kyc.value?.userId).toBe('u2')
+
+      const slowRefresh = deferred()
+      getKyc.mockReturnValueOnce(slowRefresh.promise)
+      const refreshing = c.refresh('u1')
+      resetKyc.mockResolvedValueOnce({ ...other, kycStatus: 'NOT_STARTED' })
+      await c.reset('u2', 'Document illisible')
+      slowRefresh.release(KYC)
+      await refreshing
+      expect(c.kyc.value?.userId).toBe('u2')
+      expect(c.kyc.value?.kycStatus).toBe('NOT_STARTED')
+    })
+
+    it('une réinitialisation en échec tardive ne pose pas son message sur un autre dossier', async () => {
+      // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+      let fail: (e: unknown) => void = () => {}
+      resetKyc.mockReturnValueOnce(new Promise((_, rej) => { fail = rej }))
+      getKyc.mockResolvedValueOnce(other)
+      const c = useUserKyc()
+      const resetting = c.reset('u1', 'Document illisible')
+      await c.load('u2')
+      fail({ data: { detail: 'Refusée' } })
+      await resetting
+      expect(c.error.value).toBeNull()
+      expect(c.busy.value).toBe(false)
+    })
+  })
 })

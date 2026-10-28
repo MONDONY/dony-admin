@@ -241,4 +241,18 @@ describe('usersService', () => {
     await usersService.setRecetteTester('u1', true)
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/recette-tester', { method: 'PUT', body: { enabled: true } })
   })
+
+  it('un identifiant inattendu ne sort jamais de son segment de chemin', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await usersService.getKyc('../../x?y=1')
+    await usersService.approveKyc('a/b', 'Pièces contrôlées chez Didit')
+    await usersService.resetKyc('a/b', 'Document illisible')
+    await usersService.suspend('a/b', 'Motif suffisamment long')
+    expect(apiMock.mock.calls.map((c) => c[0])).toEqual([
+      '/admin/users/..%2F..%2Fx%3Fy%3D1/kyc',
+      '/admin/users/a%2Fb/kyc/approve',
+      '/admin/users/a%2Fb/kyc/reset',
+      '/admin/users/a%2Fb/suspend',
+    ])
+  })
 })

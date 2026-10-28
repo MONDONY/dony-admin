@@ -21,7 +21,7 @@ const ROW = {
   userId: 'u1', userName: 'Awa Diop', userPhone: '+221 77 *** ** 12', provider: 'DIDIT', kycStatus: 'IN_REVIEW',
   submittedAt: '2026-09-25T10:00:00Z', waitingHours: 50,
 }
-const ROW2 = { ...ROW, userId: 'u2', userName: 'Moussa Traoré', waitingHours: 3 }
+const ROW2 = { ...ROW, userId: '7a2e4b1c-0000-4a00-8000-0000000000a2', userName: 'Moussa Traoré', waitingHours: 3 }
 const DETAIL = {
   userId: 'u1', kycStatus: 'PENDING', verificationStatus: 'PENDING', stripeSessionId: 'sess_1', stripeUnavailable: false,
   provider: 'DIDIT', history: [],
@@ -46,7 +46,7 @@ describe('/kyc', () => {
     query = {}
     kyc.listVerifications.mockResolvedValue(PAGE)
     kyc.listRejectionCodes.mockResolvedValue(['document_expired', 'other'])
-    users.getKyc.mockResolvedValue(DETAIL)
+    users.getKyc.mockImplementation((id: string) => Promise.resolve({ ...DETAIL, userId: id }))
   })
   // Le poste écoute le clavier : un montage oublié répondrait aux touches des tests suivants.
   afterEach(() => { while (mounted.length) mounted.pop()!.unmount() })
@@ -64,16 +64,16 @@ describe('/kyc', () => {
   it('un clic sur un autre dossier l’ouvre et l’écrit dans l’URL', async () => {
     kyc.listVerifications.mockResolvedValue(PAGE2)
     const w = await mountPage()
-    // en retard d'abord : u1 (50 h) avant u2 (3 h)
+    // en retard d'abord : u1 (50 h) avant 7a2e4b1c-0000-4a00-8000-0000000000a2 (3 h)
     expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Awa Diop')
-    await w.find('[data-test="open-u2"]').trigger('click')
+    await w.find('[data-test="open-7a2e4b1c-0000-4a00-8000-0000000000a2"]').trigger('click')
     await flushPromises()
-    expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+    expect(users.getKyc).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
     expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Moussa Traoré')
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'u2' } })
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: '7a2e4b1c-0000-4a00-8000-0000000000a2' } })
     // recliquer le dossier ouvert ne recharge rien
     const calls = users.getKyc.mock.calls.length
-    await w.find('[data-test="open-u2"]').trigger('click')
+    await w.find('[data-test="open-7a2e4b1c-0000-4a00-8000-0000000000a2"]').trigger('click')
     expect(users.getKyc.mock.calls.length).toBe(calls)
   })
 
@@ -93,7 +93,7 @@ describe('/kyc', () => {
     const w = await mountPage()
     press('j')
     await flushPromises()
-    expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+    expect(users.getKyc).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
     press('k')
     await flushPromises()
     expect(users.getKyc).toHaveBeenLastCalledWith('u1')
@@ -123,6 +123,36 @@ describe('/kyc', () => {
     expect(w.find('[data-test="kyc-reason"]').exists()).toBe(false)
   })
 
+  it('un ?open= qui n’est pas un UUID est ignoré : le premier dossier s’ouvre, aucun appel sur ce segment', async () => {
+    query = { open: '../../admin/users/x' }
+    const w = await mountPage()
+    expect(users.getKyc).toHaveBeenCalledTimes(1)
+    expect(users.getKyc).toHaveBeenCalledWith('u1')
+    expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Awa Diop')
+  })
+
+  it('une réponse tardive d’un autre dossier n’écrase pas celui qui est ouvert, ni ne le rend décidable', async () => {
+    kyc.listVerifications.mockResolvedValue(PAGE2)
+    const w = await mountPage()
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    let releaseSlow: (v: unknown) => void = () => {}
+    users.getKyc.mockImplementationOnce(() => new Promise((r) => { releaseSlow = r }))
+    await w.find('[data-test="open-7a2e4b1c-0000-4a00-8000-0000000000a2"]').trigger('click')
+    // l'admin revient au premier dossier avant la fin de la lecture lente
+    await w.find('[data-test="open-u1"]').trigger('click')
+    await flushPromises()
+    releaseSlow({ ...DETAIL, userId: '7a2e4b1c-0000-4a00-8000-0000000000a2' })
+    await flushPromises()
+    expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Awa Diop')
+    users.approveKyc.mockResolvedValue({ ...DETAIL, kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED' })
+    await w.find('[data-test="kyc-approve"]').trigger('click')
+    await w.find('[data-test="kyc-checked"]').setValue(true)
+    await w.find('[data-test="kyc-reason"]').setValue('Pièces contrôlées chez Didit, conformes.')
+    await w.find('[data-test="kyc-dialog-submit"]').trigger('click')
+    await flushPromises()
+    expect(users.approveKyc).toHaveBeenCalledWith('u1', expect.any(String))
+  })
+
   it('navigation interne vers ?open= (clic sur une notification) alors que la page est ouverte', async () => {
     kyc.listVerifications.mockResolvedValue(PAGE2)
     const route = reactive({ meta: {}, query: {} as Record<string, string> })
@@ -130,12 +160,12 @@ describe('/kyc', () => {
     try {
       await mountPage()
       expect(users.getKyc).toHaveBeenCalledTimes(1)
-      route.query = { status: 'IN_REVIEW', open: 'u2' }
+      route.query = { status: 'IN_REVIEW', open: '7a2e4b1c-0000-4a00-8000-0000000000a2' }
       await flushPromises()
-      expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+      expect(users.getKyc).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
       expect(users.getKyc).toHaveBeenCalledTimes(2)
       // même id : rien à recharger
-      route.query = { open: 'u2' }
+      route.query = { open: '7a2e4b1c-0000-4a00-8000-0000000000a2' }
       await flushPromises()
       expect(users.getKyc).toHaveBeenCalledTimes(2)
     } finally {
@@ -143,12 +173,12 @@ describe('/kyc', () => {
     }
   })
 
-  it('lien profond ?status=REJECTED&open=u9 : ouvre ce dossier, pas le premier de la file', async () => {
-    query = { status: 'REJECTED', open: 'u9' }
+  it('lien profond ?status=REJECTED&open=7a2e4b1c-0000-4a00-8000-0000000000c9 : ouvre ce dossier, pas le premier de la file', async () => {
+    query = { status: 'REJECTED', open: '7a2e4b1c-0000-4a00-8000-0000000000c9' }
     const w = await mountPage()
     expect(kyc.listVerifications.mock.calls[0][0].status).toBe('REJECTED')
     expect(users.getKyc).toHaveBeenCalledTimes(1)
-    expect(users.getKyc).toHaveBeenCalledWith('u9')
+    expect(users.getKyc).toHaveBeenCalledWith('7a2e4b1c-0000-4a00-8000-0000000000c9')
     expect(w.find('[data-test="kyc-case"]').exists()).toBe(true)
   })
 
@@ -164,8 +194,8 @@ describe('/kyc', () => {
     await w.find('[data-test="kyc-tab-REJECTED"]').trigger('click')
     await flushPromises()
     expect(kyc.listVerifications.mock.calls[1][0].status).toBe('REJECTED')
-    expect(users.getKyc).toHaveBeenLastCalledWith('u2')
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { status: 'REJECTED', open: 'u2' } })
+    expect(users.getKyc).toHaveBeenLastCalledWith('7a2e4b1c-0000-4a00-8000-0000000000a2')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { status: 'REJECTED', open: '7a2e4b1c-0000-4a00-8000-0000000000a2' } })
   })
 
   it('onglet sans dossier : rien ne reste ouvert', async () => {
@@ -197,7 +227,7 @@ describe('/kyc', () => {
   it('un conflit relit le dossier sans le vider', async () => {
     users.rejectKyc.mockRejectedValue({ statusCode: 409, data: { code: 'kyc-already-verified', detail: 'Déjà vérifiée.' } })
     const w = await mountPage()
-    users.getKyc.mockResolvedValue({ ...DETAIL, kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED' })
+    users.getKyc.mockImplementation((id: string) => Promise.resolve({ ...DETAIL, userId: id, kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED' }))
     await w.find('[data-test="kyc-reject"]').trigger('click')
     await w.find('[data-test="kyc-code"]').setValue('other')
     await w.find('[data-test="kyc-reason"]').setValue('Motif suffisamment long')

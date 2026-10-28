@@ -15,6 +15,7 @@ import {
 import { KYC_QUEUE_UNAVAILABLE, isKycQueueStatus } from '@/features/kyc/types/index'
 import type { AdminKycQueueItem, KycQueueStatus } from '@/features/kyc/types/index'
 import type { AdminKycDetail } from '@/features/users/types/index'
+import { uuidParam } from '@/lib/safeInput'
 
 /**
  * Poste KYC : la file (en retard d'abord) à gauche, le dossier au centre, la décision à droite.
@@ -32,6 +33,8 @@ const openId = ref<string | null>(null)
 // Instantané pris à l'ouverture : après une décision, la ligne peut quitter la file filtrée,
 // mais le dossier doit garder le nom (en-tête et ressaisie avant révocation).
 const openedRow = ref<AdminKycQueueItem | null>(null)
+/** Le dossier chargé appartient bien à l'utilisateur ouvert : jamais la réponse tardive d'un autre. */
+const openKyc = computed(() => (detail.kyc.value?.userId === openId.value ? detail.kyc.value : null))
 const openRow = computed(() => queue.items.value.find((r) => r.userId === openId.value) ?? openedRow.value)
 let ready = false
 
@@ -46,6 +49,8 @@ const queryValue = (name: string) => {
   const v = route.query?.[name]
   return typeof v === 'string' && v ? v : null
 }
+/** L'identifiant de l'URL devient un segment d'appel d'API : seul un UUID valide est suivi. */
+const openParam = () => uuidParam(queryValue('open'))
 function syncQuery() {
   const query: Record<string, string> = {}
   for (const [k, v] of Object.entries(route.query ?? {})) {
@@ -116,7 +121,7 @@ useWorkbenchShortcuts({
 })
 
 onMounted(async () => {
-  const deepLink = queryValue('open')
+  const deepLink = openParam()
   await queue.load(0)
   ready = true
   if (deepLink) await open(deepLink, { write: false })
@@ -126,7 +131,7 @@ onMounted(async () => {
   }
 })
 // Page déjà ouverte : un clic sur une notification KYC_IN_REVIEW ne remonte pas le composant.
-watch(() => queryValue('open'), (v) => {
+watch(openParam, (v) => {
   if (v === lastWritten) return
   if (v && v !== openId.value) void open(v, { write: false })
 })
@@ -200,18 +205,18 @@ watch(() => queryValue('open'), (v) => {
 
           <!-- 2. Dossier -->
           <KycCase
-            :row="openRow" :user-id="openId ?? ''" :kyc="detail.kyc.value" :loading="detail.isLoading.value" :error="detail.error.value"
+            :row="openRow" :user-id="openId ?? ''" :kyc="openKyc" :loading="detail.isLoading.value" :error="detail.error.value"
           />
 
           <!-- 3. Décision -->
           <aside aria-label="Décision" class="flex min-w-0 flex-col gap-3" data-test="kyc-decision-panel">
             <p
-              v-if="detail.kyc.value && detail.error.value" data-test="kyc-reset-error" role="alert"
+              v-if="openKyc && detail.error.value" data-test="kyc-reset-error" role="alert"
               class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
             >{{ detail.error.value }}</p>
             <KycDecisionActions
-              v-if="detail.kyc.value && openId" ref="actions"
-              :kyc="detail.kyc.value" :user-name="openRow?.userName ?? null" :reset-busy="detail.busy.value"
+              v-if="openKyc && openId" ref="actions"
+              :kyc="openKyc" :user-name="openRow?.userName ?? null" :reset-busy="detail.busy.value"
               @decided="onDecided" @stale="onStale" @reset="onReset"
             />
             <section
