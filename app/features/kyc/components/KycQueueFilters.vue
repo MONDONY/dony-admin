@@ -22,7 +22,12 @@ const dateTo = ref(props.filters.to ?? '')
 watch(() => [props.filters.from, props.filters.to], ([f, t]) => {
   dateFrom.value = f ?? ''
   dateTo.value = t ?? ''
+  if (f || t) moreOpen.value = true
 })
+
+/** Fournisseur et période servent peu : repliés par défaut pour laisser la place à la file, ouverts si un filtre est posé. */
+const moreOpen = ref(Boolean(props.filters.provider || props.filters.from || props.filters.to))
+const moreActive = () => Boolean(props.filters.provider || props.filters.from || props.filters.to)
 
 function onProvider(e: Event) {
   const v = (e.target as HTMLSelectElement).value
@@ -58,6 +63,15 @@ function clearDates() {
       @search="emit('update:query', q)"
     >
 
+    <button
+      type="button" data-test="kyc-more-filters" :aria-expanded="moreOpen"
+      class="flex w-fit items-center gap-1.5 text-xs font-medium text-text-muted hover:text-text"
+      @click="moreOpen = !moreOpen"
+    >
+      {{ moreOpen ? 'Moins de filtres' : 'Plus de filtres' }}
+      <span v-if="!moreOpen && moreActive()" data-test="kyc-more-active" class="rounded-full bg-primary/15 px-1.5 text-primary">actifs</span>
+    </button>
+    <div v-if="moreOpen" class="flex flex-col gap-2.5" data-test="kyc-more-panel">
     <div class="flex flex-wrap items-center gap-2">
       <label class="flex items-center gap-1.5 text-xs font-medium text-text-muted">
         Fournisseur
@@ -89,6 +103,7 @@ function clearDates() {
         class="text-xs text-text-muted hover:text-text"
         @click="clearDates"
       >Effacer</button>
+    </div>
     </div>
   </div>
 </template>

@@ -110,7 +110,7 @@ defineExpose({ pick, submit: onConfirm, canConfirm })
 <template>
   <section
     aria-labelledby="incident-decision-title" data-test="incident-decision-panel"
-    class="flex max-h-[calc(100vh-18rem)] min-h-0 flex-col overflow-hidden rounded-card border border-border bg-surface"
+    class="flex max-h-[calc(100vh-13rem)] min-h-0 flex-col overflow-hidden rounded-card border border-border bg-surface"
   >
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
       <div class="flex items-baseline justify-between gap-2">

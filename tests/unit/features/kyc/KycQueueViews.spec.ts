@@ -19,7 +19,8 @@ describe('KycQueue', () => {
     expect(row.text()).toContain('Awa Diop')
     expect(row.text()).toContain('+221 77 *** ** 12')
     expect(row.text()).toContain('Didit')
-    expect(row.text()).toContain('En attente de décision')
+    // dans « À décider » le statut est celui de l'onglet : pas répété sur chaque ligne
+    expect(w.find('[data-test="kyc-status-u1"]').exists()).toBe(false)
     const late = w.find('[data-test="kyc-waiting-u1"]')
     expect(late.text()).toBe('2 j 2 h')
     expect(late.classes()).toContain('text-danger')
@@ -73,6 +74,9 @@ describe('KycQueueFilters', () => {
   it('onglets de statut, fournisseur, recherche et période', async () => {
     const w = mount(KycQueueFilters, { props: { filters } })
     expect(w.find('[data-test="kyc-tab-IN_REVIEW"]').attributes('aria-selected')).toBe('true')
+    // fournisseur et période sont repliés par défaut
+    expect(w.find('[data-test="kyc-provider"]').exists()).toBe(false)
+    await w.find('[data-test="kyc-more-filters"]').trigger('click')
     await w.find('[data-test="kyc-tab-REJECTED"]').trigger('click')
     await w.find('[data-test="kyc-provider"]').setValue('DIDIT')
     await w.find('[data-test="kyc-provider"]').setValue('')
@@ -87,12 +91,24 @@ describe('KycQueueFilters', () => {
     expect(w.emitted('update:dateRange')!.at(-1)).toEqual(['2026-09-01', '2026-09-27'])
   })
 
-  it('suit la période venue du parent et relaie l’effacement de la recherche', async () => {
+  it('suit la période venue du parent (et déplie les filtres) puis relaie l’effacement de la recherche', async () => {
     const w = mount(KycQueueFilters, { props: { filters } })
+    expect(w.find('[data-test="kyc-date-from"]').exists()).toBe(false)
     await w.setProps({ filters: { ...filters, from: '2026-09-02', to: null } })
     expect((w.find('[data-test="kyc-date-from"]').element as HTMLInputElement).value).toBe('2026-09-02')
     await w.find('[data-test="kyc-search"]').trigger('search')
     expect(w.emitted('update:query')![0]).toEqual([''])
+  })
+
+  it('filtres posés : dépliés d’emblée ; repliés avec un repère « actifs » quand on les masque', async () => {
+    const w = mount(KycQueueFilters, { props: { filters: { ...filters, provider: 'DIDIT' } } })
+    expect(w.find('[data-test="kyc-more-panel"]').exists()).toBe(true)
+    expect(w.find('[data-test="kyc-more-filters"]').text()).toContain('Moins de filtres')
+    await w.find('[data-test="kyc-more-filters"]').trigger('click')
+    expect(w.find('[data-test="kyc-more-panel"]').exists()).toBe(false)
+    expect(w.find('[data-test="kyc-more-active"]').exists()).toBe(true)
+    await w.find('[data-test="kyc-more-filters"]').trigger('click')
+    expect(w.find('[data-test="kyc-more-active"]').exists()).toBe(false)
   })
 
   it('efface la période', async () => {

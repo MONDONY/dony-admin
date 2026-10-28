@@ -37,15 +37,15 @@ const lastSeen = (c: QueueGroup['items'][number]) => (c.lastMessageAt ? formatIn
   <div class="flex min-h-0 flex-col">
     <ul v-if="groups.length" class="flex flex-col overflow-y-auto" data-test="moderation-queue">
       <li v-for="g in groups" :key="g.key" :data-test="`moderation-group-${g.key}`">
-        <div class="flex items-center justify-between border-y border-border bg-bg/60 px-3.5 py-1.5">
+        <div class="flex items-center justify-between border-y border-border bg-bg/60 px-4 py-2">
           <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">{{ g.title }}</span>
           <span class="rounded-full bg-surface-elevated px-2 text-xs font-semibold tabular-nums text-text-muted">{{ g.items.length }}</span>
         </div>
-        <ul class="flex flex-col gap-0.5 p-1.5">
+        <ul class="flex flex-col gap-1.5 p-3">
           <li v-for="c in g.items" :key="c.id" :data-test="`conv-row-${c.id}`" :data-selected="selectedId === c.id ? 'true' : undefined">
             <button
               type="button" :data-test="`open-${c.id}`" :aria-current="selectedId === c.id ? 'true' : undefined"
-              :class="['w-full rounded-btn border border-l-4 px-3 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+              :class="['w-full rounded-btn border border-l-4 px-4 py-3 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
                 BORDER[g.key],
                 selectedId === c.id ? 'border-y-primary border-r-primary bg-primary/5' : 'border-y-transparent border-r-transparent hover:bg-surface-elevated']"
               @click="emit('select', c.id)"

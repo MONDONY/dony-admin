@@ -176,7 +176,7 @@ watch(openParam, (v) => {
           <!-- 1. File -->
           <section
             aria-label="File des vérifications" data-test="kyc-queue-panel"
-            class="flex max-h-[calc(100vh-18rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
+            class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
           >
             <KycQueueFilters
               :filters="queue.filters"
@@ -194,7 +194,7 @@ watch(openParam, (v) => {
               <p data-test="kyc-total" class="text-xs tabular-nums text-text-muted">
                 {{ queue.totalElements.value }} vérification{{ queue.totalElements.value > 1 ? 's' : '' }}
               </p>
-              <PaginationControls :page="queue.currentPage.value" :total-pages="queue.totalPages.value" @change="queue.goToPage" />
+              <PaginationControls v-if="queue.totalPages.value > 1" :page="queue.currentPage.value" :total-pages="queue.totalPages.value" @change="queue.goToPage" />
               <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
                 <span class="inline-flex items-center gap-1"><KeyHint>J</KeyHint><KeyHint>K</KeyHint> naviguer</span>
                 <span class="inline-flex items-center gap-1"><KeyHint>V</KeyHint> valider</span>

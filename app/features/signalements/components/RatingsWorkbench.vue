@@ -181,7 +181,7 @@ const chip = (on: boolean) => ['rounded-full px-3 py-1 text-sm transition-colors
           />
 
           <div class="flex flex-col gap-2 border-t border-border bg-bg/50 p-3">
-            <PaginationControls :page="rt.currentPage.value" :total-pages="rt.totalPages.value" @change="rt.goToPage" />
+            <PaginationControls v-if="rt.totalPages.value > 1" :page="rt.currentPage.value" :total-pages="rt.totalPages.value" @change="rt.goToPage" />
             <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
               <span class="inline-flex items-center gap-1"><KeyHint>J</KeyHint><KeyHint>K</KeyHint> naviguer</span>
               <span class="inline-flex items-center gap-1"><KeyHint>⏎</KeyHint> confirmer</span>

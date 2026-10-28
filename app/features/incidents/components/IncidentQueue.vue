@@ -37,13 +37,13 @@ function isOpen(g: IncidentGroup) {
 
 <template>
   <div class="flex min-h-0 flex-col">
-    <ul v-if="groups.length" class="flex flex-col gap-0.5 overflow-y-auto p-1.5" data-test="incident-queue">
+    <ul v-if="groups.length" class="flex flex-col gap-1.5 overflow-y-auto p-3" data-test="incident-queue">
       <li v-for="g in groups" :key="g.key" :data-test="`incident-group-${g.key}`">
         <!-- Groupe de plusieurs incidents de même nature -->
         <template v-if="g.incidents.length > 1">
           <button
             type="button" :data-test="`incident-group-toggle-${g.key}`" :aria-expanded="isOpen(g) ? 'true' : 'false'"
-            :class="['w-full rounded-btn border border-l-4 px-3 py-2.5 text-left transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.99]',
+            :class="['w-full rounded-btn border border-l-4 px-4 py-3 text-left transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.99]',
               BORDER[g.rank], 'border-y-transparent border-r-transparent']"
             @click="emit('toggle', g.key)"
           >
@@ -56,11 +56,11 @@ function isOpen(g: IncidentGroup) {
               <span v-if="age(g.incidents[0]!)" class="tabular-nums">· le plus ancien : {{ age(g.incidents[0]!)!.label }}</span>
             </span>
           </button>
-          <ul v-if="isOpen(g)" class="mb-1 ml-3 flex flex-col gap-0.5 border-l border-border pl-1.5">
+          <ul v-if="isOpen(g)" class="mb-1 ml-4 flex flex-col gap-1 border-l border-border pl-2">
             <li v-for="i in g.incidents" :key="i.key" :data-test="`incident-row-${i.key}`" :data-selected="selectedKey === i.key ? 'true' : undefined">
               <button
                 type="button" :data-test="`incident-open-${i.key}`" :aria-current="selectedKey === i.key ? 'true' : undefined"
-                :class="['w-full rounded-btn border px-3 py-2 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+                :class="['w-full rounded-btn border px-4 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
                   selectedKey === i.key ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-surface-elevated',
                   i.todo ? '' : 'text-text-muted']"
                 @click="emit('select', i.key)"
@@ -80,7 +80,7 @@ function isOpen(g: IncidentGroup) {
         <div v-else :data-test="`incident-row-${g.incidents[0]!.key}`" :data-selected="selectedKey === g.incidents[0]!.key ? 'true' : undefined">
           <button
             type="button" :data-test="`incident-open-${g.incidents[0]!.key}`" :aria-current="selectedKey === g.incidents[0]!.key ? 'true' : undefined"
-            :class="['w-full rounded-btn border border-l-4 px-3 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+            :class="['w-full rounded-btn border border-l-4 px-4 py-3 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
               BORDER[g.rank],
               selectedKey === g.incidents[0]!.key ? 'border-y-primary border-r-primary bg-primary/5' : 'border-y-transparent border-r-transparent hover:bg-surface-elevated',
               g.incidents[0]!.todo ? '' : 'text-text-muted']"

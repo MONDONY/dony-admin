@@ -318,7 +318,7 @@ watch(() => (onThisPage() ? [queryValue('tab'), queryValue('open')] as const : n
         <!-- 1. File -->
         <section
           aria-label="File des incidents" data-test="incident-queue-panel"
-          class="flex max-h-[calc(100vh-18rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
+          class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
         >
           <div class="flex flex-col gap-2 border-b border-border p-3">
             <div class="flex flex-wrap gap-1">
@@ -358,7 +358,7 @@ watch(() => (onThisPage() ? [queryValue('tab'), queryValue('open')] as const : n
         </section>
 
         <!-- 2. Dossier -->
-        <div class="max-h-[calc(100vh-18rem)] min-h-[24rem] overflow-y-auto">
+        <div class="max-h-[calc(100vh-13rem)] min-h-[24rem] overflow-y-auto">
           <IncidentCase
             :incident="selected" :detail="fiche" :detail-loading="detail.isLoading.value" :detail-error="detail.error.value" :now="now"
             :context="ctx.context.value" :context-loading="ctx.isLoading.value" :context-error="ctx.error.value"

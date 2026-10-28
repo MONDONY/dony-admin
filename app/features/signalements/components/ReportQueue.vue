@@ -49,7 +49,7 @@ function age(r: AdminReport) {
       Sélectionner la page
     </label>
 
-    <ul v-if="reports.length" class="flex flex-col gap-0.5 overflow-y-auto p-1.5" data-test="report-queue">
+    <ul v-if="reports.length" class="flex flex-col gap-1.5 overflow-y-auto p-3" data-test="report-queue">
       <li
         v-for="r in reports" :key="r.id" :data-test="`report-row-${r.id}`"
         :data-selected="selectedId === r.id ? 'true' : undefined"
@@ -64,7 +64,7 @@ function age(r: AdminReport) {
         <button
           type="button" :data-test="`report-open-${r.id}`"
           :aria-current="selectedId === r.id ? 'true' : undefined"
-          :class="['min-w-0 flex-1 rounded-btn border px-3 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+          :class="['min-w-0 flex-1 rounded-btn border px-4 py-3 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
             selectedId === r.id ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-surface-elevated',
             r.deletedAt ? 'text-text-muted' : '']"
           @click="emit('select', r.id)"

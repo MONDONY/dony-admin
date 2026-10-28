@@ -245,7 +245,7 @@ watch(() => queryValue('open'), (id) => {
         <!-- 1. File -->
         <section
           aria-label="File des conversations" data-test="moderation-queue-panel"
-          class="flex max-h-[calc(100vh-18rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
+          class="flex max-h-[calc(100vh-13rem)] min-h-[24rem] flex-col overflow-hidden rounded-card border border-border bg-surface"
         >
           <div class="flex flex-col gap-2 border-b border-border p-3">
             <div data-test="moderation-scopes" class="flex flex-wrap gap-1">

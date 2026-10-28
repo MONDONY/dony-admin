@@ -46,15 +46,15 @@ function owner(t: AdminSupportTicket): string | null {
   <div class="flex min-h-0 flex-col">
     <ul v-if="groups.length" class="flex flex-col overflow-y-auto" data-test="support-queue">
       <li v-for="g in groups" :key="g.key" :data-test="`support-group-${g.key}`">
-        <div class="flex items-center justify-between border-y border-border bg-bg/60 px-3.5 py-1.5">
+        <div class="flex items-center justify-between border-y border-border bg-bg/60 px-4 py-2">
           <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">{{ g.title }}</span>
           <span class="rounded-full bg-surface-elevated px-2 text-xs font-semibold tabular-nums text-text-muted">{{ g.tickets.length }}</span>
         </div>
-        <ul class="flex flex-col gap-0.5 p-1.5">
+        <ul class="flex flex-col gap-1.5 p-3">
           <li v-for="t in g.tickets" :key="t.id" :data-test="`support-row-${t.id}`" :data-selected="selectedId === t.id ? 'true' : undefined">
             <button
               type="button" :data-test="`support-open-${t.id}`" :aria-current="selectedId === t.id ? 'true' : undefined"
-              :class="['w-full rounded-btn border border-l-4 px-3 py-2.5 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
+              :class="['w-full rounded-btn border border-l-4 px-4 py-3 text-left transition-[background-color,border-color,scale] active:scale-[0.99]',
                 BORDER[g.key],
                 selectedId === t.id ? 'border-y-primary border-r-primary bg-primary/5' : 'border-y-transparent border-r-transparent hover:bg-surface-elevated',
                 g.key === 'RESOLVED' ? 'text-text-muted' : '']"
