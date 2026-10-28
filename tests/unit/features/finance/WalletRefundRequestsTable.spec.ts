@@ -96,6 +96,19 @@ describe('WalletRefundRequestsTable', () => {
     expect(w.find('[data-test="wrr-origin-m1"]').text()).toContain('Reprise d')
   })
 
+  it('libelle le canal mixte et ne propose aucune résolution manuelle', () => {
+    const mixed: AdminWalletRefundRequest[] = [{
+      id: 'x1', userId: 'u6', currency: 'XOF', amount: 15000, status: 'PROCESSING', requestedAt: '2026-10-28T10:00:00',
+      channel: 'AUTOMATIC_MIXED', userName: null, origin: 'WALLET', sourceRail: 'MIXED',
+    }, {
+      id: 'x2', userId: 'u7', currency: 'XOF', amount: 8000, status: 'PENDING', requestedAt: '2026-10-28T11:00:00',
+      channel: 'AUTOMATIC_MIXED', userName: null, origin: 'WALLET', sourceRail: 'MIXED',
+    }]
+    const w = mount(WalletRefundRequestsTable, { props: { requests: mixed, loading: false, busyId: null } })
+    expect(w.find('[data-test="wrr-channel-x1"]').text()).toBe('Carte et mobile money, automatique')
+    expect(w.find('[data-test="wrr-resolve-x2"]').exists()).toBe(false)
+  })
+
   it('aucun bouton sur un remboursement automatique, même en attente ; bouton sur le ticket manuel', () => {
     const w = mount(WalletRefundRequestsTable, { props: { requests: automatic, loading: false, busyId: null } })
     expect(w.find('[data-test="wrr-resolve-a1"]').exists()).toBe(false)
