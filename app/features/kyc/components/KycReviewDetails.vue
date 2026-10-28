@@ -8,7 +8,7 @@ import type { AdminKycDetail } from '@/features/users/types/index'
  * Partagé par la fiche latérale de /kyc et l'onglet KYC de la fiche utilisateur. Un ancien
  * back n'envoie ni décision ni historique : les sections se replient sans bruit.
  */
-defineProps<{ kyc: AdminKycDetail }>()
+defineProps<{ kyc: AdminKycDetail; hideProviderLink?: boolean }>()
 
 function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleString('fr-FR') : 'Date inconnue' }
 </script>
@@ -16,7 +16,7 @@ function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleStri
 <template>
   <div class="space-y-5">
     <a
-      v-if="kyc.providerSessionUrl" :href="kyc.providerSessionUrl" target="_blank" rel="noopener noreferrer"
+      v-if="kyc.providerSessionUrl && !hideProviderLink" :href="kyc.providerSessionUrl" target="_blank" rel="noopener noreferrer"
       data-test="kyc-provider-link"
       class="inline-flex items-center rounded-btn border border-border px-3 py-2 text-sm font-medium text-primary transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96]"
     >Voir la session chez le fournisseur</a>

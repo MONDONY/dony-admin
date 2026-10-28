@@ -94,6 +94,18 @@ function confirmReset(reason: string) {
   emit('reset', reason)
 }
 
+/**
+ * Raccourcis du poste /kyc (V, R) : ouvrent la fenêtre seulement si le bouton correspondant est
+ * disponible, avec les mêmes conditions que l'affichage (droit, dossier non validé, session chez le fournisseur).
+ */
+function startDecision(kind: 'approve' | 'reject') {
+  if (decision.busy.value || !canDecide.value || isVerified.value || !hasProviderSession.value) return
+  openDialog(kind)
+}
+/** Une fenêtre de saisie est ouverte : le poste suspend alors J / K, V et R. */
+const dialogOpen = () => mode.value !== null || resetOpen.value || withoutDocumentsOpen.value
+defineExpose({ startDecision, dialogOpen })
+
 const btn = 'rounded-btn px-4 py-2 text-sm font-medium transition-[background-color,scale] active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100'
 </script>
 
