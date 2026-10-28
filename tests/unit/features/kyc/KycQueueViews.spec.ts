@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import KycQueueTable from '@/features/kyc/components/KycQueueTable.vue'
+import KycQueue from '@/features/kyc/components/KycQueue.vue'
 import KycQueueFilters from '@/features/kyc/components/KycQueueFilters.vue'
 import KycReviewDetails from '@/features/kyc/components/KycReviewDetails.vue'
 
@@ -10,9 +10,11 @@ const ROW = {
   decidedByAdminEmail: null, submittedAt: '2026-09-25T10:00:00Z', waitingHours: 50,
 }
 
-describe('KycQueueTable', () => {
+describe('KycQueue', () => {
+  const groupsOf = (items: unknown[], key = 'ON_TIME') => [{ key, title: 'Dans les temps', items }] as never
+
   it('affiche la ligne, l’attente en rouge au-delà de 48 h et émet la sélection', async () => {
-    const w = mount(KycQueueTable, { props: { items: [ROW, { ...ROW, userId: 'u2', waitingHours: 3 }], loading: false } })
+    const w = mount(KycQueue, { props: { groups: groupsOf([ROW, { ...ROW, userId: 'u2', waitingHours: 3 }]), loading: false } })
     const row = w.find('[data-test="kyc-row-u1"]')
     expect(row.text()).toContain('Awa Diop')
     expect(row.text()).toContain('+221 77 *** ** 12')
@@ -23,30 +25,45 @@ describe('KycQueueTable', () => {
     expect(late.classes()).toContain('text-danger')
     expect(late.attributes('data-overdue')).toBe('true')
     expect(w.find('[data-test="kyc-waiting-u2"]').classes()).not.toContain('text-danger')
-    await row.trigger('click')
-    await w.find('[data-test="kyc-row-u2"]').trigger('keydown', { key: 'Enter' })
+    await w.find('[data-test="open-u1"]').trigger('click')
+    await w.find('[data-test="open-u2"]').trigger('click')
     expect(w.emitted('select')).toEqual([['u1'], ['u2']])
   })
 
-  it('affiche queueStatus quand le back l’envoie (Parcours en cours)', () => {
-    const w = mount(KycQueueTable, { props: { items: [{ ...ROW, kycStatus: 'PENDING', queueStatus: 'IN_PROGRESS', waitingHours: null }], loading: false } })
+  it('titre et compte de chaque groupe, ligne ouverte repérée', () => {
+    const w = mount(KycQueue, {
+      props: { groups: [{ key: 'OVERDUE', title: 'En retard', items: [ROW] }, { key: 'ON_TIME', title: 'Dans les temps', items: [{ ...ROW, userId: 'u2', waitingHours: 3 }] }] as never, loading: false, selectedId: 'u2' },
+    })
+    expect(w.find('[data-test="kyc-group-OVERDUE"]').text()).toContain('En retard')
+    expect(w.find('[data-test="kyc-group-ON_TIME"]').text()).toContain('Dans les temps')
+    expect(w.find('[data-test="kyc-row-u2"]').attributes('data-selected')).toBe('true')
+    expect(w.find('[data-test="kyc-row-u1"]').attributes('data-selected')).toBeUndefined()
+    expect(w.find('[data-test="open-u2"]').attributes('aria-current')).toBe('true')
+  })
+
+  it('affiche queueStatus quand le back l’envoie (Parcours en cours), sans attente', () => {
+    const w = mount(KycQueue, { props: { groups: groupsOf([{ ...ROW, kycStatus: 'PENDING', queueStatus: 'IN_PROGRESS', waitingHours: null }], 'ALL'), loading: false } })
     expect(w.find('[data-test="kyc-status-u1"]').text()).toBe('Parcours en cours')
-    expect(w.find('[data-test="kyc-waiting-u1"]').text()).toBe('Sans objet')
+    expect(w.find('[data-test="kyc-waiting-u1"]').exists()).toBe(false)
   })
 
   it('badge de décision admin et code de refus lisible', () => {
-    const w = mount(KycQueueTable, {
-      props: { items: [{ ...ROW, kycStatus: 'REJECTED', rejectionCode: 'document_expired', decisionKind: 'REJECTED' }], loading: false },
+    const w = mount(KycQueue, {
+      props: { groups: groupsOf([{ ...ROW, kycStatus: 'REJECTED', rejectionCode: 'document_expired', decisionKind: 'REJECTED' }], 'ALL'), loading: false },
     })
     expect(w.find('[data-test="kyc-decision-badge-u1"]').text()).toBe('Refusée par un admin')
     expect(w.find('[data-test="kyc-row-u1"]').text()).toContain('Document expiré')
   })
 
-  it('nom absent : repli lisible ; états chargement et vide', () => {
-    const w = mount(KycQueueTable, { props: { items: [{ ...ROW, userName: null, userPhone: null }], loading: false } })
+  it('nom absent : repli lisible ; états chargement, erreur et vide', async () => {
+    const w = mount(KycQueue, { props: { groups: groupsOf([{ ...ROW, userName: null, userPhone: null }]), loading: false } })
     expect(w.find('[data-test="kyc-row-u1"]').text()).toContain('Nom non renseigné')
-    expect(mount(KycQueueTable, { props: { items: [], loading: true } }).text()).toContain('Chargement')
-    expect(mount(KycQueueTable, { props: { items: [], loading: false } }).text()).toContain('Aucune vérification')
+    expect(mount(KycQueue, { props: { groups: [], loading: true } }).text()).toContain('Chargement')
+    expect(mount(KycQueue, { props: { groups: [], loading: false } }).text()).toContain('Aucune vérification')
+    const failed = mount(KycQueue, { props: { groups: [], loading: false, error: 'Base indisponible' } })
+    expect(failed.text()).toContain('Base indisponible')
+    await failed.find('[data-test="state-retry"]').trigger('click')
+    expect(failed.emitted('retry')).toHaveLength(1)
   })
 })
 

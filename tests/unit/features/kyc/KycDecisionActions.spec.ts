@@ -241,4 +241,44 @@ describe('KycDecisionActions', () => {
       expect(svc.approveKycWithoutDocuments).not.toHaveBeenCalled()
     })
   })
+
+  describe('raccourcis du poste', () => {
+    // eslint-disable-next-line no-unused-vars -- paramètre d'un type de fonction, pas une variable
+    type Exposed = { startDecision: (kind: 'approve' | 'reject') => void; dialogOpen: () => boolean }
+    const exposed = (w: ReturnType<typeof mountActions>) => w.vm as unknown as Exposed
+
+    it('startDecision ouvre la validation ou le refus quand le bouton est disponible', async () => {
+      const w = mountActions()
+      expect(exposed(w).dialogOpen()).toBe(false)
+      exposed(w).startDecision('approve')
+      await flushPromises()
+      expect(exposed(w).dialogOpen()).toBe(true)
+      expect(w.findComponent({ name: 'KycDecisionDialog' }).props('mode')).toBe('approve')
+      w.findComponent({ name: 'KycDecisionDialog' }).vm.$emit('cancel')
+      await flushPromises()
+      expect(exposed(w).dialogOpen()).toBe(false)
+      exposed(w).startDecision('reject')
+      await flushPromises()
+      expect(w.findComponent({ name: 'KycDecisionDialog' }).props('mode')).toBe('reject')
+    })
+
+    it('rien quand le bouton n’est pas offert : identité validée, aucune session, droit manquant', async () => {
+      const verified = mountActions(VERIFIED)
+      exposed(verified).startDecision('approve')
+      expect(exposed(verified).dialogOpen()).toBe(false)
+      const noSession = mountActions({ ...BASE, stripeSessionId: null })
+      exposed(noSession).startDecision('reject')
+      expect(exposed(noSession).dialogOpen()).toBe(false)
+      seedAuth('SUPPORT')
+      const support = mountActions()
+      exposed(support).startDecision('approve')
+      expect(exposed(support).dialogOpen()).toBe(false)
+    })
+
+    it('la réinitialisation ouverte compte comme une fenêtre ouverte', async () => {
+      const w = mountActions()
+      await w.find('[data-test="action-reset-kyc"]').trigger('click')
+      expect(exposed(w).dialogOpen()).toBe(true)
+    })
+  })
 })

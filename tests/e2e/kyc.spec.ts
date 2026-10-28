@@ -68,12 +68,14 @@ async function mockBackend(
   return state
 }
 
+/** Le premier dossier de la file s'ouvre seul ; attendre le dossier chargé avant tout clic (hydratation). */
 async function openRow(page: Page, id = 'u1') {
-  await page.locator(`[data-test="kyc-row-${id}"]`).click()
-  await expect(page.locator('[data-test="kyc-detail"]')).toBeVisible()
+  await expect(page.locator(`[data-test="kyc-row-${id}"]`)).toBeVisible()
+  await page.locator(`[data-test="open-${id}"]`).click()
+  await expect(page.locator('[data-test="kyc-actions"]')).toBeVisible()
 }
 
-test('file puis détail puis validation de l’identité', async ({ page }) => {
+test('file puis dossier puis validation de l’identité', async ({ page }) => {
   const state = await mockBackend(page)
   await page.goto('/kyc')
   await expect(page.locator('[data-test="kyc-tab-IN_REVIEW"]')).toHaveAttribute('aria-selected', 'true')
@@ -100,6 +102,21 @@ test('file puis détail puis validation de l’identité', async ({ page }) => {
   expect(state.posts).toEqual([{ path: '/api/v1/admin/users/u1/kyc/approve', body: { reason: 'Pièces contrôlées chez Didit, conformes.' } }])
   // La file est relue : la ligne validée n'est plus « en attente ».
   await expect(page.locator('[data-test="kyc-row-u1"]')).toHaveCount(0)
+  // Le dossier reste affiché, avec son nouveau statut.
+  await expect(page.locator('[data-test="kyc-case-title"]')).toHaveText('Awa Diop')
+  await expect(page.locator('[data-test="kyc-detail-status"]')).toContainText('Validée')
+})
+
+test('le dossier de tête s’ouvre seul, V ouvre la validation au clavier', async ({ page }) => {
+  await mockBackend(page)
+  await page.goto('/kyc')
+  await expect(page.locator('[data-test="kyc-case-title"]')).toHaveText('Awa Diop')
+  await expect(page.locator('[data-test="kyc-why-review"]')).toBeVisible()
+  await expect(page.locator('[data-test="summary-overdue"]')).toHaveText('1')
+  await expect(page.locator('[data-test="kyc-actions"]')).toBeVisible()
+  await page.keyboard.press('v')
+  await expect(page.locator('[data-test="kyc-dialog"]')).toBeVisible()
+  await expect(page.locator('[data-test="kyc-dialog-submit"]')).toContainText('Valider')
 })
 
 test('refus avec un code du catalogue et motif interne', async ({ page }) => {
@@ -159,7 +176,7 @@ test('ancien back sans la file : mention discrète', async ({ page }) => {
   await mockBackend(page, { queueMissing: true })
   await page.goto('/kyc')
   await expect(page.locator('[data-test="kyc-unavailable"]')).toHaveText('File des vérifications indisponible pour le moment')
-  await expect(page.locator('[data-test="kyc-error"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="state-error"]')).toHaveCount(0)
 })
 
 test('SUPPORT consulte la file sans aucun bouton de décision', async ({ page }) => {

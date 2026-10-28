@@ -8,6 +8,8 @@ export interface WorkbenchShortcutDeps {
   // eslint-disable-next-line no-unused-vars -- paramètres d'un type de fonction, pas des variables
   pick: (n: number) => void
   confirm: () => void
+  /** Lettres propres à un poste (clé en minuscule, ex. `v`) : même garde que J / K. */
+  keys?: Record<string, () => void>
 }
 
 /** Cases et boutons radio ne reçoivent pas de texte : les raccourcis y restent actifs. */
@@ -23,11 +25,11 @@ function isTyping(target: EventTarget | null): boolean {
 
 /**
  * Gestionnaire pur (testable sans navigateur) : J / K changent de signalement, 1 à 9 choisissent
- * l'action, ⏎ confirme (⌘⏎ ou Ctrl⏎ aussi depuis un champ de saisie). Ignoré dans un champ de
+ * l'action, `keys` ajoute des lettres propres à un poste, ⏎ confirme (⌘⏎ ou Ctrl⏎ aussi depuis un champ de saisie). Ignoré dans un champ de
  * saisie, avec Alt, et quand une fenêtre est ouverte. ⏎ sur un bouton ou un lien garde son
  * rôle natif : il ne doit pas confirmer en plus.
  */
-export function createWorkbenchKeyHandler({ enabled, move, pick, confirm }: WorkbenchShortcutDeps) {
+export function createWorkbenchKeyHandler({ enabled, move, pick, confirm, keys }: WorkbenchShortcutDeps) {
   return function onKey(e: KeyboardEvent) {
     if (!enabled() || e.altKey) return
     const modified = e.metaKey || e.ctrlKey
@@ -48,7 +50,9 @@ export function createWorkbenchKeyHandler({ enabled, move, pick, confirm }: Work
     }
     if (e.key === 'j' || e.key === 'J') { e.preventDefault(); move(1); return }
     if (e.key === 'k' || e.key === 'K') { e.preventDefault(); move(-1); return }
-    if (/^[1-9]$/.test(e.key)) { e.preventDefault(); pick(Number(e.key)) }
+    if (/^[1-9]$/.test(e.key)) { e.preventDefault(); pick(Number(e.key)); return }
+    const custom = keys?.[e.key.toLowerCase()]
+    if (custom) { e.preventDefault(); custom() }
   }
 }
 

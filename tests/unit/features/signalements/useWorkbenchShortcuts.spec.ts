@@ -33,6 +33,23 @@ describe('createWorkbenchKeyHandler', () => {
     expect(deps.pick).toHaveBeenCalledTimes(1)
   })
 
+  it('les lettres propres au poste (keys) agissent, majuscule comprise, avec la même garde', () => {
+    const v = vi.fn()
+    const withKeys = createWorkbenchKeyHandler({ ...deps, keys: { v } })
+    const first = key('V')
+    withKeys(first.e)
+    expect(v).toHaveBeenCalledTimes(1)
+    expect(first.prevented).toHaveBeenCalled()
+    withKeys(key('v', { metaKey: true }).e)
+    withKeys(key('v', {}, { tagName: 'TEXTAREA' }).e)
+    deps.enabled.mockReturnValue(false)
+    withKeys(key('v').e)
+    expect(v).toHaveBeenCalledTimes(1)
+    deps.enabled.mockReturnValue(true)
+    withKeys(key('x').e)
+    expect(v).toHaveBeenCalledTimes(1)
+  })
+
   it('⏎ confirme depuis la page', () => {
     onKey(key('Enter').e)
     expect(deps.confirm).toHaveBeenCalledTimes(1)

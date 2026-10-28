@@ -4,6 +4,11 @@ import { KYC_PROVIDERS, KYC_QUEUE_STATUS_TABS, kycProviderLabel } from '@/featur
 import type { KycProvider, KycQueueFilters, KycQueueStatus } from '@/features/kyc/types/index'
 
 const props = defineProps<{ filters: KycQueueFilters }>()
+
+/** Libellés courts : la file tient dans une colonne de 350 px. */
+const SHORT_LABELS: Record<KycQueueStatus, string> = {
+  IN_REVIEW: 'À décider', IN_PROGRESS: 'En cours', REJECTED: 'Refusées', VERIFIED: 'Validées', NOT_STARTED: 'Non commencées',
+}
 const emit = defineEmits<{
   'update:status': [KycQueueStatus]
   'update:provider': [KycProvider | null]
@@ -34,55 +39,56 @@ function clearDates() {
 </script>
 
 <template>
-  <div class="space-y-3 mb-4">
+  <div class="flex flex-col gap-2 border-b border-border p-3">
     <div class="flex flex-wrap gap-1" role="tablist" aria-label="Statut des vérifications">
       <button
         v-for="t in KYC_QUEUE_STATUS_TABS" :key="t.value" type="button" role="tab"
-        :data-test="`kyc-tab-${t.value}`" :aria-selected="filters.status === t.value"
-        :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
+        :data-test="`kyc-tab-${t.value}`" :aria-selected="filters.status === t.value" :title="t.label"
+        :class="['rounded-full px-3 py-1 text-sm transition-colors',
           filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
         @click="emit('update:status', t.value)"
-      >{{ t.label }}</button>
+      >{{ SHORT_LABELS[t.value] }}</button>
     </div>
 
+    <input
+      v-model="q" type="search" placeholder="Nom, identifiant, +221 77…" data-test="kyc-search"
+      aria-label="Rechercher un utilisateur"
+      class="w-full rounded-btn border border-border bg-bg px-3 py-1.5 text-sm"
+      @keyup.enter="emit('update:query', q)"
+      @search="emit('update:query', q)"
+    >
+
     <div class="flex flex-wrap items-center gap-2">
-      <label class="flex items-center gap-2 text-xs text-text-muted font-medium">
+      <label class="flex items-center gap-1.5 text-xs font-medium text-text-muted">
         Fournisseur
         <select
           data-test="kyc-provider" :value="filters.provider ?? ''"
-          class="rounded-btn border border-border bg-surface px-2 py-1.5 text-sm text-text"
+          class="rounded-btn border border-border bg-surface px-2 py-1 text-sm text-text"
           @change="onProvider"
         >
           <option value="">Tous</option>
           <option v-for="p in KYC_PROVIDERS" :key="p" :value="p">{{ kycProviderLabel(p) }}</option>
         </select>
       </label>
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-xs font-medium text-text-muted">Soumises du</span>
       <input
-        v-model="q" type="search" placeholder="Nom, identifiant, +221 77…" data-test="kyc-search"
-        aria-label="Rechercher un utilisateur"
-        class="rounded-btn border border-border bg-surface px-3 py-1.5 text-sm min-w-[240px]"
-        @keyup.enter="emit('update:query', q)"
-        @search="emit('update:query', q)"
+        v-model="dateFrom" type="date" data-test="kyc-date-from" aria-label="Soumises à partir du"
+        class="rounded-btn border border-border bg-surface px-2 py-1 text-sm"
+        @change="applyDates"
       >
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-text-muted font-medium">Soumises du</span>
-        <input
-          v-model="dateFrom" type="date" data-test="kyc-date-from" aria-label="Soumises à partir du"
-          class="rounded-btn border border-border bg-surface px-2 py-1 text-sm"
-          @change="applyDates"
-        >
-        <span class="text-xs text-text-muted font-medium">au</span>
-        <input
-          v-model="dateTo" type="date" data-test="kyc-date-to" aria-label="Soumises jusqu’au"
-          class="rounded-btn border border-border bg-surface px-2 py-1 text-sm"
-          @change="applyDates"
-        >
-        <button
-          v-if="filters.from || filters.to" type="button" data-test="kyc-dates-clear"
-          class="text-xs text-text-muted hover:text-text"
-          @click="clearDates"
-        >Effacer</button>
-      </div>
+      <span class="text-xs font-medium text-text-muted">au</span>
+      <input
+        v-model="dateTo" type="date" data-test="kyc-date-to" aria-label="Soumises jusqu’au"
+        class="rounded-btn border border-border bg-surface px-2 py-1 text-sm"
+        @change="applyDates"
+      >
+      <button
+        v-if="filters.from || filters.to" type="button" data-test="kyc-dates-clear"
+        class="text-xs text-text-muted hover:text-text"
+        @click="clearDates"
+      >Effacer</button>
     </div>
   </div>
 </template>

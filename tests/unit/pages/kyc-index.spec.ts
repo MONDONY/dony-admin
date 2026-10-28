@@ -1,7 +1,7 @@
 /**
- * Page /kyc : file des vérifications, fiche latérale, décisions et tolérance de l'ancien back.
+ * Page /kyc : poste de traitement (file, dossier, décision), raccourcis, liens profonds et tolérance de l'ancien back.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import { seedAuth } from '~/tests/helpers/auth'
@@ -12,7 +12,7 @@ vi.stubGlobal('useRouter', () => ({ replace: replaceMock }))
 let query: Record<string, string> = {}
 vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
 
-const kyc = vi.hoisted(() => ({ listVerifications: vi.fn() }))
+const kyc = vi.hoisted(() => ({ listVerifications: vi.fn(), listRejectionCodes: vi.fn() }))
 vi.mock('@/features/kyc/services/kycService', () => ({ kycService: kyc }))
 const users = vi.hoisted(() => ({ getKyc: vi.fn(), resetKyc: vi.fn(), approveKyc: vi.fn(), rejectKyc: vi.fn(), revokeKyc: vi.fn() }))
 vi.mock('@/features/users/services/usersService', () => ({ usersService: users }))
@@ -21,18 +21,23 @@ const ROW = {
   userId: 'u1', userName: 'Awa Diop', userPhone: '+221 77 *** ** 12', provider: 'DIDIT', kycStatus: 'IN_REVIEW',
   submittedAt: '2026-09-25T10:00:00Z', waitingHours: 50,
 }
+const ROW2 = { ...ROW, userId: 'u2', userName: 'Moussa Traoré', waitingHours: 3 }
 const DETAIL = {
   userId: 'u1', kycStatus: 'PENDING', verificationStatus: 'PENDING', stripeSessionId: 'sess_1', stripeUnavailable: false,
   provider: 'DIDIT', history: [],
 }
 const PAGE = { content: [ROW], totalElements: 1, totalPages: 1, number: 0, size: 20 }
+const PAGE2 = { content: [ROW2, ROW], totalElements: 2, totalPages: 1, number: 0, size: 20 }
 
+const mounted: { unmount: () => void }[] = []
 async function mountPage() {
   const mod = await import('@/pages/kyc/index.vue')
-  const w = mount(mod.default, { global: { stubs: { NuxtLink: { props: ['to'], template: '<a><slot /></a>' } } } })
+  const w = mount(mod.default, { global: { stubs: { NuxtLink: { props: ['to'], template: '<a :data-to="to"><slot /></a>' } } } })
+  mounted.push(w)
   await flushPromises()
   return w
 }
+const press = (key: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key }))
 
 describe('/kyc', () => {
   beforeEach(() => {
@@ -40,48 +45,111 @@ describe('/kyc', () => {
     seedAuth('ADMIN')
     query = {}
     kyc.listVerifications.mockResolvedValue(PAGE)
+    kyc.listRejectionCodes.mockResolvedValue(['document_expired', 'other'])
     users.getKyc.mockResolvedValue(DETAIL)
   })
+  // Le poste écoute le clavier : un montage oublié répondrait aux touches des tests suivants.
+  afterEach(() => { while (mounted.length) mounted.pop()!.unmount() })
 
-  it('charge la file « En attente de décision » et ouvre la fiche au clic', async () => {
+  it('charge la file « À décider » et ouvre tout de suite le premier dossier, sans toucher à l’URL', async () => {
     const w = await mountPage()
     expect(kyc.listVerifications.mock.calls[0][0].status).toBe('IN_REVIEW')
     expect(w.find('[data-test="kyc-total"]').text()).toContain('1')
-    await w.find('[data-test="kyc-row-u1"]').trigger('click')
-    await flushPromises()
     expect(users.getKyc).toHaveBeenCalledWith('u1')
-    expect(w.find('[data-test="kyc-detail"]').exists()).toBe(true)
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'u1' } })
-    await w.find('[data-test="kyc-detail-close"]').trigger('click')
-    expect(w.find('[data-test="kyc-detail"]').exists()).toBe(false)
-    expect(replaceMock).toHaveBeenLastCalledWith({ query: {} })
+    expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Awa Diop')
+    expect(w.find('[data-test="kyc-row-u1"]').attributes('data-selected')).toBe('true')
+    expect(replaceMock).not.toHaveBeenCalled()
+  })
+
+  it('un clic sur un autre dossier l’ouvre et l’écrit dans l’URL', async () => {
+    kyc.listVerifications.mockResolvedValue(PAGE2)
+    const w = await mountPage()
+    // en retard d'abord : u1 (50 h) avant u2 (3 h)
+    expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Awa Diop')
+    await w.find('[data-test="open-u2"]').trigger('click')
+    await flushPromises()
+    expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+    expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Moussa Traoré')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { open: 'u2' } })
+    // recliquer le dossier ouvert ne recharge rien
+    const calls = users.getKyc.mock.calls.length
+    await w.find('[data-test="open-u2"]').trigger('click')
+    expect(users.getKyc.mock.calls.length).toBe(calls)
+  })
+
+  it('synthèse : total, retards et plus longue attente ; masquée hors de « À décider »', async () => {
+    kyc.listVerifications.mockResolvedValue(PAGE2)
+    const w = await mountPage()
+    expect(w.find('[data-test="summary-total"]').text()).toBe('2')
+    expect(w.find('[data-test="summary-overdue"]').text()).toBe('1')
+    expect(w.find('[data-test="summary-longest"]').text()).toBe('2 j 2 h')
+    await w.find('[data-test="kyc-tab-VERIFIED"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-summary"]').exists()).toBe(false)
+  })
+
+  it('J et K parcourent la file, V ouvre la validation', async () => {
+    kyc.listVerifications.mockResolvedValue(PAGE2)
+    const w = await mountPage()
+    press('j')
+    await flushPromises()
+    expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+    press('k')
+    await flushPromises()
+    expect(users.getKyc).toHaveBeenLastCalledWith('u1')
+    press('v')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-reason"]').exists()).toBe(true)
+    expect(w.find('[data-test="kyc-dialog-submit"]').text()).toContain('Valider')
+  })
+
+  it('R ouvre le refus ; fenêtre ouverte, J ne change plus de dossier', async () => {
+    kyc.listVerifications.mockResolvedValue(PAGE2)
+    const w = await mountPage()
+    press('r')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-code"]').exists()).toBe(true)
+    const calls = users.getKyc.mock.calls.length
+    press('j')
+    await flushPromises()
+    expect(users.getKyc.mock.calls.length).toBe(calls)
+  })
+
+  it('V sans pouvoir décider (SUPPORT) ne fait rien', async () => {
+    seedAuth('SUPPORT')
+    const w = await mountPage()
+    press('v')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-reason"]').exists()).toBe(false)
   })
 
   it('navigation interne vers ?open= (clic sur une notification) alors que la page est ouverte', async () => {
+    kyc.listVerifications.mockResolvedValue(PAGE2)
     const route = reactive({ meta: {}, query: {} as Record<string, string> })
     vi.stubGlobal('useRoute', () => route)
     try {
-      const w = await mountPage()
-      expect(users.getKyc).not.toHaveBeenCalled()
-      route.query = { status: 'IN_REVIEW', open: 'u1' }
-      await flushPromises()
-      expect(users.getKyc).toHaveBeenCalledWith('u1')
-      expect(w.find('[data-test="kyc-detail"]').exists()).toBe(true)
-      // l'URL réécrite par la page elle-même (même id) ne recharge rien
-      route.query = { open: 'u1' }
-      await flushPromises()
+      await mountPage()
       expect(users.getKyc).toHaveBeenCalledTimes(1)
+      route.query = { status: 'IN_REVIEW', open: 'u2' }
+      await flushPromises()
+      expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+      expect(users.getKyc).toHaveBeenCalledTimes(2)
+      // même id : rien à recharger
+      route.query = { open: 'u2' }
+      await flushPromises()
+      expect(users.getKyc).toHaveBeenCalledTimes(2)
     } finally {
       vi.stubGlobal('useRoute', () => ({ meta: {}, query }))
     }
   })
 
-  it('lien profond ?status=REJECTED&open=u1', async () => {
-    query = { status: 'REJECTED', open: 'u1' }
+  it('lien profond ?status=REJECTED&open=u9 : ouvre ce dossier, pas le premier de la file', async () => {
+    query = { status: 'REJECTED', open: 'u9' }
     const w = await mountPage()
     expect(kyc.listVerifications.mock.calls[0][0].status).toBe('REJECTED')
-    expect(users.getKyc).toHaveBeenCalledWith('u1')
-    expect(w.find('[data-test="kyc-detail"]').exists()).toBe(true)
+    expect(users.getKyc).toHaveBeenCalledTimes(1)
+    expect(users.getKyc).toHaveBeenCalledWith('u9')
+    expect(w.find('[data-test="kyc-case"]').exists()).toBe(true)
   })
 
   it('un statut inconnu dans l’URL retombe sur la file par défaut', async () => {
@@ -90,11 +158,29 @@ describe('/kyc', () => {
     expect(kyc.listVerifications.mock.calls[0][0].status).toBe('IN_REVIEW')
   })
 
-  it('après une décision, la fiche est mise à jour et la file relue', async () => {
+  it('changer d’onglet ouvre le premier dossier de la nouvelle file et écrit le statut', async () => {
+    kyc.listVerifications.mockResolvedValueOnce(PAGE).mockResolvedValue({ ...PAGE, content: [ROW2] })
+    const w = await mountPage()
+    await w.find('[data-test="kyc-tab-REJECTED"]').trigger('click')
+    await flushPromises()
+    expect(kyc.listVerifications.mock.calls[1][0].status).toBe('REJECTED')
+    expect(users.getKyc).toHaveBeenLastCalledWith('u2')
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { status: 'REJECTED', open: 'u2' } })
+  })
+
+  it('onglet sans dossier : rien ne reste ouvert', async () => {
+    kyc.listVerifications.mockResolvedValueOnce(PAGE).mockResolvedValue({ ...PAGE, content: [], totalElements: 0 })
+    const w = await mountPage()
+    await w.find('[data-test="kyc-tab-VERIFIED"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-case-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="kyc-actions"]').exists()).toBe(false)
+    expect(replaceMock).toHaveBeenLastCalledWith({ query: { status: 'VERIFIED' } })
+  })
+
+  it('après une décision, le dossier est mis à jour, reste affiché et la file relue', async () => {
     users.approveKyc.mockResolvedValue({ ...DETAIL, kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED', decisionKind: 'APPROVED' })
     const w = await mountPage()
-    await w.find('[data-test="kyc-row-u1"]').trigger('click')
-    await flushPromises()
     await w.find('[data-test="kyc-approve"]').trigger('click')
     await w.find('[data-test="kyc-checked"]').setValue(true)
     await w.find('[data-test="kyc-reason"]').setValue('Pièces contrôlées chez Didit, conformes.')
@@ -103,13 +189,14 @@ describe('/kyc', () => {
     expect(kyc.listVerifications).toHaveBeenCalledTimes(2)
     expect(w.find('[data-test="kyc-decision"]').text()).toContain('Validée par un admin')
     expect(w.find('[data-test="kyc-revoke"]').exists()).toBe(true)
+    expect(w.find('[data-test="kyc-case-title"]').text()).toBe('Awa Diop')
+    // le statut du dossier suit la décision, pas l'instantané de la file
+    expect(w.find('[data-test="kyc-detail-status"]').text()).toContain('Validée')
   })
 
-  it('un conflit relit la fiche sans la vider', async () => {
+  it('un conflit relit le dossier sans le vider', async () => {
     users.rejectKyc.mockRejectedValue({ statusCode: 409, data: { code: 'kyc-already-verified', detail: 'Déjà vérifiée.' } })
     const w = await mountPage()
-    await w.find('[data-test="kyc-row-u1"]').trigger('click')
-    await flushPromises()
     users.getKyc.mockResolvedValue({ ...DETAIL, kycStatus: 'VERIFIED', verificationStatus: 'VERIFIED' })
     await w.find('[data-test="kyc-reject"]').trigger('click')
     await w.find('[data-test="kyc-code"]').setValue('other')
@@ -124,14 +211,23 @@ describe('/kyc', () => {
   it('réinitialiser relit la file', async () => {
     users.resetKyc.mockResolvedValue({ ...DETAIL, kycStatus: 'NOT_STARTED' })
     const w = await mountPage()
-    await w.find('[data-test="kyc-row-u1"]').trigger('click')
-    await flushPromises()
     await w.find('[data-test="action-reset-kyc"]').trigger('click')
     await w.find('[data-test="reason"]').setValue('Document illisible')
     await w.find('[data-test="confirm"]').trigger('click')
     await flushPromises()
     expect(users.resetKyc).toHaveBeenCalledWith('u1', 'Document illisible')
     expect(kyc.listVerifications).toHaveBeenCalledTimes(2)
+  })
+
+  it('une réinitialisation refusée s’affiche à côté des boutons, dossier conservé', async () => {
+    users.resetKyc.mockRejectedValue({ statusCode: 422, data: { detail: 'Réinitialisation impossible' } })
+    const w = await mountPage()
+    await w.find('[data-test="action-reset-kyc"]').trigger('click')
+    await w.find('[data-test="reason"]').setValue('Document illisible')
+    await w.find('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-reset-error"]').text()).toBe('Réinitialisation impossible')
+    expect(w.find('[data-test="kyc-case"]').exists()).toBe(true)
   })
 
   it('filtre et pagination', async () => {
@@ -149,21 +245,28 @@ describe('/kyc', () => {
     kyc.listVerifications.mockRejectedValue({ statusCode: 404, data: { detail: 'No endpoint matches this path' } })
     const w = await mountPage()
     expect(w.find('[data-test="kyc-unavailable"]').text()).toBe('File des vérifications indisponible pour le moment')
-    expect(w.find('[data-test="kyc-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="state-error"]').exists()).toBe(false)
   })
 
-  it('erreur de la file affichée', async () => {
+  it('erreur de la file affichée dans la file, avec Réessayer', async () => {
     kyc.listVerifications.mockRejectedValue({ statusCode: 500, data: { detail: 'Base indisponible' } })
     const w = await mountPage()
-    expect(w.find('[data-test="kyc-error"]').text()).toBe('Base indisponible')
+    expect(w.find('[data-test="state-error"]').text()).toContain('Base indisponible')
+    kyc.listVerifications.mockResolvedValue(PAGE)
+    await w.find('[data-test="state-retry"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="kyc-row-u1"]').exists()).toBe(true)
   })
 
-  it('SUPPORT consulte la fiche sans bouton de décision', async () => {
+  it('lien vers la fiche utilisateur', async () => {
+    const w = await mountPage()
+    expect(w.find('[data-test="kyc-user-link"]').attributes('data-to')).toBe('/users?open=u1')
+  })
+
+  it('SUPPORT consulte le dossier sans bouton de décision', async () => {
     seedAuth('SUPPORT')
     const w = await mountPage()
-    await w.find('[data-test="kyc-row-u1"]').trigger('click')
-    await flushPromises()
-    expect(w.find('[data-test="kyc-detail"]').exists()).toBe(true)
+    expect(w.find('[data-test="kyc-case"]').exists()).toBe(true)
     expect(w.find('[data-test="kyc-approve"]').exists()).toBe(false)
     expect(w.find('[data-test="kyc-reject"]').exists()).toBe(false)
   })
