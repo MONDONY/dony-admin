@@ -12,6 +12,12 @@ describe('libellés des mouvements', () => {
       expect(label).not.toContain('—')
     }
   })
+  it('nomme les mouvements de litige carte et les commissions de supplément et de modification', () => {
+    expect(walletTransactionTypeLabel('TOPUP_DISPUTED')).toBe('Recharge contestée (litige carte)')
+    expect(walletTransactionTypeLabel('TOPUP_DISPUTE_REVERSED')).toBe('Litige carte gagné : reprise rendue')
+    expect(walletTransactionTypeLabel('TOP_UP_CODE')).toBe('Code de recharge')
+    expect(WALLET_TRANSACTION_TYPES).toContain('AMENDMENT_COMMISSION_DEDUCTED')
+  })
   it('un type inconnu est affiché brut', () => {
     expect(walletTransactionTypeLabel('NOUVEAU_TYPE')).toBe('NOUVEAU_TYPE')
   })
