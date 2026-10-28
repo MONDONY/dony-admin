@@ -43,4 +43,21 @@ describe('gpProService', () => {
     await gpProService.revoke('u1', 'Plusieurs litiges récents')
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/gp-pro/revoke', { method: 'POST', body: { reason: 'Plusieurs litiges récents' } })
   })
+
+  it('un identifiant inattendu ne sort jamais de son segment de chemin', async () => {
+    await gpProService.getApplication('../../x?y=1')
+    await gpProService.approve('a/b')
+    await gpProService.reject('a/b', 'Profil trop récent')
+    await gpProService.dismissFlag('f/../1')
+    await gpProService.grant('u/1', null)
+    await gpProService.revoke('u/1', 'Motif suffisamment long')
+    expect(apiMock.mock.calls.map((c) => c[0])).toEqual([
+      '/admin/gp-pro/applications/..%2F..%2Fx%3Fy%3D1',
+      '/admin/gp-pro/applications/a%2Fb/approve',
+      '/admin/gp-pro/applications/a%2Fb/reject',
+      '/admin/gp-pro/review-flags/f%2F..%2F1/dismiss',
+      '/admin/users/u%2F1/gp-pro/grant',
+      '/admin/users/u%2F1/gp-pro/revoke',
+    ])
+  })
 })
