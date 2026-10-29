@@ -5,11 +5,15 @@ import { seedAuth } from '~/tests/helpers/auth'
 const getMock = vi.fn()
 const listMock = vi.fn()
 const adjustMock = vi.fn()
+const holdsMock = vi.fn()
+const releaseMock = vi.fn()
 vi.mock('@/features/wallet/services/walletService', () => ({
   walletService: {
     getUserWallet: (...a: unknown[]) => getMock(...a),
     listTransactions: (...a: unknown[]) => listMock(...a),
     adjust: (...a: unknown[]) => adjustMock(...a),
+    listExternalRefundHolds: (...a: unknown[]) => holdsMock(...a),
+    releaseExternalRefundHold: (...a: unknown[]) => releaseMock(...a),
   },
 }))
 import UserWalletTab from '@/features/wallet/components/UserWalletTab.vue'
@@ -56,6 +60,8 @@ describe('UserWalletTab', () => {
     getMock.mockReset().mockResolvedValue(ACCOUNTS)
     listMock.mockReset().mockResolvedValue(TXS)
     adjustMock.mockReset()
+    holdsMock.mockReset().mockResolvedValue([])
+    releaseMock.mockReset()
   })
 
   it('affiche un solde par devise, la part remboursable et le badge Gelé', async () => {
@@ -246,5 +252,79 @@ describe('UserWalletTab', () => {
   it('aucun texte affiché ne contient de tiret cadratin', async () => {
     const w = await mountTab()
     expect(w.text()).not.toContain('—')
+  })
+
+  describe('gels après une recharge remboursée hors de l’app', () => {
+    const OPEN_HOLD = {
+      id: 'h1', currency: 'EUR', amount: 25, paymentIntentId: 'pi_1', stripeRefundId: 're_1', status: 'OPEN',
+      createdAt: '2026-10-29T09:00:00Z',
+    }
+    const RELEASED_HOLD = {
+      id: 'h0', currency: 'EUR', amount: 10, paymentIntentId: 'pi_0', stripeRefundId: 're_0', status: 'RELEASED',
+      createdAt: '2026-10-01T09:00:00Z', releasedAt: '2026-10-02T09:00:00Z', releasedByEmail: 'ops@yadony.com',
+      releaseNote: 'Solde débité de 10 €',
+    }
+
+    it('aucun gel : pas de section', async () => {
+      const w = await mountTab()
+      expect(holdsMock).toHaveBeenCalledWith('u1')
+      expect(w.find('[data-test="wallet-holds"]').exists()).toBe(false)
+    })
+
+    it('ancien back (404) : section absente, sans erreur', async () => {
+      holdsMock.mockRejectedValue(Object.assign(new Error('404'), { statusCode: 404, response: { status: 404 } }))
+      const w = await mountTab()
+      expect(w.find('[data-test="wallet-holds"]').exists()).toBe(false)
+      expect(w.find('[data-test="wallet-error"]').exists()).toBe(false)
+    })
+
+    it('gel actif et gel levé : montants, statuts, auteur et note de la levée', async () => {
+      holdsMock.mockResolvedValue([OPEN_HOLD, RELEASED_HOLD])
+      const w = await mountTab()
+      const open = w.get('[data-test="wallet-hold-h1"]').text().replace(/\s/g, ' ')
+      expect(open).toContain('25,00')
+      expect(open).toContain('Gel actif')
+      expect(open).toContain('re_1')
+      const released = w.get('[data-test="wallet-hold-h0"]').text()
+      expect(released).toContain('Gel levé')
+      expect(released).toContain('ops@yadony.com')
+      expect(released).toContain('Solde débité de 10 €')
+      expect(w.find('[data-test="wallet-hold-release-h0"]').exists()).toBe(false)
+    })
+
+    it('lever le gel : note obligatoire, appel puis relecture des soldes et des gels', async () => {
+      holdsMock.mockResolvedValue([OPEN_HOLD])
+      releaseMock.mockResolvedValue({ ...OPEN_HOLD, status: 'RELEASED' })
+      const w = await mountTab()
+      await w.get('[data-test="wallet-hold-release-h1"]').trigger('click')
+      expect(w.get('[data-test="confirm"]').attributes('disabled')).toBeDefined()
+      await w.get('[data-test="reason"]').setValue('Solde débité de 25 €')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(releaseMock).toHaveBeenCalledWith('u1', 'h1', 'Solde débité de 25 €')
+      expect(holdsMock).toHaveBeenCalledTimes(2)
+      expect(getMock).toHaveBeenCalledTimes(2)
+      expect(w.get('[data-test="wallet-holds-success"]').text()).toContain('Gel levé')
+    })
+
+    it('levée refusée (déjà levé) : message gardé après la relecture', async () => {
+      holdsMock.mockResolvedValue([OPEN_HOLD])
+      releaseMock.mockRejectedValue(Object.assign(new Error('409'), { data: { detail: 'Ce gel a déjà été levé' } }))
+      const w = await mountTab()
+      await w.get('[data-test="wallet-hold-release-h1"]').trigger('click')
+      await w.get('[data-test="reason"]').setValue('x')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.get('[data-test="wallet-holds-error"]').text()).toContain('déjà été levé')
+      expect(getMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('sans WALLET_ADJUST (SUPPORT) : gel visible, pas de bouton de levée', async () => {
+      seedAuth('SUPPORT')
+      holdsMock.mockResolvedValue([OPEN_HOLD])
+      const w = await mountTab()
+      expect(w.find('[data-test="wallet-hold-h1"]').exists()).toBe(true)
+      expect(w.find('[data-test="wallet-hold-release-h1"]').exists()).toBe(false)
+    })
   })
 })

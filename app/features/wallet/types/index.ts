@@ -143,3 +143,21 @@ export function formatSignedAmount(amount: number, currency: string): string {
  * conservé pour ne pas toucher aux appels du lot 2.
  */
 export const isWalletEndpointMissing = isEndpointMissing
+
+/**
+ * Gel d'une devise après qu'une recharge a été remboursée hors de l'app (tableau de bord Stripe).
+ * OPEN : dépenses, remboursements et crédits refusés ; seul un débit admin passe, pour régulariser.
+ */
+export interface AdminExternalRefundHold {
+  id: string
+  currency: string
+  /** Unités principales, comme les soldes. */
+  amount: number
+  paymentIntentId: string
+  stripeRefundId: string
+  status: 'OPEN' | 'RELEASED'
+  createdAt: string
+  releasedAt?: string | null
+  releasedByEmail?: string | null
+  releaseNote?: string | null
+}

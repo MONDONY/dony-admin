@@ -1,6 +1,6 @@
 import { useApi } from '@/composables/useApi'
 import type {
-  AdminUserWallet, AdminWalletAdjustmentRequest, AdminWalletAdjustmentRequestPage, AdminWalletTransactionPage,
+  AdminExternalRefundHold, AdminUserWallet, AdminWalletAdjustmentRequest, AdminWalletAdjustmentRequestPage, AdminWalletTransactionPage,
   WalletAdjustmentRequest, WalletAdjustmentRequestStatus, WalletAdjustmentResult, WalletTransactionFilters,
 } from '@/features/wallet/types/index'
 
@@ -24,6 +24,17 @@ export const walletService = {
       method: 'POST',
       body,
       headers: { 'Idempotency-Key': idempotencyKey },
+    })
+  },
+  /** Gels posés après un remboursement Stripe fait hors de l'app (PAYMENT_VIEW). */
+  listExternalRefundHolds(userId: string): Promise<AdminExternalRefundHold[]> {
+    return useApi()<AdminExternalRefundHold[]>(`/admin/users/${userId}/wallet/external-refund-holds`)
+  },
+  /** Levée d'un gel une fois le solde régularisé (WALLET_ADJUST, note obligatoire). */
+  releaseExternalRefundHold(userId: string, holdId: string, note: string): Promise<AdminExternalRefundHold> {
+    return useApi()<AdminExternalRefundHold>(`/admin/users/${userId}/wallet/external-refund-holds/${holdId}/release`, {
+      method: 'POST',
+      body: { note },
     })
   },
   /** File d'approbation des corrections au-delà du seuil (WALLET_ADJUST). */
