@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { topupCodesService } from '@/features/topup-codes/services/topupCodesService'
-import { formatTopupAmount, parseUtc, type AdminTopupCode, type TopupCodeRedemption } from '@/features/topup-codes/types/index'
+import { displayCode, formatTopupAmount, parseUtc, type AdminTopupCode, type TopupCodeRedemption } from '@/features/topup-codes/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'
 
 const props = defineProps<{ code: AdminTopupCode | null }>()
@@ -33,7 +33,7 @@ function fmtDateTime(d: string) { return parseUtc(d).toLocaleString('fr-FR') }
 <template>
   <div v-if="code" class="fixed inset-0 z-40 flex justify-end bg-black/30" data-test="topup-redemptions" @click.self="emit('close')">
     <aside class="h-full w-full max-w-xl bg-surface border-l border-border overflow-y-auto p-6">
-      <h2 class="font-display text-xl font-bold font-mono">{{ code.code }}</h2>
+      <h2 class="font-display text-xl font-bold font-mono">{{ displayCode(code) }}</h2>
       <p class="text-sm text-text-muted mb-4 tabular-nums">
         {{ formatTopupAmount(code.amount, code.currency) }} · {{ code.redeemedCount }} / {{ code.maxRedemptions }} utilisations
       </p>

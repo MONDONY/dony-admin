@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { TOPUP_CURRENCIES, type TopupCodeInput } from '@/features/topup-codes/types/index'
+import { MANUAL_CODE_MIN_ALPHANUMERIC, TOPUP_CURRENCIES, codeAlphanumericLength, type TopupCodeInput } from '@/features/topup-codes/types/index'
 
 const props = defineProps<{ generate: () => Promise<string> }>()
 const emit = defineEmits<{ submit: [input: TopupCodeInput]; cancel: [] }>()
@@ -14,7 +14,13 @@ const note = ref('')
 const generating = ref(false)
 
 const parsedAmount = computed(() => Number(String(amount.value).replace(',', '.').trim()))
-const canSubmit = computed(() => Number.isFinite(parsedAmount.value) && parsedAmount.value > 0 && Number(quantity.value) >= 1)
+/** Un code saisi doit compter 10 lettres ou chiffres ; vide, le back en génère un. */
+const codeTooShort = computed(() => {
+  const n = codeAlphanumericLength(code.value)
+  return code.value.trim().length > 0 && n < MANUAL_CODE_MIN_ALPHANUMERIC
+})
+const canSubmit = computed(() => Number.isFinite(parsedAmount.value) && parsedAmount.value > 0
+  && Number(quantity.value) >= 1 && !codeTooShort.value)
 
 async function onGenerate() {
   generating.value = true
@@ -53,6 +59,10 @@ function onSubmit() {
             @click="onGenerate"
           >Générer</button>
         </div>
+        <span
+          :class="['mt-1 block text-xs', codeTooShort ? 'text-danger' : 'text-text-muted']"
+          data-test="topup-code-rule"
+        >Au moins {{ MANUAL_CODE_MIN_ALPHANUMERIC }} lettres ou chiffres. Le code ne sera affiché qu’une fois, à la création.</span>
       </label>
 
       <div class="flex gap-3">

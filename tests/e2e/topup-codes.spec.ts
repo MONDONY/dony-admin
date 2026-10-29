@@ -40,4 +40,8 @@ test('admin creates a topup code', async ({ page }) => {
   const postBody = JSON.parse(calls.find((c) => c.method === 'POST')!.body)
   expect(postBody).toMatchObject({ amount: 2000, currency: 'XOF' })
   await expect(page.locator('[data-test="topup-overlay"]')).toHaveCount(0)
+  // Le code n'est connu qu'à la création : il est montré une fois, puis la fenêtre se ferme.
+  await expect(page.locator('[data-test="topup-issued-code"]')).toHaveText('NOUVEAU2000')
+  await page.locator('[data-test="topup-issued-close"]').click()
+  await expect(page.locator('[data-test="topup-issued"]')).toHaveCount(0)
 })

@@ -4,7 +4,13 @@ export type TopupCodeDisplayStatus = 'ACTIVE' | 'EXPIRED' | 'EXHAUSTED' | 'REVOK
 
 export interface AdminTopupCode {
   id: string
-  code: string
+  /**
+   * Code en clair : le back le stocke haché et ne le renvoie que dans la réponse de création.
+   * Absent de la liste et du détail (un back antérieur le renvoyait encore partout).
+   */
+  code?: string | null
+  /** Fin du code, seule partie lisible après la création. */
+  codeHint?: string | null
   /** Unités principales (2000 = 2 000 XOF ; 10 = 10,00 EUR). */
   amount: number
   currency: string
@@ -42,6 +48,20 @@ export interface TopupCodeInput {
 
 export interface TopupCodeFilterState {
   status: TopupCodeDisplayStatus | null
+}
+
+/** Minimum de lettres ou chiffres d'un code saisi à la main (les tirets ne comptent pas). */
+export const MANUAL_CODE_MIN_ALPHANUMERIC = 10
+
+/** Lettres et chiffres d'un code, sans tirets ni espaces. */
+export function codeAlphanumericLength(code: string): number {
+  return code.replace(/[^A-Za-z0-9]/g, '').length
+}
+
+/** Code tel qu'affiché : en entier quand il est connu, sinon masqué avec sa fin (« •••• MENT »). */
+export function displayCode(c: Pick<AdminTopupCode, 'code' | 'codeHint'>): string {
+  if (c.code) return c.code
+  return c.codeHint ? `•••• ${c.codeHint}` : '••••'
 }
 
 export const TOPUP_CURRENCIES = ['XOF', 'XAF', 'EUR', 'USD', 'CAD', 'GBP', 'CHF'] as const

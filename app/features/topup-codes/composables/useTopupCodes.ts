@@ -44,9 +44,11 @@ export function useTopupCodes() {
 
   function goToPage(p: number) { currentPage.value = p }
   function setStatusFilter(v: TopupCodeDisplayStatus | null) { filters.status = v; currentPage.value = 0 }
-  async function create(input: TopupCodeInput) {
-    await guarded('Impossible de créer le code', () => topupCodesService.create(input))
+  /** Renvoie le code créé : sa réponse est la seule à porter le code en clair. */
+  async function create(input: TopupCodeInput): Promise<AdminTopupCode> {
+    const created = await guarded('Impossible de créer le code', () => topupCodesService.create(input))
     await fetchCodes()
+    return created
   }
   async function revoke(id: string) {
     await guarded('Impossible de révoquer le code', () => topupCodesService.revoke(id))
