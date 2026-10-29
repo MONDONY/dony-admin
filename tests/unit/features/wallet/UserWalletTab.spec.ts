@@ -271,6 +271,13 @@ describe('UserWalletTab', () => {
       expect(w.find('[data-test="wallet-holds"]').exists()).toBe(false)
     })
 
+    it('réponse qui n’est pas une liste (page, proxy) : aucun gel, onglet intact', async () => {
+      holdsMock.mockResolvedValue({ content: [], totalPages: 0 })
+      const w = await mountTab()
+      expect(w.find('[data-test="wallet-holds"]').exists()).toBe(false)
+      expect(w.find('[data-test="wallet-account-EUR"]').exists()).toBe(true)
+    })
+
     it('ancien back (404) : section absente, sans erreur', async () => {
       holdsMock.mockRejectedValue(Object.assign(new Error('404'), { statusCode: 404, response: { status: 404 } }))
       const w = await mountTab()

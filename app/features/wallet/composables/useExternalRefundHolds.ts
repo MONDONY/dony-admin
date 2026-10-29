@@ -19,7 +19,9 @@ export function useExternalRefundHolds(userId: string) {
   async function load(keepMessages = false) {
     if (!keepMessages) error.value = null
     try {
-      holds.value = await walletService.listExternalRefundHolds(userId)
+      const result = await walletService.listExternalRefundHolds(userId)
+      // Toute autre forme (page, objet d'erreur d'un proxy) vaut « aucun gel » : jamais d'écran cassé.
+      holds.value = Array.isArray(result) ? result : []
     } catch (e) {
       holds.value = []
       if (!isWalletEndpointMissing(e)) error.value = extractProblemMessage(e, 'Impossible de charger les gels du portefeuille')
