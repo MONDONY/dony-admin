@@ -36,4 +36,19 @@ describe('walletService', () => {
       headers: { 'Idempotency-Key': 'key-123' },
     })
   })
+
+  it('listExternalRefundHolds lit les gels de l’utilisateur', async () => {
+    apiMock.mockResolvedValue([])
+    await walletService.listExternalRefundHolds('u1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/wallet/external-refund-holds')
+  })
+
+  it('releaseExternalRefundHold POSTe la note de régularisation', async () => {
+    apiMock.mockResolvedValue({ id: 'h1', status: 'RELEASED' })
+    await walletService.releaseExternalRefundHold('u1', 'h1', 'Solde débité de 25 €')
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/wallet/external-refund-holds/h1/release', {
+      method: 'POST',
+      body: { note: 'Solde débité de 25 €' },
+    })
+  })
 })

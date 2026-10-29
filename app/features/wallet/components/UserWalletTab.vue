@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
+import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import WalletAdjustmentDialog from './WalletAdjustmentDialog.vue'
 import { useUserWallet } from '@/features/wallet/composables/useUserWallet'
 import { useWalletAdjustment } from '@/features/wallet/composables/useWalletAdjustment'
+import { useExternalRefundHolds } from '@/features/wallet/composables/useExternalRefundHolds'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import {
   formatSignedAmount, isAdjustmentTransaction, walletTransactionTypeLabel, WALLET_ADJUSTMENT_APPROVAL_THRESHOLD_EUR,
   WALLET_TRANSACTION_TYPES,
 } from '@/features/wallet/types/index'
-import type { WalletAdjustmentRequest } from '@/features/wallet/types/index'
+import type { AdminExternalRefundHold, WalletAdjustmentRequest } from '@/features/wallet/types/index'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ userId: string }>()
 const auth = useAuthStore()
 const wallet = useUserWallet(props.userId)
 const adjustment = useWalletAdjustment(props.userId)
+const holds = useExternalRefundHolds(props.userId)
+const pendingRelease = ref<AdminExternalRefundHold | null>(null)
 
 const dialogOpen = ref(false)
 const success = ref<string | null>(null)
@@ -58,9 +62,15 @@ function onTypeFilter(e: Event) {
   void wallet.setTypeFilter(v || null)
 }
 
+async function confirmRelease(note: string) {
+  const target = pendingRelease.value
+  pendingRelease.value = null
+  if (target && await holds.release(target.id, note)) await wallet.refresh()
+}
+
 function fmtDate(d: string) { return new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) }
 
-onMounted(wallet.load)
+onMounted(() => { void wallet.load(); void holds.load() })
 </script>
 
 <template>
@@ -101,13 +111,53 @@ onMounted(wallet.load)
               <span
                 v-if="a.frozen" data-test="wallet-frozen"
                 class="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning"
-                title="Une demande de remboursement est en cours"
+                title="Devise gelée : remboursement en cours, contestation bancaire ou recharge remboursée hors de l’app"
               >Gelé</span>
             </div>
             <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatMajorAmount(a.balance, a.currency) }}</p>
             <p data-test="wallet-refundable" class="text-xs text-text-muted tabular-nums">
               Remboursable : {{ a.refundEligibleAmount == null ? 'non calculable' : formatMajorAmount(a.refundEligibleAmount, a.currency) }}
             </p>
+          </li>
+        </ul>
+      </div>
+
+      <div v-if="holds.holds.value.length > 0 || holds.error.value" data-test="wallet-holds">
+        <h3 class="mb-1 text-sm font-semibold">Recharges remboursées hors de l’app</h3>
+        <p v-if="holds.openHolds.value.length > 0" class="mb-2 text-xs text-text-muted text-pretty">
+          La devise reste gelée. Débitez le montant remboursé avec « Corriger le solde » (sauf si une demande de
+          remboursement en cours le débite déjà), puis levez le gel.
+        </p>
+        <p
+          v-if="holds.error.value" data-test="wallet-holds-error" role="alert"
+          class="mb-2 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+        >{{ holds.error.value }}</p>
+        <p
+          v-if="holds.success.value" data-test="wallet-holds-success" role="status"
+          class="mb-2 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
+        >{{ holds.success.value }}</p>
+        <ul class="divide-y divide-border rounded-card border border-border">
+          <li v-for="h in holds.holds.value" :key="h.id" :data-test="`wallet-hold-${h.id}`" class="px-3 py-2 text-sm">
+            <div class="flex items-baseline justify-between gap-3">
+              <span class="font-medium tabular-nums">{{ formatMajorAmount(h.amount, h.currency) }}</span>
+              <span
+                :class="['rounded-full px-2 py-0.5 text-xs font-medium',
+                  h.status === 'OPEN' ? 'bg-warning/15 text-warning' : 'bg-surface-elevated text-text-muted']"
+              >{{ h.status === 'OPEN' ? 'Gel actif' : 'Gel levé' }}</span>
+            </div>
+            <p class="text-xs text-text-muted tabular-nums">
+              Remboursé le {{ fmtDate(h.createdAt) }} · Stripe {{ h.stripeRefundId }}
+            </p>
+            <p v-if="h.status === 'RELEASED'" class="mt-1 text-xs text-text-muted text-pretty break-words">
+              Levé {{ h.releasedAt ? `le ${fmtDate(h.releasedAt)}` : '' }}
+              {{ h.releasedByEmail ? `par ${h.releasedByEmail}` : '' }}{{ h.releaseNote ? ` : ${h.releaseNote}` : '' }}
+            </p>
+            <button
+              v-if="h.status === 'OPEN' && auth.can('WALLET_ADJUST')" type="button" :data-test="`wallet-hold-release-${h.id}`"
+              :disabled="holds.busyId.value === h.id"
+              class="mt-2 rounded-btn border border-border px-3 py-1.5 text-sm hover:bg-surface-elevated disabled:opacity-40"
+              @click="pendingRelease = h"
+            >Lever le gel</button>
           </li>
         </ul>
       </div>
@@ -169,6 +219,13 @@ onMounted(wallet.load)
         </div>
       </div>
     </template>
+
+    <ConfirmActionDialog
+      :open="pendingRelease !== null" title="Lever le gel"
+      message="Le solde a-t-il été régularisé ? Indiquez comment : la devise pourra de nouveau être dépensée."
+      confirm-label="Lever le gel" require-reason
+      @confirm="confirmRelease" @cancel="pendingRelease = null"
+    />
 
     <WalletAdjustmentDialog
       :open="dialogOpen" :accounts="wallet.accounts.value"
