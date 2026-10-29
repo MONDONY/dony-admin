@@ -38,6 +38,15 @@ describe('exchangeRatesService', () => {
     expect(res.updatedBy).toBe('admin-uuid')
   })
 
+  it('update() confirmé : envoie confirmLargeChange', async () => {
+    apiMock.mockResolvedValue({ currency: 'USD', unitsPerEur: 0.5, updatedAt: null, updatedBy: null })
+    await exchangeRatesService.update('USD', 0.5, true)
+    expect(apiMock).toHaveBeenCalledWith('/admin/exchange-rates/USD', {
+      method: 'PUT',
+      body: { unitsPerEur: 0.5, confirmLargeChange: true },
+    })
+  })
+
   it('sync() POST /admin/exchange-rates/sync et renvoie le nombre de devises mises à jour', async () => {
     apiMock.mockResolvedValue({ updated: 3 })
     const res = await exchangeRatesService.sync()

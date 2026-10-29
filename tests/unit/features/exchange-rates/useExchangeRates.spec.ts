@@ -35,7 +35,7 @@ describe('useExchangeRates', () => {
 
     await p.update('USD', 1.1)
 
-    expect(svc.update).toHaveBeenCalledWith('USD', 1.1)
+    expect(svc.update).toHaveBeenCalledWith('USD', 1.1, false)
     expect(svc.list).toHaveBeenCalledTimes(1)
     expect(p.rates.value).toHaveLength(3)
     expect(p.rates.value[1]).toEqual(updated)
@@ -170,6 +170,41 @@ describe('useExchangeRates', () => {
       expect(svc.list).not.toHaveBeenCalled()
       expect(p.syncing.value).toBe(false)
     })
+  })
+
+  it('écart de plus de 10 % : demande une confirmation au lieu d’une erreur, puis applique', async () => {
+    svc.list.mockResolvedValue([eur, usd, xof])
+    svc.update.mockRejectedValueOnce({
+      statusCode: 422,
+      data: { code: 'exchange-rate-large-change', detail: 'écart', currentRate: '1.08', changePercent: '99.0' },
+    })
+    const p = useExchangeRates()
+    await p.load()
+
+    await p.update('USD', 0.0108)
+
+    expect(p.error.value).toBeNull()
+    expect(p.largeChange.value).toEqual({ currency: 'USD', unitsPerEur: 0.0108, currentRate: '1.08', changePercent: '99.0' })
+
+    svc.update.mockResolvedValueOnce({ ...usd, unitsPerEur: 0.0108 })
+    await p.confirmLargeChange()
+
+    expect(svc.update).toHaveBeenLastCalledWith('USD', 0.0108, true)
+    expect(p.largeChange.value).toBeNull()
+    expect(p.rates.value[1].unitsPerEur).toBe(0.0108)
+  })
+
+  it('confirmation annulée : rien n’est envoyé', async () => {
+    svc.list.mockResolvedValue([usd])
+    svc.update.mockRejectedValueOnce({ statusCode: 422, data: { code: 'exchange-rate-large-change', currentRate: '1.08', changePercent: '20.0' } })
+    const p = useExchangeRates()
+    await p.load()
+    await p.update('USD', 1.3)
+
+    p.cancelLargeChange()
+
+    expect(p.largeChange.value).toBeNull()
+    expect(svc.update).toHaveBeenCalledTimes(1)
   })
 })
 

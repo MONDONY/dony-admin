@@ -1,7 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import type {
-  AdminUserWallet, AdminWalletTransactionPage, WalletAdjustmentRequest, WalletAdjustmentResult,
-  WalletTransactionFilters,
+  AdminUserWallet, AdminWalletAdjustmentRequest, AdminWalletAdjustmentRequestPage, AdminWalletTransactionPage,
+  WalletAdjustmentRequest, WalletAdjustmentRequestStatus, WalletAdjustmentResult, WalletTransactionFilters,
 } from '@/features/wallet/types/index'
 
 /** Portefeuille d'un utilisateur vu par l'admin : lecture (PAYMENT_VIEW) et correction (WALLET_ADJUST). */
@@ -24,6 +24,19 @@ export const walletService = {
       method: 'POST',
       body,
       headers: { 'Idempotency-Key': idempotencyKey },
+    })
+  },
+  /** File d'approbation des corrections au-delà du seuil (WALLET_ADJUST). */
+  listAdjustmentRequests(status: WalletAdjustmentRequestStatus, page: number, size: number): Promise<AdminWalletAdjustmentRequestPage> {
+    return useApi()<AdminWalletAdjustmentRequestPage>('/admin/wallet-adjustment-requests', { query: { status, page, size } })
+  },
+  approveAdjustmentRequest(id: string): Promise<WalletAdjustmentResult> {
+    return useApi()<WalletAdjustmentResult>(`/admin/wallet-adjustment-requests/${id}/approve`, { method: 'POST' })
+  },
+  rejectAdjustmentRequest(id: string, note: string): Promise<AdminWalletAdjustmentRequest> {
+    return useApi()<AdminWalletAdjustmentRequest>(`/admin/wallet-adjustment-requests/${id}/reject`, {
+      method: 'POST',
+      body: { note },
     })
   },
 }
