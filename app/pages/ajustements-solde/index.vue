@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useAdjustmentApprovals } from '@/features/wallet/composables/useAdjustmentApprovals'
@@ -19,6 +19,8 @@ const pendingApprove = ref<AdminWalletAdjustmentRequest | null>(null)
 
 /** Le back refuse aussi (403) : le bouton l'annonce avant le clic. */
 const isOwn = (r: AdminWalletAdjustmentRequest) => r.requestedBy === auth.user?.id
+/** L'auteur peut retirer sa propre demande : même appel que le rejet, libellés adaptés. */
+const rejectingOwn = computed(() => pendingReject.value !== null && isOwn(pendingReject.value))
 
 async function confirmApprove() {
   const target = pendingApprove.value
@@ -100,7 +102,7 @@ onMounted(() => approvals.load(0))
                   :disabled="approvals.busyId.value === r.id"
                   class="rounded-btn px-3 py-1.5 text-sm border border-border hover:bg-surface-elevated disabled:opacity-40"
                   @click="pendingReject = r"
-                >Rejeter</button>
+                >{{ isOwn(r) ? 'Retirer' : 'Rejeter' }}</button>
               </div>
             </td>
           </tr>
@@ -121,9 +123,12 @@ onMounted(() => approvals.load(0))
       @confirm="confirmApprove" @cancel="pendingApprove = null"
     />
     <ConfirmActionDialog
-      :open="pendingReject !== null" title="Rejeter la correction"
-      message="Rien ne sera écrit sur le solde. Indiquez pourquoi à l'auteur de la demande."
-      confirm-label="Rejeter" require-reason
+      :open="pendingReject !== null"
+      :title="rejectingOwn ? 'Retirer votre correction' : 'Rejeter la correction'"
+      :message="rejectingOwn
+        ? 'Rien ne sera écrit sur le solde. Indiquez pourquoi vous la retirez.'
+        : 'Rien ne sera écrit sur le solde. Indiquez pourquoi à l\'auteur de la demande.'"
+      :confirm-label="rejectingOwn ? 'Retirer' : 'Rejeter'" require-reason
       @confirm="confirmReject" @cancel="pendingReject = null"
     />
   </div>
