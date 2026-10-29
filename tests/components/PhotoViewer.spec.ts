@@ -322,6 +322,8 @@ describe('PhotoViewer', () => {
     })
   })
 
+  // Attente de la fin du téléchargement par vi.waitFor et non par un délai fixe : 5 ms suffisaient
+  // en local mais pas toujours sur le runner CI (rouge intermittent sur main, déploiement bloqué).
   describe('téléchargement', () => {
     afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
@@ -340,7 +342,7 @@ describe('PhotoViewer', () => {
       expect(ev.defaultPrevented).toBe(true)
       // Onglet de repli ouvert dans le geste (ici refusé : null), aucun autre ensuite.
       expect(open).toHaveBeenCalledWith('', '_blank')
-      await new Promise(r => setTimeout(r, 5))
+      await vi.waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:fake'))
       expect(fetchMock).toHaveBeenCalledWith('https://r2/a.jpg')
       expect(create).toHaveBeenCalledWith(blob)
       const clicked = (click.mock.contexts as HTMLAnchorElement[]).map(a => ({ href: a.href, download: a.download }))
@@ -361,7 +363,7 @@ describe('PhotoViewer', () => {
       // Synchrone, avant toute réponse du réseau : pas de bloqueur de fenêtres.
       expect(open).toHaveBeenCalledWith('', '_blank')
       expect(tab.opener).toBeNull()
-      await new Promise(r => setTimeout(r, 5))
+      await vi.waitFor(() => expect(tab.close).toHaveBeenCalledTimes(1))
       expect(click).toHaveBeenCalledTimes(1)
       expect(tab.close).toHaveBeenCalledTimes(1)
       expect(tab.location.href).toBe('about:blank')
@@ -374,7 +376,7 @@ describe('PhotoViewer', () => {
       const open = vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window)
       const w = mountViewer({ urls: null, items })
       await w.find('[data-test="photo-download"]').trigger('click')
-      await new Promise(r => setTimeout(r, 5))
+      await vi.waitFor(() => expect(tab.location.href).toBe('https://r2/a.jpg'))
       expect(tab.location.href).toBe('https://r2/a.jpg')
       expect(tab.close).not.toHaveBeenCalled()
       expect(open).toHaveBeenCalledTimes(1)
@@ -388,7 +390,7 @@ describe('PhotoViewer', () => {
       vi.spyOn(window, 'open').mockReturnValue(null)
       const w = mountViewer({ urls: null, items: [{ url: 'https://r2/z.webp' }, { url: 'https://r2/y.jpg' }], startIndex: 1 })
       await w.find('[data-test="photo-download"]').trigger('click')
-      await new Promise(r => setTimeout(r, 5))
+      await vi.waitFor(() => expect(click).toHaveBeenCalledTimes(1))
       expect((click.mock.contexts as HTMLAnchorElement[]).map(a => a.download)).toEqual(['photo-2.jpg'])
     })
 
@@ -397,7 +399,7 @@ describe('PhotoViewer', () => {
       const open = vi.spyOn(window, 'open').mockReturnValue(null)
       const w = mountViewer({ urls: null, items })
       await w.find('[data-test="photo-download"]').trigger('click')
-      await new Promise(r => setTimeout(r, 5))
+      await vi.waitFor(() => expect(open).toHaveBeenCalledWith('https://r2/a.jpg', '_blank', 'noopener,noreferrer'))
       expect(open).toHaveBeenCalledWith('https://r2/a.jpg', '_blank', 'noopener,noreferrer')
     })
 
@@ -406,7 +408,7 @@ describe('PhotoViewer', () => {
       const open = vi.spyOn(window, 'open').mockReturnValue(null)
       const w = mountViewer({ urls: null, items })
       await w.find('[data-test="photo-download"]').trigger('click')
-      await new Promise(r => setTimeout(r, 5))
+      await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(2))
       // Onglet de repli refusé (null) : ouverture après coup, comme avant.
       expect(open).toHaveBeenCalledTimes(2)
       expect(open).toHaveBeenLastCalledWith('https://r2/a.jpg', '_blank', 'noopener,noreferrer')
