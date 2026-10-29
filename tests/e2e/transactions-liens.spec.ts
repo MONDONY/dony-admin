@@ -5,6 +5,9 @@ import { test, expect, type Page } from '@playwright/test'
  * du tiroir paiement (alerte, audit). Chaque test part de la page d'origine, clique le vrai lien,
  * vérifie l'URL d'arrivée exacte et l'état visible (tiroir, puce, vue), puis le retour arrière
  * quand il ne coûte rien. Les routes du back sont simulées ; `finance/counts` répond (nouveau back).
+ *
+ * Les requêtes reçues se lisent par `expect.poll` : la puce s'affiche depuis l'URL avant que la
+ * liste soit demandée, une lecture immédiate tombait parfois avant l'appel (rouge sur main seulement).
  */
 
 const ADMIN = { id: 'a1', email: 'admin.1@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
@@ -112,7 +115,7 @@ test('annonce → « Paiements de ce trajet » : liste filtrée avec la puce Tra
   await page.locator(`[data-test="ann-payments-${TRIP}"]`).click()
   await expect(page.locator('[data-test="active-chip-trip"]')).toContainText('Trajet :', { timeout: 15000 })
   await expect.poll(() => landing(page)).toBe(`/transactions?announcementId=${TRIP}`)
-  expect(calls.payments.at(-1)!.searchParams.get('announcementId')).toBe(TRIP)
+  await expect.poll(() => calls.payments.at(-1)?.searchParams.get('announcementId')).toBe(TRIP)
   await expect(page.locator('[data-test="payment-view-ALL"]')).toHaveAttribute('aria-pressed', 'true')
   await page.goBack()
   await expect(page).toHaveURL(/\/colis\?tab=announcements/)
@@ -137,7 +140,7 @@ test.describe('fiche utilisateur, onglet Argent', () => {
     await page.locator('[data-test="user-payments-all-link"]').click()
     await expect(page.locator('[data-test="active-chip-party"]')).toContainText('Personne :', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe(`/transactions?partyId=${USER}`)
-    expect(calls.payments.at(-1)!.searchParams.get('partyId')).toBe(USER)
+    await expect.poll(() => calls.payments.at(-1)?.searchParams.get('partyId')).toBe(USER)
     await page.goBack()
     await expect(page).toHaveURL(new RegExp(`/users/${USER}\\?tab=money`))
   })
@@ -148,7 +151,7 @@ test.describe('fiche utilisateur, onglet Argent', () => {
     await page.locator('[data-test="user-wallet-link"]').click()
     await expect(page.locator('[data-test="active-chip-partyId"]')).toContainText('Titulaire', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe(`/transactions?tab=wallets&partyId=${USER}`)
-    expect(calls.wallets.at(-1)!.searchParams.get('partyId')).toBe(USER)
+    await expect.poll(() => calls.wallets.at(-1)?.searchParams.get('partyId')).toBe(USER)
   })
 })
 
@@ -167,7 +170,7 @@ test.describe('incidents → « Voir le paiement de ce colis »', () => {
     await page.locator('[data-test="incident-payment-link"]').click()
     await expect(page.locator('[data-test="active-chip-bid"]')).toContainText('Colis :', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe(`/transactions?bidId=${BID}&view=ALL`)
-    expect(calls.payments.at(-1)!.searchParams.get('bidId')).toBe(BID)
+    await expect.poll(() => calls.payments.at(-1)?.searchParams.get('bidId')).toBe(BID)
     await expect(page.locator('[data-test="payment-view-ALL"]')).toHaveAttribute('aria-pressed', 'true')
     await page.goBack()
     await expect(page).toHaveURL(/\/incidents/)
@@ -204,7 +207,7 @@ test('vue d’ensemble, carte Escrow J+48 → vue « À traiter » filtrée sur 
   await card.click()
   await expect(page.locator('[data-test="active-chip-alert"]')).toBeVisible({ timeout: 15000 })
   await expect.poll(() => landing(page)).toBe('/transactions?view=ATTENTION&alert=ESCROW_J48')
-  expect(calls.payments.at(-1)!.searchParams.get('alert')).toBe('ESCROW_J48')
+  await expect.poll(() => calls.payments.at(-1)?.searchParams.get('alert')).toBe('ESCROW_J48')
   await expect(page.locator('[data-test="payment-view-ATTENTION"]')).toHaveAttribute('aria-pressed', 'true')
   // Le nombre de la carte est celui de la liste où l'on arrive.
   await expect(page.locator(`[data-test="payment-row-${PAY}"]`)).toHaveCount(1)
@@ -229,7 +232,7 @@ for (const c of [
     await page.locator('[data-test="alert-link-transactions"]', { hasText: 'Opérations mobile money en cours' }).click()
     await expect(page.locator('[data-test="mm-view-OPEN"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
     await expect.poll(() => landing(page)).toBe('/transactions?tab=mobile-money&view=open')
-    expect(calls.mobileMoney.at(-1)!.searchParams.get('view')).toBe('OPEN')
+    await expect.poll(() => calls.mobileMoney.at(-1)?.searchParams.get('view')).toBe('OPEN')
   })
 }
 
@@ -240,8 +243,8 @@ test('tiroir paiement → « journal d’audit » : filtres PAYMENT appliqués, 
   await expect(page.locator('[data-test="filter-entity-id"]')).toHaveValue(PAY, { timeout: 15000 })
   await expect.poll(() => landing(page)).toBe(`/audit?entityType=PAYMENT&entityId=${PAY}`)
   await expect(page.locator('[data-test="filter-entity"]')).toHaveValue('PAYMENT')
-  expect(calls.audit.at(-1)!.searchParams.get('entityType')).toBe('PAYMENT')
-  expect(calls.audit.at(-1)!.searchParams.get('entityId')).toBe(PAY)
+  await expect.poll(() => calls.audit.at(-1)?.searchParams.get('entityType')).toBe('PAYMENT')
+  await expect.poll(() => calls.audit.at(-1)?.searchParams.get('entityId')).toBe(PAY)
   await page.goBack()
   await expect(page.locator('[data-test="payment-detail"]')).toBeVisible()
   await expect.poll(() => landing(page)).toBe(`/transactions?open=${PAY}&section=timeline`)
