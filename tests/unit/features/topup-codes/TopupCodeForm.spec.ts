@@ -17,9 +17,9 @@ describe('TopupCodeForm', () => {
     expect(w.emitted('submit')![0][0]).toEqual({
       code: null, amount: 2000, currency: 'XOF', maxRedemptions: 100, expiresAt: null, note: null,
     })
-    await w.get('[data-test="topup-code"]').setValue(' dakar2000 ')
+    await w.get('[data-test="topup-code"]').setValue(' dakar-2000-ok ')
     await w.get('form').trigger('submit')
-    expect((w.emitted('submit')![1][0] as any).code).toBe('DAKAR2000')
+    expect((w.emitted('submit')![1][0] as any).code).toBe('DAKAR-2000-OK')
   })
 
   it('accepte une virgule décimale', async () => {
@@ -44,5 +44,18 @@ describe('TopupCodeForm', () => {
     await w.get('[data-test="topup-expires"]').setValue('2026-12-31')
     await w.get('form').trigger('submit')
     expect((w.emitted('submit')![0][0] as any).expiresAt).toBe('2026-12-31T23:59:59')
+  })
+
+  it('code saisi de moins de 10 lettres ou chiffres : Créer désactivé et règle en rouge', async () => {
+    const w = mount(TopupCodeForm, { props: { generate: vi.fn() } })
+    await w.get('[data-test="topup-amount"]').setValue('10')
+    await w.get('[data-test="topup-code"]').setValue('DAKAR-2000')
+    expect(w.get('[data-test="topup-submit"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="topup-code-rule"]').classes()).toContain('text-danger')
+    await w.get('form').trigger('submit')
+    expect(w.emitted('submit')).toBeUndefined()
+    await w.get('[data-test="topup-code"]').setValue('DAKAR-20001')
+    expect(w.get('[data-test="topup-submit"]').attributes('disabled')).toBeUndefined()
+    expect(w.get('[data-test="topup-code-rule"]').classes()).not.toContain('text-danger')
   })
 })

@@ -31,4 +31,11 @@ describe('TopupCodesTable', () => {
     const w = mount(TopupCodesTable, { props: { codes: [], loading: false } })
     expect(w.text()).toContain('Aucun code de recharge')
   })
+
+  it('code stocké haché (back récent) : fin du code masquée, pas de bouton Copier', () => {
+    const hashed = { ...code, code: null, codeHint: 'MENT' }
+    const w = mount(TopupCodesTable, { props: { codes: [hashed], loading: false } })
+    expect(w.get('[data-test="code-t1"]').text()).toBe('•••• MENT')
+    expect(w.find('[data-test="copy-t1"]').exists()).toBe(false)
+  })
 })

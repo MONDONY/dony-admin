@@ -2,13 +2,14 @@
 import StateBlock from '@/components/ui/StateBlock.vue'
 import { ref } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { TOPUP_STATUS_META, formatTopupAmount, parseUtc, type AdminTopupCode } from '@/features/topup-codes/types/index'
+import { TOPUP_STATUS_META, displayCode, formatTopupAmount, parseUtc, type AdminTopupCode } from '@/features/topup-codes/types/index'
 
 defineProps<{ codes: AdminTopupCode[]; loading: boolean }>()
 const emit = defineEmits<{ revoke: [code: AdminTopupCode]; showRedemptions: [code: AdminTopupCode] }>()
 
 const copied = ref<string | null>(null)
 async function copy(c: AdminTopupCode) {
+  if (!c.code) return
   try { await navigator.clipboard.writeText(c.code); copied.value = c.id } catch { copied.value = null }
 }
 function fmtDate(d: string) { return parseUtc(d).toLocaleDateString('fr-FR') }
@@ -30,8 +31,11 @@ function fmtDate(d: string) { return parseUtc(d).toLocaleDateString('fr-FR') }
       <tbody>
         <tr v-for="c in codes" :key="c.id" :data-test="`topup-row-${c.id}`" class="border-b border-border">
           <td class="px-4 py-3 text-sm font-mono font-medium whitespace-nowrap">
-            {{ c.code }}
-            <button type="button" :data-test="`copy-${c.id}`" class="ml-2 text-xs text-text-muted hover:text-text" @click="copy(c)">
+            <span :data-test="`code-${c.id}`">{{ displayCode(c) }}</span>
+            <button
+              v-if="c.code" type="button" :data-test="`copy-${c.id}`"
+              class="ml-2 text-xs text-text-muted hover:text-text" @click="copy(c)"
+            >
               {{ copied === c.id ? 'Copié' : 'Copier' }}
             </button>
           </td>

@@ -41,8 +41,9 @@ describe('useTopupCodes', () => {
   it('create appelle le service puis recharge', async () => {
     const t = useTopupCodes()
     const input = { code: null, amount: 10, currency: 'EUR', maxRedemptions: 1, expiresAt: null, note: null }
-    await t.create(input)
+    const created = await t.create(input)
     expect(svc.create).toHaveBeenCalledWith(input)
+    expect(created).toEqual({ id: 't1' })
     expect(svc.list).toHaveBeenCalled()
   })
 
