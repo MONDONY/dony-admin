@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/features/admin-accounts/services/adminAccountsService')
-import { useAdminAccounts } from '@/features/admin-accounts/composables/useAdminAccounts'
+import { useAdminAccounts, adminAccountErrorMessage } from '@/features/admin-accounts/composables/useAdminAccounts'
 import { adminAccountsService } from '@/features/admin-accounts/services/adminAccountsService'
 const svc = adminAccountsService as any
 
@@ -123,6 +123,13 @@ describe('useAdminAccounts', () => {
       const p = useAdminAccounts()
       await p.deleteAccount('root')
       expect(p.actionError.value).toBe('Le compte super-administrateur ne peut être ni modifié ni supprimé.')
+    })
+
+    it('traduit le refus d’une adresse déjà utilisée', () => {
+      const e = problem('ADMIN_EMAIL_DUPLICATE', 'Email already in use')
+      expect(adminAccountErrorMessage(e, 'La création a échoué')).toBe(
+        'Cette adresse est déjà utilisée par un compte Yadony (administrateur ou utilisateur de l’app). Choisissez une autre adresse.',
+      )
     })
 
     it('retombe sur le detail du ProblemDetail pour un autre code', async () => {

@@ -10,6 +10,10 @@ import type { AdminAccount, TemporaryCredentials, ManagedAdminRole, AdminStatus 
 const ERROR_MESSAGES: Record<string, string> = {
   ADMIN_SELF_DELETE: 'Vous ne pouvez pas supprimer votre propre compte.',
   ADMIN_SUPER_ADMIN_IMMUTABLE: 'Le compte super-administrateur ne peut être ni modifié ni supprimé.',
+  // Adresse déjà prise par un administrateur, ou par un compte de l'app (identité Firebase
+  // existante, que le back refuse de réutiliser) : YADONY-BACK-STAGING-1P.
+  ADMIN_EMAIL_DUPLICATE:
+    'Cette adresse est déjà utilisée par un compte Yadony (administrateur ou utilisateur de l’app). Choisissez une autre adresse.',
 }
 
 export function adminAccountErrorMessage(e: unknown, fallback: string): string {
