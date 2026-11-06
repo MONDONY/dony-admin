@@ -16,7 +16,7 @@ Cette conception concerne deux depots :
 ## Objectifs
 
 - Utiliser l'adresse email comme identifiant de connexion de tous les administrateurs.
-- Provisionner une seule fois le compte racine `aboubakar.diakite@yadony.com`.
+- Provisionner une seule fois le compte racine `<e-mail du compte racine>`.
 - Garantir que ce compte est l'unique `SUPER_ADMIN`.
 - Permettre au `SUPER_ADMIN` de creer des comptes `ADMIN` ou `SUPPORT` depuis le panel.
 - Generer automatiquement un mot de passe temporaire robuste, visible une seule fois.
@@ -35,7 +35,7 @@ Cette conception concerne deux depots :
 ## Invariants de securite
 
 1. Un seul compte peut porter le role `SUPER_ADMIN`.
-2. L'identite racine est liee a `aboubakar.diakite@yadony.com` et son email est immuable depuis les API du panel.
+2. L'identite racine est liee a `<e-mail du compte racine>` et son email est immuable depuis les API du panel.
 3. Aucune API authentifiee ne peut creer, promouvoir, retrograder, desactiver ou supprimer le `SUPER_ADMIN`.
 4. Les API de creation et de modification n'acceptent que `ADMIN` et `SUPPORT` comme roles gerables.
 5. Un compte `DISABLED` ne recoit jamais de principal administrateur.

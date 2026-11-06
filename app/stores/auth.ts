@@ -160,12 +160,21 @@ export interface AdminUser {
 interface AuthState {
   idToken: string | null
   user: AdminUser | null
+  /**
+   * Second facteur TOTP inscrit sur le compte Firebase. `null` = inconnu (session injectée
+   * par les tests e2e, ou pas encore lue) : aucune redirection vers l'inscription.
+   */
+  mfaEnrolled: boolean | null
+  /** Le projet Firebase n'accepte pas le TOTP (environnement non configuré) : pas d'inscription forcée. */
+  mfaUnavailable: boolean
 }
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     idToken: null,
     user: null,
+    mfaEnrolled: null,
+    mfaUnavailable: false,
   }),
   getters: {
     isAuthenticated: (state): boolean =>
@@ -194,9 +203,17 @@ export const useAuthStore = defineStore('auth', {
       this.idToken = token
       this.user = user
     },
+    setMfaEnrolled(enrolled: boolean) {
+      this.mfaEnrolled = enrolled
+    },
+    markMfaUnavailable() {
+      this.mfaUnavailable = true
+    },
     clear() {
       this.idToken = null
       this.user = null
+      this.mfaEnrolled = null
+      this.mfaUnavailable = false
     },
   },
 })

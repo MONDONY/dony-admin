@@ -8,8 +8,12 @@ vi.stubGlobal('navigateTo', vi.fn())
 vi.stubGlobal('import.meta', { dev: false })
 
 const signInMock = vi.fn()
+const completeTotpMock = vi.fn()
+const cancelTotpMock = vi.fn()
+let routeQuery: Record<string, string> = {}
+vi.stubGlobal('useRoute', () => ({ query: routeQuery }))
 vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
-  useFirebaseAuth: () => ({ signIn: signInMock }),
+  useFirebaseAuth: () => ({ signIn: signInMock, completeTotpSignIn: completeTotpMock, cancelTotpSignIn: cancelTotpMock }),
 }))
 vi.mock('@/components/ui/ThemeToggle.vue', () => ({
   default: { name: 'ThemeToggle', template: '<div />' },
@@ -24,7 +28,63 @@ describe('login page (email+password)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     signInMock.mockReset()
+    completeTotpMock.mockReset()
+    cancelTotpMock.mockReset()
+    routeQuery = {}
     vi.mocked(vi.stubGlobal('navigateTo', vi.fn()))
+  })
+
+  async function passwordStepThenCode() {
+    signInMock.mockRejectedValueOnce(Object.assign(new Error('mfa'), { code: 'auth/multi-factor-auth-required' }))
+    const wrapper = await mountLogin()
+    await wrapper.find('input#email').setValue('admin@yadony.com')
+    await wrapper.find('input#password').setValue('pass123')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    return wrapper
+  }
+
+  it('asks for the authenticator code when the account has a second factor', async () => {
+    const wrapper = await passwordStepThenCode()
+    const code = wrapper.find('input#totp-code')
+    expect(code.exists()).toBe(true)
+    expect(code.attributes('inputmode')).toBe('numeric')
+    expect(code.attributes('autocomplete')).toBe('one-time-code')
+    expect(wrapper.find('input#password').exists()).toBe(false)
+  })
+
+  it('completes the sign-in with the code and goes home', async () => {
+    completeTotpMock.mockResolvedValueOnce({ mustChangePassword: false })
+    const nav = vi.fn()
+    vi.stubGlobal('navigateTo', nav)
+    const wrapper = await passwordStepThenCode()
+    await wrapper.find('input#totp-code').setValue('123456')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(completeTotpMock).toHaveBeenCalledWith('123456')
+    expect(nav).toHaveBeenCalledWith('/')
+  })
+
+  it('shows a clear message for a wrong code', async () => {
+    completeTotpMock.mockRejectedValueOnce(Object.assign(new Error('bad'), { code: 'auth/invalid-verification-code' }))
+    const wrapper = await passwordStepThenCode()
+    await wrapper.find('input#totp-code').setValue('000000')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Code incorrect')
+  })
+
+  it('goes back to the password step and drops the pending challenge', async () => {
+    const wrapper = await passwordStepThenCode()
+    await wrapper.find('[data-test="totp-back"]').trigger('click')
+    expect(cancelTotpMock).toHaveBeenCalled()
+    expect(wrapper.find('input#password').exists()).toBe(true)
+  })
+
+  it('confirms the enrollment after the forced sign-out', async () => {
+    routeQuery = { mfa: 'enrolled' }
+    const wrapper = await mountLogin()
+    expect(wrapper.text()).toContain('Double authentification activée')
   })
 
   it('renders the login form with an email and password field', async () => {

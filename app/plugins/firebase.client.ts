@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
 import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
+import { hasTotpFactor } from '@/features/auth/composables/useFirebaseAuth'
 
 export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth: Auth | null }>(async () => {
   // E2E fast-path: skip Firebase entirely when addInitScript set __yadonyAuthSeed
@@ -45,6 +46,13 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
         } catch {
           await auth.signOut().catch(() => {})
           authStore.clear()
+        }
+        // État d'inscription du second facteur, lu à part : une erreur ici ne doit pas
+        // couper la session, l'état reste alors inconnu (aucune redirection forcée).
+        if (authStore.isAuthenticated) {
+          try {
+            authStore.setMfaEnrolled(hasTotpFactor(firebaseUser))
+          } catch { /* état inconnu */ }
         }
       }
 
