@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Le seul email autorise pour le role `SUPER_ADMIN` est `aboubakar.diakite@yadony.com`.
+- Le seul email autorise pour le role `SUPER_ADMIN` est `<e-mail du compte racine>`.
 - Les API du panel n'acceptent que `ADMIN` et `SUPPORT` comme roles gerables.
 - Le mot de passe de bootstrap vient d'un secret de deploiement et ne doit jamais apparaitre dans le code, Git, les logs ou les tests.
 - Les mots de passe temporaires sont generes avec `SecureRandom`, contiennent 20 caracteres et sont retournes une seule fois.
@@ -52,7 +52,7 @@ void findByEmailIsCaseInsensitive() {
 
 @Test
 void onlyOneSuperAdminCanBePersisted() {
-    repository.saveAndFlush(new AdminUserEntity("uid-root", "aboubakar.diakite@yadony.com", AdminRole.SUPER_ADMIN));
+    repository.saveAndFlush(new AdminUserEntity("uid-root", "<e-mail du compte racine>", AdminRole.SUPER_ADMIN));
     assertThatThrownBy(() -> repository.saveAndFlush(
         new AdminUserEntity("uid-root-2", "other@yadony.com", AdminRole.SUPER_ADMIN)))
         .isInstanceOf(DataIntegrityViolationException.class);
@@ -175,7 +175,7 @@ Expected: FAIL sur les nouveaux contrats et codes metier.
 - [ ] **Step 3: Implementer validation email et creation publique**
 
 ```java
-private static final String ROOT_EMAIL = "aboubakar.diakite@yadony.com";
+private static final String ROOT_EMAIL = "<e-mail du compte racine>";
 
 public CredentialsResponse createAdmin(CreateAdminRequest req, UUID actorId) {
     if (req.role() == null || req.role() == AdminRole.SUPER_ADMIN) {
@@ -269,8 +269,8 @@ void configuredIdentityCreatesCanonicalRoot() throws Exception {
     when(repository.countByRole(AdminRole.SUPER_ADMIN)).thenReturn(0L);
     mockMvc.perform(post("/admin/bootstrap").header("X-Bootstrap-Secret", VALID_SECRET))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.email").value("aboubakar.diakite@yadony.com"));
-    verify(service).bootstrapSuperAdmin("aboubakar.diakite@yadony.com", "test-only-password");
+        .andExpect(jsonPath("$.email").value("<e-mail du compte racine>"));
+    verify(service).bootstrapSuperAdmin("<e-mail du compte racine>", "test-only-password");
 }
 ```
 

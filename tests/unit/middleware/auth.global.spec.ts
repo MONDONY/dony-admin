@@ -71,4 +71,62 @@ describe('auth.global middleware', () => {
     await mw({ path: '/change-password' })
     expect(navigateToMock).not.toHaveBeenCalled()
   })
+
+  // ── Double authentification (TOTP) ──────────────────────────────────────
+
+  it('sends an admin without a second factor to /mfa-setup', async () => {
+    useAuthStore().setSession('t', adminUser)
+    useAuthStore().setMfaEnrolled(false)
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/users' })
+    expect(navigateToMock).toHaveBeenCalledWith('/mfa-setup')
+  })
+
+  it('lets an admin without a second factor stay on /mfa-setup', async () => {
+    useAuthStore().setSession('t', adminUser)
+    useAuthStore().setMfaEnrolled(false)
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/mfa-setup' })
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('does not redirect while the enrollment state is unknown (seeded e2e session)', async () => {
+    useAuthStore().setSession('t', adminUser)
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/users' })
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('does not redirect when TOTP is unavailable on this Firebase project', async () => {
+    useAuthStore().setSession('t', adminUser)
+    useAuthStore().setMfaEnrolled(false)
+    useAuthStore().markMfaUnavailable()
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/users' })
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('asks for the password change before the second factor', async () => {
+    useAuthStore().setSession('t', { ...adminUser, mustChangePassword: true })
+    useAuthStore().setMfaEnrolled(false)
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/users' })
+    expect(navigateToMock).toHaveBeenCalledWith('/change-password')
+  })
+
+  it('redirects unauthenticated /mfa-setup access to /login', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/mfa-setup' })
+    expect(navigateToMock).toHaveBeenCalledWith('/login')
+  })
+
+  it('clear() forgets the enrollment state', () => {
+    const auth = useAuthStore()
+    auth.setSession('t', adminUser)
+    auth.setMfaEnrolled(true)
+    auth.markMfaUnavailable()
+    auth.clear()
+    expect(auth.mfaEnrolled).toBeNull()
+    expect(auth.mfaUnavailable).toBe(false)
+  })
 })

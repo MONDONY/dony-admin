@@ -54,6 +54,15 @@ export function useApi(): ReturnType<typeof $fetch.create> {
       if (response.status === 403 && code === 'PASSWORD_CHANGE_REQUIRED') {
         await navigateTo('/change-password')
       }
+      // Le back exige le second facteur : inscription si l'admin n'en a pas, sinon cette
+      // session a été ouverte sans le code (avant l'inscription) et doit être refaite.
+      if (response.status === 403 && code === 'ADMIN_MFA_REQUIRED') {
+        if (auth.mfaEnrolled) {
+          await clearFirebaseSession()
+        } else {
+          await navigateTo('/mfa-setup')
+        }
+      }
       // Other 403s keep the session — the caller decides how to react.
     },
   })

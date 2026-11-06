@@ -87,4 +87,30 @@ describe('useApi', () => {
     expect(navigateToMock).not.toHaveBeenCalledWith('/change-password')
     expect(useAuthStore().isAuthenticated).toBe(true)
   })
+
+  it('sends a not-yet-enrolled admin to /mfa-setup on 403 ADMIN_MFA_REQUIRED', async () => {
+    useAuthStore().setSession('the-token', adminUser)
+    useAuthStore().setMfaEnrolled(false)
+    const { useApi } = await import('@/composables/useApi')
+    useApi()
+    const opts = fetchCreate.mock.calls[0][0]
+    await opts.onResponseError({ response: { status: 403, _data: { code: 'ADMIN_MFA_REQUIRED' } } })
+
+    expect(navigateToMock).toHaveBeenCalledWith('/mfa-setup')
+    expect(useAuthStore().isAuthenticated).toBe(true)
+  })
+
+  it('signs an enrolled admin out on 403 ADMIN_MFA_REQUIRED (session opened without the code)', async () => {
+    useAuthStore().setSession('the-token', adminUser)
+    useAuthStore().setMfaEnrolled(true)
+    fbSignOutMock.mockResolvedValue(undefined)
+    const { useApi } = await import('@/composables/useApi')
+    useApi()
+    const opts = fetchCreate.mock.calls[0][0]
+    await opts.onResponseError({ response: { status: 403, _data: { code: 'ADMIN_MFA_REQUIRED' } } })
+
+    expect(fbSignOutMock).toHaveBeenCalled()
+    expect(useAuthStore().isAuthenticated).toBe(false)
+    expect(navigateToMock).toHaveBeenCalledWith('/login')
+  })
 })
