@@ -43,3 +43,68 @@ describe('broadcastService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/notifications/broadcasts', { query: { page: 1, size: 20 } })
   })
 })
+
+describe('broadcastService : règles d’audience', () => {
+  beforeEach(() => apiMock.mockReset())
+
+  const rule = { kind: 'group' as const, id: 'g1', op: 'AND' as const, children: [
+    { kind: 'condition' as const, id: 'c1', field: 'created_request', operator: 'EVER', value: null },
+  ] }
+  const wireRule = { op: 'AND', children: [{ field: 'created_request', operator: 'EVER', value: null }] }
+
+  it('serializeTarget_rule_nEnvoiePasSegmentId', async () => {
+    apiMock.mockResolvedValue({ recipientCount: 1 })
+    await broadcastService.preview({ type: 'RULE', rule, segmentId: 'seg-1' })
+    expect(apiMock.mock.calls[0][1].body).toEqual({ type: 'RULE', rule: wireRule })
+  })
+
+  it('serializeTarget envoie segmentId seul quand il n’y a pas de règle', async () => {
+    apiMock.mockResolvedValue({ recipientCount: 1 })
+    await broadcastService.preview({ type: 'RULE', segmentId: 'seg-1' })
+    expect(apiMock.mock.calls[0][1].body).toEqual({ type: 'RULE', segmentId: 'seg-1' })
+  })
+
+  it('fields GETe le catalogue', async () => {
+    apiMock.mockResolvedValue([])
+    await broadcastService.fields()
+    expect(apiMock).toHaveBeenCalledWith('/admin/notifications/broadcast/fields')
+  })
+
+  it('recipients POSTe le ciblage avec la pagination', async () => {
+    apiMock.mockResolvedValue({ content: [] })
+    await broadcastService.recipients({ type: 'ALL' }, 2, 50)
+    expect(apiMock).toHaveBeenCalledWith('/admin/notifications/broadcast/recipients', {
+      method: 'POST', query: { page: 2, size: 50 }, body: { type: 'ALL' },
+    })
+  })
+
+  it('downloadRecipientsCsv télécharge le blob', async () => {
+    const blob = new Blob(['x'])
+    apiMock.mockResolvedValue(blob)
+    const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    await broadcastService.downloadRecipientsCsv({ type: 'ALL' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/notifications/broadcast/recipients.csv', {
+      method: 'POST', body: { type: 'ALL' }, responseType: 'blob',
+    })
+    expect(spy).toHaveBeenCalledWith(blob)
+  })
+
+  it('segments : list, get, create, update, remove', async () => {
+    apiMock.mockResolvedValue({})
+    await broadcastService.segments.list(1, 10)
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/broadcast-segments', { query: { page: 1, size: 10 } })
+    await broadcastService.segments.get('s1')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/broadcast-segments/s1')
+    await broadcastService.segments.create('N', 'D', rule)
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/broadcast-segments', {
+      method: 'POST', body: { name: 'N', description: 'D', rule: wireRule },
+    })
+    await broadcastService.segments.update('s1', 'N', null, rule)
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/broadcast-segments/s1', {
+      method: 'PUT', body: { name: 'N', description: null, rule: wireRule },
+    })
+    await broadcastService.segments.remove('s1')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/broadcast-segments/s1', { method: 'DELETE' })
+  })
+})
