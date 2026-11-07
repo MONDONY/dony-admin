@@ -5,7 +5,20 @@ defineProps<{ broadcasts: AdminBroadcast[]; loading?: boolean }>()
 
 // Le libellé de base ne suffit pas à identifier UN envoi précis dans l'historique :
 // on complète CORRIDOR et USER par la valeur réellement ciblée.
+function countConditions(rule: unknown): number {
+  const children = (rule as { children?: unknown } | null)?.children
+  if (!Array.isArray(children)) return 0
+  return children.reduce<number>((n, c) => n + (Array.isArray((c as { children?: unknown }).children) ? countConditions(c) : 1), 0)
+}
+
 function targetDescription(b: AdminBroadcast): string {
+  // Le nom du segment parle mieux qu'une règle ; sinon la règle figée au moment de l'envoi.
+  if (b.segmentName) return b.segmentName
+  if (b.targetType === 'RULE' && b.audienceRule) {
+    const k = countConditions(b.audienceRule)
+    if (k === 0) return 'Règle (tous les comptes actifs)'
+    return `Règle (${k} condition${k > 1 ? 's' : ''})`
+  }
   if (b.targetType === 'CORRIDOR' && b.targetOrigin && b.targetDestination) {
     return `${TARGET_LABELS.CORRIDOR} : ${b.targetOrigin} → ${b.targetDestination}`
   }

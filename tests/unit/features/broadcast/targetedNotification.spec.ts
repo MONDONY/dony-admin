@@ -167,22 +167,22 @@ describe('BroadcastUserPicker', () => {
 
 describe('BroadcastComposer : notification ciblée', () => {
   it('se pré-remplit sur la cible USER avec l’identifiant reçu', async () => {
-    const w = mount(BroadcastComposer, { props: { recipientCount: null, initialUserId: UUID } })
+    const w = mount(BroadcastComposer, { props: { audience: null, initialUserId: UUID } })
     expect((w.find('[data-test="broadcast-target"]').element as HTMLSelectElement).value).toBe('USER')
     await w.find('[data-test="broadcast-preview"]').trigger('click')
     expect(w.emitted('preview')![0]).toEqual([{ type: 'USER', userId: UUID }])
   })
 
   it('affiche le nom renvoyé par la preview', async () => {
-    const w = mount(BroadcastComposer, { props: { recipientCount: null, initialUserId: UUID } })
-    await w.setProps({ recipientCount: 1, targetUserName: 'Awa Diop' })
+    const w = mount(BroadcastComposer, { props: { audience: null, initialUserId: UUID } })
+    await w.setProps({ audience: { recipientCount: 1, pushReachableCount: 1 }, targetUserName: 'Awa Diop' })
     expect(w.find('[data-test="broadcast-target-user-name"]').text()).toBe('Destinataire : Awa Diop')
   })
 
   it('l’estimation périmée ne contient pas de tiret cadratin', async () => {
-    const w = mount(BroadcastComposer, { props: { recipientCount: null } })
-    await w.setProps({ recipientCount: 3 })
-    await w.find('[data-test="broadcast-target"]').setValue('SENDERS')
+    const w = mount(BroadcastComposer, { props: { audience: null } })
+    await w.setProps({ audience: { recipientCount: 3, pushReachableCount: 1 } })
+    await w.find('[data-test="shortcut-senders"]').trigger('click')
     expect(w.find('[data-test="broadcast-stale-estimate"]').text()).not.toContain('—')
   })
 })

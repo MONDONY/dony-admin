@@ -1,7 +1,7 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { broadcastService } from '@/features/broadcast/services/broadcastService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import type { AdminBroadcast, BroadcastTarget } from '@/features/broadcast/types/index'
+import type { AdminBroadcast, AudienceField, BroadcastAudience, BroadcastTarget } from '@/features/broadcast/types/index'
 
 const PAGE_SIZE = 20
 
@@ -30,7 +30,9 @@ export function useBroadcast() {
   const busy = ref(false)
   const previewing = ref(false)
   const error = ref<string | null>(null)
-  const recipientCount = ref<number | null>(null)
+  const audience = ref<BroadcastAudience | null>(null)
+  const recipientCount = computed(() => audience.value?.recipientCount ?? null)
+  const fields = ref<AudienceField[]>([])
   const targetUserName = ref<string | null>(null)
   const targetUserReachable = ref<boolean | null>(null)
   const currentPage = ref(0)
@@ -55,30 +57,47 @@ export function useBroadcast() {
     await fetchHistory()
   }
 
+  async function fetchFields() {
+    try {
+      fields.value = await broadcastService.fields()
+    } catch (e) {
+      error.value = extractProblemMessage(e, 'Impossible de charger les critères de ciblage')
+    }
+  }
+
+  // Seul le dernier appel compte : l'aperçu est relancé à chaque modification de la règle, et une
+  // réponse lente de l'ancien ciblage ne doit jamais écraser celle du ciblage courant.
+  let previewSeq = 0
+
   async function preview(target: BroadcastTarget) {
+    const seq = ++previewSeq
     previewing.value = true
     error.value = null
     try {
-      const audience = await broadcastService.preview(target)
-      targetUserName.value = audience.targetUserName ?? null
-      targetUserReachable.value = typeof audience.targetUserReachable === 'boolean' ? audience.targetUserReachable : null
-      recipientCount.value = audience.recipientCount
+      const result = await broadcastService.preview(target)
+      if (seq !== previewSeq) return
+      targetUserName.value = result.targetUserName ?? null
+      targetUserReachable.value = typeof result.targetUserReachable === 'boolean' ? result.targetUserReachable : null
+      audience.value = result
     } catch (e) {
-      recipientCount.value = null
+      if (seq !== previewSeq) return
+      audience.value = null
       targetUserName.value = null
       targetUserReachable.value = null
       error.value = broadcastError(e, 'Impossible d’estimer le nombre de destinataires')
     } finally {
-      previewing.value = false
+      if (seq === previewSeq) previewing.value = false
     }
   }
 
   async function send(title: string, body: string, target: BroadcastTarget, push: boolean) {
     busy.value = true
     error.value = null
+    previewSeq += 1
+    previewing.value = false
     try {
       await broadcastService.send(title, body, target, push)
-      recipientCount.value = null
+      audience.value = null
       targetUserName.value = null
       targetUserReachable.value = null
       await fetchHistory()
@@ -90,7 +109,7 @@ export function useBroadcast() {
   }
 
   return {
-    history, isLoading, busy, previewing, error, recipientCount, targetUserName, targetUserReachable, currentPage, totalPages,
-    fetchHistory, goToPage, preview, send,
+    history, isLoading, busy, previewing, error, audience, recipientCount, fields, targetUserName, targetUserReachable, currentPage, totalPages,
+    fetchHistory, fetchFields, goToPage, preview, send,
   }
 }
