@@ -43,7 +43,8 @@ export const broadcastService = {
   },
   listHistory(page: number, size: number): Promise<AdminBroadcastPage> {
     return useApi()<AdminBroadcastPage>('/admin/notifications/broadcasts', { query: { page, size } })
-  },  fields(): Promise<AudienceField[]> {
+  },
+  fields(): Promise<AudienceField[]> {
     return useApi()<AudienceField[]>('/admin/notifications/broadcast/fields')
   },
   recipients(target: BroadcastTarget, page: number, size: number): Promise<BroadcastRecipientPage> {

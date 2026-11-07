@@ -9,22 +9,40 @@ function emptyRoot(): RuleGroup {
   return { kind: 'group', id: newRuleId(), op: 'AND', children: [] }
 }
 
-function nonEmpty(v: unknown): boolean {
-  return typeof v === 'string' && v.trim().length > 0
+const MAX_TEXT = 100
+const CORRIDOR_KINDS = ['CITY', 'COUNTRY']
+const CORRIDOR_SOURCES = ['PUBLISHED', 'REQUESTED', 'ALERT']
+const DAY_OPERATORS = ['WITHIN_DAYS', 'OLDER_THAN_DAYS']
+
+function text(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0 && v.length <= MAX_TEXT
 }
 
-/** Valeur valide pour un type : miroir allégé de la validation du back (qui reste juge). */
-function validValue(type: AudienceValueType, value: unknown): boolean {
+/** Valeur valide : miroir de la validation du back (qui reste juge). */
+function validValue(type: AudienceValueType, value: unknown, operator: string, field: AudienceField | undefined): boolean {
+  const keys = (field?.values ?? []).map((v) => v.key)
   switch (type) {
-    case 'NONE': return true
+    case 'NONE': return value == null
     case 'BOOLEAN': return typeof value === 'boolean'
-    case 'ENUM': return nonEmpty(value)
-    case 'TEXT': return nonEmpty(value)
-    case 'ENUM_MULTI': return Array.isArray(value) && value.length > 0
-    case 'INT': return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    case 'ENUM': return typeof value === 'string' && keys.includes(value)
+    case 'TEXT': return text(value)
+    case 'ENUM_MULTI':
+      return Array.isArray(value) && value.length > 0 && value.every((x) => typeof x === 'string' && keys.includes(x))
+    case 'INT': {
+      const max = DAY_OPERATORS.includes(operator) ? 3650 : 10000
+      return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max
+    }
     case 'CORRIDOR': {
-      const v = value as { origin?: unknown; destination?: unknown } | null
-      return !!v && typeof v === 'object' && (nonEmpty(v.origin) || nonEmpty(v.destination))
+      const v = value as { kind?: unknown; origin?: unknown; destination?: unknown; sources?: unknown } | null
+      if (!v || typeof v !== 'object' || !CORRIDOR_KINDS.includes(v.kind as string)) return false
+      for (const b of [v.origin, v.destination]) {
+        if (b != null && (typeof b !== 'string' || b.length > MAX_TEXT)) return false
+      }
+      const hasBound = [v.origin, v.destination].some((b) => typeof b === 'string' && b.trim().length > 0)
+      if (!hasBound) return false
+      if (v.sources == null) return true
+      return Array.isArray(v.sources) && v.sources.length > 0
+        && v.sources.every((x) => CORRIDOR_SOURCES.includes(x as string))
     }
     default: return false
   }
@@ -88,7 +106,8 @@ export function useAudienceRule(fields: MaybeRef<AudienceField[]> = []) {
     walk(root.value, (node, parent) => {
       if (node.kind === 'condition') {
         const t = valueTypeOf(node)
-        if (t === null || !validValue(t, node.value)) ok = false
+        const field = unref(fields).find((x) => x.key === node.field)
+        if (t === null || !validValue(t, node.value, node.operator, field)) ok = false
       } else if (parent && node.children.length === 0) {
         sawEmptySubgroup = true
       }
@@ -128,7 +147,17 @@ export function useAudienceRule(fields: MaybeRef<AudienceField[]> = []) {
 
   function update(id: string, patch: Partial<Pick<RuleCondition, 'field' | 'operator' | 'value'>>) {
     walk(root.value, (node) => {
-      if (node.kind === 'condition' && node.id === id) Object.assign(node, patch)
+      if (node.kind !== 'condition' || node.id !== id) return
+      const fieldChanged = patch.field !== undefined && patch.field !== node.field
+      const operatorChanged = patch.operator !== undefined && patch.operator !== node.operator
+      Object.assign(node, patch)
+      if (fieldChanged) {
+        // Nouveau champ : premier opérateur, et valeur repartie de zéro (sauf valeur fournie).
+        if (patch.operator === undefined) node.operator = unref(fields).find((f) => f.key === node.field)?.operators[0]?.key ?? ''
+        if (patch.value === undefined) node.value = null
+      } else if (operatorChanged && patch.value === undefined) {
+        node.value = null
+      }
     })
   }
 

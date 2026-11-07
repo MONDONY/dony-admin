@@ -4,8 +4,12 @@ import { parseRule, serializeRule } from '@/features/broadcast/composables/audie
 import type { AudienceField } from '@/features/broadcast/types/index'
 
 const fields: AudienceField[] = [
-  { key: 'created_request', family: 'ACTIVITY', label: 'A créé une demande', operators: [{ key: 'EVER', label: 'au moins une fois', valueType: 'NONE' }], values: [] },
-  { key: 'bids_count', family: 'ACTIVITY', label: 'Demandes', operators: [{ key: 'GTE', label: 'au moins', valueType: 'INT' }], values: [] },
+  { key: 'created_request', family: 'ACTIVITY', label: 'A créé une demande', operators: [{ key: 'EVER', label: 'au moins une fois', valueType: 'NONE' }, { key: 'WITHIN_DAYS', label: 'récemment', valueType: 'INT' }], values: [] },
+  { key: 'bids_count', family: 'ACTIVITY', label: 'Demandes', operators: [{ key: 'GTE', label: 'au moins', valueType: 'INT' }, { key: 'EVER', label: 'au moins une fois', valueType: 'NONE' }], values: [] },
+  { key: 'is_pro', family: 'STATUS', label: 'Pro', operators: [{ key: 'IS', label: 'est', valueType: 'BOOLEAN' }], values: [] },
+  { key: 'lang', family: 'STATUS', label: 'Langue', operators: [{ key: 'IS', label: 'est', valueType: 'ENUM' }], values: [{ key: 'fr', label: 'Français' }] },
+  { key: 'city', family: 'GEO', label: 'Ville', operators: [{ key: 'IS', label: 'est', valueType: 'TEXT' }], values: [] },
+  { key: 'corridor_interest', family: 'GEO', label: 'Corridor', operators: [{ key: 'MATCHES', label: 'correspond', valueType: 'CORRIDOR' }], values: [] },
   { key: 'country', family: 'GEO', label: 'Pays', operators: [{ key: 'IN', label: 'parmi', valueType: 'ENUM_MULTI' }], values: [{ key: 'FR', label: 'France' }] },
 ]
 
@@ -87,5 +91,79 @@ describe('useAudienceRule', () => {
     r.reset()
     expect(r.root.value.children).toEqual([])
     expect(r.root.value.op).toBe('AND')
+  })
+
+  function single(fieldKey: string, operator: string | null, value: unknown) {
+    const r = useAudienceRule(fields)
+    const id = r.addCondition(r.root.value.id, fieldKey)!
+    r.update(id, operator ? { operator, value } : { value })
+    return r
+  }
+
+  it('update : changer d’opérateur réinitialise la valeur', () => {
+    const r = single('bids_count', null, 3)
+    const id = (r.root.value.children[0] as any).id
+    expect(r.isComplete.value).toBe(true)
+    r.update(id, { operator: 'EVER' })
+    expect((r.root.value.children[0] as any).value).toBeNull()
+    expect(r.isComplete.value).toBe(true)
+  })
+
+  it('update : changer de champ prend le premier opérateur et vide la valeur', () => {
+    const r = single('bids_count', null, 3)
+    const id = (r.root.value.children[0] as any).id
+    r.update(id, { field: 'lang' })
+    const c = r.root.value.children[0] as any
+    expect(c.operator).toBe('IS')
+    expect(c.value).toBeNull()
+  })
+
+  it('NONE refuse une valeur non nulle', () => {
+    expect(single('created_request', 'EVER', 'x').isComplete.value).toBe(false)
+  })
+
+  it('isComplete TEXT, BOOLEAN, ENUM', () => {
+    expect(single('city', null, 'Paris').isComplete.value).toBe(true)
+    expect(single('city', null, '  ').isComplete.value).toBe(false)
+    expect(single('city', null, 'a'.repeat(101)).isComplete.value).toBe(false)
+    expect(single('is_pro', null, false).isComplete.value).toBe(true)
+    expect(single('is_pro', null, 'oui').isComplete.value).toBe(false)
+    expect(single('lang', null, 'fr').isComplete.value).toBe(true)
+    expect(single('lang', null, 'zz').isComplete.value).toBe(false)
+  })
+
+  it('isComplete ENUM_MULTI : clés connues et non vide', () => {
+    expect(single('country', null, ['FR']).isComplete.value).toBe(true)
+    expect(single('country', null, ['XX']).isComplete.value).toBe(false)
+    expect(single('country', null, []).isComplete.value).toBe(false)
+  })
+
+  it('isComplete INT : bornes selon l’opérateur', () => {
+    expect(single('bids_count', null, 10000).isComplete.value).toBe(true)
+    expect(single('bids_count', null, 10001).isComplete.value).toBe(false)
+    expect(single('created_request', 'WITHIN_DAYS', 3650).isComplete.value).toBe(true)
+    expect(single('created_request', 'WITHIN_DAYS', 3651).isComplete.value).toBe(false)
+    expect(single('bids_count', null, -1).isComplete.value).toBe(false)
+  })
+
+  it('isComplete CORRIDOR valide et invalides', () => {
+    const ok = { kind: 'CITY', origin: 'Paris', destination: '', sources: ['PUBLISHED'] }
+    expect(single('corridor_interest', null, ok).isComplete.value).toBe(true)
+    expect(single('corridor_interest', null, { kind: 'COUNTRY', origin: 'FR' }).isComplete.value).toBe(true)
+    expect(single('corridor_interest', null, { ...ok, kind: 'REGION' }).isComplete.value).toBe(false)
+    expect(single('corridor_interest', null, { kind: 'CITY', origin: ' ', destination: '' }).isComplete.value).toBe(false)
+    expect(single('corridor_interest', null, { ...ok, origin: 'a'.repeat(101) }).isComplete.value).toBe(false)
+    expect(single('corridor_interest', null, { ...ok, sources: [] }).isComplete.value).toBe(false)
+    expect(single('corridor_interest', null, { ...ok, sources: ['X'] }).isComplete.value).toBe(false)
+    expect(single('corridor_interest', null, null).isComplete.value).toBe(false)
+  })
+
+  it('isComplete faux : sous-groupe vide, champ inconnu', () => {
+    const r = useAudienceRule(fields)
+    r.addGroup(r.root.value.id)
+    expect(r.isComplete.value).toBe(false)
+    const r2 = useAudienceRule(fields)
+    r2.addCondition(r2.root.value.id, 'inconnu')
+    expect(r2.isComplete.value).toBe(false)
   })
 })

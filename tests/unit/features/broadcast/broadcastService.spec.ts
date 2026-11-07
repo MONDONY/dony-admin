@@ -88,6 +88,11 @@ describe('broadcastService : règles d’audience', () => {
       method: 'POST', body: { type: 'ALL' }, responseType: 'blob',
     })
     expect(spy).toHaveBeenCalledWith(blob)
+    const a = document.createElement('a')
+    const nameSpy = vi.spyOn(document, 'createElement').mockReturnValue(a)
+    await broadcastService.downloadRecipientsCsv({ type: 'ALL' })
+    expect(a.download).toMatch(/^destinataires-\d{8}-\d{4}\.csv$/)
+    nameSpy.mockRestore()
   })
 
   it('segments : list, get, create, update, remove', async () => {
