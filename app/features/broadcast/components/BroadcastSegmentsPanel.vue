@@ -48,7 +48,7 @@ const fmt = (d: string) => new Date(d).toLocaleDateString('fr-FR')
         <div class="min-w-0 flex-1">
           <template v-if="renamingId === s.id">
             <input
-              v-model="draftName" :data-test="`rename-input-${s.id}`" type="text" maxlength="100"
+              v-model="draftName" :data-test="`rename-input-${s.id}`" type="text" maxlength="80"
               :aria-label="`Nouveau nom du segment ${s.name}`"
               class="w-full rounded-btn border border-border bg-bg p-2 text-sm"
               @keydown.enter.prevent="saveRename(s)" @keydown.esc.stop="renamingId = null"

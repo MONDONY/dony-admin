@@ -64,4 +64,10 @@ describe('BroadcastSegmentsPanel', () => {
     expect(w.emitted('remove')).toBeUndefined()
     expect(w.find('[data-test="overlay"]').exists()).toBe(false)
   })
+
+  it('le champ de renommage est limité à 80 caractères (comme le back)', async () => {
+    const w = mountPanel()
+    await w.find('[data-test="rename-s1"]').trigger('click')
+    expect(w.find('[data-test="rename-input-s1"]').attributes('maxlength')).toBe('80')
+  })
 })

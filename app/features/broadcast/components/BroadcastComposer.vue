@@ -94,7 +94,8 @@ const target = computed<BroadcastTarget>(() => {
 // estimation correspond encore à ce qui partirait.
 const targetKey = computed(() => {
   if (mode.value === 'USER') return `U:${userId.value}`
-  if (mode.value === 'SEGMENT') return `S:${segmentId.value}`
+  // updatedAt : un segment modifié ailleurs rend l'estimation périmée (la règle a changé).
+  if (mode.value === 'SEGMENT') return `S:${segmentId.value}:${selectedSegment.value?.updatedAt ?? ''}`
   return `R:${JSON.stringify(serializeRule(rule.root.value))}`
 })
 const previewable = computed(() => {
@@ -320,13 +321,13 @@ const btn = 'whitespace-nowrap rounded-btn border border-border px-3 py-2 text-s
       <div v-if="saveOpen && !editSegment" class="space-y-2 rounded-btn border border-border bg-bg p-3">
         <label class="block text-sm text-text-muted">Nom du segment
           <input
-            v-model="segName" data-test="segment-name" type="text" maxlength="100"
+            v-model="segName" data-test="segment-name" type="text" maxlength="80"
             class="mt-1 w-full rounded-btn border border-border bg-surface p-2 text-sm"
           >
         </label>
         <label class="block text-sm text-text-muted">Description (facultative)
           <input
-            v-model="segDescription" data-test="segment-description" type="text" maxlength="500"
+            v-model="segDescription" data-test="segment-description" type="text" maxlength="300"
             class="mt-1 w-full rounded-btn border border-border bg-surface p-2 text-sm"
           >
         </label>

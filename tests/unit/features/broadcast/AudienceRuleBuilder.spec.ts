@@ -147,13 +147,46 @@ describe('AudienceRuleBuilder', () => {
     const { w, rule } = build()
     const id = rule.addCondition(rule.root.value.id, 'corridor_interest')!
     await w.vm.$nextTick()
-    await w.find('[data-test="corridor-source-REQUESTED"]').setValue(true)
-    await w.find('[data-test="corridor-source-PUBLISHED"]').setValue(true)
     const get = () => (rule.root.value.children.find((c) => c.id === id) as any).value.sources
+    await w.find('[data-test="corridor-source-ALERT"]').setValue(false)
     expect(get()).toEqual(['PUBLISHED', 'REQUESTED'])
+    await w.find('[data-test="corridor-source-ALERT"]').setValue(true)
+    expect(get()).toEqual(['PUBLISHED', 'REQUESTED', 'ALERT'])
+  })
+
+  it('corridor_nouvelleCondition_toutesSourcesCocheesEtListeExplicite', async () => {
+    const { w, rule } = build()
+    const id = rule.addCondition(rule.root.value.id, 'corridor_interest')!
+    await w.vm.$nextTick()
+    for (const k of ['PUBLISHED', 'REQUESTED', 'ALERT']) {
+      expect((w.find(`[data-test="corridor-source-${k}"]`).element as HTMLInputElement).checked).toBe(true)
+    }
+    await w.find('[data-test="corridor-origin"]').setValue('Paris')
+    expect((rule.root.value.children.find((c) => c.id === id) as any).value.sources).toEqual(['PUBLISHED', 'REQUESTED', 'ALERT'])
+  })
+
+  it('corridor_sourcesNull_afficheesToutesCochees', async () => {
+    const { w, rule } = build()
+    const id = rule.addCondition(rule.root.value.id, 'corridor_interest')!
+    rule.update(id, { value: { kind: 'CITY', origin: 'Paris', destination: '', sources: null } })
+    await w.vm.$nextTick()
+    for (const k of ['PUBLISHED', 'REQUESTED', 'ALERT']) {
+      expect((w.find(`[data-test="corridor-source-${k}"]`).element as HTMLInputElement).checked).toBe(true)
+    }
+  })
+
+  it('corridor_derniereSource_nePeutPasEtreDecochee', async () => {
+    const { w, rule } = build()
+    const id = rule.addCondition(rule.root.value.id, 'corridor_interest')!
+    await w.vm.$nextTick()
+    const get = () => (rule.root.value.children.find((c) => c.id === id) as any).value.sources
     await w.find('[data-test="corridor-source-PUBLISHED"]').setValue(false)
     await w.find('[data-test="corridor-source-REQUESTED"]').setValue(false)
-    expect(get()).toBeNull()
+    expect(get()).toEqual(['ALERT'])
+    const last = w.find('[data-test="corridor-source-ALERT"]')
+    expect((last.element as HTMLInputElement).disabled).toBe(true)
+    await last.setValue(false)
+    expect(get()).toEqual(['ALERT'])
   })
 
   it('retirerGroupe_etMessageGroupeVide', async () => {

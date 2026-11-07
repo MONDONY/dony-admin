@@ -28,14 +28,19 @@ const intHint = computed(() => `Nombre entier de 0 à ${maxInt.value.toLocaleStr
 const countries = computed(() => props.fields.find((f) => f.key === 'country')?.values ?? [])
 
 interface CorridorValue { kind: 'CITY' | 'COUNTRY'; origin?: string | null; destination?: string | null; sources?: string[] | null }
+const ALL_SOURCES = CORRIDOR_SOURCES.map((s) => s.key)
+// Le back lit `sources: null` comme « les trois sources » : on l'affiche (et l'envoie) explicitement,
+// sinon décocher la dernière case élargirait l'audience au lieu de la restreindre.
 const corridor = computed<CorridorValue>(() => {
   const v = props.condition.value as CorridorValue | null
-  return v && typeof v === 'object' ? v : { kind: 'CITY' }
+  const base: CorridorValue = v && typeof v === 'object' ? v : { kind: 'CITY' }
+  return { ...base, sources: Array.isArray(base.sources) && base.sources.length > 0 ? base.sources : [...ALL_SOURCES] }
 })
 const corridorMissingBound = computed(() =>
   valueType.value === 'CORRIDOR'
   && ![corridor.value.origin, corridor.value.destination].some((b) => typeof b === 'string' && b.trim().length > 0))
 const selectedSources = computed(() => corridor.value.sources ?? [])
+const lastSource = computed(() => selectedSources.value.length <= 1)
 
 function setCorridor(patch: Partial<CorridorValue>) {
   const next: CorridorValue = { ...corridor.value, ...patch }
@@ -46,7 +51,8 @@ function setCorridor(patch: Partial<CorridorValue>) {
 function toggleSource(key: string, on: boolean) {
   const set = new Set(selectedSources.value)
   if (on) set.add(key); else set.delete(key)
-  setCorridor({ sources: set.size === 0 ? null : CORRIDOR_SOURCES.map((s) => s.key).filter((k) => set.has(k)) })
+  if (set.size === 0) return // au moins une source : la dernière case ne se décoche pas
+  setCorridor({ sources: ALL_SOURCES.filter((k) => set.has(k)) })
 }
 function toggleMulti(key: string, on: boolean) {
   const cur = Array.isArray(props.condition.value) ? (props.condition.value as string[]) : []
@@ -167,6 +173,7 @@ function onBoolean(e: Event) {
         <label v-for="s in CORRIDOR_SOURCES" :key="s.key" class="flex items-center gap-1 text-sm text-text">
           <input
             type="checkbox" :data-test="`corridor-source-${s.key}`" :checked="selectedSources.includes(s.key)"
+            :disabled="lastSource && selectedSources.includes(s.key)"
             @change="toggleSource(s.key, ($event.target as HTMLInputElement).checked)"
           >
           <span>{{ s.label }}</span>

@@ -124,6 +124,25 @@ describe('BroadcastComposer', () => {
     expect(find(w, 'broadcast-recipient-count').text()).toBe('5 personnes ciblées')
   })
 
+  it('segment modifié ailleurs (updatedAt change) : l’estimation devient périmée', async () => {
+    const w = mountComposer()
+    await find(w, 'broadcast-target').setValue('SEGMENT')
+    await find(w, 'segment-select').setValue('s1')
+    await vi.advanceTimersByTimeAsync(400)
+    await w.setProps({ audience: aud(5, 2) })
+    expect(find(w, 'broadcast-stale-estimate').exists()).toBe(false)
+    await w.setProps({ segments: [{ ...SEGMENT, updatedAt: '2026-11-02T09:00:00' }] })
+    expect(find(w, 'broadcast-stale-estimate').exists()).toBe(true)
+  })
+
+  it('formulaire d’enregistrement : nom limité à 80 et description à 300 (comme le back)', async () => {
+    const w = mountComposer({ saveSegmentFn: vi.fn().mockResolvedValue(null) })
+    await find(w, 'shortcut-senders').trigger('click')
+    await find(w, 'save-segment-open').trigger('click')
+    expect(find(w, 'segment-name').attributes('maxlength')).toBe('80')
+    expect(find(w, 'segment-description').attributes('maxlength')).toBe('300')
+  })
+
   it('l’estimation arrive après l’émission : fraîche, même si le total est identique', async () => {
     const w = mountComposer({ audience: aud(5, 2) })
     await find(w, 'shortcut-senders').trigger('click')
