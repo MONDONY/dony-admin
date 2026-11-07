@@ -14,6 +14,11 @@ const CORRIDOR_KINDS = ['CITY', 'COUNTRY']
 const CORRIDOR_SOURCES = ['PUBLISHED', 'REQUESTED', 'ALERT']
 const DAY_OPERATORS = ['WITHIN_DAYS', 'OLDER_THAN_DAYS']
 
+/** Plafond d'un entier selon l'opérateur : 3650 jours, sinon 10000. */
+export function intMax(operator: string): number {
+  return DAY_OPERATORS.includes(operator) ? 3650 : 10000
+}
+
 function text(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0 && v.length <= MAX_TEXT
 }
@@ -29,7 +34,7 @@ function validValue(type: AudienceValueType, value: unknown, operator: string, f
     case 'ENUM_MULTI':
       return Array.isArray(value) && value.length > 0 && value.every((x) => typeof x === 'string' && keys.includes(x))
     case 'INT': {
-      const max = DAY_OPERATORS.includes(operator) ? 3650 : 10000
+      const max = intMax(operator)
       return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max
     }
     case 'CORRIDOR': {

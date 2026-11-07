@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { intMax } from '@/features/broadcast/composables/useAudienceRule'
 import type { AudienceField, AudienceValueType, RuleCondition } from '@/features/broadcast/types/index'
 
 const props = defineProps<{ condition: RuleCondition; fields: AudienceField[] }>()
@@ -18,6 +19,12 @@ const control = 'rounded-btn border border-border bg-bg p-2 text-sm'
 const field = computed(() => props.fields.find((f) => f.key === props.condition.field))
 const operator = computed(() => field.value?.operators.find((o) => o.key === props.condition.operator))
 const valueType = computed<AudienceValueType>(() => operator.value?.valueType ?? 'NONE')
+const maxInt = computed(() => intMax(props.condition.operator))
+const intInvalid = computed(() => {
+  const v = props.condition.value
+  return v !== null && v !== undefined && !(typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= maxInt.value)
+})
+const intHint = computed(() => `Nombre entier de 0 à ${maxInt.value.toLocaleString('fr-FR')}`)
 const countries = computed(() => props.fields.find((f) => f.key === 'country')?.values ?? [])
 
 interface CorridorValue { kind: 'CITY' | 'COUNTRY'; origin?: string | null; destination?: string | null; sources?: string[] | null }
@@ -103,12 +110,14 @@ function onBoolean(e: Event) {
       </label>
     </fieldset>
 
-    <input
-      v-else-if="valueType === 'INT'"
-      type="number" min="0" max="3650" step="1" inputmode="numeric" aria-label="Valeur"
-      :value="(condition.value as number | null) ?? ''" data-test="value-int" :class="[control, 'w-28 tabular-nums']"
-      @input="onInt"
-    >
+    <div v-else-if="valueType === 'INT'" class="flex flex-col gap-1">
+      <input
+        type="number" min="0" :max="maxInt" step="1" inputmode="numeric" aria-label="Valeur"
+        :aria-invalid="intInvalid" :value="(condition.value as number | null) ?? ''" data-test="value-int"
+        :class="[control, 'w-28 tabular-nums']" @input="onInt"
+      >
+      <p v-if="intInvalid" role="alert" data-test="int-error" class="text-sm text-warning">{{ intHint }}</p>
+    </div>
 
     <input
       v-else-if="valueType === 'TEXT'"
