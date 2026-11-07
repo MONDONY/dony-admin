@@ -54,6 +54,70 @@ describe('useBroadcast', () => {
     expect(svc.listHistory).not.toHaveBeenCalled()
   })
 
+  it('preview garde le détail push de l’audience', async () => {
+    svc.preview.mockResolvedValue({ recipientCount: 42, pushReachableCount: 30 })
+    const b = useBroadcast()
+    await b.preview({ type: 'ALL' })
+    expect(b.audience.value).toEqual({ recipientCount: 42, pushReachableCount: 30 })
+  })
+
+  it('apercu_debounce400_etIgnoreReponseObsolete : seule la dernière réponse compte', async () => {
+    let resolveA!: ReturnType<typeof vi.fn>
+    svc.preview
+      .mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
+      .mockResolvedValueOnce({ recipientCount: 2, pushReachableCount: 1 })
+    const b = useBroadcast()
+    const first = b.preview({ type: 'ALL' })
+    await b.preview({ type: 'SENDERS' })
+    expect(b.recipientCount.value).toBe(2)
+    resolveA({ recipientCount: 99, pushReachableCount: 99 })
+    await first
+    expect(b.recipientCount.value).toBe(2)
+    expect(b.previewing.value).toBe(false)
+  })
+
+  it('une erreur obsolète ne touche pas l’état courant', async () => {
+    let rejectA!: ReturnType<typeof vi.fn>
+    svc.preview
+      .mockImplementationOnce(() => new Promise((_, r) => { rejectA = r }))
+      .mockResolvedValueOnce({ recipientCount: 2, pushReachableCount: 1 })
+    const b = useBroadcast()
+    const first = b.preview({ type: 'ALL' })
+    await b.preview({ type: 'SENDERS' })
+    rejectA({ data: { detail: 'Vieille erreur' } })
+    await first
+    expect(b.error.value).toBeNull()
+    expect(b.recipientCount.value).toBe(2)
+  })
+
+  it('send écarte aussi une réponse d’aperçu encore en vol', async () => {
+    let resolveA!: ReturnType<typeof vi.fn>
+    svc.preview.mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
+    const b = useBroadcast()
+    const p = b.preview({ type: 'ALL' })
+    await b.send('T', 'B', { type: 'ALL' }, false)
+    resolveA({ recipientCount: 7, pushReachableCount: 1 })
+    await p
+    expect(b.recipientCount.value).toBeNull()
+  })
+
+  it('fetchFields charge le catalogue ou garde l’erreur', async () => {
+    svc.fields = vi.fn().mockResolvedValue([{ key: 'is_pro' }])
+    const b = useBroadcast()
+    await b.fetchFields()
+    expect(b.fields.value).toHaveLength(1)
+    svc.fields.mockRejectedValue({ data: { detail: 'Catalogue indisponible' } })
+    await b.fetchFields()
+    expect(b.error.value).toBe('Catalogue indisponible')
+  })
+
+  it('fetchFields ignore une réponse qui n’est pas un tableau', async () => {
+    svc.fields = vi.fn().mockResolvedValue({ content: [] })
+    const b = useBroadcast()
+    await b.fetchFields()
+    expect(b.fields.value).toEqual([])
+  })
+
   it('goToPage change de page et recharge', async () => {
     const b = useBroadcast()
     await b.goToPage(2)

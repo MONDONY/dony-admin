@@ -96,19 +96,19 @@ describe('Broadcast : compte non joignable', () => {
   const UUID = '3f2b8c1e-4a5d-4e6f-8a9b-0c1d2e3f4a5b'
 
   it('compte non joignable : avertissement et envoi désactivé', async () => {
-    const w = mount(BroadcastComposer, { props: { recipientCount: null, initialUserId: UUID } })
+    const w = mount(BroadcastComposer, { props: { audience: null, initialUserId: UUID } })
     await w.find('[data-test="broadcast-title"]').setValue('Titre')
     await w.find('[data-test="broadcast-body"]').setValue('Corps')
-    await w.setProps({ recipientCount: 0, targetUserName: 'Awa Diop', targetUserUnreachable: true })
+    await w.setProps({ audience: { recipientCount: 0, pushReachableCount: 0 }, targetUserName: 'Awa Diop', targetUserUnreachable: true })
     expect(w.find('[data-test="broadcast-user-unreachable"]').text()).toBe('Ce compte ne recevra pas la notification.')
     expect((w.find('[data-test="broadcast-send"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('joignable (ou champ absent) : envoi possible', async () => {
-    const w = mount(BroadcastComposer, { props: { recipientCount: null, initialUserId: UUID } })
+    const w = mount(BroadcastComposer, { props: { audience: null, initialUserId: UUID } })
     await w.find('[data-test="broadcast-title"]').setValue('Titre')
     await w.find('[data-test="broadcast-body"]').setValue('Corps')
-    await w.setProps({ recipientCount: 1, targetUserName: 'Awa Diop' })
+    await w.setProps({ audience: { recipientCount: 1, pushReachableCount: 1 }, targetUserName: 'Awa Diop' })
     expect(w.find('[data-test="broadcast-user-unreachable"]').exists()).toBe(false)
     expect((w.find('[data-test="broadcast-send"]').element as HTMLButtonElement).disabled).toBe(false)
   })

@@ -1,13 +1,42 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
+import AudienceRuleBuilder from '@/features/broadcast/components/AudienceRuleBuilder.vue'
+import BroadcastRecipientsDrawer from '@/features/broadcast/components/BroadcastRecipientsDrawer.vue'
 import BroadcastUserPicker from '@/features/broadcast/components/BroadcastUserPicker.vue'
-import { TARGET_LABELS, type BroadcastTarget, type BroadcastTargetType } from '@/features/broadcast/types/index'
+import { serializeRule } from '@/features/broadcast/composables/audienceRule'
+import { useAudienceRule } from '@/features/broadcast/composables/useAudienceRule'
+import type {
+  AudienceField, BroadcastAudience, BroadcastSegment, BroadcastTarget, RuleGroup,
+} from '@/features/broadcast/types/index'
 
-const props = defineProps<{
-  recipientCount: number | null
+type Mode = 'RULES' | 'SEGMENT' | 'USER'
+const MODE_LABELS: Record<Mode, string> = {
+  RULES: 'Construire une cible',
+  SEGMENT: 'Segment enregistré',
+  USER: 'Un utilisateur précis',
+}
+/** Délai après la dernière modification avant de recalculer l'aperçu. */
+const PREVIEW_DEBOUNCE_MS = 400
+
+/* eslint-disable no-unused-vars -- noms de paramètres d'un type de fonction */
+type SaveSegmentFn = (name: string, description: string | null, rule: RuleGroup) => Promise<string | null>
+type UpdateSegmentFn = (id: string, name: string, description: string | null, rule: RuleGroup) => Promise<string | null>
+/* eslint-enable no-unused-vars */
+
+const props = withDefaults(defineProps<{
+  /** Dernier aperçu reçu (un nouvel objet à chaque réponse), null tant qu'il n'y en a pas. */
+  audience: BroadcastAudience | null
   busy?: boolean
   previewing?: boolean
+  /** Catalogue des critères de ciblage (back). */
+  fields?: AudienceField[]
+  segments?: BroadcastSegment[]
+  /** Segment dont la règle est en cours de modification (depuis le panneau des segments). */
+  editSegment?: BroadcastSegment | null
+  /** Enregistre un segment ; renvoie le message d'erreur à afficher, ou null. */
+  saveSegmentFn?: SaveSegmentFn
+  updateSegmentFn?: UpdateSegmentFn
   /** Pré-remplissage depuis la fiche utilisateur (`?target=USER&userId=`). */
   initialUserId?: string | null
   /** Nom du destinataire renvoyé par la preview (nouveau back), absent sinon. */
@@ -19,64 +48,115 @@ const props = defineProps<{
   targetUserUnreachable?: boolean
   /** Recherche par nom possible (USER_VIEW) ; sinon seul l'identifiant collé est accepté. */
   canSearchUsers?: boolean
-}>()
+  /** Droit USER_VIEW : la liste nominative et l'export CSV exposent des données personnelles. */
+  canViewRecipients?: boolean
+}>(), { fields: () => [], segments: () => [], editSegment: null, initialUserId: null, targetUserName: null, saveSegmentFn: undefined, updateSegmentFn: undefined })
 const emit = defineEmits<{
   preview: [target: BroadcastTarget]
   send: [title: string, body: string, target: BroadcastTarget, push: boolean]
+  'edit-done': []
 }>()
 
 const title = ref('')
 const body = ref('')
-const targetType = ref<BroadcastTargetType>(props.initialUserId ? 'USER' : 'ALL')
-const origin = ref('')
-const destination = ref('')
+const mode = ref<Mode>(props.initialUserId ? 'USER' : 'RULES')
 const userId = ref(props.initialUserId ?? '')
+const segmentId = ref('')
 const confirmOpen = ref(false)
+const drawerOpen = ref(false)
+const viewButton = ref<HTMLButtonElement | null>(null)
+async function closeDrawer() {
+  drawerOpen.value = false
+  await nextTick()
+  viewButton.value?.focus()
+}
+const rule = useAudienceRule(toRef(props, 'fields'))
 
 // Faire aussi sonner les téléphones. Par défaut, seulement pour un message adressé à une
 // personne : une diffusion large (concours, info de service) arrive dans la boîte Annonces
 // sans réveiller tout le monde. Le défaut suit la cible tant que l'admin n'a pas choisi.
-const pushDefaultFor = (type: BroadcastTargetType) => type === 'USER'
-const push = ref(pushDefaultFor(targetType.value))
+const pushDefaultFor = (m: Mode) => m === 'USER'
+const push = ref(pushDefaultFor(mode.value))
 const pushTouched = ref(false)
-watch(targetType, (type) => {
-  if (!pushTouched.value) push.value = pushDefaultFor(type)
+watch(mode, (m) => {
+  if (!pushTouched.value) push.value = pushDefaultFor(m)
 })
 
-// Seuls les champs pertinents pour le type choisi entrent dans le ciblage — un champ
-// laissé rempli après un changement de cible ne doit pas fuiter dans la requête.
+// Seuls les champs pertinents pour le mode choisi entrent dans le ciblage : un champ laissé
+// rempli après un changement de mode ne doit pas fuiter dans la requête. Un `RULE` porte soit
+// la règle, soit l'identifiant du segment, jamais les deux.
 const target = computed<BroadcastTarget>(() => {
-  if (targetType.value === 'CORRIDOR') return { type: 'CORRIDOR', origin: origin.value, destination: destination.value }
-  if (targetType.value === 'USER') return { type: 'USER', userId: userId.value }
-  return { type: targetType.value }
+  if (mode.value === 'USER') return { type: 'USER', userId: userId.value }
+  if (mode.value === 'SEGMENT') return { type: 'RULE', segmentId: segmentId.value }
+  return { type: 'RULE', rule: rule.root.value }
+})
+// Empreinte du ciblage (sans les identifiants locaux des nœuds) : sert à savoir si une
+// estimation correspond encore à ce qui partirait.
+const targetKey = computed(() => {
+  if (mode.value === 'USER') return `U:${userId.value}`
+  // updatedAt : un segment modifié ailleurs rend l'estimation périmée (la règle a changé).
+  if (mode.value === 'SEGMENT') return `S:${segmentId.value}:${selectedSegment.value?.updatedAt ?? ''}`
+  return `R:${JSON.stringify(serializeRule(rule.root.value))}`
+})
+const previewable = computed(() => {
+  if (mode.value === 'USER') return userId.value.trim().length > 0
+  if (mode.value === 'SEGMENT') return segmentId.value !== ''
+  return rule.isComplete.value
+})
+const incompleteRule = computed(() => mode.value === 'RULES' && !rule.isComplete.value)
+
+// Aperçu automatique pour les règles et les segments, 400 ms après la dernière modification et
+// seulement si la règle est complète. Le mode utilisateur reste manuel : on ne tape pas un
+// identifiant partiel contre le back.
+const requestedFor = ref<string | null>(null)
+let timer: ReturnType<typeof setTimeout> | null = null
+function clearTimer() {
+  if (timer !== null) clearTimeout(timer)
+  timer = null
+}
+function requestPreview() {
+  requestedFor.value = targetKey.value
+  emit('preview', target.value)
+}
+watch([targetKey, previewable, mode], () => {
+  clearTimer()
+  if (mode.value === 'USER' || !previewable.value) return
+  timer = setTimeout(() => { timer = null; requestPreview() }, PREVIEW_DEBOUNCE_MS)
+}, { immediate: true })
+onBeforeUnmount(clearTimer)
+
+// Le ciblage pour lequel la dernière estimation a été demandée (et non celui d'aujourd'hui :
+// l'admin a pu modifier la règle pendant que la réponse voyageait). Un ciblage qui a changé
+// depuis rend le compteur mensonger : on le considère alors comme non estimé.
+const estimatedFor = ref<string | null>(null)
+watch(() => props.audience, (a) => {
+  estimatedFor.value = a === null ? null : (requestedFor.value ?? targetKey.value)
+}, { immediate: true })
+const freshAudience = computed<BroadcastAudience | null>(() =>
+  props.audience !== null && estimatedFor.value === targetKey.value ? props.audience : null)
+const freshCount = computed<number | null>(() => freshAudience.value?.recipientCount ?? null)
+const estimateIsStale = computed(() => props.audience !== null && freshAudience.value === null)
+const targetUnreachable = computed(() =>
+  mode.value === 'USER' && freshCount.value !== null && props.targetUserUnreachable)
+const shownUserName = computed(() =>
+  mode.value === 'USER' && freshCount.value !== null && props.targetUserName ? props.targetUserName : null)
+
+const plural = (n: number, one: string, many: string) => (n > 1 ? many : one)
+const countLabel = computed(() => {
+  const a = freshAudience.value
+  if (!a) return ''
+  const n = a.recipientCount
+  const base = `${n} ${plural(n, 'personne ciblée', 'personnes ciblées')}`
+  if (typeof a.pushReachableCount !== 'number') return base
+  return `${base}, dont ${a.pushReachableCount} ${plural(a.pushReachableCount, 'joignable', 'joignables')} en push`
 })
 
-// Le ciblage pour lequel l'estimation courante a été demandée. Changer de ciblage ensuite
-// rend le compteur mensonger : on le considère alors comme non estimé plutôt que d'afficher
-// un chiffre qui ne correspond plus à ce qui partira.
-const estimatedFor = ref<string | null>(null)
-// Le compteur est fourni par la page, qui le remplit après l'estimation : on note le
-// ciblage courant au moment précis où il arrive, ce qui est le seul instant où l'on sait
-// à quoi il correspond.
-watch(() => props.recipientCount, (count) => {
-  estimatedFor.value = count === null ? null : JSON.stringify(target.value)
-}, { immediate: true })
-const freshCount = computed<number | null>(() =>
-  props.recipientCount !== null && estimatedFor.value === JSON.stringify(target.value)
-    ? props.recipientCount
-    : null,
-)
-const estimateIsStale = computed(() => props.recipientCount !== null && freshCount.value === null)
-const targetUnreachable = computed(() =>
-  targetType.value === 'USER' && freshCount.value !== null && props.targetUserUnreachable)
-const shownUserName = computed(() =>
-  targetType.value === 'USER' && freshCount.value !== null && props.targetUserName ? props.targetUserName : null)
-
-// Phrase de contrôle exigée pour la cible la plus large. Réservée à `ALL` : l'imposer sur
-// toutes les cibles la banaliserait, et une confirmation qu'on tape sans lire ne protège
-// plus de rien — même raisonnement que pour la désactivation des SMS.
+// Phrase de contrôle exigée pour la cible la plus large : une règle sans condition (tous les
+// comptes actifs). Réservée à ce cas : l'imposer partout la banaliserait.
 const BROADCAST_ALL_PHRASE = 'DIFFUSER A TOUS'
-const needsControlPhrase = computed(() => targetType.value === 'ALL')
+const needsControlPhrase = computed(() =>
+  (mode.value === 'RULES' && rule.conditionCount.value === 0)
+  || (mode.value === 'SEGMENT' && selectedSegment.value !== null && countWireConditions(selectedSegment.value.rule) === 0))
 
 // L'estimation fraîche est OBLIGATOIRE avant tout envoi : c'est elle qui oblige à VOIR le
 // nombre de personnes touchées avant de s'engager. Une notification push ne se rappelle pas.
@@ -88,10 +168,6 @@ const canSend = computed(() =>
   && !targetUnreachable.value,
 )
 
-function onPreview() {
-  emit('preview', target.value)
-}
-
 function onSendClick() {
   if (canSend.value) confirmOpen.value = true
 }
@@ -101,19 +177,83 @@ function confirmSend() {
   emit('send', title.value, body.value, target.value, push.value)
 }
 
-// Un broadcast est irrattrapable une fois parti : la confirmation nomme toujours le
-// nombre de destinataires (ou signale explicitement qu'il n'a pas été estimé), pour que
-// l'admin sache combien de personnes il s'apprête à toucher avant de valider.
+// Un broadcast est irrattrapable une fois parti : la confirmation nomme toujours le nombre de
+// personnes touchées, et celui des téléphones qui sonneront si le push est coché.
 const confirmMessage = computed(() => {
-  if (freshCount.value === null) {
+  const a = freshAudience.value
+  if (!a) {
     return 'Le nombre de destinataires n’a pas été estimé pour ce ciblage. '
       + 'Ce message sera envoyé immédiatement et ne pourra pas être annulé.'
   }
-  const n = freshCount.value
-  return `Ce message sera envoyé à ${n} destinataire${n > 1 ? 's' : ''}. `
+  const n = a.recipientCount
+  const pushPart = typeof a.pushReachableCount === 'number' ? ` (${a.pushReachableCount} en push)` : ''
+  return `Envoyer à ${n} ${plural(n, 'personne', 'personnes')}${pushPart}. `
     + (push.value ? 'Leur téléphone sonnera. ' : 'Il arrivera dans la boîte Annonces, sans sonnerie. ')
     + 'Cette action est irréversible et ne pourra pas être annulée.'
 })
+
+/** Conditions d'une règle JSON du back, sous-groupes compris. */
+function countWireConditions(r: unknown): number {
+  const children = (r as { children?: unknown } | null)?.children
+  if (!Array.isArray(children)) return 0
+  return children.reduce<number>((n, c) => n + (Array.isArray((c as { children?: unknown }).children) ? countWireConditions(c) : 1), 0)
+}
+
+// Raccourcis : chargent un préréglage dans le constructeur (modifiable ensuite).
+const shortcuts = [
+  { id: 'all', label: 'Tous', apply: () => rule.presetAll() },
+  { id: 'senders', label: 'Expéditeurs', apply: () => rule.presetSenders() },
+  { id: 'travelers', label: 'Voyageurs', apply: () => rule.presetTravelers() },
+  { id: 'corridor', label: 'Corridor', apply: () => rule.presetCorridor('', '') },
+]
+
+// Mode segment : la règle du segment choisi est copiée dans le constructeur (jamais modifiée sur place).
+const selectedSegment = computed(() => props.segments.find((s) => s.id === segmentId.value) ?? null)
+// Segment supprimé entre-temps : on oublie le choix, sinon l'envoi partirait vers un 404.
+watch(() => props.segments, (list) => {
+  if (segmentId.value && !list.some((s) => s.id === segmentId.value)) segmentId.value = ''
+})
+function editSelectedRules() {
+  if (!selectedSegment.value) return
+  rule.load(selectedSegment.value.rule)
+  mode.value = 'RULES'
+}
+
+// Enregistrer la règle courante comme segment.
+const saveOpen = ref(false)
+const segName = ref('')
+const segDescription = ref('')
+const segError = ref<string | null>(null)
+const segSaving = ref(false)
+async function saveSegment() {
+  if (!props.saveSegmentFn) return
+  segSaving.value = true
+  segError.value = await props.saveSegmentFn(segName.value.trim(), segDescription.value.trim() || null, rule.root.value)
+  segSaving.value = false
+  if (segError.value === null) {
+    saveOpen.value = false
+    segName.value = ''
+    segDescription.value = ''
+  }
+}
+
+// Modification d'un segment existant (depuis le panneau).
+watch(() => props.editSegment, (s) => {
+  if (!s) return
+  rule.load(s.rule)
+  mode.value = 'RULES'
+  segError.value = null
+}, { immediate: true })
+async function updateSegment() {
+  const s = props.editSegment
+  if (!s || !props.updateSegmentFn) return
+  segSaving.value = true
+  segError.value = await props.updateSegmentFn(s.id, s.name, s.description, rule.root.value)
+  segSaving.value = false
+  if (segError.value === null) emit('edit-done')
+}
+
+const btn = 'whitespace-nowrap rounded-btn border border-border px-3 py-2 text-sm hover:bg-surface-elevated disabled:opacity-40'
 </script>
 
 <template>
@@ -136,30 +276,88 @@ const confirmMessage = computed(() => {
 
     <label class="block text-sm text-text-muted">Cible
       <select
-        v-model="targetType" data-test="broadcast-target" :disabled="busy"
+        v-model="mode" data-test="broadcast-target" :disabled="busy"
         class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm disabled:opacity-40"
       >
-        <option v-for="(label, value) in TARGET_LABELS" :key="value" :value="value">{{ label }}</option>
+        <option v-for="(label, value) in MODE_LABELS" :key="value" :value="value">{{ label }}</option>
       </select>
     </label>
 
-    <div v-if="targetType === 'CORRIDOR'" class="flex gap-3">
-      <label class="text-sm text-text-muted flex-1">Ville de départ
-        <input
-          v-model="origin" data-test="broadcast-origin" type="text" :disabled="busy"
+    <div v-if="mode === 'RULES'" class="space-y-3">
+      <div v-if="editSegment" data-test="editing-segment" class="flex flex-wrap items-center gap-2 rounded-btn border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+        <span class="text-pretty">Modification de la règle du segment « {{ editSegment.name }} »</span>
+        <button type="button" data-test="segment-edit-quit" :class="[btn, 'ml-auto']" @click="emit('edit-done')">Quitter</button>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Raccourcis de ciblage">
+        <span class="text-sm text-text-muted">Raccourcis</span>
+        <button
+          v-for="s in shortcuts" :key="s.id" type="button" :data-test="`shortcut-${s.id}`"
+          :disabled="busy" :class="btn" @click="s.apply()"
+        >{{ s.label }}</button>
+      </div>
+
+      <AudienceRuleBuilder :fields="fields" :rule="rule" />
+
+      <p v-if="incompleteRule" data-test="broadcast-incomplete" role="status" class="text-sm text-warning text-pretty">
+        Complétez les conditions pour estimer les destinataires.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <template v-if="editSegment">
+          <button
+            type="button" data-test="segment-update" :disabled="segSaving || !rule.isComplete.value" :class="btn"
+            @click="updateSegment"
+          >Mettre à jour le segment</button>
+        </template>
+        <button
+          v-else-if="saveSegmentFn" type="button" data-test="save-segment-open"
+          :disabled="busy || !rule.isComplete.value" :aria-expanded="saveOpen" :class="btn"
+          @click="saveOpen = !saveOpen"
+        >Enregistrer comme segment</button>
+      </div>
+      <p v-if="editSegment && segError" data-test="segment-save-error" role="alert" class="text-sm text-danger">{{ segError }}</p>
+
+      <div v-if="saveOpen && !editSegment" class="space-y-2 rounded-btn border border-border bg-bg p-3">
+        <label class="block text-sm text-text-muted">Nom du segment
+          <input
+            v-model="segName" data-test="segment-name" type="text" maxlength="80"
+            class="mt-1 w-full rounded-btn border border-border bg-surface p-2 text-sm"
+          >
+        </label>
+        <label class="block text-sm text-text-muted">Description (facultative)
+          <input
+            v-model="segDescription" data-test="segment-description" type="text" maxlength="300"
+            class="mt-1 w-full rounded-btn border border-border bg-surface p-2 text-sm"
+          >
+        </label>
+        <p v-if="segError" data-test="segment-save-error" role="alert" class="text-sm text-danger">{{ segError }}</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button" data-test="segment-save" :disabled="segSaving || !segName.trim()" :class="btn"
+            @click="saveSegment"
+          >Enregistrer</button>
+          <button type="button" data-test="segment-cancel" :class="btn" @click="saveOpen = false; segError = null">Annuler</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="mode === 'SEGMENT'" class="space-y-2">
+      <label class="block text-sm text-text-muted">Segment
+        <select
+          v-model="segmentId" data-test="segment-select" :disabled="busy"
           class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm disabled:opacity-40"
         >
+          <option value="" disabled>Choisir un segment…</option>
+          <option v-for="s in segments" :key="s.id" :value="s.id">{{ s.name }}</option>
+        </select>
       </label>
-      <label class="text-sm text-text-muted flex-1">Ville d’arrivée
-        <input
-          v-model="destination" data-test="broadcast-destination" type="text" :disabled="busy"
-          class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm disabled:opacity-40"
-        >
-      </label>
+      <p v-if="selectedSegment?.description" class="text-sm text-text-muted text-pretty">{{ selectedSegment.description }}</p>
+      <button v-if="selectedSegment" type="button" data-test="segment-edit-rules" :disabled="busy" :class="btn" @click="editSelectedRules">Modifier les règles</button>
     </div>
 
     <BroadcastUserPicker
-      v-if="targetType === 'USER'" v-model="userId" :can-search="canSearchUsers" :disabled="busy"
+      v-if="mode === 'USER'" v-model="userId" :can-search="canSearchUsers" :disabled="busy"
     />
 
     <label class="flex items-start gap-2 text-sm text-text">
@@ -172,18 +370,21 @@ const confirmMessage = computed(() => {
       </span>
     </label>
 
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
       <button
-        type="button" data-test="broadcast-preview" :disabled="busy || previewing"
-        class="rounded-btn px-4 py-2 text-sm border border-border hover:bg-surface-elevated disabled:opacity-40"
-        @click="onPreview"
+        type="button" data-test="broadcast-preview" :disabled="busy || previewing || !previewable"
+        class="whitespace-nowrap rounded-btn px-4 py-2 text-sm border border-border hover:bg-surface-elevated disabled:opacity-40"
+        @click="requestPreview"
       >Estimer les destinataires</button>
-      <span v-if="freshCount !== null" data-test="broadcast-recipient-count" class="text-sm text-text-muted tabular-nums">
-        {{ freshCount }} destinataire{{ freshCount > 1 ? 's' : '' }} estimé{{ freshCount > 1 ? 's' : '' }}
-      </span>
+      <span v-if="freshCount !== null" data-test="broadcast-recipient-count" class="text-sm text-text-muted tabular-nums">{{ countLabel }}</span>
       <span v-else-if="estimateIsStale" data-test="broadcast-stale-estimate" class="text-sm text-warning">
         Le ciblage a changé : relancez l’estimation.
       </span>
+      <span v-else-if="previewing" class="text-sm text-text-muted" role="status">Calcul en cours…</span>
+      <button
+        v-if="canViewRecipients && mode !== 'USER' && freshCount !== null && freshCount > 0" ref="viewButton" type="button" data-test="view-recipients"
+        class="whitespace-nowrap text-sm text-primary underline underline-offset-2" @click="drawerOpen = true"
+      >Voir la liste</button>
       <span v-if="shownUserName" data-test="broadcast-target-user-name" class="text-sm font-medium text-text">Destinataire : {{ shownUserName }}</span>
     </div>
     <p
@@ -198,6 +399,8 @@ const confirmMessage = computed(() => {
         @click="onSendClick"
       >Envoyer</button>
     </div>
+
+    <BroadcastRecipientsDrawer :open="drawerOpen" :target="target" @close="closeDrawer" />
 
     <ConfirmActionDialog
       :open="confirmOpen"
