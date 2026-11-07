@@ -113,16 +113,17 @@ test('admin construit une cible « Expéditeurs », voit l’aperçu, envoie et 
 })
 
 test('changer le ciblage après une estimation la périme', async ({ page }) => {
-  let previews = 0
+  // Une fois le ciblage changé, l'aperçu ne répond plus : le compteur précédent reste périmé.
+  // On ne compte pas les aperçus : celui de la règle vide, lancé 400 ms après l'ouverture,
+  // peut partir avant le clic sur « Expéditeurs » quand la machine est lente (CI).
+  let hangPreviews = false
   await page.route('**/api/v1/admin/notifications/**', async (route) => {
     const req = route.request()
     const url = req.url()
     const method = req.method()
     if (method === 'GET' && url.includes('/broadcast/fields')) return route.fulfill({ json: FIELDS })
     if (method === 'POST' && url.includes('/broadcast/preview')) {
-      previews += 1
-      // Le second aperçu ne répond jamais : le compteur du premier ciblage reste périmé.
-      if (previews > 1) return new Promise(() => {})
+      if (hangPreviews) return new Promise(() => {})
       return route.fulfill({ json: { recipientCount: 100, pushReachableCount: 60 } })
     }
     return route.fulfill({ json: INITIAL_HISTORY })
@@ -134,6 +135,7 @@ test('changer le ciblage après une estimation la périme', async ({ page }) => 
   await page.locator('[data-test="shortcut-senders"]').click()
   await expect(page.locator('[data-test="broadcast-recipient-count"]')).toContainText('100 personnes ciblées')
 
+  hangPreviews = true
   await page.locator('[data-test="shortcut-travelers"]').click()
   await expect(page.locator('[data-test="broadcast-stale-estimate"]')).toBeVisible()
   await expect(page.locator('[data-test="broadcast-recipient-count"]')).toHaveCount(0)
