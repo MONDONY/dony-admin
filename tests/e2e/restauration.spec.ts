@@ -339,8 +339,10 @@ test('SUPPORT consulte les corbeilles sans pouvoir restaurer avis ni signalement
 
 test('preview : compte non joignable, avertissement et envoi bloqué', async ({ page }) => {
   await page.route('**/api/v1/admin/users**', (route) => route.fulfill({ json: { ...userDetail } }))
+  await page.route('**/api/v1/admin/broadcast-segments**', (route) => route.fulfill({ json: page1([]) }))
   await page.route('**/api/v1/admin/notifications/**', (route) => {
     const req = route.request()
+    if (req.method() === 'GET' && req.url().includes('/broadcast/fields')) return route.fulfill({ json: [] })
     if (req.method() === 'POST' && req.url().includes('/broadcast/preview')) {
       return route.fulfill({ json: { recipientCount: 0, targetUserName: 'Awa Diop', targetUserReachable: false } })
     }

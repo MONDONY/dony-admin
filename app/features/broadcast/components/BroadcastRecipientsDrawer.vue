@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import { broadcastService } from '@/features/broadcast/services/broadcastService'
 import { extractProblemMessageAsync } from '@/lib/problemDetail'
@@ -17,6 +17,7 @@ const page = ref(0)
 const loading = ref(false)
 const exporting = ref(false)
 const error = ref<string | null>(null)
+const closeButton = ref<HTMLButtonElement | null>(null)
 
 // Une page lente d'un chargement précédent ne doit pas écraser la page affichée.
 let seq = 0
@@ -39,7 +40,12 @@ async function load() {
 }
 
 watch(() => props.open, (o) => {
-  if (o) { page.value = 0; void load() }
+  if (o) {
+    page.value = 0
+    void load()
+    // Le focus entre dans le tiroir (la fermeture le rend au bouton d'ouverture, côté parent).
+    void nextTick(() => closeButton.value?.focus())
+  }
 }, { immediate: true })
 
 function goTo(p: number) {
@@ -84,7 +90,7 @@ const fmt = (d: string) => new Date(d).toLocaleDateString('fr-FR')
             @click="exportCsv"
           >Exporter en CSV</button>
           <button
-            type="button" data-test="close-drawer" aria-label="Fermer la liste"
+            ref="closeButton" type="button" data-test="close-drawer" aria-label="Fermer la liste"
             class="whitespace-nowrap rounded-btn border border-border px-3 py-2 text-sm hover:bg-surface-elevated"
             @click="emit('close')"
           >Fermer</button>

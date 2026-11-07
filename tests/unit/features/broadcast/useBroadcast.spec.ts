@@ -111,6 +111,13 @@ describe('useBroadcast', () => {
     expect(b.error.value).toBe('Catalogue indisponible')
   })
 
+  it('fetchFields ignore une réponse qui n’est pas un tableau', async () => {
+    svc.fields = vi.fn().mockResolvedValue({ content: [] })
+    const b = useBroadcast()
+    await b.fetchFields()
+    expect(b.fields.value).toEqual([])
+  })
+
   it('goToPage change de page et recharge', async () => {
     const b = useBroadcast()
     await b.goToPage(2)

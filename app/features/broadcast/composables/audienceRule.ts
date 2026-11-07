@@ -29,7 +29,7 @@ export function parseRule(json: unknown): RuleGroup {
     id: newRuleId(),
     op: g.op === 'OR' ? 'OR' : 'AND',
     children: children.map((c): RuleGroup | RuleCondition => {
-      const o = c as { children?: unknown; field?: string; operator?: string; value?: unknown }
+      const o = (c !== null && typeof c === 'object' ? c : {}) as { children?: unknown; field?: string; operator?: string; value?: unknown }
       if (Array.isArray(o.children)) return parseRule(o)
       return { kind: 'condition', id: newRuleId(), field: String(o.field ?? ''), operator: String(o.operator ?? ''), value: o.value ?? null }
     }),

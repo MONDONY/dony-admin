@@ -21,7 +21,7 @@ const aud = (n: number, m = 0): BroadcastAudience => ({ recipientCount: n, pushR
 
 function mountComposer(props: Record<string, unknown> = {}) {
   return mount(BroadcastComposer, {
-    props: { audience: null, busy: false, previewing: false, fields: FIELDS, segments: [SEGMENT], ...props },
+    props: { audience: null, busy: false, previewing: false, fields: FIELDS, segments: [SEGMENT], canViewRecipients: true, ...props },
   })
 }
 const find = (w: ReturnType<typeof mountComposer>, id: string) => w.find(`[data-test="${id}"]`)
@@ -185,6 +185,32 @@ describe('BroadcastComposer', () => {
     expect(w.emitted('send')![0]).toEqual(['Titre', 'Corps', { type: 'RULE', segmentId: 's1' }, false])
   })
 
+  it('un segment à règle vide (tous les comptes) exige la phrase de contrôle', async () => {
+    const empty = { ...SEGMENT, id: 's0', name: 'Tous', rule: { op: 'AND', children: [] } }
+    const w = mountComposer({ segments: [empty] })
+    await find(w, 'broadcast-target').setValue('SEGMENT')
+    await find(w, 'segment-select').setValue('s0')
+    await vi.advanceTimersByTimeAsync(400)
+    await w.setProps({ audience: aud(500, 300) })
+    await fillMessage(w)
+    await find(w, 'broadcast-send').trigger('click')
+    expect(find(w, 'confirmation-input').exists()).toBe(true)
+    expect((find(w, 'confirm').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('un segment supprimé de la liste est oublié et l’envoi se bloque', async () => {
+    const w = mountComposer()
+    await find(w, 'broadcast-target').setValue('SEGMENT')
+    await find(w, 'segment-select').setValue('s1')
+    await vi.advanceTimersByTimeAsync(400)
+    await w.setProps({ audience: aud(8, 4) })
+    await fillMessage(w)
+    expect(sendButton(w).disabled).toBe(false)
+    await w.setProps({ segments: [] })
+    expect((find(w, 'segment-select').element as HTMLSelectElement).value).toBe('')
+    expect(sendButton(w).disabled).toBe(true)
+  })
+
   it('en mode segment, rien n’est estimé tant qu’aucun segment n’est choisi', async () => {
     const w = mountComposer()
     await vi.advanceTimersByTimeAsync(400)
@@ -291,6 +317,32 @@ describe('BroadcastComposer', () => {
     expect(svc.recipients).toHaveBeenCalledWith(expect.objectContaining({ type: 'RULE' }), 0, 50)
     await find(w, 'close-drawer').trigger('click')
     expect(find(w, 'recipients-drawer').exists()).toBe(false)
+  })
+
+  it('« Voir la liste » exige le droit USER_VIEW', () => {
+    const w = mountComposer({ audience: aud(10, 5), canViewRecipients: false })
+    expect(find(w, 'view-recipients').exists()).toBe(false)
+  })
+
+  it('« Voir la liste » est masqué en mode utilisateur', async () => {
+    const w = mountComposer({ initialUserId: 'u1' })
+    await find(w, 'broadcast-preview').trigger('click')
+    await w.setProps({ audience: aud(1, 1) })
+    expect(find(w, 'view-recipients').exists()).toBe(false)
+  })
+
+  it('le focus revient sur « Voir la liste » à la fermeture du tiroir', async () => {
+    svc.recipients = vi.fn().mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 50 })
+    const w = mount(BroadcastComposer, {
+      attachTo: document.body,
+      props: { audience: aud(10, 5), busy: false, previewing: false, fields: FIELDS, segments: [], canViewRecipients: true },
+    })
+    await find(w, 'view-recipients').trigger('click')
+    await flushPromises()
+    await find(w, 'close-drawer').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(find(w, 'view-recipients').element)
+    w.unmount()
   })
 
   it('« Voir la liste » est masqué sans destinataires', () => {

@@ -3,14 +3,15 @@ import { TARGET_LABELS, type AdminBroadcast } from '@/features/broadcast/types/i
 
 defineProps<{ broadcasts: AdminBroadcast[]; loading?: boolean }>()
 
-// Le libellé de base ne suffit pas à identifier UN envoi précis dans l'historique :
-// on complète CORRIDOR et USER par la valeur réellement ciblée.
+// Nombre de conditions d'une règle JSON du back, sous-groupes compris.
 function countConditions(rule: unknown): number {
   const children = (rule as { children?: unknown } | null)?.children
   if (!Array.isArray(children)) return 0
   return children.reduce<number>((n, c) => n + (Array.isArray((c as { children?: unknown }).children) ? countConditions(c) : 1), 0)
 }
 
+// Le libellé de base ne suffit pas à identifier UN envoi précis dans l'historique :
+// on complète CORRIDOR et USER par la valeur réellement ciblée.
 function targetDescription(b: AdminBroadcast): string {
   // Le nom du segment parle mieux qu'une règle ; sinon la règle figée au moment de l'envoi.
   if (b.segmentName) return b.segmentName

@@ -59,7 +59,8 @@ export function useBroadcast() {
 
   async function fetchFields() {
     try {
-      fields.value = await broadcastService.fields()
+      const list = await broadcastService.fields()
+      fields.value = Array.isArray(list) ? list : []
     } catch (e) {
       error.value = extractProblemMessage(e, 'Impossible de charger les critères de ciblage')
     }

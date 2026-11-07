@@ -167,3 +167,19 @@ describe('useAudienceRule', () => {
     expect(r2.isComplete.value).toBe(false)
   })
 })
+
+describe('parseRule : entrées dégradées', () => {
+  it('op absent : ET par défaut ; règle nulle : groupe vide', () => {
+    expect(parseRule({ children: [] }).op).toBe('AND')
+    const g = parseRule(null)
+    expect(g.op).toBe('AND')
+    expect(g.children).toEqual([])
+  })
+
+  it('un enfant qui n’est pas un objet devient une condition vide plutôt que de planter', () => {
+    const g = parseRule({ op: 'OR', children: [null, 'x'] })
+    expect(g.op).toBe('OR')
+    expect(g.children).toHaveLength(2)
+    expect(g.children[0]).toMatchObject({ kind: 'condition', field: '', operator: '', value: null })
+  })
+})

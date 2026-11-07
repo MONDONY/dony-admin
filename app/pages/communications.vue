@@ -71,7 +71,7 @@ onMounted(() => {
       :audience="audience" :busy="busy" :previewing="previewing" :fields="fields"
       :segments="segs.segments.value" :edit-segment="editSegment"
       :save-segment-fn="segs.create" :update-segment-fn="segs.update"
-      :initial-user-id="initialUserId" :target-user-name="targetUserName" :target-user-unreachable="targetUserReachable === false" :can-search-users="auth.can('USER_VIEW')"
+      :initial-user-id="initialUserId" :target-user-name="targetUserName" :target-user-unreachable="targetUserReachable === false" :can-search-users="auth.can('USER_VIEW')" :can-view-recipients="auth.can('USER_VIEW')"
       @preview="onPreview" @send="onSend" @edit-done="editSegment = null"
     />
 

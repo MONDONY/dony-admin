@@ -82,4 +82,29 @@ describe('BroadcastRecipientsDrawer', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(w.emitted('close')).toHaveLength(2)
   })
+
+  it('ignore une page lente arrivée après une page plus récente', async () => {
+    let resolveSlow!: ReturnType<typeof vi.fn>
+    svc.recipients
+      .mockResolvedValueOnce(page(0))
+      .mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))
+      .mockResolvedValueOnce({ content: [row('u9', true)], totalElements: 120, totalPages: 3, number: 2, size: 50 })
+    const w = await open()
+    await w.find('[data-test="next"]').trigger('click') // page 1, lente
+    await w.find('[data-test="next"]').trigger('click') // page 2, rapide
+    await flushPromises()
+    expect(w.text()).toContain('Aïssa u9')
+    resolveSlow(page(1))
+    await flushPromises()
+    expect(w.text()).toContain('Aïssa u9')
+    expect(w.text()).not.toContain('Aïssa u1')
+  })
+
+  it('met le focus dans le tiroir à l’ouverture', async () => {
+    const w = mount(BroadcastRecipientsDrawer, { attachTo: document.body, props: { open: false, target } })
+    await w.setProps({ open: true })
+    await flushPromises()
+    expect(document.activeElement).toBe(w.find('[data-test="close-drawer"]').element)
+    w.unmount()
+  })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import AudienceRuleBuilder from '@/features/broadcast/components/AudienceRuleBuilder.vue'
 import BroadcastRecipientsDrawer from '@/features/broadcast/components/BroadcastRecipientsDrawer.vue'
@@ -48,6 +48,8 @@ const props = withDefaults(defineProps<{
   targetUserUnreachable?: boolean
   /** Recherche par nom possible (USER_VIEW) ; sinon seul l'identifiant collé est accepté. */
   canSearchUsers?: boolean
+  /** Droit USER_VIEW : la liste nominative et l'export CSV exposent des données personnelles. */
+  canViewRecipients?: boolean
 }>(), { fields: () => [], segments: () => [], editSegment: null, initialUserId: null, targetUserName: null, saveSegmentFn: undefined, updateSegmentFn: undefined })
 const emit = defineEmits<{
   preview: [target: BroadcastTarget]
@@ -62,6 +64,12 @@ const userId = ref(props.initialUserId ?? '')
 const segmentId = ref('')
 const confirmOpen = ref(false)
 const drawerOpen = ref(false)
+const viewButton = ref<HTMLButtonElement | null>(null)
+async function closeDrawer() {
+  drawerOpen.value = false
+  await nextTick()
+  viewButton.value?.focus()
+}
 const rule = useAudienceRule(toRef(props, 'fields'))
 
 // Faire aussi sonner les téléphones. Par défaut, seulement pour un message adressé à une
@@ -145,7 +153,9 @@ const countLabel = computed(() => {
 // Phrase de contrôle exigée pour la cible la plus large : une règle sans condition (tous les
 // comptes actifs). Réservée à ce cas : l'imposer partout la banaliserait.
 const BROADCAST_ALL_PHRASE = 'DIFFUSER A TOUS'
-const needsControlPhrase = computed(() => mode.value === 'RULES' && rule.conditionCount.value === 0)
+const needsControlPhrase = computed(() =>
+  (mode.value === 'RULES' && rule.conditionCount.value === 0)
+  || (mode.value === 'SEGMENT' && selectedSegment.value !== null && countWireConditions(selectedSegment.value.rule) === 0))
 
 // L'estimation fraîche est OBLIGATOIRE avant tout envoi : c'est elle qui oblige à VOIR le
 // nombre de personnes touchées avant de s'engager. Une notification push ne se rappelle pas.
@@ -181,6 +191,13 @@ const confirmMessage = computed(() => {
     + 'Cette action est irréversible et ne pourra pas être annulée.'
 })
 
+/** Conditions d'une règle JSON du back, sous-groupes compris. */
+function countWireConditions(r: unknown): number {
+  const children = (r as { children?: unknown } | null)?.children
+  if (!Array.isArray(children)) return 0
+  return children.reduce<number>((n, c) => n + (Array.isArray((c as { children?: unknown }).children) ? countWireConditions(c) : 1), 0)
+}
+
 // Raccourcis : chargent un préréglage dans le constructeur (modifiable ensuite).
 const shortcuts = [
   { id: 'all', label: 'Tous', apply: () => rule.presetAll() },
@@ -191,6 +208,10 @@ const shortcuts = [
 
 // Mode segment : la règle du segment choisi est copiée dans le constructeur (jamais modifiée sur place).
 const selectedSegment = computed(() => props.segments.find((s) => s.id === segmentId.value) ?? null)
+// Segment supprimé entre-temps : on oublie le choix, sinon l'envoi partirait vers un 404.
+watch(() => props.segments, (list) => {
+  if (segmentId.value && !list.some((s) => s.id === segmentId.value)) segmentId.value = ''
+})
 function editSelectedRules() {
   if (!selectedSegment.value) return
   rule.load(selectedSegment.value.rule)
@@ -360,7 +381,7 @@ const btn = 'whitespace-nowrap rounded-btn border border-border px-3 py-2 text-s
       </span>
       <span v-else-if="previewing" class="text-sm text-text-muted" role="status">Calcul en cours…</span>
       <button
-        v-if="freshCount !== null && freshCount > 0" type="button" data-test="view-recipients"
+        v-if="canViewRecipients && mode !== 'USER' && freshCount !== null && freshCount > 0" ref="viewButton" type="button" data-test="view-recipients"
         class="whitespace-nowrap text-sm text-primary underline underline-offset-2" @click="drawerOpen = true"
       >Voir la liste</button>
       <span v-if="shownUserName" data-test="broadcast-target-user-name" class="text-sm font-medium text-text">Destinataire : {{ shownUserName }}</span>
@@ -378,7 +399,7 @@ const btn = 'whitespace-nowrap rounded-btn border border-border px-3 py-2 text-s
       >Envoyer</button>
     </div>
 
-    <BroadcastRecipientsDrawer :open="drawerOpen" :target="target" @close="drawerOpen = false" />
+    <BroadcastRecipientsDrawer :open="drawerOpen" :target="target" @close="closeDrawer" />
 
     <ConfirmActionDialog
       :open="confirmOpen"
