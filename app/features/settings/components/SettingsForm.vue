@@ -28,6 +28,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   urgency_threshold_days: { label: 'Seuil d’urgence', unit: 'jours' },
   reimbursement_cap_eur: { label: 'Plafond de remboursement', unit: '€' },
   sms_enabled: { label: 'SMS activés (authentification par code)', unit: '' },
+  sms_otp_registered_numbers_only: { label: 'Code SMS réservé aux numéros déjà inscrits', unit: '' },
   pro_enabled: { label: 'Offre PRO ouverte (visible dans l’application)', unit: '' },
   critical_sms_fallback_enabled: {
     label: 'SMS de repli (notifications critiques sans accusé de réception, facturé par envoi)',
@@ -81,6 +82,20 @@ function toWire(key: string, raw: string): string {
 const SMS_DISABLE_PHRASE = 'DESACTIVER SMS'
 // Même mécanisme pour l'activation de la purge des photos : elle supprime définitivement des fichiers.
 const PURGE_ENABLE_PHRASE = 'ACTIVER PURGE'
+// Et pour la désactivation de `sms_otp_registered_numbers_only` : elle rouvre l'envoi de codes
+// SMS facturés vers n'importe quel numéro, la porte du pompage de SMS du 08/11/2026.
+const SMS_OPEN_PHRASE = 'OUVRIR SMS'
+
+/**
+ * Ce que fait le réglage, affiché sous sa ligne : « Activé / Désactivé » seul ne dit pas qui
+ * peut encore recevoir un code, ni par où passent les nouveaux inscrits.
+ */
+const SETTING_HELP: Record<string, string> = {
+  sms_otp_registered_numbers_only:
+    'Activé : un code SMS ne part que vers un numéro déjà inscrit, ou vers le numéro qu’un compte '
+    + 'connecté ajoute à son profil ; les nouveaux s’inscrivent par email, Google ou Apple. '
+    + 'Désactivé : n’importe quel numéro peut recevoir un code (risque de pompage de SMS).',
+}
 
 /** Bornes entières [min, max] des réglages photos et des quotas de l'assistant, alignées sur le backend (qui reste l'autorité). */
 const INT_BOUNDS: Record<string, [number, number]> = {
@@ -175,6 +190,30 @@ function requestSave(key: string) {
           + 'les administrateurs, ne pourra se connecter tant que ce réglage restera désactivé.'
         : 'Les SMS seront réactivés — les codes de connexion (OTP) pourront de nouveau être envoyés.',
       confirmLabel: turningOff ? 'Désactiver' : 'Activer',
+    }
+    return
+  }
+
+  if (key === 'sms_otp_registered_numbers_only') {
+    // À l'inverse de sms_enabled, c'est la DÉSACTIVATION qui coûte : chaque code envoyé à un
+    // numéro inconnu est facturé, et un robot peut en demander pour des milliers de numéros.
+    const opening = raw === 'false'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: opening,
+      phrase: SMS_OPEN_PHRASE,
+      title: opening ? 'Ouvrir l’inscription par SMS' : 'Réserver le code SMS aux inscrits',
+      message: opening
+        ? 'N’importe quel numéro pourra recevoir un code SMS de connexion, y compris pour créer un compte. '
+          + 'Les budgets SMS (par numéro, par compte, par heure et par jour) restent appliqués.'
+        : 'Seuls les numéros déjà inscrits, et le numéro qu’un compte connecté ajoute à son profil, '
+          + 'recevront un code SMS. Les nouveaux utilisateurs s’inscriront par email, Google ou Apple.',
+      alert: opening
+        ? 'Chaque SMS est facturé : c’est par des codes demandés pour des numéros inconnus que le compte '
+          + 'Twilio a été suspendu le 08/11/2026 (pompage de SMS).'
+        : undefined,
+      confirmLabel: opening ? 'Ouvrir' : 'Réserver aux inscrits',
     }
     return
   }
@@ -327,6 +366,9 @@ function cancelPending() {
       <p v-if="s.key === 'commission_rate' && !hidesField(s.key)" class="text-xs text-text-muted" data-test="setting-commission-link">
         Taux unique appliqué tant qu’aucune grille n’est en vigueur. Commission par paliers :
         <NuxtLink to="/tarification" class="font-medium text-primary hover:underline">onglet Tarification</NuxtLink>.
+      </p>
+      <p v-if="SETTING_HELP[s.key]" class="text-xs text-text-muted text-pretty" :data-test="`setting-help-${s.key}`">
+        {{ SETTING_HELP[s.key] }}
       </p>
       <p v-if="!hidesField(s.key) && hintFor(s.key) && !errorFor(s.key, drafts[s.key])" class="text-xs text-text-muted" :data-test="`setting-hint-${s.key}`">
         {{ hintFor(s.key) }}
