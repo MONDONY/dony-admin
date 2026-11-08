@@ -26,6 +26,11 @@ const smsRegisteredOnly: PlatformSetting = {
   key: 'sms_otp_registered_numbers_only', value: 'true', type: 'BOOLEAN',
   updatedAt: null, updatedByEmail: null,
 }
+// Numéros différents par compte avant suspension automatique (codes SMS, 24 h) : 3 par défaut.
+const smsMaxNumbers: PlatformSetting = {
+  key: 'sms_otp_max_numbers_per_account', value: '3', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
 // Feature flag de l'offre PRO : fermé par défaut en production, ouvert depuis cet écran.
 const pro: PlatformSetting = {
   key: 'pro_enabled', value: 'false', type: 'BOOLEAN',
@@ -268,6 +273,45 @@ describe('SettingsForm', () => {
       expect(w.text()).toContain('email, Google ou Apple')
       await w.find('[data-test="confirm"]').trigger('click')
       expect(w.emitted('update')![0]).toEqual(['sms_otp_registered_numbers_only', 'true'])
+    })
+  })
+
+  describe('numéros différents par compte avant suspension (sms_otp_max_numbers_per_account)', () => {
+    it('porte un libellé lisible, son unité, ses bornes et l’explication de la suspension', () => {
+      const w = mountForm({ settings: [smsMaxNumbers] })
+      const row = w.find('[data-test="setting-row-sms_otp_max_numbers_per_account"]')
+      expect(row.text()).toContain('Numéros différents par compte avant suspension')
+      expect(row.text()).not.toContain('sms_otp_max_numbers_per_account')
+      expect(w.find('[data-test="setting-unit-sms_otp_max_numbers_per_account"]').text()).toBe('numéros')
+      expect(w.find('[data-test="setting-hint-sms_otp_max_numbers_per_account"]').text()).toBe('Entre 2 et 20')
+      expect(w.find('[data-test="setting-help-sms_otp_max_numbers_per_account"]').text()).toContain('suspendu automatiquement')
+    })
+
+    it('refuse 1 et 21 sans appel réseau, accepte 2 et 20', async () => {
+      const w = mountForm({ settings: [smsMaxNumbers] })
+      const input = w.find('[data-test="setting-value-sms_otp_max_numbers_per_account"]')
+      const save = () => w.find('[data-test="setting-save-sms_otp_max_numbers_per_account"]').element as HTMLButtonElement
+
+      for (const bad of ['1', '21']) {
+        await input.setValue(bad)
+        expect(save().disabled).toBe(true)
+        expect(w.find('[data-test="setting-error-sms_otp_max_numbers_per_account"]').text()).toBe('Entre 2 et 20')
+      }
+      for (const good of ['2', '20']) {
+        await input.setValue(good)
+        expect(save().disabled).toBe(false)
+      }
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it('enregistrer ouvre une confirmation simple et envoie la valeur', async () => {
+      const w = mountForm({ settings: [smsMaxNumbers] })
+      await w.find('[data-test="setting-value-sms_otp_max_numbers_per_account"]').setValue('5')
+      await w.find('[data-test="setting-save-sms_otp_max_numbers_per_account"]').trigger('click')
+
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_otp_max_numbers_per_account', '5'])
     })
   })
 
