@@ -247,3 +247,42 @@ test('suppression massive : case cochée, purge à blanc, la phrase est exigée 
   await expect.poll(() => reconcileUrls.length).toBe(1)
   expect(new URL(reconcileUrls[0]).searchParams.get('allowBulk')).toBe('true')
 })
+
+test('pays sans SMS : retirer un indicatif avertit des SMS facturés puis envoie la liste normalisée', async ({ page }) => {
+  await seed(page, ADMIN)
+  const putCalls: { key: string; value: string }[] = []
+  const settings = [
+    ...SETTINGS,
+    { key: 'sms_blocked_country_codes', value: '225,221,237', type: 'CALLING_CODES', updatedAt: null, updatedByEmail: null },
+  ]
+
+  await page.route('**/api/v1/admin/settings**', (route) => {
+    const req = route.request()
+    if (req.method() === 'PUT') {
+      const key = req.url().split('/admin/settings/')[1]
+      const body = req.postDataJSON() as { value: string }
+      putCalls.push({ key, value: body.value })
+      return route.fulfill({ json: { key, value: body.value, type: 'CALLING_CODES', updatedAt: '2026-11-09T10:00:00Z', updatedByEmail: 'admin.1@yadony.com' } })
+    }
+    return route.fulfill({ json: settings })
+  })
+
+  await page.goto('/parametres')
+  const row = page.locator('[data-test="setting-row-sms_blocked_country_codes"]')
+  await expect(row).toContainText('Pays sans SMS (indicatifs bloqués)')
+  await expect(page.locator('[data-test="calling-code-chip-225"]')).toHaveText('+225 Côte d’Ivoire')
+
+  await page.locator('[data-test="calling-code-remove-225"]').click()
+  await page.locator('[data-test="calling-code-input"]').fill('33')
+  await page.locator('[data-test="calling-code-add"]').click()
+  await page.locator('[data-test="setting-save-sms_blocked_country_codes"]').click()
+
+  // Rouvrir un pays : avertissement en rouge, pas de phrase à taper.
+  await expect(page.locator('[data-test="confirm-alert"]')).toContainText('facturés')
+  await expect(page.locator('[data-test="confirmation-input"]')).toHaveCount(0)
+  await page.locator('[data-test="confirm"]').click()
+
+  await expect.poll(() => putCalls.length).toBe(1)
+  expect(putCalls[0]).toEqual({ key: 'sms_blocked_country_codes', value: '221,237,33' })
+  await expect(page.locator('[data-test="setting-meta-sms_blocked_country_codes"]')).toContainText('admin.1@yadony.com')
+})

@@ -613,4 +613,116 @@ describe('SettingsForm', () => {
       expect(w.find('[data-test="setting-value-urgency_threshold_days"]').exists()).toBe(true)
     })
   })
+
+  describe('pays sans SMS (sms_blocked_country_codes, type CALLING_CODES)', () => {
+    // Indicatifs bloqués : les SMS vers ces pays étaient facturés sans arriver (faux « Delivered », 08/11/2026).
+    const blocked: PlatformSetting = {
+      key: 'sms_blocked_country_codes', value: '225,221', type: 'CALLING_CODES',
+      updatedAt: null, updatedByEmail: null,
+    }
+    const rowKeys = (w: ReturnType<typeof mountForm>) =>
+      w.findAll('[data-test^="setting-row-"]').map((r) => r.attributes('data-test')!.replace('setting-row-', ''))
+    const saveBtn = (w: ReturnType<typeof mountForm>) =>
+      w.find('[data-test="setting-save-sms_blocked_country_codes"]').element as HTMLButtonElement
+
+    it('porte un libellé lisible, une explication et une puce par pays, sans champ numérique', () => {
+      const w = mountForm({ settings: [blocked] })
+      const row = w.find('[data-test="setting-row-sms_blocked_country_codes"]')
+      expect(row.text()).toContain('Pays sans SMS (indicatifs bloqués)')
+      expect(w.find('[data-test="setting-help-sms_blocked_country_codes"]').text()).toContain('email, Google ou Apple')
+      expect(w.find('[data-test="calling-code-chip-225"]').text()).toBe('+225 Côte d’Ivoire')
+      expect(w.find('[data-test="calling-code-chip-221"]').text()).toBe('+221 Sénégal')
+      expect(w.find('[data-test="setting-value-sms_blocked_country_codes"]').exists()).toBe(false)
+    })
+
+    it('est rangé juste après le dernier réglage sms_*, quel que soit l’ordre servi par le back', () => {
+      const w = mountForm({ settings: [blocked, commission, sms, smsRegisteredOnly, pro] })
+      expect(rowKeys(w)).toEqual([
+        'commission_rate', 'sms_enabled', 'sms_otp_registered_numbers_only', 'sms_blocked_country_codes', 'pro_enabled',
+      ])
+      // Sans autre réglage SMS, l'ordre du back est gardé tel quel.
+      expect(rowKeys(mountForm({ settings: [blocked, commission] }))).toEqual(['sms_blocked_country_codes', 'commission_rate'])
+    })
+
+    it('rien à enregistrer tant que la liste n’a pas changé (valeur servie avec « + » et espaces comprise)', async () => {
+      const w = mountForm({ settings: [{ ...blocked, value: '+225, 221' }] })
+      expect(saveBtn(w).disabled).toBe(true)
+      await w.find('[data-test="setting-save-sms_blocked_country_codes"]').trigger('click')
+      expect(w.find('[data-test="confirm"]').exists()).toBe(false)
+    })
+
+    it('ajouter un pays : confirmation simple, sans avertissement, puis envoie la chaîne normalisée', async () => {
+      const w = mountForm({ settings: [blocked] })
+      await w.find('[data-test="calling-code-input"]').setValue('+237')
+      await w.find('[data-test="calling-code-add"]').trigger('click')
+      expect(w.find('[data-test="calling-code-chip-237"]').text()).toBe('+237 Cameroun')
+      expect(saveBtn(w).disabled).toBe(false)
+
+      await w.find('[data-test="setting-save-sms_blocked_country_codes"]').trigger('click')
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      expect(w.find('[data-test="confirm-alert"]').exists()).toBe(false)
+      expect(w.text()).toContain('Bloquer les SMS vers ce pays')
+      expect(w.text()).toContain('+237 Cameroun')
+      expect(w.find('[data-test="confirm"]').text()).toBe('Bloquer')
+
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_blocked_country_codes', '225,221,237'])
+    })
+
+    it('retirer un pays : l’avertissement rappelle que ces SMS sont facturés et n’arrivaient pas, sans phrase à taper', async () => {
+      const w = mountForm({ settings: [blocked] })
+      await w.find('[data-test="calling-code-remove-225"]').trigger('click')
+      await w.find('[data-test="setting-save-sms_blocked_country_codes"]').trigger('click')
+
+      const alert = w.find('[data-test="confirm-alert"]').text()
+      expect(alert).toContain('facturés')
+      expect(alert).toContain('Delivered')
+      expect(alert).toContain('08/11/2026')
+      expect(w.text()).toContain('Les SMS repartiront vers : +225 Côte d’Ivoire.')
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(false)
+      expect(w.find('[data-test="confirm"]').text()).toBe('Rouvrir les SMS')
+
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_blocked_country_codes', '221'])
+    })
+
+    it('vider la liste, ou retirer et ajouter à la fois, garde l’avertissement et dit les deux changements', async () => {
+      const w = mountForm({ settings: [blocked] })
+      await w.find('[data-test="calling-code-remove-225"]').trigger('click')
+      await w.find('[data-test="calling-code-remove-221"]').trigger('click')
+      await w.find('[data-test="calling-code-input"]').setValue('33')
+      await w.find('[data-test="calling-code-add"]').trigger('click')
+      await w.find('[data-test="setting-save-sms_blocked_country_codes"]').trigger('click')
+
+      expect(w.text()).toContain('Rouvrir les SMS vers 2 pays')
+      expect(w.text()).toContain('+33 France')
+      expect(w.find('[data-test="confirm-alert"]').exists()).toBe(true)
+      await w.find('[data-test="cancel"]').trigger('click')
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it('ajouter plusieurs pays d’un coup (liste Afrique) : titre au pluriel', async () => {
+      const w = mountForm({ settings: [{ ...blocked, value: '' }] })
+      expect(w.find('[data-test="calling-codes-empty"]').exists()).toBe(true)
+      await w.find('[data-test="calling-code-reset-africa"]').trigger('click')
+      await w.find('[data-test="setting-save-sms_blocked_country_codes"]').trigger('click')
+      expect(w.text()).toContain('Bloquer les SMS vers 18 pays')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]![1]).toBe('212,213,216,221,222,223,224,225,226,227,228,229,235,236,237,241,242,243')
+    })
+
+    it('une valeur invalide servie par le back est signalée et ne s’enregistre pas', () => {
+      const w = mountForm({ settings: [{ ...blocked, value: '225,abc' }] })
+      expect(w.find('[data-test="setting-error-sms_blocked_country_codes"]').text()).toContain('abc')
+      expect(saveBtn(w).disabled).toBe(true)
+    })
+
+    it('un type inconnu du front ne fait pas planter la page : champ numérique par défaut', () => {
+      const odd = { key: 'future_setting', value: '7', type: 'SOMETHING_NEW', updatedAt: null, updatedByEmail: null } as unknown as PlatformSetting
+      const w = mountForm({ settings: [odd, blocked] })
+      expect(w.find('[data-test="setting-value-future_setting"]').exists()).toBe(true)
+      expect(w.find('[data-test="calling-code-chip-225"]').exists()).toBe(true)
+    })
+  })
 })
