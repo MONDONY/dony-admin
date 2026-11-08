@@ -31,6 +31,15 @@ const smsMaxNumbers: PlatformSetting = {
   key: 'sms_otp_max_numbers_per_account', value: '3', type: 'INTEGER',
   updatedAt: null, updatedByEmail: null,
 }
+// Plafond global des SMS de code (toute l'app) : 30 par heure et 150 par 24 h par défaut.
+const smsPerHour: PlatformSetting = {
+  key: 'sms_otp_max_sends_per_hour_global', value: '30', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+const smsPerDay: PlatformSetting = {
+  key: 'sms_otp_max_sends_per_day_global', value: '150', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
 // Feature flag de l'offre PRO : fermé par défaut en production, ouvert depuis cet écran.
 const pro: PlatformSetting = {
   key: 'pro_enabled', value: 'false', type: 'BOOLEAN',
@@ -277,14 +286,17 @@ describe('SettingsForm', () => {
   })
 
   describe('numéros différents par compte avant suspension (sms_otp_max_numbers_per_account)', () => {
-    it('porte un libellé lisible, son unité, ses bornes et l’explication de la suspension', () => {
+    it('porte un libellé lisible, son unité, ses bornes et l’explication de la suspension et de l’alerte', () => {
       const w = mountForm({ settings: [smsMaxNumbers] })
       const row = w.find('[data-test="setting-row-sms_otp_max_numbers_per_account"]')
-      expect(row.text()).toContain('Numéros différents par compte avant suspension')
+      expect(row.text()).toContain('Numéros différents avant suspension ou alerte')
       expect(row.text()).not.toContain('sms_otp_max_numbers_per_account')
       expect(w.find('[data-test="setting-unit-sms_otp_max_numbers_per_account"]').text()).toBe('numéros')
       expect(w.find('[data-test="setting-hint-sms_otp_max_numbers_per_account"]').text()).toBe('Entre 2 et 20')
-      expect(w.find('[data-test="setting-help-sms_otp_max_numbers_per_account"]').text()).toContain('suspendu automatiquement')
+      const help = w.find('[data-test="setting-help-sms_otp_max_numbers_per_account"]').text()
+      expect(help).toContain('suspendu automatiquement')
+      expect(help).toContain('téléphone sans compte')
+      expect(help).toContain('alerte seulement')
     })
 
     it('refuse 1 et 21 sans appel réseau, accepte 2 et 20', async () => {
@@ -312,6 +324,47 @@ describe('SettingsForm', () => {
       expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
       await w.find('[data-test="confirm"]').trigger('click')
       expect(w.emitted('update')![0]).toEqual(['sms_otp_max_numbers_per_account', '5'])
+    })
+  })
+
+  describe('plafond global des SMS de code (sms_otp_max_sends_per_hour_global / _per_day_global)', () => {
+    it('porte des libellés lisibles, l’unité SMS, les bornes et l’explication', () => {
+      const w = mountForm({ settings: [smsPerHour, smsPerDay] })
+      expect(w.find('[data-test="setting-row-sms_otp_max_sends_per_hour_global"]').text())
+        .toContain('Plafond de SMS de code par heure')
+      expect(w.find('[data-test="setting-row-sms_otp_max_sends_per_day_global"]').text())
+        .toContain('Plafond de SMS de code par 24 h')
+      expect(w.find('[data-test="setting-unit-sms_otp_max_sends_per_hour_global"]').text()).toBe('SMS')
+      expect(w.find('[data-test="setting-hint-sms_otp_max_sends_per_hour_global"]').text()).toBe('Entre 1 et 1000')
+      expect(w.find('[data-test="setting-hint-sms_otp_max_sends_per_day_global"]').text()).toBe('Entre 1 et 10000')
+      expect(w.find('[data-test="setting-help-sms_otp_max_sends_per_hour_global"]').text())
+        .toContain('facture SMS maximale')
+    })
+
+    it('refuse 0 et 1001 par heure sans appel réseau, accepte 1 et 1000', async () => {
+      const w = mountForm({ settings: [smsPerHour] })
+      const input = w.find('[data-test="setting-value-sms_otp_max_sends_per_hour_global"]')
+      const save = () => w.find('[data-test="setting-save-sms_otp_max_sends_per_hour_global"]').element as HTMLButtonElement
+
+      for (const bad of ['0', '1001']) {
+        await input.setValue(bad)
+        expect(save().disabled).toBe(true)
+      }
+      for (const good of ['1', '1000']) {
+        await input.setValue(good)
+        expect(save().disabled).toBe(false)
+      }
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it('enregistrer le plafond journalier ouvre une confirmation simple et envoie la valeur', async () => {
+      const w = mountForm({ settings: [smsPerDay] })
+      await w.find('[data-test="setting-value-sms_otp_max_sends_per_day_global"]').setValue('60')
+      await w.find('[data-test="setting-save-sms_otp_max_sends_per_day_global"]').trigger('click')
+
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_otp_max_sends_per_day_global', '60'])
     })
   })
 
