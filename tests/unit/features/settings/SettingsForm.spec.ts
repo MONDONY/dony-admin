@@ -277,14 +277,17 @@ describe('SettingsForm', () => {
   })
 
   describe('numéros différents par compte avant suspension (sms_otp_max_numbers_per_account)', () => {
-    it('porte un libellé lisible, son unité, ses bornes et l’explication de la suspension', () => {
+    it('porte un libellé lisible, son unité, ses bornes et l’explication de la suspension et de l’alerte', () => {
       const w = mountForm({ settings: [smsMaxNumbers] })
       const row = w.find('[data-test="setting-row-sms_otp_max_numbers_per_account"]')
-      expect(row.text()).toContain('Numéros différents par compte avant suspension')
+      expect(row.text()).toContain('Numéros différents avant suspension ou alerte')
       expect(row.text()).not.toContain('sms_otp_max_numbers_per_account')
       expect(w.find('[data-test="setting-unit-sms_otp_max_numbers_per_account"]').text()).toBe('numéros')
       expect(w.find('[data-test="setting-hint-sms_otp_max_numbers_per_account"]').text()).toBe('Entre 2 et 20')
-      expect(w.find('[data-test="setting-help-sms_otp_max_numbers_per_account"]').text()).toContain('suspendu automatiquement')
+      const help = w.find('[data-test="setting-help-sms_otp_max_numbers_per_account"]').text()
+      expect(help).toContain('suspendu automatiquement')
+      expect(help).toContain('téléphone sans compte')
+      expect(help).toContain('alerte seulement')
     })
 
     it('refuse 1 et 21 sans appel réseau, accepte 2 et 20', async () => {

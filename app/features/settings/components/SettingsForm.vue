@@ -30,7 +30,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   sms_enabled: { label: 'SMS activés (authentification par code)', unit: '' },
   sms_otp_registered_numbers_only: { label: 'Code SMS réservé aux numéros déjà inscrits', unit: '' },
   sms_otp_max_numbers_per_account: {
-    label: 'Numéros différents par compte avant suspension (codes SMS, sur 24 h)',
+    label: 'Numéros différents avant suspension ou alerte (codes SMS, sur 24 h)',
     unit: 'numéros',
   },
   pro_enabled: { label: 'Offre PRO ouverte (visible dans l’application)', unit: '' },
@@ -101,8 +101,9 @@ const SETTING_HELP: Record<string, string> = {
     + 'Désactivé : n’importe quel numéro peut recevoir un code (risque de pompage de SMS).',
   sms_otp_max_numbers_per_account:
     'Un compte connecté qui demande des codes SMS pour ce nombre de numéros différents en 24 h est '
-    + 'suspendu automatiquement, et une alerte apparaît dans Alertes. La suspension se lève depuis la '
-    + 'fiche de l’utilisateur.',
+    + 'suspendu automatiquement, et une alerte apparaît dans Alertes ; la suspension se lève depuis la '
+    + 'fiche de l’utilisateur. Un téléphone sans compte (écran de connexion) qui fait de même déclenche '
+    + 'une alerte seulement, sans blocage.',
 }
 
 /** Bornes entières [min, max] des réglages photos et des quotas de l'assistant, alignées sur le backend (qui reste l'autorité). */
