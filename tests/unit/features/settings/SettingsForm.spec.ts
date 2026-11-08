@@ -21,6 +21,16 @@ const sms: PlatformSetting = {
   key: 'sms_enabled', value: 'true', type: 'BOOLEAN',
   updatedAt: null, updatedByEmail: null,
 }
+// Code SMS réservé aux numéros inscrits (parade au pompage de SMS du 08/11/2026) : activé par défaut.
+const smsRegisteredOnly: PlatformSetting = {
+  key: 'sms_otp_registered_numbers_only', value: 'true', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
+// Numéros différents par compte avant suspension automatique (codes SMS, 24 h) : 3 par défaut.
+const smsMaxNumbers: PlatformSetting = {
+  key: 'sms_otp_max_numbers_per_account', value: '3', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
 // Feature flag de l'offre PRO : fermé par défaut en production, ouvert depuis cet écran.
 const pro: PlatformSetting = {
   key: 'pro_enabled', value: 'false', type: 'BOOLEAN',
@@ -220,6 +230,89 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('update')![0]).toEqual(['sms_enabled', 'true'])
+  })
+
+  describe('code SMS réservé aux numéros inscrits (sms_otp_registered_numbers_only)', () => {
+    it('porte un libellé lisible, une explication et un sélecteur Activé / Désactivé', () => {
+      const w = mountForm({ settings: [sms, smsRegisteredOnly] })
+      const row = w.find('[data-test="setting-row-sms_otp_registered_numbers_only"]')
+      expect(row.text()).toContain('Code SMS réservé aux numéros déjà inscrits')
+      expect(row.text()).not.toContain('sms_otp_registered_numbers_only')
+      expect(w.find('[data-test="setting-help-sms_otp_registered_numbers_only"]').text())
+        .toContain('email, Google ou Apple')
+      expect((w.find('[data-test="setting-value-sms_otp_registered_numbers_only"]').element as HTMLSelectElement).value)
+        .toBe('true')
+    })
+
+    it('le désactiver exige la phrase OUVRIR SMS et affiche l’avertissement de pompage en rouge', async () => {
+      const w = mountForm({ settings: [sms, smsRegisteredOnly] })
+      await w.find('[data-test="setting-value-sms_otp_registered_numbers_only"]').setValue('false')
+      await w.find('[data-test="setting-save-sms_otp_registered_numbers_only"]').trigger('click')
+
+      expect(w.find('[data-test="confirm-alert"]').text()).toContain('pompage')
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(true)
+      expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+
+      await w.find('[data-test="confirmation-input"]').setValue('DESACTIVER SMS')
+      expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+      expect(w.emitted('update')).toBeUndefined()
+
+      await w.find('[data-test="confirmation-input"]').setValue('OUVRIR SMS')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_otp_registered_numbers_only', 'false'])
+    })
+
+    it('le réactiver : confirmation simple, sans saisie ni avertissement', async () => {
+      const opened: PlatformSetting = { ...smsRegisteredOnly, value: 'false' }
+      const w = mountForm({ settings: [sms, opened] })
+      await w.find('[data-test="setting-value-sms_otp_registered_numbers_only"]').setValue('true')
+      await w.find('[data-test="setting-save-sms_otp_registered_numbers_only"]').trigger('click')
+
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      expect(w.find('[data-test="confirm-alert"]').exists()).toBe(false)
+      expect(w.text()).toContain('email, Google ou Apple')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_otp_registered_numbers_only', 'true'])
+    })
+  })
+
+  describe('numéros différents par compte avant suspension (sms_otp_max_numbers_per_account)', () => {
+    it('porte un libellé lisible, son unité, ses bornes et l’explication de la suspension', () => {
+      const w = mountForm({ settings: [smsMaxNumbers] })
+      const row = w.find('[data-test="setting-row-sms_otp_max_numbers_per_account"]')
+      expect(row.text()).toContain('Numéros différents par compte avant suspension')
+      expect(row.text()).not.toContain('sms_otp_max_numbers_per_account')
+      expect(w.find('[data-test="setting-unit-sms_otp_max_numbers_per_account"]').text()).toBe('numéros')
+      expect(w.find('[data-test="setting-hint-sms_otp_max_numbers_per_account"]').text()).toBe('Entre 2 et 20')
+      expect(w.find('[data-test="setting-help-sms_otp_max_numbers_per_account"]').text()).toContain('suspendu automatiquement')
+    })
+
+    it('refuse 1 et 21 sans appel réseau, accepte 2 et 20', async () => {
+      const w = mountForm({ settings: [smsMaxNumbers] })
+      const input = w.find('[data-test="setting-value-sms_otp_max_numbers_per_account"]')
+      const save = () => w.find('[data-test="setting-save-sms_otp_max_numbers_per_account"]').element as HTMLButtonElement
+
+      for (const bad of ['1', '21']) {
+        await input.setValue(bad)
+        expect(save().disabled).toBe(true)
+        expect(w.find('[data-test="setting-error-sms_otp_max_numbers_per_account"]').text()).toBe('Entre 2 et 20')
+      }
+      for (const good of ['2', '20']) {
+        await input.setValue(good)
+        expect(save().disabled).toBe(false)
+      }
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it('enregistrer ouvre une confirmation simple et envoie la valeur', async () => {
+      const w = mountForm({ settings: [smsMaxNumbers] })
+      await w.find('[data-test="setting-value-sms_otp_max_numbers_per_account"]').setValue('5')
+      await w.find('[data-test="setting-save-sms_otp_max_numbers_per_account"]').trigger('click')
+
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['sms_otp_max_numbers_per_account', '5'])
+    })
   })
 
   it('pro_enabled porte un libellé lisible et un sélecteur Activé / Désactivé', () => {
