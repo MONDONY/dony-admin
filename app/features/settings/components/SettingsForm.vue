@@ -58,6 +58,10 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
     label: 'Tours de remplissage par l’IA (trajet et colis) par utilisateur et par jour',
     unit: 'tours',
   },
+  remote_config_fetch_minutes: {
+    label: 'Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)',
+    unit: 'minutes',
+  },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
@@ -153,6 +157,10 @@ const SETTING_HELP: Record<string, string> = {
     'Aucun SMS (codes de connexion et notifications) ne part vers ces indicatifs : l’application '
     + 'invite les utilisateurs concernés à se connecter par email, Google ou Apple. Liste vide : aucun '
     + 'pays bloqué. Ces SMS sont facturés mais n’arrivaient pas (faux accusés « Delivered » de Twilio, 08/11/2026).',
+  remote_config_fetch_minutes:
+    'Intervalle minimal entre deux lectures de Firebase par l’app. 60 = une heure. Plus c’est court, plus la '
+    + 'mise à jour d’un réglage est rapide, mais plus il y a de lectures (offre gratuite : 100 000 par jour). '
+    + 'S’applique aux utilisateurs au prochain démarrage de l’app.',
 }
 
 /** Bornes entières [min, max] des réglages photos et des quotas de l'assistant, alignées sur le backend (qui reste l'autorité). */
@@ -165,6 +173,7 @@ const INT_BOUNDS: Record<string, [number, number]> = {
   sms_otp_max_numbers_per_account: [2, 20],
   sms_otp_max_sends_per_hour_global: [1, 1000],
   sms_otp_max_sends_per_day_global: [1, 10000],
+  remote_config_fetch_minutes: [5, 1440],
 }
 function hintFor(key: string): string | null {
   const b = INT_BOUNDS[key]
