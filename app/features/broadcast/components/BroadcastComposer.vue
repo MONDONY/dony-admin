@@ -5,9 +5,10 @@ import AudienceRuleBuilder from '@/features/broadcast/components/AudienceRuleBui
 import BroadcastRecipientsDrawer from '@/features/broadcast/components/BroadcastRecipientsDrawer.vue'
 import BroadcastUserPicker from '@/features/broadcast/components/BroadcastUserPicker.vue'
 import { serializeRule } from '@/features/broadcast/composables/audienceRule'
+import { messageFor, PRESET_LANGUAGES, withLanguage, type PresetLanguage } from '@/features/broadcast/composables/audiencePresets'
 import { useAudienceRule } from '@/features/broadcast/composables/useAudienceRule'
 import type {
-  AudienceField, BroadcastAudience, BroadcastSegment, BroadcastTarget, RuleGroup,
+  AudienceField, AudiencePreset, BroadcastAudience, BroadcastSegment, BroadcastTarget, RuleGroup,
 } from '@/features/broadcast/types/index'
 
 type Mode = 'RULES' | 'SEGMENT' | 'USER'
@@ -32,6 +33,8 @@ const props = withDefaults(defineProps<{
   /** Catalogue des critères de ciblage (back). */
   fields?: AudienceField[]
   segments?: BroadcastSegment[]
+  /** Audiences prêtes et modèles de message (back) ; vide tant que le back ne les fournit pas. */
+  presets?: AudiencePreset[]
   /** Segment dont la règle est en cours de modification (depuis le panneau des segments). */
   editSegment?: BroadcastSegment | null
   /** Enregistre un segment ; renvoie le message d'erreur à afficher, ou null. */
@@ -50,7 +53,7 @@ const props = withDefaults(defineProps<{
   canSearchUsers?: boolean
   /** Droit USER_VIEW : la liste nominative et l'export CSV exposent des données personnelles. */
   canViewRecipients?: boolean
-}>(), { fields: () => [], segments: () => [], editSegment: null, initialUserId: null, targetUserName: null, saveSegmentFn: undefined, updateSegmentFn: undefined })
+}>(), { fields: () => [], segments: () => [], presets: () => [], editSegment: null, initialUserId: null, targetUserName: null, saveSegmentFn: undefined, updateSegmentFn: undefined })
 const emit = defineEmits<{
   preview: [target: BroadcastTarget]
   send: [title: string, body: string, target: BroadcastTarget, push: boolean]
@@ -207,6 +210,46 @@ const shortcuts = [
   { id: 'corridor', label: 'Corridor', apply: () => rule.presetCorridor('', '') },
 ]
 
+// Audiences prêtes : l'audience est chargée dans le constructeur (modifiable ensuite) et le modèle de
+// message remplit le titre et le texte. Le texte déjà saisi n'est jamais écrasé en silence : tant que
+// titre et texte sont vides ou inchangés depuis le dernier modèle, ils suivent le choix ; sinon le
+// bouton « Utiliser le modèle » les remplace à la demande.
+const presetKey = ref('')
+const presetLang = ref<PresetLanguage>('fr')
+const limitToLanguage = ref(true)
+const selectedPreset = computed(() => props.presets.find((p) => p.key === presetKey.value) ?? null)
+const appliedMessage = ref<{ title: string, body: string }>({ title: '', body: '' })
+const messageUntouched = computed(() =>
+  (title.value === '' && body.value === '')
+  || (title.value === appliedMessage.value.title && body.value === appliedMessage.value.body))
+const presetMessage = computed(() => (selectedPreset.value ? messageFor(selectedPreset.value, presetLang.value) : null))
+
+function applyPresetMessage() {
+  const m = presetMessage.value
+  if (!m) return
+  title.value = m.title
+  body.value = m.body
+  appliedMessage.value = { title: m.title, body: m.body }
+}
+function applyPresetRule() {
+  const p = selectedPreset.value
+  if (!p) return
+  rule.load(limitToLanguage.value ? withLanguage(p.rule, presetLang.value) : p.rule)
+  mode.value = 'RULES'
+}
+function applyPreset() {
+  const wasUntouched = messageUntouched.value
+  applyPresetRule()
+  if (wasUntouched) applyPresetMessage()
+}
+watch([presetKey, presetLang, limitToLanguage], () => {
+  if (selectedPreset.value) applyPreset()
+})
+// Un modèle disparu de la liste (rechargement) : on oublie le choix plutôt que d'envoyer à l'aveugle.
+watch(() => props.presets, (list) => {
+  if (presetKey.value && !list.some((p) => p.key === presetKey.value)) presetKey.value = ''
+})
+
 // Mode segment : la règle du segment choisi est copiée dans le constructeur (jamais modifiée sur place).
 const selectedSegment = computed(() => props.segments.find((s) => s.id === segmentId.value) ?? null)
 // Segment supprimé entre-temps : on oublie le choix, sinon l'envoi partirait vers un 404.
@@ -258,6 +301,49 @@ const btn = 'whitespace-nowrap rounded-btn border border-border px-3 py-2 text-s
 
 <template>
   <div class="rounded-card border border-border bg-surface p-6 space-y-4">
+    <section
+      v-if="presets.length" data-test="presets" aria-label="Audiences prêtes"
+      class="space-y-3 rounded-btn border border-border bg-bg p-4"
+    >
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="block min-w-[14rem] flex-1 text-sm text-text-muted">Audience prête
+          <select
+            v-model="presetKey" data-test="preset-select" :disabled="busy"
+            class="mt-1 w-full rounded-btn border border-border bg-surface p-2 text-sm disabled:opacity-40"
+          >
+            <option value="">Choisir une audience prête…</option>
+            <option v-for="p in presets" :key="p.key" :value="p.key">{{ p.label }}</option>
+          </select>
+        </label>
+        <div class="flex gap-2" role="group" aria-label="Langue du message">
+          <button
+            v-for="l in PRESET_LANGUAGES" :key="l.code" type="button" :data-test="`preset-lang-${l.code}`"
+            :aria-pressed="presetLang === l.code" :disabled="busy"
+            :class="[btn, presetLang === l.code ? 'border-primary bg-primary/10 text-text' : 'text-text-muted']"
+            @click="presetLang = l.code"
+          >{{ l.label }}</button>
+        </div>
+      </div>
+      <template v-if="selectedPreset">
+        <p data-test="preset-description" class="text-sm text-text-muted text-pretty">{{ selectedPreset.description }}</p>
+        <label class="flex items-start gap-2 text-sm text-text">
+          <input v-model="limitToLanguage" data-test="preset-limit-language" type="checkbox" :disabled="busy" class="mt-0.5 disabled:opacity-40">
+          <span>Limiter aux comptes dont l’application est dans cette langue
+            <span class="block text-text-muted text-pretty">Le message est rédigé dans une seule langue : sans cette limite, tout le monde le reçoit dans cette langue.</span>
+          </span>
+        </label>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button" data-test="preset-use-message" :disabled="busy || !presetMessage" :class="btn"
+            @click="applyPresetMessage"
+          >Utiliser le modèle de message</button>
+          <span v-if="!messageUntouched" data-test="preset-message-kept" class="text-sm text-text-muted text-pretty">
+            Votre texte a été conservé.
+          </span>
+        </div>
+      </template>
+    </section>
+
     <label class="block text-sm text-text-muted">Titre
       <input
         v-model="title" data-test="broadcast-title" type="text" :disabled="busy"

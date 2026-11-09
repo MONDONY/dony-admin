@@ -2,7 +2,7 @@ import { useApi } from '@/composables/useApi'
 import { downloadBlob } from '@/lib/downloadBlob'
 import { serializeRule } from '@/features/broadcast/composables/audienceRule'
 import type {
-  AdminBroadcast, AdminBroadcastPage, AudienceField, BroadcastAudience, BroadcastRecipientPage,
+  AdminBroadcast, AdminBroadcastPage, AudienceField, AudiencePreset, BroadcastAudience, BroadcastRecipientPage,
   BroadcastSegment, BroadcastSegmentPage, BroadcastTarget, RuleGroup,
 } from '@/features/broadcast/types/index'
 
@@ -46,6 +46,10 @@ export const broadcastService = {
   },
   fields(): Promise<AudienceField[]> {
     return useApi()<AudienceField[]>('/admin/notifications/broadcast/fields')
+  },
+  /** Audiences prêtes et modèles de message (catalogue fixe du back). */
+  presets(): Promise<AudiencePreset[]> {
+    return useApi()<AudiencePreset[]>('/admin/notifications/broadcast/presets')
   },
   recipients(target: BroadcastTarget, page: number, size: number): Promise<BroadcastRecipientPage> {
     return useApi()<BroadcastRecipientPage>('/admin/notifications/broadcast/recipients', {
