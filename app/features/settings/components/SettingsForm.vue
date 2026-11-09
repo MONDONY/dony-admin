@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
+import CallingCodesEditor from '@/features/settings/components/CallingCodesEditor.vue'
+import {
+  callingCodeLabel,
+  callingCodesError,
+  diffCallingCodes,
+  normalizeCallingCodes,
+} from '@/features/settings/lib/callingCodes'
 import type { PlatformSetting } from '@/features/settings/types/index'
 
 /**
@@ -35,6 +42,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   },
   sms_otp_max_sends_per_hour_global: { label: 'Plafond de SMS de code par heure (toute l’app)', unit: 'SMS' },
   sms_otp_max_sends_per_day_global: { label: 'Plafond de SMS de code par 24 h (toute l’app)', unit: 'SMS' },
+  sms_blocked_country_codes: { label: 'Pays sans SMS (indicatifs bloqués)', unit: '' },
   pro_enabled: { label: 'Offre PRO ouverte (visible dans l’application)', unit: '' },
   critical_sms_fallback_enabled: {
     label: 'SMS de repli (notifications critiques sans accusé de réception, facturé par envoi)',
@@ -56,6 +64,32 @@ function metaFor(key: string) {
 }
 
 /**
+ * Les cartes suivent l'ordre servi par le back (ordre de son enum). Seule exception :
+ * `sms_blocked_country_codes` est ramené juste après le dernier réglage `sms_*`, pour rester avec
+ * les autres réglages SMS quel que soit l'endroit où le back l'a déclaré.
+ */
+const SMS_GROUPED_KEY = 'sms_blocked_country_codes'
+const orderedSettings = computed(() => {
+  const list = props.settings
+  const idx = list.findIndex((s) => s.key === SMS_GROUPED_KEY)
+  if (idx === -1) return list
+  const rest = list.filter((_, i) => i !== idx)
+  let lastSms = -1
+  rest.forEach((s, i) => { if (s.key.startsWith('sms_')) lastSms = i })
+  if (lastSms === -1) return list
+  return [...rest.slice(0, lastSms + 1), list[idx]!, ...rest.slice(lastSms + 1)]
+})
+
+/** Type de chaque réglage, pour valider et confirmer un brouillon dont on ne connaît que la clé. */
+function typeOf(key: string) {
+  return props.settings.find((s) => s.key === key)?.type
+}
+/** Valeur en place côté back : sert à décrire ce que change un brouillon de liste. */
+function currentValue(key: string) {
+  return props.settings.find((s) => s.key === key)?.value ?? ''
+}
+
+/**
  * `commission_rate` est stocké et servi comme un **taux** (`0.05`), mais se lit et s'édite
  * comme un **pourcentage** (`5 %`). La conversion se fait aux deux bords de ce composant,
  * jamais au milieu : le contrat backend reste intact — c'est cette même valeur, en taux, que
@@ -70,6 +104,9 @@ const PERCENT_KEYS = new Set(['commission_rate'])
 
 /** Taux → pourcentage. L'arrondi absorbe le bruit flottant : `0.05 * 100 === 5.000000000000001`. */
 function toDisplay(setting: PlatformSetting): string {
+  // Liste d'indicatifs : brouillon normalisé, pour qu'une valeur servie avec « + » ou des espaces
+  // ne passe pas pour une modification.
+  if (setting.type === 'CALLING_CODES') return normalizeCallingCodes(setting.value)
   if (!PERCENT_KEYS.has(setting.key)) return setting.value
   const n = Number(setting.value)
   return Number.isNaN(n) ? setting.value : String(Math.round(n * 10000) / 100)
@@ -112,6 +149,10 @@ const SETTING_HELP: Record<string, string> = {
     + 'voyez une attaque, relevez-le si de vrais utilisateurs sont bloqués.',
   sms_otp_max_sends_per_day_global:
     'Même plafond sur 24 h glissantes, contre une attaque lente qui resterait sous le plafond horaire.',
+  sms_blocked_country_codes:
+    'Aucun SMS (codes de connexion et notifications) ne part vers ces indicatifs : l’application '
+    + 'invite les utilisateurs concernés à se connecter par email, Google ou Apple. Liste vide : aucun '
+    + 'pays bloqué. Ces SMS sont facturés mais n’arrivaient pas (faux accusés « Delivered » de Twilio, 08/11/2026).',
 }
 
 /** Bornes entières [min, max] des réglages photos et des quotas de l'assistant, alignées sur le backend (qui reste l'autorité). */
@@ -157,6 +198,7 @@ function fmt(d: string) {
  * l'autorité — ce contrôle évite juste l'aller-retour réseau pour une valeur déjà invalide. */
 function errorFor(key: string, raw: string | undefined): string | null {
   if (raw === undefined) return null
+  if (typeOf(key) === 'CALLING_CODES') return callingCodesError(raw)
   const str = String(raw)
   const n = Number(raw)
   if (key === 'commission_rate') {
@@ -189,12 +231,63 @@ interface PendingChange {
 }
 const pending = ref<PendingChange | null>(null)
 
+/** Liste d'indicatifs : rien à enregistrer tant que le brouillon normalisé égale la valeur en place. */
+function isUnchanged(s: PlatformSetting): boolean {
+  return s.type === 'CALLING_CODES' && normalizeCallingCodes(drafts[s.key]) === normalizeCallingCodes(s.value)
+}
+
+function listLabels(codes: readonly string[]): string {
+  return codes.map(callingCodeLabel).join(', ')
+}
+
+/**
+ * Confirmation d'une liste d'indicatifs bloqués. Ajouter un pays ne coûte rien (confirmation
+ * simple) ; en RETIRER un rouvre les SMS facturés vers lui : l'avertissement rappelle pourquoi il
+ * était bloqué. Pas de phrase à taper : le geste est réversible et l'avertissement suffit.
+ */
+function callingCodesPending(key: string, wire: string): PendingChange {
+  const { removed, added } = diffCallingCodes(currentValue(key), wire)
+  const parts: string[] = []
+  if (removed.length) parts.push(`Les SMS repartiront vers : ${listLabels(removed)}.`)
+  if (added.length) {
+    parts.push(`Plus aucun SMS (codes de connexion et notifications) ne partira vers : ${listLabels(added)}. `
+      + 'Les utilisateurs concernés se connecteront par email, Google ou Apple.')
+  }
+  if (removed.length) {
+    return {
+      key,
+      value: wire,
+      doubleConfirm: false,
+      title: removed.length > 1 ? `Rouvrir les SMS vers ${removed.length} pays` : 'Rouvrir les SMS vers ce pays',
+      message: parts.join(' '),
+      alert: 'Ces SMS sont facturés et n’arrivaient pas : Twilio les marquait « Delivered » sans qu’ils '
+        + 'soient remis (08/11/2026). Ne retirez un pays que si un fournisseur SMS le dessert réellement.',
+      confirmLabel: 'Rouvrir les SMS',
+    }
+  }
+  return {
+    key,
+    value: wire,
+    doubleConfirm: false,
+    title: added.length > 1 ? `Bloquer les SMS vers ${added.length} pays` : 'Bloquer les SMS vers ce pays',
+    message: parts.join(' '),
+    confirmLabel: 'Bloquer',
+  }
+}
+
 function requestSave(key: string) {
   const raw = String(drafts[key])
   if (errorFor(key, raw)) return
   // `raw` reste la valeur AFFICHÉE — c'est elle que valide `errorFor` (bornes en %) et elle
   // qu'on relit pour décider de la double confirmation. Seul ce qui part sur le fil est converti.
   const wire = toWire(key, raw)
+
+  if (typeOf(key) === 'CALLING_CODES') {
+    const normalized = normalizeCallingCodes(wire)
+    if (normalized === normalizeCallingCodes(currentValue(key))) return
+    pending.value = callingCodesPending(key, normalized)
+    return
+  }
 
   if (key === 'sms_enabled') {
     // Seule la désactivation empêche la connexion (OTP) — réactiver n'est pas un geste
@@ -339,7 +432,7 @@ function cancelPending() {
 <template>
   <div class="space-y-4">
     <div
-      v-for="s in settings" :key="s.key"
+      v-for="s in orderedSettings" :key="s.key"
       class="rounded-card border border-border bg-surface p-4 space-y-3" :data-test="`setting-row-${s.key}`"
     >
       <div class="flex items-center justify-between gap-3">
@@ -356,6 +449,18 @@ function cancelPending() {
         <NuxtLink to="/tarification" class="font-medium text-primary hover:underline">Tarification</NuxtLink>
         (grille par paliers en vigueur).
       </p>
+      <div v-else-if="s.type === 'CALLING_CODES'" class="flex flex-wrap items-start gap-3">
+        <CallingCodesEditor
+          :model-value="drafts[s.key] ?? ''" :setting-key="s.key" :disabled="busy" class="min-w-0 flex-1"
+          @update:model-value="drafts[s.key] = $event"
+        />
+        <button
+          type="button" :data-test="`setting-save-${s.key}`"
+          :disabled="busy || !!errorFor(s.key, drafts[s.key]) || isUnchanged(s)"
+          class="ml-auto rounded-btn px-4 py-2 text-sm bg-primary text-white disabled:opacity-40 hover:bg-primary/90"
+          @click="requestSave(s.key)"
+        >Enregistrer</button>
+      </div>
       <div v-else class="flex items-center gap-2">
         <select
           v-if="s.type === 'BOOLEAN'"

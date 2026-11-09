@@ -1,4 +1,9 @@
-export type PlatformSettingType = 'INTEGER' | 'DECIMAL' | 'BOOLEAN'
+/**
+ * `CALLING_CODES` : liste d'indicatifs téléphoniques séparés par des virgules (`"225,221"`, vide =
+ * aucun), ex. `sms_blocked_country_codes`. Un type inconnu du front retombe sur le champ numérique,
+ * sans planter la page.
+ */
+export type PlatformSettingType = 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'CALLING_CODES'
 
 /**
  * Réglage plateforme, forme générique clé/valeur : le back sérialise chaque valeur en
