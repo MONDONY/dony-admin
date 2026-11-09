@@ -31,6 +31,13 @@ describe('broadcastService', () => {
     })
   })
 
+  it('presets GETe le catalogue des audiences prêtes', async () => {
+    apiMock.mockResolvedValue([{ key: 'activation', label: 'À activer', description: 'd', rule: {}, messages: {} }])
+    const res = await broadcastService.presets()
+    expect(apiMock).toHaveBeenCalledWith('/admin/notifications/broadcast/presets')
+    expect(res[0].key).toBe('activation')
+  })
+
   it('send transmet push: false explicitement', async () => {
     apiMock.mockResolvedValue({ id: 'b1', recipientCount: 12 })
     await broadcastService.send('Titre', 'Corps', { type: 'ALL' }, false)

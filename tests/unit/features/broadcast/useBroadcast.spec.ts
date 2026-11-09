@@ -14,6 +14,29 @@ describe('useBroadcast', () => {
     svc.send = vi.fn().mockResolvedValue({ id: 'b1', recipientCount: 5 })
   })
 
+  it('fetchPresets charge les audiences prêtes', async () => {
+    svc.presets = vi.fn().mockResolvedValue([{ key: 'activation', label: 'À activer', description: 'd', rule: {}, messages: {} }])
+    const b = useBroadcast()
+    await b.fetchPresets()
+    expect(b.presets.value.map((p) => p.key)).toEqual(['activation'])
+    expect(b.error.value).toBeNull()
+  })
+
+  it('fetchPresets reste silencieux quand le back ne connaît pas la route (404)', async () => {
+    svc.presets = vi.fn().mockRejectedValue({ statusCode: 404 })
+    const b = useBroadcast()
+    await b.fetchPresets()
+    expect(b.presets.value).toEqual([])
+    expect(b.error.value).toBeNull()
+  })
+
+  it('fetchPresets ignore une réponse qui n’est pas une liste', async () => {
+    svc.presets = vi.fn().mockResolvedValue({ unexpected: true })
+    const b = useBroadcast()
+    await b.fetchPresets()
+    expect(b.presets.value).toEqual([])
+  })
+
   it('fetchHistory charge la page courante', async () => {
     svc.listHistory.mockResolvedValue({ ...emptyPage, content: [{ id: 'b1' }], totalPages: 1, totalElements: 1 })
     const b = useBroadcast()

@@ -50,6 +50,24 @@ export interface AudienceField {
   values: { key: string; label: string }[]
 }
 
+/** Titre et texte d'un modèle de message (une langue). */
+export interface AudiencePresetMessage {
+  title: string
+  body: string
+}
+
+/**
+ * Audience prête du back : règle déjà construite (JSON du back, sans `kind` ni `id`) et un
+ * modèle de message par code de langue (`fr`, `en`).
+ */
+export interface AudiencePreset {
+  key: string
+  label: string
+  description: string
+  rule: unknown
+  messages: Record<string, AudiencePresetMessage>
+}
+
 export interface BroadcastRecipient {
   id: string
   displayName: string

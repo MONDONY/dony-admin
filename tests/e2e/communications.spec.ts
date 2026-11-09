@@ -140,3 +140,54 @@ test('changer le ciblage après une estimation la périme', async ({ page }) => 
   await expect(page.locator('[data-test="broadcast-stale-estimate"]')).toBeVisible()
   await expect(page.locator('[data-test="broadcast-recipient-count"]')).toHaveCount(0)
 })
+
+test('admin choisit une audience prête : le modèle remplit le message et la règle part limitée à la langue', async ({ page }) => {
+  const previewCalls: unknown[] = []
+  const fields = [
+    { key: 'kyc', family: 'STATUS', label: 'Identité', operators: [{ key: 'IN', label: 'parmi', valueType: 'ENUM_MULTI' }], values: [{ key: 'NOT_STARTED', label: 'Pas commencée' }] },
+    { key: 'language', family: 'STATUS', label: 'Langue', operators: [{ key: 'IN', label: 'parmi', valueType: 'ENUM_MULTI' }], values: [{ key: 'fr', label: 'Français' }, { key: 'en', label: 'Anglais' }] },
+  ]
+  const presets = [{
+    key: 'identite_abandonnee',
+    label: 'Identité abandonnée',
+    description: 'Ont ouvert la vérification d’identité puis l’ont quittée.',
+    rule: { op: 'AND', children: [{ field: 'kyc', operator: 'IN', value: ['NOT_STARTED'] }] },
+    messages: {
+      fr: { title: 'Ta vérification d’identité n’est pas terminée', body: 'Reprends là où tu en étais.' },
+      en: { title: 'Your identity check isn’t finished', body: 'Pick up where you left off.' },
+    },
+  }]
+
+  await page.route('**/api/v1/admin/notifications/**', (route) => {
+    const req = route.request()
+    const url = req.url()
+    const method = req.method()
+    if (method === 'GET' && url.includes('/broadcast/fields')) return route.fulfill({ json: fields })
+    if (method === 'GET' && url.includes('/broadcast/presets')) return route.fulfill({ json: presets })
+    if (method === 'POST' && url.includes('/broadcast/preview')) {
+      previewCalls.push(req.postDataJSON())
+      return route.fulfill({ json: { recipientCount: 11, pushReachableCount: 9 } })
+    }
+    return route.fulfill({ json: INITIAL_HISTORY })
+  })
+
+  await page.goto('/communications')
+  await expect(page.locator('[data-test="broadcast-row-br0"]')).toBeVisible()
+
+  await page.locator('[data-test="preset-select"]').selectOption('identite_abandonnee')
+  await expect(page.locator('[data-test="broadcast-title"]')).toHaveValue('Ta vérification d’identité n’est pas terminée')
+  await expect(page.locator('[data-test="broadcast-recipient-count"]')).toContainText('11 personnes ciblées, dont 9 joignables en push')
+  expect(previewCalls.at(-1)).toEqual({
+    type: 'RULE',
+    rule: {
+      op: 'AND',
+      children: [
+        { field: 'kyc', operator: 'IN', value: ['NOT_STARTED'] },
+        { field: 'language', operator: 'IN', value: ['fr'] },
+      ],
+    },
+  })
+
+  await page.locator('[data-test="preset-lang-en"]').click()
+  await expect(page.locator('[data-test="broadcast-title"]')).toHaveValue('Your identity check isn’t finished')
+})

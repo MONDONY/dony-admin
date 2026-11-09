@@ -17,8 +17,8 @@ definePageMeta({
 })
 
 const {
-  history, isLoading, busy, previewing, error, audience, fields, targetUserName, targetUserReachable, currentPage, totalPages,
-  fetchHistory, fetchFields, goToPage, preview, send,
+  history, isLoading, busy, previewing, error, audience, fields, presets, targetUserName, targetUserReachable, currentPage, totalPages,
+  fetchHistory, fetchFields, fetchPresets, goToPage, preview, send,
 } = useBroadcast()
 const segs = useBroadcastSegments()
 const editSegment = ref<BroadcastSegment | null>(null)
@@ -55,6 +55,7 @@ function onEditRule(segment: BroadcastSegment) {
 onMounted(() => {
   void fetchHistory()
   void fetchFields()
+  void fetchPresets()
   void segs.fetchSegments()
 })
 </script>
@@ -68,7 +69,7 @@ onMounted(() => {
 
     <BroadcastComposer
       class="mb-6"
-      :audience="audience" :busy="busy" :previewing="previewing" :fields="fields"
+      :audience="audience" :busy="busy" :previewing="previewing" :fields="fields" :presets="presets"
       :segments="segs.segments.value" :edit-segment="editSegment"
       :save-segment-fn="segs.create" :update-segment-fn="segs.update"
       :initial-user-id="initialUserId" :target-user-name="targetUserName" :target-user-unreachable="targetUserReachable === false" :can-search-users="auth.can('USER_VIEW')" :can-view-recipients="auth.can('USER_VIEW')"

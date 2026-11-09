@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { broadcastService } from '@/features/broadcast/services/broadcastService'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import type { AdminBroadcast, AudienceField, BroadcastAudience, BroadcastTarget } from '@/features/broadcast/types/index'
+import type { AdminBroadcast, AudienceField, AudiencePreset, BroadcastAudience, BroadcastTarget } from '@/features/broadcast/types/index'
 
 const PAGE_SIZE = 20
 
@@ -33,6 +33,7 @@ export function useBroadcast() {
   const audience = ref<BroadcastAudience | null>(null)
   const recipientCount = computed(() => audience.value?.recipientCount ?? null)
   const fields = ref<AudienceField[]>([])
+  const presets = ref<AudiencePreset[]>([])
   const targetUserName = ref<string | null>(null)
   const targetUserReachable = ref<boolean | null>(null)
   const currentPage = ref(0)
@@ -63,6 +64,20 @@ export function useBroadcast() {
       fields.value = Array.isArray(list) ? list : []
     } catch (e) {
       error.value = extractProblemMessage(e, 'Impossible de charger les critères de ciblage')
+    }
+  }
+
+  /**
+   * Audiences prêtes : un confort, pas une condition de l'écran. Un back qui ne connaît pas encore la
+   * route (404 tant qu'il n'est pas déployé) ou une erreur réseau laissent simplement la liste vide :
+   * aucune bannière d'erreur, le constructeur à la main reste entier.
+   */
+  async function fetchPresets() {
+    try {
+      const list = await broadcastService.presets()
+      presets.value = Array.isArray(list) ? list : []
+    } catch {
+      presets.value = []
     }
   }
 
@@ -110,7 +125,7 @@ export function useBroadcast() {
   }
 
   return {
-    history, isLoading, busy, previewing, error, audience, recipientCount, fields, targetUserName, targetUserReachable, currentPage, totalPages,
-    fetchHistory, fetchFields, goToPage, preview, send,
+    history, isLoading, busy, previewing, error, audience, recipientCount, fields, targetUserName, targetUserReachable, currentPage, totalPages, presets,
+    fetchHistory, fetchFields, fetchPresets, goToPage, preview, send,
   }
 }
