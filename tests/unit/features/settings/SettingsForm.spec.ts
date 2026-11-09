@@ -78,6 +78,11 @@ const formDraftQuota: PlatformSetting = {
   updatedAt: null, updatedByEmail: null,
 }
 
+const remoteConfigFetch: PlatformSetting = {
+  key: 'remote_config_fetch_minutes', value: '60', type: 'INTEGER',
+  updatedAt: null, updatedByEmail: null,
+}
+
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a :href="to"><slot /></a>', props: ['to'] }
 
 function mountForm(props: Partial<InstanceType<typeof SettingsForm>['$props']> = {}) {
@@ -581,6 +586,48 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="setting-error-assistant_daily_quota"]').exists()).toBe(false)
     await w.find('[data-test="setting-value-assistant_form_draft_daily_quota"]').setValue('1000')
     expect(w.find('[data-test="setting-error-assistant_form_draft_daily_quota"]').exists()).toBe(false)
+  })
+
+  describe('fréquence de lecture de Remote Config', () => {
+    const k = 'remote_config_fetch_minutes'
+
+    it('affiche le libellé, l’unité, l’aide et les bornes', () => {
+      const w = mountForm({ settings: [remoteConfigFetch] })
+      expect(w.text()).toContain('Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)')
+      expect(w.find(`[data-test="setting-unit-${k}"]`).text()).toBe('minutes')
+      expect(w.find(`[data-test="setting-help-${k}"]`).text()).toContain('60 = une heure')
+      expect(w.find(`[data-test="setting-help-${k}"]`).text()).toContain('100 000 par jour')
+      expect(w.find(`[data-test="setting-hint-${k}"]`).text()).toBe('Entre 5 et 1440')
+    })
+
+    it.each(['4', '1441', '2.5', '', '1e2'])('refuse « %s » sans appel réseau', async (value) => {
+      const w = mountForm({ settings: [remoteConfigFetch] })
+      await w.find(`[data-test="setting-value-${k}"]`).setValue(value)
+      expect(w.find(`[data-test="setting-error-${k}"]`).exists()).toBe(true)
+      await w.find(`[data-test="setting-save-${k}"]`).trigger('click')
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it.each(['5', '1440'])('accepte la borne %s', async (value) => {
+      const w = mountForm({ settings: [remoteConfigFetch] })
+      await w.find(`[data-test="setting-value-${k}"]`).setValue(value)
+      expect(w.find(`[data-test="setting-error-${k}"]`).exists()).toBe(false)
+    })
+
+    it('envoie la valeur saisie telle quelle', async () => {
+      const w = mountForm({ settings: [remoteConfigFetch] })
+      await w.find(`[data-test="setting-value-${k}"]`).setValue('120')
+      await w.find(`[data-test="setting-save-${k}"]`).trigger('click')
+      const confirm = w.findComponent({ name: 'ConfirmActionDialog' })
+      if (confirm.exists()) confirm.vm.$emit('confirm')
+      await w.vm.$nextTick()
+      expect(w.emitted('update')?.[0]).toEqual([k, '120'])
+    })
+
+    it('clé absente du back : la page s’affiche sans cette carte', () => {
+      const w = mountForm()
+      expect(w.find(`[data-test="setting-value-${k}"]`).exists()).toBe(false)
+    })
   })
 
   describe('commission par paliers (onglet Tarification)', () => {
