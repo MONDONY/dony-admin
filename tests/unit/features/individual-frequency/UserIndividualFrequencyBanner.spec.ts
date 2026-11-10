@@ -103,4 +103,13 @@ describe('UserIndividualFrequencyBanner', () => {
     expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(true)
     expect(w.find('[data-test="user-individual-frequency-dismiss"]').exists()).toBe(false)
   })
+
+  it('avec GP_PRO_REVIEW : bandeau et bouton « Écarter » ; sans : bandeau seul (le back répondrait 403)', () => {
+    const avec = mountBanner(ALERT, 'ADMIN')
+    expect(avec.find('[data-test="user-individual-frequency"]').exists()).toBe(true)
+    expect(avec.find('[data-test="user-individual-frequency-dismiss"]').exists()).toBe(true)
+    const sans = mountBanner(ALERT, 'SUPPORT')
+    expect(sans.find('[data-test="user-individual-frequency"]').exists()).toBe(true)
+    expect(sans.find('[data-test="user-individual-frequency-dismiss"]').exists()).toBe(false)
+  })
 })

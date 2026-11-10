@@ -135,4 +135,12 @@ describe('IndividualFrequencyQueue', () => {
     const w = await mountQueue()
     expect(w.find('[data-test="individual-frequency-open-../x"]').exists()).toBe(false)
   })
+
+  it('avec GP_PRO_REVIEW : bouton « Écarter » ; sans (rôle SUPPORT) : lecture seule', async () => {
+    const avec = await mountQueue('ADMIN')
+    expect(avec.find('[data-test="individual-frequency-dismiss-f1"]').exists()).toBe(true)
+    const sans = await mountQueue('SUPPORT')
+    expect(sans.find('[data-test="individual-frequency-row-f1"]').exists()).toBe(true)
+    expect(sans.find('[data-test="individual-frequency-dismiss-f1"]').exists()).toBe(false)
+  })
 })
