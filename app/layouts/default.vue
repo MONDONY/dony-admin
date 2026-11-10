@@ -32,7 +32,7 @@ useGlobalShortcuts({ navigate: to => router.push(to), can: p => auth.can(p) })
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden">
+  <div class="fixed inset-0 flex overflow-hidden">
     <AppSidebar />
     <div class="flex-1 flex flex-col min-w-0">
       <AppTopbar :title="meta.title" :subtitle="meta.subtitle" :crumbs="meta.crumbs" :back-to="meta.backTo" @back="goBack" />

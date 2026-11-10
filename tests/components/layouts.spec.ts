@@ -55,4 +55,20 @@ describe('default layout', () => {
     expect(wrapper.find('.topbar').exists()).toBe(true)
     expect(wrapper.find('.page-content').exists()).toBe(true)
   }, 15000)
+
+  // `h-screen` (100vh) est calculé une fois au chargement : sous Safari, après un passage en plein
+  // écran ou un redimensionnement, le cadre gardait une hauteur plus courte que la fenêtre et
+  // laissait une bande vide en bas. `fixed inset-0` suit la fenêtre réelle à tout moment.
+  it('suit la hauteur réelle de la fenêtre au lieu de 100vh', async () => {
+    vi.stubGlobal('useRoute', () => ({ meta: { pageTitle: 'Utilisateurs' } }))
+    const DefaultLayout = (await import('@/layouts/default.vue')).default
+    const wrapper = mount(DefaultLayout, { slots: { default: '<div />' } })
+    const root = wrapper.element as HTMLElement
+    expect(root.classList.contains('fixed')).toBe(true)
+    expect(root.classList.contains('inset-0')).toBe(true)
+    expect(root.classList.contains('overflow-hidden')).toBe(true)
+    expect(root.classList.contains('h-screen')).toBe(false)
+    // le contenu garde son propre défilement à l'intérieur du cadre
+    expect(wrapper.find('main').classes()).toContain('overflow-y-auto')
+  }, 15000)
 })
