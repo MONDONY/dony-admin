@@ -48,6 +48,9 @@ export function useAccountActions({ getId, onUpdate }: Options) {
   const ban = (reason: string) => run(id => usersService.ban(id, reason))
   const unsuspend = () => run(id => usersService.unsuspend(id))
   const setCommissionRate = (rate: number | null) => run(id => usersService.setCommissionRate(id, rate))
+  // Le PUT ne promet pas de renvoyer la fiche : on la relit, comme pour la suspension de publication.
+  const setMonthlyTripLimit = (limit: number | null) =>
+    run(async (id) => { await usersService.setMonthlyTripLimit(id, limit); return usersService.get(id) })
   const muteMessaging = (durationHours: number | null, reason: string) =>
     run(id => usersService.muteMessaging(id, durationHours, reason))
   const unmuteMessaging = () => run(id => usersService.unmuteMessaging(id))
@@ -96,6 +99,6 @@ export function useAccountActions({ getId, onUpdate }: Options) {
   return {
     busy, error, cancelDeletionUnavailable, cancelDeletionReasonError, reset,
     suspend, ban, unsuspend, suspendPublishing, liftPublishing, muteMessaging, unmuteMessaging,
-    setCommissionRate, grantPro, revokePro, cancelDeletion,
+    setCommissionRate, setMonthlyTripLimit, grantPro, revokePro, cancelDeletion,
   }
 }

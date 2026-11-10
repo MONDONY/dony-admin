@@ -3,7 +3,7 @@ import { useAccountActions } from '@/features/user-profile/composables/useAccoun
 
 const svc = {
   suspend: vi.fn(), ban: vi.fn(), unsuspend: vi.fn(), suspendPublishing: vi.fn(), liftPublishingSuspension: vi.fn(),
-  muteMessaging: vi.fn(), unmuteMessaging: vi.fn(), setCommissionRate: vi.fn(), grantPro: vi.fn(), revokePro: vi.fn(),
+  muteMessaging: vi.fn(), unmuteMessaging: vi.fn(), setCommissionRate: vi.fn(), setMonthlyTripLimit: vi.fn(), grantPro: vi.fn(), revokePro: vi.fn(),
   cancelDeletion: vi.fn(), get: vi.fn(),
 }
 vi.mock('@/features/users/services/usersService', () => ({ usersService: new Proxy({}, { get: (_t, k: string) => (...a: unknown[]) => (svc as Record<string, ReturnType<typeof vi.fn>>)[k]!(...a) }) }))
@@ -46,6 +46,16 @@ describe('useAccountActions', () => {
     expect(svc.suspendPublishing).toHaveBeenCalledWith('u1', 'r')
     expect(svc.get).toHaveBeenCalledWith('u1')
     expect(onUpdate).toHaveBeenCalledWith(DETAIL)
+  })
+
+  it('limite mensuelle : appel PUT puis relecture de la fiche', async () => {
+    const a = make()
+    await a.setMonthlyTripLimit(5)
+    expect(svc.setMonthlyTripLimit).toHaveBeenCalledWith('u1', 5)
+    expect(svc.get).toHaveBeenCalledWith('u1')
+    expect(onUpdate).toHaveBeenCalledWith(DETAIL)
+    await a.setMonthlyTripLimit(null)
+    expect(svc.setMonthlyTripLimit).toHaveBeenLastCalledWith('u1', null)
   })
 
   it('lever la suspension de publication : appel puis relecture', async () => {

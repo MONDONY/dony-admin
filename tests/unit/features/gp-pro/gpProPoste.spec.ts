@@ -114,6 +114,18 @@ describe('GpProApplicationCase', () => {
     expect(w.text()).not.toContain('—')
   })
 
+  it('numéro d’entreprise et pays affichés quand la demande les porte', () => {
+    const w = mountCase({ detail: { ...DETAIL, businessRegistrationNumber: '123 456 789 00012', businessCountry: 'FR' } })
+    expect(w.get('[data-test="gp-pro-detail-registration"]').text()).toBe('123 456 789 00012')
+    expect(w.get('[data-test="gp-pro-detail-country"]').text()).toBe('FR')
+  })
+
+  it('demande sans numéro ni pays (ancienne app) : lignes absentes, aucune erreur', () => {
+    const w = mountCase()
+    expect(w.find('[data-test="gp-pro-detail-registration"]').exists()).toBe(false)
+    expect(w.find('[data-test="gp-pro-detail-country"]').exists()).toBe(false)
+  })
+
   it('profil sain : message rassurant, aucun point d’attention', () => {
     const w = mountCase()
     expect(w.find('[data-test="gp-pro-attention-none"]').exists()).toBe(true)

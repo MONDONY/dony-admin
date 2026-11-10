@@ -96,6 +96,14 @@ describe('usersService', () => {
     expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/commission-rate', { method: 'PUT', body: { rate: 0.1 } })
   })
 
+  it('setMonthlyTripLimit() PUTs limit (nombre ou null)', async () => {
+    apiMock.mockResolvedValue(undefined)
+    await usersService.setMonthlyTripLimit('u1', 5)
+    expect(apiMock).toHaveBeenCalledWith('/admin/users/u1/monthly-trip-limit', { method: 'PUT', body: { limit: 5 } })
+    await usersService.setMonthlyTripLimit('u1', null)
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/users/u1/monthly-trip-limit', { method: 'PUT', body: { limit: null } })
+  })
+
   it('get() fetches a single user', async () => {
     apiMock.mockResolvedValue({ id: 'u1', status: 'ACTIVE' })
     const r = await usersService.get('u1')

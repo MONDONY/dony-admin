@@ -11,7 +11,7 @@ import type { AdminDeletionReasonCode, AdminUserDetail } from '@/features/users/
 
 const props = defineProps<{ user: AdminUserDetail, busy?: boolean, error?: string | null }>()
 const emit = defineEmits<{
-  setCommission: [rate: number | null]; grantPro: [reason: string]; revokePro: []; changed: []
+  setCommission: [rate: number | null]; setMonthlyTripLimit: [limit: number | null]; grantPro: [reason: string]; revokePro: []; changed: []
 }>()
 
 const auth = useAuthStore()
@@ -34,6 +34,50 @@ function applyCommission() {
   pendingRate.value = Math.round(pct * 10) / 1000 // % → fraction, 1 décimale de %
   pending.value = 'setCommission'
 }
+
+// --- Limite mensuelle de trajets ---
+// Le bloc n'existe que si le back envoie `monthlyTripsUsed` (toujours présent quand il connaît la
+// limite). `monthlyTripLimit` nul est ABSENT du JSON : undefined et null veulent dire « aucune limite ».
+const TRIP_LIMIT_MIN = 1
+const TRIP_LIMIT_MAX = 100
+const tripLimitText = (limit: number | null | undefined) => limit != null ? String(limit) : ''
+const tripLimitInput = ref(tripLimitText(props.user.monthlyTripLimit))
+watch(() => props.user.monthlyTripLimit, (limit) => { tripLimitInput.value = tripLimitText(limit) })
+const tripLimitInvalid = ref(false)
+const tripLimitSaved = ref(false)
+const tripLimitSubmitted = ref(false)
+const hasTripLimitData = computed(() => props.user.monthlyTripsUsed !== undefined && props.user.monthlyTripsUsed !== null)
+const tripsUsedLabel = computed(() => {
+  const n = props.user.monthlyTripsUsed ?? 0
+  return `${n} ${n > 1 ? 'trajets publiés' : 'trajet publié'} ce mois-ci`
+})
+const tripLimitState = computed(() => {
+  const limit = props.user.monthlyTripLimit
+  if (limit == null) return 'Aucune limite'
+  return `Limite actuelle : ${limit} ${limit > 1 ? 'trajets' : 'trajet'} par mois`
+})
+
+function applyTripLimit() {
+  tripLimitSaved.value = false
+  const raw = String(tripLimitInput.value ?? '').trim()
+  if (raw === '') {
+    tripLimitInvalid.value = false
+    tripLimitSubmitted.value = true
+    emit('setMonthlyTripLimit', null)
+    return
+  }
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < TRIP_LIMIT_MIN || n > TRIP_LIMIT_MAX) { tripLimitInvalid.value = true; return }
+  tripLimitInvalid.value = false
+  tripLimitSubmitted.value = true
+  emit('setMonthlyTripLimit', n)
+}
+// Succès = le geste lancé ici s'est terminé sans erreur affichée par le parent.
+watch(() => props.busy, (busy, wasBusy) => {
+  if (!wasBusy || busy || !tripLimitSubmitted.value) return
+  tripLimitSubmitted.value = false
+  tripLimitSaved.value = !props.error
+})
 
 // --- Accès PRO (mêmes règles que le tiroir) ---
 const proSource = computed(() => props.user.proSubscription?.source ?? null)
@@ -116,11 +160,12 @@ async function confirmDeletion(reasonCode: AdminDeletionReasonCode, reason: stri
 }
 
 const showCommission = computed(() => auth.can('USER_COMMISSION'))
+const showTripLimit = computed(() => auth.can('USER_COMMISSION') && hasTripLimitData.value)
 const showPro = computed(() => auth.can('USER_PRO_GRANT'))
 const showGpPro = computed(() => auth.can('GP_PRO_REVIEW') && props.user.gpPro !== undefined)
 const showRecette = computed(() => auth.can('ADMIN_MANAGE'))
 const showDanger = computed(() => auth.can('USER_DELETE'))
-const nothing = computed(() => !showCommission.value && !showPro.value && !showGpPro.value && !showRecette.value && !showDanger.value)
+const nothing = computed(() => !showCommission.value && !showTripLimit.value && !showPro.value && !showGpPro.value && !showRecette.value && !showDanger.value)
 const card = 'rounded-card border border-border bg-surface p-5'
 </script>
 
@@ -164,6 +209,36 @@ const card = 'rounded-card border border-border bg-surface p-5'
       </div>
       <p v-if="commissionInvalid" data-test="commission-invalid" role="alert" class="mt-2 text-sm text-danger">
         Saisissez un taux entre 0 et 99,9 %.
+      </p>
+    </section>
+
+    <!-- Absent d'un back qui n'expose pas encore la limite mensuelle. -->
+    <section v-if="showTripLimit" :class="card" data-test="trip-limit-card" aria-labelledby="trip-limit-title">
+      <h3 id="trip-limit-title" class="font-display text-base font-semibold">Limite mensuelle de trajets</h3>
+      <p data-test="trip-limit-state" class="mt-1 text-sm text-text-muted">{{ tripLimitState }}</p>
+      <p data-test="trip-limit-used" class="mt-0.5 text-sm tabular-nums">{{ tripsUsedLabel }}</p>
+      <p class="mt-1 text-xs text-text-muted text-pretty">
+        De 1 à 100 trajets publiés par mois civil ; vide = aucune limite. Un GP Pro validé n’est jamais limité.
+      </p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <label for="trip-limit-input" class="sr-only">Limite mensuelle de trajets</label>
+        <input
+          id="trip-limit-input" v-model="tripLimitInput" data-test="trip-limit-input" type="number"
+          :min="TRIP_LIMIT_MIN" :max="TRIP_LIMIT_MAX" step="1" placeholder="Aucune limite" :aria-invalid="tripLimitInvalid"
+          class="w-36 rounded-btn border border-border bg-surface px-3 py-2 text-sm tabular-nums"
+          @input="tripLimitSaved = false"
+        >
+        <button
+          type="button" data-test="trip-limit-save" :disabled="busy"
+          class="rounded-btn border border-border px-4 py-2 text-sm transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96] disabled:opacity-40"
+          @click="applyTripLimit"
+        >Enregistrer</button>
+      </div>
+      <p v-if="tripLimitInvalid" data-test="trip-limit-invalid" role="alert" class="mt-2 text-sm text-danger">
+        Saisissez un nombre entier entre 1 et 100, ou laissez vide pour ne pas limiter.
+      </p>
+      <p v-else-if="tripLimitSaved" data-test="trip-limit-saved" role="status" class="mt-2 text-sm text-success">
+        Limite enregistrée.
       </p>
     </section>
 
