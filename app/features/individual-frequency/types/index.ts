@@ -18,6 +18,8 @@ export interface IndividualFrequencyFlagRow {
   windowDays?: number
   threshold?: number
   detectedAt?: string | null
+  /** Vrai : le voyageur a demandé GP Pro avec la fréquence « chaque semaine ». Absent = faux. */
+  weeklyApplication?: boolean
 }
 
 /** Alerte ouverte d'un utilisateur, portée par sa fiche (`individualFrequencyAlert`). */
@@ -27,21 +29,36 @@ export interface IndividualFrequencyAlert {
   windowDays?: number
   threshold?: number
   detectedAt?: string | null
+  /** Vrai : le voyageur a demandé GP Pro avec la fréquence « chaque semaine ». Absent = faux. */
+  weeklyApplication?: boolean
 }
 
 export const INDIVIDUAL_FREQUENCY_DEFAULT_WINDOW_DAYS = 30
 
 export const INDIVIDUAL_FREQUENCY_UNAVAILABLE = 'Particuliers à confirmer indisponible tant que le serveur n’est pas mis à jour.'
 
-/** Repli français quand le ProblemDetail n'a pas de `detail`. */
-export const INDIVIDUAL_FREQUENCY_STALE_MESSAGE = 'Alerte introuvable : la liste a été relue.'
+export const WEEKLY_APPLICATION_TEXT = 'A demandé GP Pro, fréquence : chaque semaine.'
 
-/** « 5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier. » */
-export function frequencySummary(a: Pick<IndividualFrequencyAlert, 'tripsCount' | 'windowDays' | 'threshold'>): string {
+/**
+ * « 5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier. »
+ * Avec `weeklyApplication`, le nombre de trajets peut être sous le seuil : la phrase des trajets
+ * n'est alors gardée que s'il le dépasse, et « A demandé GP Pro, fréquence : chaque semaine. »
+ * s'y ajoute (ou la remplace).
+ */
+export function frequencySummary(
+  a: Pick<IndividualFrequencyAlert, 'tripsCount' | 'windowDays' | 'threshold' | 'weeklyApplication'>,
+): string {
   const days = a.windowDays ?? INDIVIDUAL_FREQUENCY_DEFAULT_WINDOW_DAYS
-  const head = typeof a.tripsCount === 'number'
-    ? `${a.tripsCount} trajet${a.tripsCount > 1 ? 's' : ''} avec colis`
-    : 'Trajets avec colis'
-  const threshold = typeof a.threshold === 'number' ? ` (seuil : ${a.threshold})` : ''
-  return `${head} sur ${days} jours${threshold}. Statut déclaré : Particulier.`
+  const overThreshold = typeof a.tripsCount === 'number' && typeof a.threshold === 'number' && a.tripsCount > a.threshold
+  const parts: string[] = []
+  if (!a.weeklyApplication || overThreshold) {
+    const head = typeof a.tripsCount === 'number'
+      ? `${a.tripsCount} trajet${a.tripsCount > 1 ? 's' : ''} avec colis`
+      : 'Trajets avec colis'
+    const threshold = typeof a.threshold === 'number' ? ` (seuil : ${a.threshold})` : ''
+    parts.push(`${head} sur ${days} jours${threshold}.`)
+  }
+  if (a.weeklyApplication) parts.push(WEEKLY_APPLICATION_TEXT)
+  parts.push('Statut déclaré : Particulier.')
+  return parts.join(' ')
 }

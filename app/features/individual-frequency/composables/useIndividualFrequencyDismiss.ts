@@ -1,19 +1,18 @@
 import { ref } from 'vue'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import { isEndpointMissing } from '@/lib/endpointMissing'
 import { individualFrequencyService } from '@/features/individual-frequency/services/individualFrequencyService'
-import { INDIVIDUAL_FREQUENCY_STALE_MESSAGE } from '@/features/individual-frequency/types/index'
 
 interface Options {
-  /** Alerte inconnue ou déjà close : l'écran est en retard sur la base, l'appelant relit. */
+  /** Alerte inconnue (404) : l'écran est en retard sur la base, l'appelant relit. */
   onStale?: () => void
 }
 
 type HttpErrorLike = { statusCode?: number; status?: number; response?: { status?: number } } | undefined
 
 /**
- * Écarte une alerte. Rend true au succès. `unavailable` : ancien back sans l'endpoint, le bouton
- * disparaît sans message d'erreur.
+ * Écarte une alerte. Rend true au succès. Le serveur répond 204 même pour une alerte déjà
+ * résolue ; un 404 (alerte inconnue, ou ancien back sans l'endpoint) veut dire que l'écran est
+ * en retard : l'appelant relit, sans message d'erreur. `unavailable` : 405 seulement.
  */
 export function useIndividualFrequencyDismiss(options: Options = {}) {
   const busy = ref(false)
@@ -29,17 +28,11 @@ export function useIndividualFrequencyDismiss(options: Options = {}) {
       await individualFrequencyService.dismiss(flagId)
       return true
     } catch (e) {
-      if (isEndpointMissing(e)) {
-        unavailable.value = true
-        return false
-      }
       const err = e as HttpErrorLike
-      if ((err?.statusCode ?? err?.status ?? err?.response?.status) === 404) {
-        error.value = INDIVIDUAL_FREQUENCY_STALE_MESSAGE
-        options.onStale?.()
-      } else {
-        error.value = extractProblemMessage(e, 'L’alerte n’a pas pu être écartée')
-      }
+      const status = err?.statusCode ?? err?.status ?? err?.response?.status
+      if (status === 404) options.onStale?.()
+      else if (status === 405) unavailable.value = true
+      else error.value = extractProblemMessage(e, 'L’alerte n’a pas pu être écartée')
       return false
     } finally {
       busy.value = false

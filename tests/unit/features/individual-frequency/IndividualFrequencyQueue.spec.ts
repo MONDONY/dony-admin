@@ -103,6 +103,27 @@ describe('IndividualFrequencyQueue', () => {
     expect(w.find('[data-test="individual-frequency-row-f1"]').exists()).toBe(true)
   })
 
+  it('ligne avec demande hebdomadaire sous le seuil : phrase GP Pro à la place des trajets', async () => {
+    svc.list.mockResolvedValue([{ ...F1, tripsCount: 2, weeklyApplication: true }])
+    const w = await mountQueue()
+    const t = w.get('[data-test="individual-frequency-row-f1"]').text()
+    expect(t).toContain('A demandé GP Pro, fréquence : chaque semaine. Statut déclaré : Particulier.')
+    expect(t).not.toContain('trajets avec colis')
+  })
+
+  it('alerte déjà close ailleurs (404 au POST) : la liste est relue, aucune erreur', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 404, data: { code: 'individual-frequency-flag-not-found' } })
+    const w = await mountQueue()
+    svc.list.mockResolvedValueOnce([F2])
+    await w.get('[data-test="individual-frequency-dismiss-f1"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.list).toHaveBeenCalledTimes(2)
+    expect(w.find('[data-test="individual-frequency-row-f1"]').exists()).toBe(false)
+    expect(w.find('[data-test="individual-frequency-error"]').exists()).toBe(false)
+    expect(w.find('[role="dialog"]').exists()).toBe(false)
+  })
+
   it('sans GP_PRO_REVIEW : la liste se lit, aucun bouton « Écarter »', async () => {
     const w = await mountQueue('ADMIN', { GP_PRO_REVIEW: false })
     expect(w.find('[data-test="individual-frequency-row-f1"]').exists()).toBe(true)

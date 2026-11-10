@@ -71,22 +71,36 @@ describe('useIndividualFrequencyDismiss', () => {
     expect(d.busy.value).toBe(false)
   })
 
-  it('endpoint absent : indisponible, aucune erreur affichée', async () => {
-    svc.dismiss.mockRejectedValue({ statusCode: 404 })
-    const d = useIndividualFrequencyDismiss()
-    expect(await d.run('f1')).toBe(false)
-    expect(d.unavailable.value).toBe(true)
-    expect(d.error.value).toBeNull()
-  })
-
-  it('alerte inconnue (404 avec code) : message, et l’écran relit', async () => {
+  it('404 (alerte inconnue ou ancien back) : l’écran relit, aucune erreur affichée', async () => {
     svc.dismiss.mockRejectedValue({ statusCode: 404, data: { code: 'individual-frequency-flag-not-found' } })
     const onStale = vi.fn()
     const d = useIndividualFrequencyDismiss({ onStale })
     expect(await d.run('f1')).toBe(false)
-    expect(d.error.value).toBe('Alerte introuvable : la liste a été relue.')
+    expect(d.error.value).toBeNull()
     expect(d.unavailable.value).toBe(false)
     expect(onStale).toHaveBeenCalledTimes(1)
+  })
+
+  it('404 sans code : même traitement, sans erreur', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 404, data: {} })
+    const onStale = vi.fn()
+    const d = useIndividualFrequencyDismiss({ onStale })
+    expect(await d.run('f1')).toBe(false)
+    expect(d.error.value).toBeNull()
+    expect(onStale).toHaveBeenCalledTimes(1)
+  })
+
+  it('404 sans onStale : aucun plantage', async () => {
+    svc.dismiss.mockRejectedValue({ status: 404 })
+    expect(await useIndividualFrequencyDismiss().run('f1')).toBe(false)
+  })
+
+  it('405 : indisponible, aucune erreur affichée', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 405 })
+    const d = useIndividualFrequencyDismiss()
+    expect(await d.run('f1')).toBe(false)
+    expect(d.unavailable.value).toBe(true)
+    expect(d.error.value).toBeNull()
   })
 
   it('autre erreur : detail du serveur, sinon repli', async () => {

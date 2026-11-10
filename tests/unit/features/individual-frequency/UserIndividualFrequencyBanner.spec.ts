@@ -64,17 +64,19 @@ describe('UserIndividualFrequencyBanner', () => {
     expect(w.emitted('changed')).toBeUndefined()
   })
 
-  it('alerte déjà écartée ailleurs (404 avec code) : la fiche est relue', async () => {
+  it('alerte inconnue ou déjà close (404) : fiche relue, aucune erreur affichée', async () => {
     svc.dismiss.mockRejectedValue({ statusCode: 404, data: { code: 'individual-frequency-flag-not-found' } })
     const w = mountBanner(ALERT)
     await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
     expect(w.emitted('changed')).toHaveLength(1)
+    expect(w.find('[data-test="user-individual-frequency-error"]').exists()).toBe(false)
+    expect(w.find('[role="dialog"]').exists()).toBe(false)
   })
 
-  it('endpoint absent : le bouton disparaît, pas d’erreur', async () => {
-    svc.dismiss.mockRejectedValue({ statusCode: 404 })
+  it('405 : le bouton disparaît, pas d’erreur', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 405 })
     const w = mountBanner(ALERT)
     await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
     await w.get('[data-test="confirm"]').trigger('click')
@@ -82,6 +84,18 @@ describe('UserIndividualFrequencyBanner', () => {
     expect(w.find('[data-test="user-individual-frequency-dismiss"]').exists()).toBe(false)
     expect(w.find('[data-test="user-individual-frequency-error"]').exists()).toBe(false)
     expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(true)
+  })
+
+  it('demande hebdomadaire sous le seuil : la phrase GP Pro à la place de celle des trajets', () => {
+    const w = mountBanner({ ...ALERT, tripsCount: 2, weeklyApplication: true })
+    expect(w.get('[data-test="user-individual-frequency-text"]').text())
+      .toBe('A demandé GP Pro, fréquence : chaque semaine. Statut déclaré : Particulier.')
+  })
+
+  it('demande hebdomadaire au-dessus du seuil : les deux phrases', () => {
+    const w = mountBanner({ ...ALERT, weeklyApplication: true })
+    expect(w.get('[data-test="user-individual-frequency-text"]').text())
+      .toBe('5 trajets avec colis sur 30 jours (seuil : 4). A demandé GP Pro, fréquence : chaque semaine. Statut déclaré : Particulier.')
   })
 
   it('sans GP_PRO_REVIEW : le bandeau se lit, sans bouton', () => {
