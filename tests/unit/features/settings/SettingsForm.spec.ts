@@ -63,6 +63,11 @@ const flights: PlatformSetting = {
   key: 'flights_enabled', value: 'false', type: 'BOOLEAN',
   updatedAt: null, updatedByEmail: null,
 }
+// Statut de voyageur obligatoire pour publier un trajet (lot 2) : facultatif par défaut.
+const travelerStatusRequired: PlatformSetting = {
+  key: 'traveler_status_required', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
 const purge: PlatformSetting = {
   key: 'photo_purge_enabled', value: 'false', type: 'BOOLEAN',
   updatedAt: null, updatedByEmail: null,
@@ -419,6 +424,22 @@ describe('SettingsForm', () => {
     expect(row.text()).toContain('Billets d’avion')
     expect(row.text()).not.toContain('flights_enabled')
     expect((w.find('[data-test="setting-value-flights_enabled"]').element as HTMLSelectElement).value).toBe('false')
+  })
+
+  it('traveler_status_required porte son libellé et un sélecteur Activé / Désactivé', () => {
+    const w = mountForm({ settings: [travelerStatusRequired] })
+    const row = w.find('[data-test="setting-row-traveler_status_required"]')
+    expect(row.text()).toContain('Statut de voyageur obligatoire pour publier')
+    expect(row.text()).not.toContain('traveler_status_required')
+    expect((w.find('[data-test="setting-value-traveler_status_required"]').element as HTMLSelectElement).value).toBe('false')
+  })
+
+  it('activer le statut de voyageur obligatoire : confirmation puis mise à jour', async () => {
+    const w = mountForm({ settings: [travelerStatusRequired] })
+    await w.find('[data-test="setting-value-traveler_status_required"]').setValue('true')
+    await w.find('[data-test="setting-save-traveler_status_required"]').trigger('click')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['traveler_status_required', 'true'])
   })
 
   it('activer les billets d’avion : confirmation simple qui annonce l’onglet et les six onglets', async () => {

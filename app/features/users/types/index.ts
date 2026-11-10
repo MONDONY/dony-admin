@@ -82,6 +82,15 @@ export interface AdminUserDetail extends AdminUserListItem {
   payoutsHeldReasons?: ('BANNED' | 'KYC_REVOKED')[]
   /** Reste > 0 après la levée du gel tant que les paiements ne sont pas débloqués un par un. */
   heldPaymentsCount?: number | null
+  /**
+   * Statut légal déclaré par le voyageur (lot 2) : absent d'un back antérieur, `null` tant que
+   * rien n'est déclaré. Dans les deux cas aucune pastille ne s'affiche.
+   */
+  travelerStatus?: 'INDIVIDUAL' | 'PROFESSIONAL' | null
+  travelerStatusDeclaredAt?: string | null
+  businessName?: string | null
+  businessRegistrationNumber?: string | null
+  businessCountry?: string | null
 }
 
 export interface AdminUserPage {

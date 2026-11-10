@@ -27,6 +27,17 @@ const roleLabel = computed(() => {
   if (sender) return 'Expéditeur'
   return null
 })
+// Statut légal déclaré (lot 2). Champ absent (ancien back), null ou valeur inconnue : aucune pastille.
+const travelerStatusBadge = computed(() => {
+  const u = props.user
+  if (u.travelerStatus === 'INDIVIDUAL') return { label: 'Particulier', title: undefined }
+  if (u.travelerStatus !== 'PROFESSIONAL') return null
+  const number = u.businessRegistrationNumber?.trim()
+  const name = u.businessName?.trim()
+  const country = u.businessCountry?.trim()
+  const title = name ? (country ? `${name} (${country})` : name) : undefined
+  return { label: number ? `Professionnel · ${number}` : 'Professionnel', title }
+})
 const place = computed(() => (props.user.city || props.user.country) ? placeLabel(props.user.city, props.user.country) : null)
 const created = computed(() => new Date(props.user.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }))
 // Le taux est une fraction (0,08 = 8 %), affiché avec une décimale et la virgule française.
@@ -57,6 +68,10 @@ async function copyId() {
           <StatusBadge v-bind="userStatusMeta(user.status)" />
           <StatusBadge v-bind="kycLabel" />
           <StatusBadge v-if="roleLabel" :label="roleLabel" />
+          <StatusBadge
+            v-if="travelerStatusBadge" data-test="traveler-status-badge"
+            :label="travelerStatusBadge.label" :title="travelerStatusBadge.title" tone="info"
+          />
           <StatusBadge v-if="user.gpPro" label="GP Pro" tone="info" />
           <StatusBadge v-if="user.isProAccount" label="Compte PRO" tone="info" />
         </div>

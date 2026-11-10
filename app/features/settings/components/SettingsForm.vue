@@ -52,6 +52,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   photo_upload_daily_quota: { label: 'Photos envoyées par utilisateur et par jour', unit: 'photos' },
   tracking_photos_max_per_bid: { label: 'Photos de suivi par colis (sur 24 h)', unit: 'photos' },
   photo_purge_enabled: { label: 'Suppression des photos activée (sinon à blanc)', unit: '' },
+  traveler_status_required: { label: 'Statut de voyageur obligatoire pour publier', unit: '' },
   flights_enabled: { label: 'Billets d’avion (onglet Billets visible dans l’application)', unit: '' },
   assistant_daily_quota: { label: 'Questions à l’assistant d’aide par utilisateur et par jour', unit: 'questions' },
   assistant_form_draft_daily_quota: {
