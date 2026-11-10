@@ -1,7 +1,8 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
 import { httpsUrlError } from '@/features/video-modals/lib/url'
 import {
-  BODY_MAX_LENGTH, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, MAX_HIGHLIGHTS, MODAL_ICONS, MODAL_LAYOUTS, SIZE_MAX, SIZE_MIN, VIDEO_MODAL_TRIGGERS,
+  BODY_MAX_LENGTH, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, MAX_HIGHLIGHTS,
+  MODAL_FREQUENCIES, MODAL_ICONS, MODAL_LAYOUTS, MODAL_PLATFORMS, SAMPLE_MAX, SAMPLE_MIN, SITUATIONS, SIZE_MAX, SIZE_MIN, VIDEO_MODAL_TRIGGERS,
   type VideoModalAction, type VideoModalInput,
 } from '@/features/video-modals/types/index'
 
@@ -11,6 +12,7 @@ export type VideoModalField =
   | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'primaryUrl' | 'secondaryAction' | 'secondaryUrl'
   | 'primaryLabelEn' | 'secondaryLabelEn'
   | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn'
+  | 'frequency' | 'frequencyDays' | 'priority' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations'
 
 export type VideoModalErrors = Partial<Record<VideoModalField, string>>
 
@@ -22,6 +24,8 @@ export const BUTTON_LABEL_SOFT_LIMIT = 26
 export interface ValidationOptions {
   /** Une image est déjà envoyée, ou choisie pour être envoyée juste après la création. */
   hasImage?: boolean
+  /** Les conditions du constructeur de règles sont toutes complètes (faux : refus, le back dirait 422). */
+  conditionsComplete?: boolean
 }
 
 const blank = (s: string | null | undefined) => !s || s.trim().length === 0
@@ -58,21 +62,7 @@ export function validateVideoModal(input: VideoModalInput, opts: ValidationOptio
     errors.highlights = 'Chaque point fort a besoin d’un texte en français.'
   }
 
-  const knownTriggers = input.triggers.filter(t => (VIDEO_MODAL_TRIGGERS as readonly string[]).includes(t))
-  if (knownTriggers.length === 0) errors.triggers = 'Choisissez au moins un endroit où afficher le modal.'
-
-  if (!Number.isInteger(input.maxDisplays) || input.maxDisplays < MAX_DISPLAYS_MIN || input.maxDisplays > MAX_DISPLAYS_MAX) {
-    errors.maxDisplays = `Entre ${MAX_DISPLAYS_MIN} et ${MAX_DISPLAYS_MAX} affichages.`
-  }
-
-  if (input.startsAt && input.endsAt) {
-    const start = Date.parse(input.startsAt)
-    const end = Date.parse(input.endsAt)
-    if (!Number.isNaN(start) && !Number.isNaN(end) && end <= start) {
-      errors.period = 'La fin doit être après le début.'
-    }
-  }
-
+  validateSchedule(input, errors, opts)
   return errors
 }
 
@@ -100,9 +90,28 @@ function validateImage(input: VideoModalInput, errors: VideoModalErrors, opts: V
   if ((input.imageAltEn ?? '').trim().length > IMAGE_ALT_MAX_LENGTH) errors.imageAltEn = `${IMAGE_ALT_MAX_LENGTH} caractères au plus.`
 }
 
-function validateSchedule(input: VideoModalInput, errors: VideoModalErrors) {
+const VERSION_RE = /^\d+\.\d+\.\d+$/
+
+/** Compare deux versions `x.y.z` composante par composante. */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if (pa[i]! !== pb[i]!) return pa[i]! < pb[i]! ? -1 : 1
+  }
+  return 0
+}
+
+/**
+ * Moment, fréquence, ciblage, priorité et période : mêmes règles que le back (422 sinon). Au moins
+ * un déclencheur ou une situation ; `frequencyDays` de 1 à 365 pour « tous les N jours » ; versions
+ * `x.y.z` (min avant max) ; tirage de 1 à 100 ; valeur de chaque situation dans ses bornes.
+ */
+function validateSchedule(input: VideoModalInput, errors: VideoModalErrors, opts: ValidationOptions) {
   const knownTriggers = input.triggers.filter(t => (VIDEO_MODAL_TRIGGERS as readonly string[]).includes(t))
-  if (knownTriggers.length === 0) errors.triggers = 'Choisissez au moins un endroit où afficher le modal.'
+  if (knownTriggers.length === 0 && (input.situations ?? []).length === 0) {
+    errors.triggers = 'Choisissez au moins un endroit (écran ou bouton) ou une situation.'
+  }
 
   if (!Number.isInteger(input.maxDisplays) || input.maxDisplays < MAX_DISPLAYS_MIN || input.maxDisplays > MAX_DISPLAYS_MAX) {
     errors.maxDisplays = `Entre ${MAX_DISPLAYS_MIN} et ${MAX_DISPLAYS_MAX} affichages.`
@@ -113,6 +122,65 @@ function validateSchedule(input: VideoModalInput, errors: VideoModalErrors) {
     const end = Date.parse(input.endsAt)
     if (!Number.isNaN(start) && !Number.isNaN(end) && end <= start) {
       errors.period = 'La fin doit être après le début.'
+    }
+  }
+
+  validateFrequency(input, errors)
+  validateTargeting(input, errors, opts)
+}
+
+function validateFrequency(input: VideoModalInput, errors: VideoModalErrors) {
+  if (input.frequency !== undefined && !(MODAL_FREQUENCIES as readonly string[]).includes(input.frequency)) {
+    errors.frequency = 'Choisissez une fréquence de la liste.'
+  }
+  if (input.frequency === 'EVERY_N_DAYS') {
+    const d = input.frequencyDays
+    if (typeof d !== 'number' || !Number.isInteger(d) || d < FREQUENCY_DAYS_MIN || d > FREQUENCY_DAYS_MAX) {
+      errors.frequencyDays = `Nombre de jours entier, de ${FREQUENCY_DAYS_MIN} à ${FREQUENCY_DAYS_MAX}.`
+    }
+  }
+  if (input.priority !== undefined && !Number.isInteger(input.priority)) errors.priority = 'Priorité : nombre entier.'
+}
+
+function validateTargeting(input: VideoModalInput, errors: VideoModalErrors, opts: ValidationOptions) {
+  if (opts.conditionsComplete === false) {
+    errors.conditions = 'Complétez ou retirez les conditions incomplètes.'
+  }
+
+  const min = input.minAppVersion?.trim() || null
+  const max = input.maxAppVersion?.trim() || null
+  if (min && !VERSION_RE.test(min)) errors.minAppVersion = 'Version au format 1.2.3.'
+  if (max && !VERSION_RE.test(max)) errors.maxAppVersion = 'Version au format 1.2.3.'
+  if (min && max && !errors.minAppVersion && !errors.maxAppVersion && compareVersions(min, max) > 0) {
+    errors.maxAppVersion = 'La version maximale doit être au moins égale à la minimale.'
+  }
+
+  if ((input.platforms ?? []).some(p => !(MODAL_PLATFORMS as readonly string[]).includes(p))) {
+    errors.platforms = 'Système inconnu.'
+  }
+
+  const sample = input.samplePercent
+  if (sample !== undefined && (!Number.isInteger(sample) || sample < SAMPLE_MIN || sample > SAMPLE_MAX)) {
+    errors.samplePercent = `Pourcentage entier, de ${SAMPLE_MIN} à ${SAMPLE_MAX}.`
+  }
+
+  const situations = input.situations ?? []
+  for (const [i, sit] of situations.entries()) {
+    const spec = SITUATIONS[sit.kind]
+    if (!spec) {
+      errors.situations = 'Situation inconnue.'
+      break
+    }
+    if (situations.findIndex(x => x.kind === sit.kind) !== i) {
+      errors.situations = 'Chaque situation ne peut être choisie qu’une fois.'
+      break
+    }
+    if (spec.unit) {
+      const v = sit.value
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < spec.min || v > spec.max) {
+        errors.situations = `${spec.before || 'Valeur'} : ${spec.unit === 'HOURS' ? 'nombre d’heures' : 'nombre de jours'} entier de ${spec.min} à ${spec.max}.`
+        break
+      }
     }
   }
 }
@@ -165,7 +233,7 @@ function validateInfoModal(input: VideoModalInput, opts: ValidationOptions): Vid
     if (input.secondaryLabelEn.trim().length > BUTTON_LABEL_SOFT_LIMIT) errors.secondaryLabelEn = `${BUTTON_LABEL_SOFT_LIMIT} caractères au plus, pour tenir sur une ligne.`
   }
 
-  validateSchedule(input, errors)
+  validateSchedule(input, errors, opts)
   return errors
 }
 

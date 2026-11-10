@@ -70,4 +70,13 @@ describe('VideoModalPreview', () => {
     expect(w.get('[data-test="vm-preview-primary"]').classes()).toContain('whitespace-nowrap')
     expect(w.get('[data-test="vm-preview-secondary"]').classes()).toContain('whitespace-nowrap')
   })
+
+  it('case « Ne plus afficher » : absente par défaut, présente quand elle est cochée, avant les boutons', () => {
+    expect(mountPreview().find('[data-test="vm-preview-dontshow"]').exists()).toBe(false)
+    const w = mount(VideoModalPreview, { props: { ...base, allowDontShowAgain: true } })
+    expect(w.get('[data-test="vm-preview-dontshow"]').text()).toBe('Ne plus afficher')
+    expect(w.html().indexOf('vm-preview-dontshow')).toBeLessThan(w.html().indexOf('vm-preview-primary'))
+    const en = mount(VideoModalPreview, { props: { ...base, lang: 'en', allowDontShowAgain: true } })
+    expect(en.get('[data-test="vm-preview-dontshow"]').text()).toBe('Don’t show again')
+  })
 })

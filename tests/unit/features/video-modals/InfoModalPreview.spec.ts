@@ -57,4 +57,20 @@ describe('InfoModalPreview', () => {
     expect(style('ROCKET')).toContain('#EAF1FF')
     expect(style('BELL')).not.toContain('gradient')
   })
+
+  it('case « Ne plus afficher » : absente par défaut, présente quand elle est cochée, avant les boutons', () => {
+    expect(mountPreview().find('[data-test="vm-preview-dontshow"]').exists()).toBe(false)
+    const w = mountPreview({ allowDontShowAgain: true })
+    const box = w.get('[data-test="vm-preview-dontshow"]')
+    expect(box.text()).toBe('Ne plus afficher')
+    const html = w.html()
+    expect(html.indexOf('vm-preview-dontshow')).toBeLessThan(html.indexOf('vm-preview-primary'))
+    expect(html.indexOf('vm-preview-body')).toBeLessThan(html.indexOf('vm-preview-dontshow'))
+  })
+
+  it('case « Ne plus afficher » en anglais, y compris en affiche seule', () => {
+    expect(mountPreview({ lang: 'en', allowDontShowAgain: true }).get('[data-test="vm-preview-dontshow"]').text()).toBe('Don’t show again')
+    const poster = mountPreview({ allowDontShowAgain: true, imageMode: 'POSTER', imageUrl: 'https://x/y.jpg' })
+    expect(poster.find('[data-test="vm-preview-dontshow"]').exists()).toBe(true)
+  })
 })

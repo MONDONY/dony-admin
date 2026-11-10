@@ -35,6 +35,8 @@ const props = defineProps<{
   imageUrl?: string | null
   imageAltFr?: string
   imageAltEn?: string
+  /** Case « Ne plus afficher » sous le texte, avant les boutons. */
+  allowDontShowAgain?: boolean
 }>()
 
 const t = (fr: string, en: string) => localized(fr, en, props.lang)
@@ -90,6 +92,9 @@ const placeholder = 'Image'
         </div>
       </template>
       <div class="mt-auto flex shrink-0 flex-col gap-2 pt-2">
+        <div v-if="allowDontShowAgain" data-test="vm-preview-dontshow" class="flex items-center justify-center gap-2 text-[13px] text-[#5E6788]">
+          <span class="h-[18px] w-[18px] rounded-[5px] border-2 border-[#AEB6C9] bg-white" aria-hidden="true" />{{ lang === 'en' ? 'Don’t show again' : 'Ne plus afficher' }}
+        </div>
         <div data-test="vm-preview-primary" class="flex h-[46px] items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full bg-[#0B5FFF] px-4 text-[15px] font-extrabold text-white">{{ primary }}</div>
         <div v-if="secondaryEnabled" data-test="vm-preview-secondary" class="flex h-[46px] items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border-[1.5px] border-[#E3E7F0] bg-white px-4 text-[15px] font-extrabold">{{ secondary }}</div>
       </div>

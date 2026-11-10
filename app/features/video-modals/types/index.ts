@@ -1,6 +1,9 @@
+import type { WireGroup } from '@/features/broadcast/composables/audienceRule'
+
 /**
  * Modals (vidéo et information) : contrat back / admin / app validé le 10/11/2026
- * (`maquettes/modal-video-contrat.md` et `maquettes/modal-info-contrat.md`).
+ * (`maquettes/modal-video-contrat.md` et `maquettes/modal-info-contrat.md`), complété par
+ * le moment, le ciblage et la fréquence (`maquettes/modal-ciblage-contrat.md`, étape 1).
  * Une campagne = un modal, avec ses déclencheurs et ses versions.
  */
 
@@ -80,6 +83,101 @@ export const TRIGGER_SHORT_LABELS: Record<VideoModalTrigger, string> = {
   PUBLISH_TRIP: 'Publier un trajet',
   SEND_PARCEL: 'Envoyer un colis',
 }
+
+/** Libellés des déclencheurs dans le formulaire (même vocabulaire que la maquette). */
+export const TRIGGER_CHIP_LABELS: Record<VideoModalTrigger, string> = {
+  APP_OPEN: 'Ouverture de l’app',
+  SEARCH_TAB: 'Onglet Rechercher',
+  ACTIVITIES_TAB: 'Onglet Activités',
+  TRACKING_TAB: 'Onglet Suivi',
+  MESSAGES_TAB: 'Onglet Messages',
+  PROFILE_TAB: 'Onglet Moi',
+  PUBLISH_TRIP: 'Bouton Publier un trajet',
+  SEND_PARCEL: 'Bouton Envoyer un colis',
+}
+
+/** Déclencheurs qui ouvrent le modal tout de suite : pas de délai d'ouverture. */
+export const NO_DELAY_TRIGGERS: readonly VideoModalTrigger[] = ['PUBLISH_TRIP', 'SEND_PARCEL']
+
+/** Délai d'ouverture après l'arrivée sur l'écran, fixe pour la v1 (affiché en lecture seule). */
+export const OPEN_DELAY_SECONDS = 2
+
+/**
+ * Moments d'action de l'étape 2 : affichés grisés avec « Bientôt », jamais envoyables (aucune valeur
+ * d'enum côté back pour l'instant).
+ */
+export const COMING_SOON_MOMENTS = {
+  ACTION: ['Livraison confirmée', 'Paiement réussi', 'Trajet publié', 'Demande publiée', 'Identité vérifiée'],
+  SEARCH: [
+    'Recherche de trajet sans résultat', 'Recherche de colis sans résultat', 'Recherche avec peu de résultats',
+    'Trajet ou alerte en favori', 'Formulaire abandonné', 'Même trajet consulté plusieurs fois',
+  ],
+  PAYMENT: ['Paiement échoué ou annulé'],
+  ACCOUNT: ['Première ouverture après une mise à jour'],
+} as const
+
+/** Situations constatées par le serveur : vraies tant que la condition tient (compte connecté seulement). */
+export const SITUATION_KINDS = [
+  'OFFER_ACCEPTED_UNPAID', 'OFFER_UNANSWERED', 'COUNTER_OFFER_PENDING', 'KYC_ABANDONED',
+  'PROFILE_INCOMPLETE', 'FIRST_DELIVERY_NO_REFERRAL', 'RETURN_AFTER_ABSENCE', 'DAYS_SINCE_INSTALL_NO_ACTION',
+] as const
+export type SituationKind = typeof SITUATION_KINDS[number]
+
+export type SituationUnit = 'HOURS' | 'DAYS' | null
+
+export interface SituationSpec {
+  /** Début du libellé, avant la valeur. */
+  before: string
+  /** Fin du libellé, après la valeur (unité comprise). */
+  after: string
+  unit: SituationUnit
+  min: number
+  max: number
+  /** Valeur proposée quand on coche la situation. */
+  defaultValue: number | null
+  /** Groupe d'affichage dans la section « Quand ». */
+  group: 'PAYMENT' | 'ACCOUNT'
+  /** Libellé court pour la liste des campagnes. */
+  short: string
+}
+
+export const SITUATIONS: Record<SituationKind, SituationSpec> = {
+  OFFER_ACCEPTED_UNPAID: { before: 'Offre acceptée, non payée depuis', after: 'h', unit: 'HOURS', min: 1, max: 720, defaultValue: 6, group: 'PAYMENT', short: 'Offre non payée' },
+  OFFER_UNANSWERED: { before: 'Offre reçue sans réponse depuis', after: 'h', unit: 'HOURS', min: 1, max: 720, defaultValue: 12, group: 'PAYMENT', short: 'Offre sans réponse' },
+  COUNTER_OFFER_PENDING: { before: 'Contre-offre en attente depuis', after: 'h', unit: 'HOURS', min: 1, max: 720, defaultValue: 24, group: 'PAYMENT', short: 'Contre-offre en attente' },
+  KYC_ABANDONED: { before: 'Identité commencée puis abandonnée', after: '', unit: null, min: 0, max: 0, defaultValue: null, group: 'ACCOUNT', short: 'Identité abandonnée' },
+  PROFILE_INCOMPLETE: { before: 'Profil incomplet', after: '', unit: null, min: 0, max: 0, defaultValue: null, group: 'ACCOUNT', short: 'Profil incomplet' },
+  FIRST_DELIVERY_NO_REFERRAL: { before: '1re livraison réussie sans parrainage', after: '', unit: null, min: 0, max: 0, defaultValue: null, group: 'ACCOUNT', short: '1re livraison sans parrainage' },
+  RETURN_AFTER_ABSENCE: { before: 'Retour après', after: 'jours d’absence', unit: 'DAYS', min: 1, max: 365, defaultValue: 14, group: 'ACCOUNT', short: 'Retour après absence' },
+  DAYS_SINCE_INSTALL_NO_ACTION: { before: '', after: 'jours après l’installation, sans action', unit: 'DAYS', min: 1, max: 365, defaultValue: 3, group: 'ACCOUNT', short: 'Après installation, sans action' },
+}
+
+/** Une situation de la campagne : `value` en heures ou en jours selon le type, null sans valeur. */
+export interface ModalSituation {
+  kind: SituationKind
+  value: number | null
+}
+
+/** Fréquence d'affichage (étape 1 du ciblage). */
+export const MODAL_FREQUENCIES = ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS'] as const
+export type ModalFrequency = typeof MODAL_FREQUENCIES[number]
+
+export const FREQUENCY_SHORT_LABELS: Record<ModalFrequency, string> = {
+  ONCE: 'Une seule fois',
+  UP_TO_N: 'Jusqu’à N fois',
+  EVERY_OPEN: 'À chaque ouverture',
+  EVERY_N_DAYS: 'Tous les N jours',
+}
+
+export const FREQUENCY_DAYS_MIN = 1
+export const FREQUENCY_DAYS_MAX = 365
+
+export const MODAL_PLATFORMS = ['ANDROID', 'IOS'] as const
+export type ModalPlatform = typeof MODAL_PLATFORMS[number]
+export const PLATFORM_LABELS: Record<ModalPlatform, string> = { ANDROID: 'Android', IOS: 'iPhone' }
+
+export const SAMPLE_MIN = 1
+export const SAMPLE_MAX = 100
 
 export const VIDEO_MODAL_AUDIENCES = ['NEVER_ANSWERED', 'EVERYONE', 'NOT_WATCHED_PREVIOUS'] as const
 export type VideoModalAudience = typeof VIDEO_MODAL_AUDIENCES[number]
@@ -191,6 +289,29 @@ export interface VideoModalInput {
   imageFit?: ImageFit
   imageAltFr?: string
   imageAltEn?: string
+  /**
+   * Fréquence, réponses et priorité. Absents d'un back plus ancien : `UP_TO_N` avec `maxDisplays`,
+   * arrêt après une réponse, priorité 0.
+   */
+  frequency?: ModalFrequency
+  /** Obligatoire pour `EVERY_N_DAYS` (1 à 365). */
+  frequencyDays?: number | null
+  stopAfterAnswer?: boolean
+  allowDontShowAgain?: boolean
+  priority?: number
+  /** Ciblage : jamais envoyé aux visiteurs sans compte si conditions, situations, tirage ou `connectedOnly`. */
+  connectedOnly?: boolean
+  /** Arbre de règles de la Diffusion ; null ou absent = aucune condition. */
+  conditions?: WireGroup | null
+  minAppVersion?: string | null
+  maxAppVersion?: string | null
+  /** Vide = toutes les plateformes. */
+  platforms?: ModalPlatform[]
+  /** Tirage stable par personne, 1 à 100 (100 = tout le monde). */
+  samplePercent?: number
+  situations?: ModalSituation[]
+  /** Création d'un modal Information seulement : public de la version 1 (`EVERYONE`). */
+  audience?: VideoModalAudience
 }
 
 /** Nombre d'utilisateurs distincts sur la version courante. */
@@ -199,9 +320,27 @@ export interface VideoModalStats {
   opened: number
   completed: number
   dismissed: number
+  /** Personnes qui ont coché « Ne plus afficher » (absent d'un back plus ancien). */
+  dontShowAgain?: number
 }
 
-export interface AdminVideoModal extends Omit<VideoModalInput, 'type'> {
+/** Corps de `POST /admin/video-modals/audience-estimate`. */
+export interface AudienceEstimateRequest {
+  conditions: WireGroup | null
+  connectedOnly: boolean
+  platforms: ModalPlatform[]
+  samplePercent: number
+  minAppVersion: string | null
+  maxAppVersion: string | null
+}
+
+/** Réponse : seulement des comptes, jamais de données personnelles. */
+export interface AudienceEstimate {
+  accounts: number
+  afterSample: number
+}
+
+export interface AdminVideoModal extends Omit<VideoModalInput, 'type' | 'audience'> {
   /** Absent d'un back plus ancien : c'est alors une campagne vidéo. */
   type?: VideoModalType
   id: string

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
-import { AUDIENCE_LABELS, IMAGE_MODE_LABELS, LAYOUT_LABELS, TRIGGER_SHORT_LABELS, TYPE_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
+import { frequencyLabel } from '@/features/video-modals/lib/labels'
+import { AUDIENCE_LABELS, IMAGE_MODE_LABELS, LAYOUT_LABELS, SITUATIONS, TRIGGER_SHORT_LABELS, TYPE_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
 
 defineProps<{ items: AdminVideoModal[]; busy?: boolean }>()
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ function formatLabel(m: AdminVideoModal) {
 }
 const imageLabel = (m: AdminVideoModal) => (m.imageMode && m.imageMode !== 'NONE' ? IMAGE_MODE_LABELS[m.imageMode]?.label ?? null : null)
 const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHORT_LABELS[t] ?? t)
+const situations = (m: AdminVideoModal) => (m.situations ?? []).map(s => SITUATIONS[s.kind]?.short ?? s.kind)
 </script>
 
 <template>
@@ -31,6 +33,8 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
           <th class="px-4 py-3 font-medium">Format</th>
           <th class="px-4 py-3 font-medium">Actif</th>
           <th class="px-4 py-3 font-medium">Déclencheurs</th>
+          <th class="px-4 py-3 font-medium">Fréquence</th>
+          <th class="px-4 py-3 font-medium">Priorité</th>
           <th class="px-4 py-3 font-medium">Version</th>
           <th class="px-4 py-3 font-medium">Résultats</th>
           <th class="px-4 py-3 font-medium"><span class="sr-only">Actions</span></th>
@@ -61,8 +65,17 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
           <td class="px-4 py-3">
             <div class="flex flex-wrap gap-1">
               <span v-for="t in triggers(m)" :key="t" class="whitespace-nowrap rounded-full bg-surface-elevated px-2 py-0.5 text-xs">{{ t }}</span>
+              <span
+                v-for="s in situations(m)" :key="s" data-test="vm-situation-badge"
+                class="whitespace-nowrap rounded-full border border-dashed border-accent bg-accent/15 px-2 py-0.5 text-xs text-accent"
+              >{{ s }}</span>
             </div>
           </td>
+          <td class="px-4 py-3" :data-test="`vm-frequency-${m.id}`">
+            <span class="whitespace-nowrap">{{ frequencyLabel(m) }}</span>
+            <span v-if="m.allowDontShowAgain" class="block text-xs text-text-muted">Case « Ne plus afficher »</span>
+          </td>
+          <td class="px-4 py-3 tabular-nums" :data-test="`vm-priority-${m.id}`">{{ m.priority ?? 0 }}</td>
           <td class="px-4 py-3 whitespace-nowrap">
             <span class="font-semibold tabular-nums">v{{ m.version }}</span>
             <span v-if="fmtDate(m.versionPublishedAt)" class="text-xs text-text-muted"> · {{ fmtDate(m.versionPublishedAt) }}</span>
