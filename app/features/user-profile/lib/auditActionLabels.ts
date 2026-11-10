@@ -36,6 +36,7 @@ const LABELS: Record<string, string> = {
   STRIPE_ONBOARDING_RESUMED_FROM_EMAIL: 'Inscription au paiement reprise depuis l’e-mail',
   TRAVELER_PUBLISHING_SUSPENDED: 'Publication suspendue',
   TRAVELER_PUBLISHING_SUSPENSION_LIFTED: 'Publication rétablie',
+  TRAVELER_STATUS_DECLARED: 'Statut de voyageur déclaré',
   TRIP_TEMPLATES_CURRENCY_PINNED: 'Devise des modèles de trajet figée',
   USER_ADMIN_DELETION: 'Compte supprimé par un administrateur',
   USER_AUTO_SUSPENDED: 'Compte suspendu automatiquement',

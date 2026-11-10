@@ -50,4 +50,36 @@ describe('UserProfileHeader', () => {
     await flushPromises()
     expect(w.get('[data-test="copy-id"]').text()).toBe('Copier l’ID')
   })
+
+  describe('statut de voyageur (lot 2)', () => {
+    const badge = (o: Record<string, unknown>) => mountH(o).find('[data-test="traveler-status-badge"]')
+
+    it('particulier : pastille « Particulier »', () => {
+      const b = badge({ travelerStatus: 'INDIVIDUAL' })
+      expect(b.exists()).toBe(true)
+      expect(b.text()).toBe('Particulier')
+    })
+
+    it('professionnel : pastille « Professionnel · numéro » et raison sociale en infobulle', () => {
+      const b = badge({
+        travelerStatus: 'PROFESSIONAL', businessName: 'Awa Express', businessRegistrationNumber: '123 456 789 00012', businessCountry: 'FR',
+      })
+      expect(b.text()).toBe('Professionnel · 123 456 789 00012')
+      expect(b.attributes('title')).toBe('Awa Express (FR)')
+    })
+
+    it('professionnel sans numéro servi : « Professionnel » seul, sans séparateur', () => {
+      expect(badge({ travelerStatus: 'PROFESSIONAL', businessRegistrationNumber: null }).text()).toBe('Professionnel')
+    })
+
+    it('non déclaré (null) ou champ absent (ancien back) : aucune pastille, aucune erreur', () => {
+      expect(badge({ travelerStatus: null }).exists()).toBe(false)
+      expect(badge({}).exists()).toBe(false)
+      expect(mountH().text()).not.toMatch(/Particulier|Professionnel/)
+    })
+
+    it('valeur inconnue d’un futur back : aucune pastille', () => {
+      expect(badge({ travelerStatus: 'AUTRE' }).exists()).toBe(false)
+    })
+  })
 })
