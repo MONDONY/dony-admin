@@ -44,6 +44,8 @@ describe('état du formulaire', () => {
       // Campagne d'avant le ciblage : même comportement qu'avant (jusqu'à 3 fois, arrêt après une réponse, tout le monde).
       frequency: 'UP_TO_N', frequencyDays: null, stopAfterAnswer: true, allowDontShowAgain: false, priority: 0,
       connectedOnly: false, conditions: null, minAppVersion: null, maxAppVersion: null, platforms: [], samplePercent: 100, situations: [],
+      // Campagne d'avant les moments d'action : seuils par défaut, tous les corridors.
+      triggerOptions: { fewResultsMax: 2, tripViewedTimes: 3 }, corridors: [],
     })
   })
 

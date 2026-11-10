@@ -1,6 +1,7 @@
 import type { WireGroup } from '@/features/broadcast/composables/audienceRule'
 import {
-  SITUATIONS, type AdminVideoModal, type ImageFit, type ImageMode, type ModalFrequency, type ModalIcon, type ModalLayout, type ModalPlatform,
+  FEW_RESULTS_DEFAULT, FEW_RESULTS_MAX, FEW_RESULTS_MIN, SITUATIONS, TRIP_VIEWED_DEFAULT, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN,
+  type AdminVideoModal, type ModalCorridor, type TriggerOptions, type ImageFit, type ImageMode, type ModalFrequency, type ModalIcon, type ModalLayout, type ModalPlatform,
   type ModalSituation, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
 
@@ -10,8 +11,20 @@ export interface SituationDraft {
   value: number | string | null
 }
 
+/** Corridor en cours de saisie : un côté peut rester vide. */
+export interface CorridorDraft {
+  from: string
+  to: string
+}
+
+/** Seuils des moments de l'étape 2 en cours de saisie (texte ou nombre tant que la valeur n'est pas validée). */
+export interface TriggerOptionsDraft {
+  fewResultsMax: number | string
+  tripViewedTimes: number | string
+}
+
 /** État du formulaire : comme le corps d'API, mais les dates au format d'un `<input type="datetime-local">`. */
-export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 'endsAt' | 'durationSeconds' | 'youtubeUrl' | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'secondaryAction' | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn' | 'frequency' | 'frequencyDays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'priority' | 'connectedOnly' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations' | 'audience'> {
+export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 'endsAt' | 'durationSeconds' | 'youtubeUrl' | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'secondaryAction' | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn' | 'frequency' | 'frequencyDays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'priority' | 'connectedOnly' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations' | 'triggerOptions' | 'corridors' | 'audience'> {
   youtubeUrl: string
   durationSeconds: number | string | null
   startsAt: string
@@ -46,6 +59,9 @@ export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 
   platforms: ModalPlatform[]
   samplePercent: number | string
   situations: SituationDraft[]
+  /** Étape 2 : seuils des moments et corridors ciblés. */
+  triggerOptions: TriggerOptionsDraft
+  corridors: CorridorDraft[]
 }
 
 export const closeAction = (): VideoModalAction => ({ kind: 'CLOSE', screen: null, url: null })
@@ -112,6 +128,8 @@ export function defaultFormState(triggers: VideoModalTrigger[] = ['SEARCH_TAB'],
     platforms: [],
     samplePercent: 100,
     situations: [],
+    triggerOptions: { fewResultsMax: FEW_RESULTS_DEFAULT, tripViewedTimes: TRIP_VIEWED_DEFAULT },
+    corridors: [],
   }
 }
 
@@ -170,6 +188,12 @@ export function formStateFromModal(m: AdminVideoModal): VideoModalFormState {
     platforms: [...(m.platforms ?? [])],
     samplePercent: m.samplePercent ?? 100,
     situations: (m.situations ?? []).map(x => ({ kind: x.kind, value: x.value ?? null })),
+    // Campagne d'avant les moments d'action : seuils par défaut, tous les corridors.
+    triggerOptions: {
+      fewResultsMax: m.triggerOptions?.fewResultsMax ?? FEW_RESULTS_DEFAULT,
+      tripViewedTimes: m.triggerOptions?.tripViewedTimes ?? TRIP_VIEWED_DEFAULT,
+    },
+    corridors: (m.corridors ?? []).map(c => ({ from: c.from ?? '', to: c.to ?? '' })),
   }
 }
 
@@ -199,6 +223,27 @@ function situationBody(d: SituationDraft): ModalSituation {
   return { kind: d.kind, value: spec && spec.unit ? toNumber(d.value, null) : null }
 }
 
+/**
+ * Seuils de l'étape 2. Un moment coché envoie la saisie telle quelle (NaN si illisible : la validation refuse) ;
+ * un moment décoché n'a aucun effet : sa valeur n'est gardée que si elle est valable, sinon le défaut,
+ * pour ne jamais faire refuser la campagne par une valeur cachée.
+ */
+function triggerOptionsBody(s: VideoModalFormState): TriggerOptions {
+  const pick = (raw: number | string, checked: boolean, min: number, max: number, def: number): number => {
+    const n = toNumber(raw, NaN)
+    if (checked) return n
+    return Number.isInteger(n) && n >= min && n <= max ? n : def
+  }
+  return {
+    fewResultsMax: pick(s.triggerOptions.fewResultsMax, s.triggers.includes('SEARCH_FEW_RESULTS'), FEW_RESULTS_MIN, FEW_RESULTS_MAX, FEW_RESULTS_DEFAULT),
+    tripViewedTimes: pick(s.triggerOptions.tripViewedTimes, s.triggers.includes('TRIP_VIEWED_REPEATEDLY'), TRIP_VIEWED_MIN, TRIP_VIEWED_MAX, TRIP_VIEWED_DEFAULT),
+  }
+}
+
+function corridorBody(c: CorridorDraft): ModalCorridor {
+  return { from: c.from.trim() || null, to: c.to.trim() || null }
+}
+
 /** Fréquence, réponses, priorité, ciblage : mêmes champs pour une vidéo et une information. */
 function targetingBody(s: VideoModalFormState): Partial<VideoModalInput> {
   return {
@@ -214,6 +259,8 @@ function targetingBody(s: VideoModalFormState): Partial<VideoModalInput> {
     platforms: [...s.platforms],
     samplePercent: toNumber(s.samplePercent, NaN),
     situations: s.situations.map(situationBody),
+    triggerOptions: triggerOptionsBody(s),
+    corridors: s.corridors.map(corridorBody),
   }
 }
 

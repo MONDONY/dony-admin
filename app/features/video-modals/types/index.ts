@@ -3,7 +3,8 @@ import type { WireGroup } from '@/features/broadcast/composables/audienceRule'
 /**
  * Modals (vidéo et information) : contrat back / admin / app validé le 10/11/2026
  * (`maquettes/modal-video-contrat.md` et `maquettes/modal-info-contrat.md`), complété par
- * le moment, le ciblage et la fréquence (`maquettes/modal-ciblage-contrat.md`, étape 1).
+ * le moment, le ciblage et la fréquence (`maquettes/modal-ciblage-contrat.md`, étape 1) puis par les moments d'action
+ * et les corridors (étape 2).
  * Une campagne = un modal, avec ses déclencheurs et ses versions.
  */
 
@@ -55,11 +56,35 @@ export interface VideoModalAction {
 /** Longueur maximale du texte d'un modal Information. */
 export const BODY_MAX_LENGTH = 500
 
-export const VIDEO_MODAL_TRIGGERS = [
+/** Écrans et boutons (« où »), étape 1. */
+export const SCREEN_TRIGGERS = [
   'SEARCH_TAB', 'ACTIVITIES_TAB', 'TRACKING_TAB', 'MESSAGES_TAB', 'PROFILE_TAB',
   'APP_OPEN', 'PUBLISH_TRIP', 'SEND_PARCEL',
 ] as const
+export type ScreenTrigger = typeof SCREEN_TRIGGERS[number]
+
+/** Moments d'action de l'étape 2 : l'app les déclenche sur le coup, avec leur contexte. */
+export const MOMENT_TRIGGERS = [
+  'DELIVERY_CONFIRMED', 'PAYMENT_SUCCEEDED', 'TRIP_PUBLISHED', 'REQUEST_PUBLISHED', 'KYC_VERIFIED',
+  'SEARCH_NO_TRIP_RESULTS', 'SEARCH_NO_PARCEL_RESULTS', 'SEARCH_FEW_RESULTS', 'FAVORITE_ADDED', 'FORM_ABANDONED', 'TRIP_VIEWED_REPEATEDLY',
+  'PAYMENT_FAILED',
+  'APP_UPDATED',
+] as const
+export type MomentTrigger = typeof MOMENT_TRIGGERS[number]
+
+/** Toutes les valeurs de `VideoModalTrigger` connues du back. */
+export const VIDEO_MODAL_TRIGGERS = [...SCREEN_TRIGGERS, ...MOMENT_TRIGGERS] as const
 export type VideoModalTrigger = typeof VIDEO_MODAL_TRIGGERS[number]
+
+export const isMomentTrigger = (t: string): t is MomentTrigger => (MOMENT_TRIGGERS as readonly string[]).includes(t)
+
+/** Familles de moments, dans l'ordre d'affichage du formulaire. */
+export const MOMENT_GROUPS = {
+  ACTION: ['DELIVERY_CONFIRMED', 'PAYMENT_SUCCEEDED', 'TRIP_PUBLISHED', 'REQUEST_PUBLISHED', 'KYC_VERIFIED'],
+  SEARCH: ['SEARCH_NO_TRIP_RESULTS', 'SEARCH_NO_PARCEL_RESULTS', 'SEARCH_FEW_RESULTS', 'FAVORITE_ADDED', 'FORM_ABANDONED', 'TRIP_VIEWED_REPEATEDLY'],
+  PAYMENT: ['PAYMENT_FAILED'],
+  ACCOUNT: ['APP_UPDATED'],
+} as const satisfies Record<string, readonly MomentTrigger[]>
 
 export const TRIGGER_LABELS: Record<VideoModalTrigger, string> = {
   SEARCH_TAB: 'Arrivée sur Rechercher',
@@ -70,6 +95,19 @@ export const TRIGGER_LABELS: Record<VideoModalTrigger, string> = {
   APP_OPEN: 'Ouverture de l’app (tout écran)',
   PUBLISH_TRIP: 'Touche « Publier un trajet »',
   SEND_PARCEL: 'Touche « Envoyer un colis »',
+  DELIVERY_CONFIRMED: 'Livraison confirmée',
+  PAYMENT_SUCCEEDED: 'Paiement réussi',
+  TRIP_PUBLISHED: 'Trajet publié',
+  REQUEST_PUBLISHED: 'Demande publiée',
+  KYC_VERIFIED: 'Identité vérifiée',
+  SEARCH_NO_TRIP_RESULTS: 'Recherche de trajet sans résultat',
+  SEARCH_NO_PARCEL_RESULTS: 'Recherche de colis sans résultat',
+  SEARCH_FEW_RESULTS: 'Recherche avec peu de résultats',
+  FAVORITE_ADDED: 'Trajet ou alerte en favori',
+  FORM_ABANDONED: 'Formulaire abandonné',
+  TRIP_VIEWED_REPEATEDLY: 'Même trajet consulté plusieurs fois',
+  PAYMENT_FAILED: 'Paiement échoué ou annulé',
+  APP_UPDATED: 'Première ouverture après une mise à jour',
 }
 
 /** Libellés courts pour la liste des campagnes. */
@@ -82,6 +120,19 @@ export const TRIGGER_SHORT_LABELS: Record<VideoModalTrigger, string> = {
   APP_OPEN: 'Ouverture',
   PUBLISH_TRIP: 'Publier un trajet',
   SEND_PARCEL: 'Envoyer un colis',
+  DELIVERY_CONFIRMED: 'Livraison confirmée',
+  PAYMENT_SUCCEEDED: 'Paiement réussi',
+  TRIP_PUBLISHED: 'Trajet publié',
+  REQUEST_PUBLISHED: 'Demande publiée',
+  KYC_VERIFIED: 'Identité vérifiée',
+  SEARCH_NO_TRIP_RESULTS: 'Recherche trajet sans résultat',
+  SEARCH_NO_PARCEL_RESULTS: 'Recherche colis sans résultat',
+  SEARCH_FEW_RESULTS: 'Recherche, peu de résultats',
+  FAVORITE_ADDED: 'Favori ajouté',
+  FORM_ABANDONED: 'Formulaire abandonné',
+  TRIP_VIEWED_REPEATEDLY: 'Trajet consulté N fois',
+  PAYMENT_FAILED: 'Paiement échoué',
+  APP_UPDATED: 'Après mise à jour',
 }
 
 /** Libellés des déclencheurs dans le formulaire (même vocabulaire que la maquette). */
@@ -94,7 +145,29 @@ export const TRIGGER_CHIP_LABELS: Record<VideoModalTrigger, string> = {
   PROFILE_TAB: 'Onglet Moi',
   PUBLISH_TRIP: 'Bouton Publier un trajet',
   SEND_PARCEL: 'Bouton Envoyer un colis',
+  DELIVERY_CONFIRMED: 'Livraison confirmée',
+  PAYMENT_SUCCEEDED: 'Paiement réussi',
+  TRIP_PUBLISHED: 'Trajet publié',
+  REQUEST_PUBLISHED: 'Demande publiée',
+  KYC_VERIFIED: 'Identité vérifiée',
+  SEARCH_NO_TRIP_RESULTS: 'Recherche de trajet sans résultat',
+  SEARCH_NO_PARCEL_RESULTS: 'Recherche de colis sans résultat',
+  SEARCH_FEW_RESULTS: 'Recherche avec peu de résultats',
+  FAVORITE_ADDED: 'Trajet ou alerte en favori',
+  FORM_ABANDONED: 'Formulaire abandonné',
+  TRIP_VIEWED_REPEATEDLY: 'Même trajet consulté plusieurs fois',
+  PAYMENT_FAILED: 'Paiement échoué ou annulé',
+  APP_UPDATED: 'Première ouverture après une mise à jour',
 }
+
+/**
+ * Déclencheurs pour lesquels l'app transmet un corridor (départ, arrivée) : seuls ceux-là sont filtrés par la
+ * section « Trajet ou colis précis ». Sans effet pour les autres.
+ */
+export const CORRIDOR_TRIGGERS: readonly VideoModalTrigger[] = [
+  'SEARCH_NO_TRIP_RESULTS', 'SEARCH_NO_PARCEL_RESULTS', 'SEARCH_FEW_RESULTS', 'FAVORITE_ADDED', 'FORM_ABANDONED',
+  'TRIP_VIEWED_REPEATEDLY', 'TRIP_PUBLISHED', 'REQUEST_PUBLISHED',
+]
 
 /** Déclencheurs qui ouvrent le modal tout de suite : pas de délai d'ouverture. */
 export const NO_DELAY_TRIGGERS: readonly VideoModalTrigger[] = ['PUBLISH_TRIP', 'SEND_PARCEL']
@@ -102,19 +175,27 @@ export const NO_DELAY_TRIGGERS: readonly VideoModalTrigger[] = ['PUBLISH_TRIP', 
 /** Délai d'ouverture après l'arrivée sur l'écran, fixe pour la v1 (affiché en lecture seule). */
 export const OPEN_DELAY_SECONDS = 2
 
-/**
- * Moments d'action de l'étape 2 : affichés grisés avec « Bientôt », jamais envoyables (aucune valeur
- * d'enum côté back pour l'instant).
- */
-export const COMING_SOON_MOMENTS = {
-  ACTION: ['Livraison confirmée', 'Paiement réussi', 'Trajet publié', 'Demande publiée', 'Identité vérifiée'],
-  SEARCH: [
-    'Recherche de trajet sans résultat', 'Recherche de colis sans résultat', 'Recherche avec peu de résultats',
-    'Trajet ou alerte en favori', 'Formulaire abandonné', 'Même trajet consulté plusieurs fois',
-  ],
-  PAYMENT: ['Paiement échoué ou annulé'],
-  ACCOUNT: ['Première ouverture après une mise à jour'],
-} as const
+/** Options des moments « peu de résultats » et « même trajet consulté » (étape 2). */
+export const FEW_RESULTS_MIN = 1
+export const FEW_RESULTS_MAX = 20
+export const FEW_RESULTS_DEFAULT = 2
+export const TRIP_VIEWED_MIN = 2
+export const TRIP_VIEWED_MAX = 10
+export const TRIP_VIEWED_DEFAULT = 3
+
+export interface TriggerOptions {
+  fewResultsMax: number
+  tripViewedTimes: number
+}
+
+/** Corridors : 1 à 10 entrées de 80 caractères au plus ; un côté peut rester vide (null = n'importe lequel). */
+export const CORRIDORS_MAX = 10
+export const CORRIDOR_TEXT_MAX_LENGTH = 80
+
+export interface ModalCorridor {
+  from: string | null
+  to: string | null
+}
 
 /** Situations constatées par le serveur : vraies tant que la condition tient (compte connecté seulement). */
 export const SITUATION_KINDS = [
@@ -310,6 +391,13 @@ export interface VideoModalInput {
   /** Tirage stable par personne, 1 à 100 (100 = tout le monde). */
   samplePercent?: number
   situations?: ModalSituation[]
+  /**
+   * Étape 2 : seuils des moments « peu de résultats » (1 à 20, défaut 2) et « même trajet consulté » (2 à 10, défaut 3).
+   * Sans effet si le moment n'est pas coché. Absent d'un back plus ancien.
+   */
+  triggerOptions?: TriggerOptions
+  /** Étape 2 : « trajet ou colis précis », 0 à 10 corridors ; liste vide = tous. Absent d'un back plus ancien. */
+  corridors?: ModalCorridor[]
   /** Création d'un modal Information seulement : public de la version 1 (`EVERYONE`). */
   audience?: VideoModalAudience
 }
