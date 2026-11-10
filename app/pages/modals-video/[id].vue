@@ -13,7 +13,7 @@ definePageMeta({
   middleware: 'admin-only',
   permission: 'NOTIFICATION_SEND',
   pageTitle: 'Modal',
-  pageSubtitle: 'Contenus, déclencheurs et versions',
+  pageSubtitle: 'Contenus, moment, ciblage, fréquence et versions',
 })
 
 const route = useRoute()

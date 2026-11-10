@@ -9,7 +9,7 @@ definePageMeta({
   middleware: 'admin-only',
   permission: 'NOTIFICATION_SEND',
   pageTitle: 'Nouveau modal',
-  pageSubtitle: 'Créé en version 1, pour ceux qui n’ont jamais répondu',
+  pageSubtitle: 'Créé en version 1, avec son moment, son ciblage et sa fréquence',
 })
 
 const { busy, error, createWithImage } = useVideoModals()

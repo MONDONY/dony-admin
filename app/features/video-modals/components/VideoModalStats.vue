@@ -14,6 +14,7 @@ const tiles = computed(() => {
     { key: 'opened', value: s?.opened, label: info ? 'bouton touché' : 'vidéo ouverte' },
     ...(info ? [] : [{ key: 'completed', value: s?.completed, label: 'vue en entier' }]),
     { key: 'dismissed', value: s?.dismissed, label: 'ignorés' },
+    { key: 'dontShowAgain', value: s?.dontShowAgain, label: 'ne plus afficher' },
   ].map(t => ({ ...t, text: typeof t.value === 'number' ? nf.format(t.value) : '0' }))
 })
 </script>
@@ -24,7 +25,7 @@ const tiles = computed(() => {
       <b class="font-semibold tabular-nums text-text">{{ t.text }}</b> {{ t.label }}
     </span>
   </div>
-  <div v-else class="grid grid-cols-2 gap-2.5" :class="tiles.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'" data-test="vm-stats">
+  <div v-else class="grid grid-cols-2 gap-2.5" :class="tiles.length >= 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'" data-test="vm-stats">
     <div v-for="t in tiles" :key="t.key" :data-test="`vm-stat-${t.key}`" class="rounded-card bg-surface-elevated p-3">
       <b class="block font-display text-[22px] font-semibold tabular-nums">{{ t.text }}</b>
       <span class="text-xs text-text-muted">{{ t.label }}</span>

@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminVideoModal, NewVersionInput, VideoModalInput } from '@/features/video-modals/types/index'
+import type { AdminVideoModal, AudienceEstimate, AudienceEstimateRequest, NewVersionInput, VideoModalInput } from '@/features/video-modals/types/index'
 
 const BASE = '/admin/video-modals'
 
@@ -10,7 +10,7 @@ export const videoModalService = {
   get(id: string): Promise<AdminVideoModal> {
     return useApi()<AdminVideoModal>(`${BASE}/${id}`)
   },
-  /** Crée la campagne : inactive, version 1, public « jamais répondu » (choix du back). */
+  /** Crée la campagne : inactive, version 1, public « jamais répondu » (sauf `audience` donné pour une information). */
   create(input: VideoModalInput): Promise<AdminVideoModal> {
     return useApi()<AdminVideoModal>(BASE, { method: 'POST', body: input })
   },
@@ -34,6 +34,10 @@ export const videoModalService = {
   /** Retire l'image ; le back repasse le mode à « Aucune » si elle était requise. */
   removeImage(id: string): Promise<AdminVideoModal> {
     return useApi()<AdminVideoModal>(`${BASE}/${id}/image`, { method: 'DELETE' })
+  },
+  /** Nombre de comptes concernés par le ciblage (jamais de données personnelles) et part retenue par le tirage. */
+  estimateAudience(body: AudienceEstimateRequest): Promise<AudienceEstimate> {
+    return useApi()<AudienceEstimate>(`${BASE}/audience-estimate`, { method: 'POST', body })
   },
   setActive(id: string, active: boolean): Promise<AdminVideoModal> {
     return useApi()<AdminVideoModal>(`${BASE}/${id}/active`, { method: 'PATCH', body: { active } })

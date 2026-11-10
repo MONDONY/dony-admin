@@ -41,6 +41,9 @@ describe('état du formulaire', () => {
       startsAt: '2026-11-10T10:00:00.000Z', endsAt: '2026-12-01T00:00:00.000Z',
       // Campagne d'avant le format : feuille du bas, taille automatique, aucun champ d'image pour une vidéo.
       layout: 'BOTTOM_SHEET', sizePercent: null,
+      // Campagne d'avant le ciblage : même comportement qu'avant (jusqu'à 3 fois, arrêt après une réponse, tout le monde).
+      frequency: 'UP_TO_N', frequencyDays: null, stopAfterAnswer: true, allowDontShowAgain: false, priority: 0,
+      connectedOnly: false, conditions: null, minAppVersion: null, maxAppVersion: null, platforms: [], samplePercent: 100, situations: [],
     })
   })
 
@@ -57,7 +60,7 @@ describe('état du formulaire', () => {
   })
 
   it('rogne les textes et convertit les nombres', () => {
-    const s = { ...defaultFormState(), name: '  A  ', durationSeconds: '90', maxDisplays: '4' as unknown as number,
+    const s = { ...defaultFormState(), frequency: 'UP_TO_N' as const, name: '  A  ', durationSeconds: '90', maxDisplays: '4' as unknown as number,
       highlights: [{ icon: 'LOCK' as const, textFr: ' a ', textEn: ' b ' }] }
     const body = inputFromFormState(s)
     expect(body.name).toBe('A')

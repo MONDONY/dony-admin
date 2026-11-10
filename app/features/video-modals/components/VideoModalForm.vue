@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { CircleCheck, CircleAlert, ExternalLink, Plus, Trash2 } from 'lucide-vue-next'
+import { serializeRule } from '@/features/broadcast/composables/audienceRule'
+import { useAudienceRule } from '@/features/broadcast/composables/useAudienceRule'
+import { useBroadcast } from '@/features/broadcast/composables/useBroadcast'
 import ActionEditor from '@/features/video-modals/components/ActionEditor.vue'
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
+import AudienceSection from '@/features/video-modals/components/AudienceSection.vue'
+import FrequencySection from '@/features/video-modals/components/FrequencySection.vue'
 import ImageSection from '@/features/video-modals/components/ImageSection.vue'
 import InfoModalPreview from '@/features/video-modals/components/InfoModalPreview.vue'
 import LayoutPicker from '@/features/video-modals/components/LayoutPicker.vue'
+import TargetingSummary from '@/features/video-modals/components/TargetingSummary.vue'
+import TriggerPicker from '@/features/video-modals/components/TriggerPicker.vue'
 import VideoModalPreview from '@/features/video-modals/components/VideoModalPreview.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
 import { defaultFormState, formStateFromModal, inputFromFormState } from '@/features/video-modals/lib/form'
-import { BUTTON_LABEL_SOFT_LIMIT, MAX_DISPLAYS_MAX, MAX_DISPLAYS_MIN, hasErrors, validateVideoModal } from '@/features/video-modals/lib/validation'
+import { buildSummary } from '@/features/video-modals/lib/summary'
+import { BUTTON_LABEL_SOFT_LIMIT, hasErrors, validateVideoModal } from '@/features/video-modals/lib/validation'
+import { useAudienceEstimate } from '@/features/video-modals/composables/useAudienceEstimate'
 import { validateImageFile } from '@/features/video-modals/lib/image'
 import { extractYoutubeId, formatDuration, youtubeWatchUrl } from '@/features/video-modals/lib/youtube'
 import {
-  AUDIENCE_LABELS, BODY_MAX_LENGTH, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, TRIGGER_LABELS, TYPE_LABELS, VIDEO_MODAL_TRIGGERS,
-  type AdminVideoModal, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
+  AUDIENCE_LABELS, BODY_MAX_LENGTH, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, SITUATIONS, TYPE_LABELS,
+  type AdminVideoModal, type AudienceEstimateRequest, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
 
 /**
@@ -49,8 +58,48 @@ const fileError = ref<string | null>(null)
 const serverImageUrl = computed(() => props.modal?.imageUrl ?? null)
 const previewImageUrl = computed(() => pendingUrl.value ?? serverImageUrl.value)
 const hasImage = computed(() => previewImageUrl.value !== null || pendingFile.value !== null)
-const errors = computed(() => validateVideoModal(inputFromFormState(state), { hasImage: hasImage.value }))
+
+// Conditions : le constructeur et le catalogue de champs de la page Communications, tels quels. Le catalogue
+// vient du back ; tant qu'il manque, les conditions déjà enregistrées ne peuvent pas être modifiées (ni
+// invalidées), elles repartent telles quelles.
+const { fields, fetchFields, error: catalogError } = useBroadcast()
+const catalogLoading = ref(false)
+async function loadCatalog() {
+  catalogLoading.value = true
+  try {
+    await fetchFields()
+  } finally {
+    catalogLoading.value = false
+  }
+}
+const rule = useAudienceRule(fields)
+if (state.conditions) rule.load(state.conditions)
+watch(() => serializeRule(rule.root.value), (wire) => { state.conditions = wire.children.length > 0 ? wire : null })
+const conditionsComplete = computed(() => fields.value.length === 0 || rule.isComplete.value)
+
+const input = computed(() => inputFromFormState(state))
+const errors = computed(() => validateVideoModal(input.value, { hasImage: hasImage.value, conditionsComplete: conditionsComplete.value }))
 const shown = (k: keyof typeof errors.value) => (submitted.value ? errors.value[k] : undefined)
+
+const targetingErrorKeys = ['conditions', 'minAppVersion', 'maxAppVersion', 'platforms', 'samplePercent'] as const
+const estimateRequest = computed<AudienceEstimateRequest | null>(() => {
+  if (targetingErrorKeys.some(k => errors.value[k])) return null
+  const i = input.value
+  return {
+    conditions: i.conditions ?? null,
+    connectedOnly: i.connectedOnly ?? false,
+    platforms: i.platforms ?? [],
+    samplePercent: i.samplePercent ?? 100,
+    minAppVersion: i.minAppVersion ?? null,
+    maxAppVersion: i.maxAppVersion ?? null,
+  }
+})
+const estimate = useAudienceEstimate(estimateRequest)
+const summary = computed(() => buildSummary(input.value, fields.value))
+const visitorsExcluded = computed(() => {
+  const i = input.value
+  return !!i.connectedOnly || !!i.conditions || (i.situations ?? []).length > 0 || (typeof i.samplePercent === 'number' && i.samplePercent < 100)
+})
 
 const videoId = computed(() => extractYoutubeId(state.youtubeUrl))
 const urlFilled = computed(() => state.youtubeUrl.trim().length > 0)
@@ -95,12 +144,25 @@ watch(serverImageUrl, (url) => {
 })
 onBeforeUnmount(revokePending)
 
+const stepClass = 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#041D54] text-sm font-black text-white'
 const longLabel = (s: string) => s.trim().length > BUTTON_LABEL_SOFT_LIMIT
 
 function onToggleActive(value: boolean) {
   if (isEdit.value) emit('toggle-active', value)
   else activateOnCreate.value = value
 }
+
+function toggleSituation(kind: SituationKind) {
+  const i = state.situations.findIndex(s => s.kind === kind)
+  if (i >= 0) state.situations.splice(i, 1)
+  else state.situations.push({ kind, value: SITUATIONS[kind].defaultValue })
+}
+function setSituationValue(kind: SituationKind, raw: number | string) {
+  const s = state.situations.find(x => x.kind === kind)
+  if (s) s.value = raw === '' ? '' : Number(raw)
+}
+
+onMounted(() => { void loadCatalog() })
 
 function toggleTrigger(t: VideoModalTrigger) {
   const i = state.triggers.indexOf(t)
@@ -121,7 +183,9 @@ function removeHighlight(i: number) {
 function onSubmit() {
   submitted.value = true
   if (props.busy || hasErrors(errors.value)) return
-  emit('submit', inputFromFormState(state), !isEdit.value && activateOnCreate.value, pendingFile.value)
+  // Un nouveau modal Information est montré à tout le monde (une vidéo, à ceux qui n'ont jamais répondu).
+  const body: VideoModalInput = isEdit.value || state.type !== 'INFO' ? input.value : { ...input.value, audience: 'EVERYONE' }
+  emit('submit', body, !isEdit.value && activateOnCreate.value, pendingFile.value)
 }
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : null)
@@ -160,29 +224,6 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
       <p data-test="vm-compat-note" class="-mt-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text text-pretty">
         Les nouveaux formats et images ne s’affichent que sur la version récente de l’application ; les anciennes versions ne reçoivent pas ces modals.
       </p>
-
-      <!-- Déclencheurs -->
-      <fieldset>
-        <legend :class="[labelClass, 'mb-2']">Où et quand l’afficher (un ou plusieurs déclencheurs)</legend>
-        <div class="grid gap-2 sm:grid-cols-2">
-          <label
-            v-for="t in VIDEO_MODAL_TRIGGERS" :key="t" :data-test="`vm-trigger-${t}`"
-            :class="['flex cursor-pointer items-center gap-2.5 rounded-btn border px-3 py-2.5 text-sm transition-colors',
-                     state.triggers.includes(t) ? 'border-primary bg-primary/10' : 'border-border hover:bg-surface-elevated']"
-          >
-            <input type="checkbox" class="accent-primary" :checked="state.triggers.includes(t)" @change="toggleTrigger(t)">
-            {{ TRIGGER_LABELS[t] }}
-          </label>
-        </div>
-        <p v-if="isInfo" class="mt-2 text-xs text-text-muted text-pretty">
-          L’app n’ouvre qu’un seul modal par session. Si le bouton ouvre un formulaire, il s’ouvre directement, sans rejouer un modal.
-        </p>
-        <p v-else class="mt-2 text-xs text-text-muted text-pretty">
-          Sur « Publier un trajet » ou « Envoyer un colis », le modal s’ouvre avant le formulaire ; « Commencer » ou la fin de la vidéo mènent ensuite au formulaire.
-          L’app n’ouvre qu’un seul modal par session.
-        </p>
-        <p v-if="shown('triggers')" :class="errClass">{{ shown('triggers') }}</p>
-      </fieldset>
 
       <!-- Vidéo -->
       <div v-if="!isInfo" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
@@ -321,21 +362,44 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         data-test="vm-label-long" class="-mt-3 text-xs text-warning"
       >Libellé long : il risque de ne pas tenir sur une ligne dans l’app. Visez 2 à 4 mots.</p>
 
-      <!-- Réglages -->
-      <div class="grid gap-3 sm:grid-cols-3">
-        <label :class="labelClass">Affichages max. sans réponse
-          <input v-model.number="state.maxDisplays" data-test="vm-max" type="number" :min="MAX_DISPLAYS_MIN" :max="MAX_DISPLAYS_MAX" step="1" :class="[inputClass, 'tabular-nums']">
-          <span v-if="shown('maxDisplays')" :class="errClass">{{ shown('maxDisplays') }}</span>
-        </label>
-        <label :class="labelClass">Début (facultatif)
-          <input v-model="state.startsAt" data-test="vm-starts" type="datetime-local" :class="inputClass">
-        </label>
-        <label :class="labelClass">Fin (facultatif)
-          <input v-model="state.endsAt" data-test="vm-ends" type="datetime-local" :class="inputClass">
-          <span v-if="shown('period')" :class="errClass">{{ shown('period') }}</span>
-        </label>
-      </div>
-      <p class="-mt-3 text-xs text-text-muted">Fermé d’un geste sans toucher un bouton, le modal revient au prochain déclencheur, jusqu’à ce plafond par version.</p>
+      <!-- Moment, ciblage, fréquence -->
+      <section data-test="vm-step-when" class="border-t border-border pt-5">
+        <h3 class="mb-3 flex items-center gap-3 text-base font-semibold"><span :class="stepClass">1</span>Quand s’ouvre-t-il ?</h3>
+        <TriggerPicker
+          :triggers="state.triggers" :situations="state.situations" :is-info="isInfo"
+          :error="shown('triggers')" :situations-error="shown('situations')"
+          @toggle-trigger="toggleTrigger" @toggle-situation="toggleSituation" @set-situation-value="setSituationValue"
+        />
+      </section>
+
+      <section data-test="vm-step-who" class="border-t border-border pt-5">
+        <h3 class="mb-3 flex items-center gap-3 text-base font-semibold"><span :class="stepClass">2</span>Pour qui ?</h3>
+        <AudienceSection
+          v-model:connected-only="state.connectedOnly" v-model:min-app-version="state.minAppVersion" v-model:max-app-version="state.maxAppVersion"
+          v-model:platforms="state.platforms" v-model:sample-percent="state.samplePercent"
+          :fields="fields" :rule="rule" :catalog-loading="catalogLoading" :catalog-error="catalogError" :visitors-excluded="visitorsExcluded"
+          :errors="{ conditions: shown('conditions'), minAppVersion: shown('minAppVersion'), maxAppVersion: shown('maxAppVersion'), platforms: shown('platforms'), samplePercent: shown('samplePercent') }"
+          @reload-catalog="loadCatalog"
+        />
+      </section>
+
+      <section data-test="vm-step-frequency" class="border-t border-border pt-5">
+        <h3 class="mb-3 flex items-center gap-3 text-base font-semibold"><span :class="stepClass">3</span>À quelle fréquence ?</h3>
+        <FrequencySection
+          v-model:frequency="state.frequency" v-model:max-displays="state.maxDisplays" v-model:frequency-days="state.frequencyDays"
+          v-model:stop-after-answer="state.stopAfterAnswer" v-model:allow-dont-show-again="state.allowDontShowAgain"
+          v-model:priority="state.priority" v-model:starts-at="state.startsAt" v-model:ends-at="state.endsAt"
+          :is-info="isInfo"
+          :errors="{ frequency: shown('frequency'), frequencyDays: shown('frequencyDays'), maxDisplays: shown('maxDisplays'), priority: shown('priority'), period: shown('period') }"
+        />
+      </section>
+
+      <TargetingSummary
+        :parts="summary" :priority="state.priority" :sample-percent="state.samplePercent"
+        :ready="estimate.ready.value" :loading="estimate.loading.value" :error="estimate.error.value" :result="estimate.result.value"
+        :has-situations="state.situations.length > 0"
+        @retry="estimate.refresh"
+      />
 
       <!-- Version et public -->
       <div class="rounded-btn border border-border px-4 py-3 text-sm" data-test="vm-version-box">
@@ -354,7 +418,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           <p class="mt-2 text-xs text-text-muted text-pretty">« Enregistrer » corrige le modal sans le remontrer. « Nouvelle version » le remontre au public que vous choisissez.</p>
         </template>
         <p v-else class="text-xs text-text-muted text-pretty">
-          Version 1, montrée à : <b>{{ AUDIENCE_LABELS.NEVER_ANSWERED.label.toLowerCase() }}</b>. Pour la remontrer plus tard à d’autres publics, publiez une nouvelle version.
+          Version 1, montrée à : <b>{{ isInfo ? 'tout le monde' : AUDIENCE_LABELS.NEVER_ANSWERED.label.toLowerCase() }}</b>. Pour la remontrer plus tard à d’autres publics, publiez une nouvelle version.
         </p>
       </div>
 
@@ -390,7 +454,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn" :primary-kind="state.primaryAction.kind"
         :secondary-enabled="state.secondaryEnabled" :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
         :secondary-kind="state.secondaryAction.kind"
-        :layout="state.layout" :size-percent="state.sizePercent"
+        :layout="state.layout" :size-percent="state.sizePercent" :allow-dont-show-again="state.allowDontShowAgain"
         :image-mode="state.imageMode" :image-fit="state.imageFit" :image-url="previewImageUrl"
         :image-alt-fr="state.imageAltFr" :image-alt-en="state.imageAltEn"
       />
@@ -400,7 +464,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         :title-fr="state.titleFr" :title-en="state.titleEn" :subtitle-fr="state.subtitleFr" :subtitle-en="state.subtitleEn"
         :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn"
         :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
-        :highlights="state.highlights" :layout="state.layout" :size-percent="state.sizePercent"
+        :highlights="state.highlights" :layout="state.layout" :size-percent="state.sizePercent" :allow-dont-show-again="state.allowDontShowAgain"
       />
       <p class="mt-2 text-center text-xs text-text-muted">Aperçu en direct, {{ lang === 'fr' ? 'en français' : 'en anglais' }}.</p>
     </div>

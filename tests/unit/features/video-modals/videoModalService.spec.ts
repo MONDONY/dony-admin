@@ -43,4 +43,11 @@ describe('videoModalService', () => {
     await videoModalService.remove('m1')
     expect(apiMock).toHaveBeenCalledWith('/admin/video-modals/m1', { method: 'DELETE' })
   })
+
+  it('estimateAudience POSTe le ciblage, sans identifiant de campagne', async () => {
+    const body = { conditions: null, connectedOnly: true, platforms: ['ANDROID' as const], samplePercent: 50, minAppVersion: '1.0.6', maxAppVersion: null }
+    apiMock.mockResolvedValueOnce({ accounts: 10, afterSample: 5 })
+    await expect(videoModalService.estimateAudience(body)).resolves.toEqual({ accounts: 10, afterSample: 5 })
+    expect(apiMock).toHaveBeenCalledWith('/admin/video-modals/audience-estimate', { method: 'POST', body })
+  })
 })

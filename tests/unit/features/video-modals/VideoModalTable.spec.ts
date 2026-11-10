@@ -69,4 +69,25 @@ describe('VideoModalTable', () => {
     expect(row.text()).not.toContain('vue en entier')
     expect(row.text()).not.toContain('vidéo ouverte')
   })
+
+  it('fréquence et priorité de chaque campagne ; campagne d’avant le ciblage : jusqu’à N fois, priorité 0', () => {
+    const old = modal({ maxDisplays: 4 })
+    const w1 = mountTable([old])
+    expect(w1.get(`[data-test="vm-frequency-${old.id}"]`).text()).toBe('Jusqu’à 4 fois')
+    expect(w1.get(`[data-test="vm-priority-${old.id}"]`).text()).toBe('0')
+    const m = infoModal({ frequency: 'EVERY_N_DAYS', frequencyDays: 7, priority: 5, allowDontShowAgain: true })
+    const w2 = mountTable([m])
+    expect(w2.get(`[data-test="vm-frequency-${m.id}"]`).text()).toContain('Tous les 7 jours')
+    expect(w2.get(`[data-test="vm-frequency-${m.id}"]`).text()).toContain('Case « Ne plus afficher »')
+    expect(w2.get(`[data-test="vm-priority-${m.id}"]`).text()).toBe('5')
+    expect(w2.text()).toContain('Fréquence')
+    expect(w2.text()).toContain('Priorité')
+  })
+
+  it('situations en pastilles à part des déclencheurs', () => {
+    const m = infoModal({ triggers: [], situations: [{ kind: 'OFFER_ACCEPTED_UNPAID', value: 6 }, { kind: 'PROFILE_INCOMPLETE', value: null }, { kind: 'NOPE' as never, value: null }] })
+    const badges = mountTable([m]).findAll('[data-test="vm-situation-badge"]').map(b => b.text())
+    expect(badges).toEqual(['Offre non payée', 'Profil incomplet', 'NOPE'])
+    expect(mountTable([modal()]).find('[data-test="vm-situation-badge"]').exists()).toBe(false)
+  })
 })

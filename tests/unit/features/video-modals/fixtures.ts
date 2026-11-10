@@ -1,3 +1,5 @@
+import type { WireGroup } from '@/features/broadcast/composables/audienceRule'
+import type { AudienceField } from '@/features/broadcast/types/index'
 import type { AdminVideoModal, VideoModalInput } from '@/features/video-modals/types/index'
 
 export const validInput = (over: Partial<VideoModalInput> = {}): VideoModalInput => ({
@@ -77,3 +79,20 @@ export const infoModal = (over: Partial<AdminVideoModal> = {}): AdminVideoModal 
     ...over,
   }
 }
+
+/** Catalogue de champs de la Diffusion (réduit) pour le ciblage des modals. */
+export const audienceFields: AudienceField[] = [
+  { key: 'country', family: 'GEO', label: 'Pays de résidence', operators: [{ key: 'IS', label: 'est', valueType: 'ENUM' }, { key: 'IN', label: 'parmi', valueType: 'ENUM_MULTI' }], values: [{ key: 'CI', label: 'Côte d’Ivoire' }, { key: 'SN', label: 'Sénégal' }, { key: 'FR', label: 'France' }] },
+  { key: 'bids_count', family: 'ACTIVITY', label: 'Colis envoyés', operators: [{ key: 'EQ', label: 'égal à', valueType: 'INT' }, { key: 'GTE', label: 'au moins', valueType: 'INT' }, { key: 'EVER', label: 'au moins une fois', valueType: 'NONE' }], values: [] },
+  { key: 'is_pro', family: 'STATUS', label: 'Compte GP Pro', operators: [{ key: 'IS', label: 'est', valueType: 'BOOLEAN' }], values: [] },
+  { key: 'promo', family: 'MONEY', label: 'Code promo', operators: [{ key: 'EQ', label: 'est', valueType: 'TEXT' }], values: [] },
+  { key: 'corridor_interest', family: 'GEO', label: 'Corridor d’intérêt', operators: [{ key: 'MATCHES', label: 'correspond à', valueType: 'CORRIDOR' }], values: [] },
+]
+
+export const ciRule = (): WireGroup => ({
+  op: 'AND',
+  children: [
+    { field: 'country', operator: 'IS', value: 'CI' },
+    { field: 'bids_count', operator: 'EQ', value: 0 },
+  ],
+})
