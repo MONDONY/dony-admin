@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { CircleCheck, CircleAlert, ExternalLink, Plus, Trash2 } from 'lucide-vue-next'
+import ActionEditor from '@/features/video-modals/components/ActionEditor.vue'
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
+import InfoModalPreview from '@/features/video-modals/components/InfoModalPreview.vue'
 import VideoModalPreview from '@/features/video-modals/components/VideoModalPreview.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
 import { defaultFormState, formStateFromModal, inputFromFormState } from '@/features/video-modals/lib/form'
 import { BUTTON_LABEL_SOFT_LIMIT, MAX_DISPLAYS_MAX, MAX_DISPLAYS_MIN, hasErrors, validateVideoModal } from '@/features/video-modals/lib/validation'
 import { extractYoutubeId, formatDuration, youtubeWatchUrl } from '@/features/video-modals/lib/youtube'
 import {
-  AUDIENCE_LABELS, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, TRIGGER_LABELS, VIDEO_MODAL_TRIGGERS,
-  type AdminVideoModal, type VideoModalInput, type VideoModalTrigger,
+  AUDIENCE_LABELS, BODY_MAX_LENGTH, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, TRIGGER_LABELS, TYPE_LABELS, VIDEO_MODAL_TRIGGERS,
+  type AdminVideoModal, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
 
 /**
@@ -17,19 +19,21 @@ import {
  * En modification, l'interrupteur « Modal actif » agit tout de suite (PATCH dédié) : le PUT ne
  * porte pas l'état actif. À la création, il décide si la campagne est activée juste après.
  */
-const props = defineProps<{ modal: AdminVideoModal | null; busy?: boolean }>()
+/** `type` ne sert qu'à la création : en modification, il vient de la campagne et ne change plus. */
+const props = defineProps<{ modal: AdminVideoModal | null; busy?: boolean; type?: VideoModalType }>()
 const emit = defineEmits<{
   submit: [input: VideoModalInput, activate: boolean]
   'toggle-active': [active: boolean]
   'new-version': []
 }>()
 
-const state = reactive(props.modal ? formStateFromModal(props.modal) : defaultFormState())
+const state = reactive(props.modal ? formStateFromModal(props.modal) : defaultFormState(['SEARCH_TAB'], props.type ?? 'VIDEO'))
 const activateOnCreate = ref(false)
 const submitted = ref(false)
 const lang = ref<'fr' | 'en'>('fr')
 
 const isEdit = computed(() => props.modal !== null)
+const isInfo = computed(() => state.type === 'INFO')
 const active = computed(() => (isEdit.value ? props.modal!.active : activateOnCreate.value))
 const errors = computed(() => validateVideoModal(inputFromFormState(state)))
 const shown = (k: keyof typeof errors.value) => (submitted.value ? errors.value[k] : undefined)
@@ -37,6 +41,17 @@ const shown = (k: keyof typeof errors.value) => (submitted.value ? errors.value[
 const videoId = computed(() => extractYoutubeId(state.youtubeUrl))
 const urlFilled = computed(() => state.youtubeUrl.trim().length > 0)
 const durationText = computed(() => formatDuration(Number(state.durationSeconds)))
+
+const bodyLength = computed(() => state.bodyFr.trim().length)
+const bodyEnLength = computed(() => state.bodyEn.trim().length)
+const primaryErrors = computed(() => ({
+  action: shown('primaryAction'), url: shown('primaryUrl'), labelFr: shown('primaryLabelFr'), labelEn: shown('primaryLabelEn'),
+}))
+const secondaryErrors = computed(() => ({
+  action: shown('secondaryAction'), url: shown('secondaryUrl'), labelFr: shown('secondaryLabelFr'), labelEn: shown('secondaryLabelEn'),
+}))
+const setPrimary = (a: VideoModalAction) => { state.primaryAction = a }
+const setSecondary = (a: VideoModalAction) => { state.secondaryAction = a }
 
 const longLabel = (s: string) => s.trim().length > BUTTON_LABEL_SOFT_LIMIT
 
@@ -86,6 +101,10 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         <ActiveSwitch :model-value="active" :disabled="busy" label="Modal actif" @update:model-value="onToggleActive" />
       </div>
 
+      <p v-if="isEdit" data-test="vm-type" class="text-xs text-text-muted">
+        Type : <b class="font-semibold text-text">{{ TYPE_LABELS[state.type] }}</b> (fixé à la création)
+      </p>
+
       <label :class="labelClass">Nom de la campagne (visible dans l’admin seulement)
         <input v-model="state.name" data-test="vm-name" type="text" :class="inputClass" placeholder="Vidéo d’accueil">
         <span v-if="shown('name')" :class="errClass">{{ shown('name') }}</span>
@@ -104,7 +123,10 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
             {{ TRIGGER_LABELS[t] }}
           </label>
         </div>
-        <p class="mt-2 text-xs text-text-muted text-pretty">
+        <p v-if="isInfo" class="mt-2 text-xs text-text-muted text-pretty">
+          L’app n’ouvre qu’un seul modal par session. Si le bouton ouvre un formulaire, il s’ouvre directement, sans rejouer un modal.
+        </p>
+        <p v-else class="mt-2 text-xs text-text-muted text-pretty">
           Sur « Publier un trajet » ou « Envoyer un colis », le modal s’ouvre avant le formulaire ; « Commencer » ou la fin de la vidéo mènent ensuite au formulaire.
           L’app n’ouvre qu’un seul modal par session.
         </p>
@@ -112,7 +134,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
       </fieldset>
 
       <!-- Vidéo -->
-      <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+      <div v-if="!isInfo" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
         <label :class="labelClass">Lien YouTube
           <input v-model="state.youtubeUrl" data-test="vm-url" type="url" autocomplete="off" :class="inputClass" placeholder="https://youtu.be/…">
         </label>
@@ -121,7 +143,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           <span v-if="shown('durationSeconds')" :class="errClass">{{ shown('durationSeconds') }}</span>
         </label>
       </div>
-      <div class="-mt-3 flex flex-col gap-1">
+      <div v-if="!isInfo" class="-mt-3 flex flex-col gap-1">
         <p v-if="videoId" data-test="vm-url-ok" class="flex items-center gap-1.5 text-xs text-success">
           <CircleCheck class="h-3.5 w-3.5" aria-hidden="true" />
           <span>Vidéo reconnue<template v-if="durationText"> · {{ durationText }}</template></span>
@@ -155,8 +177,46 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
       </div>
       <p class="-mt-3 text-xs text-text-muted">Un texte EN laissé vide est remplacé par le texte FR dans l’app.</p>
 
+      <!-- Information : icône et texte -->
+      <template v-if="isInfo">
+        <label :class="labelClass">Icône
+          <select v-model="state.icon" data-test="vm-icon" class="mt-1 w-full rounded-btn border border-border bg-bg p-2 text-sm sm:w-60">
+            <option v-for="ic in MODAL_ICONS" :key="ic" :value="ic">{{ ICON_LABELS[ic] }}</option>
+          </select>
+          <span v-if="shown('icon')" :class="errClass">{{ shown('icon') }}</span>
+        </label>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label :class="labelClass">Texte FR
+            <textarea v-model="state.bodyFr" data-test="vm-body-fr" rows="5" :maxlength="BODY_MAX_LENGTH + 200" :class="inputClass" />
+            <span data-test="vm-body-fr-count" :class="['block text-right text-xs tabular-nums', bodyLength > BODY_MAX_LENGTH ? 'text-danger' : 'text-text-muted']">{{ bodyLength }} / {{ BODY_MAX_LENGTH }}</span>
+            <span v-if="shown('bodyFr')" :class="errClass">{{ shown('bodyFr') }}</span>
+          </label>
+          <label :class="labelClass">Texte EN
+            <textarea v-model="state.bodyEn" data-test="vm-body-en" rows="5" :maxlength="BODY_MAX_LENGTH + 200" :class="inputClass" />
+            <span data-test="vm-body-en-count" :class="['block text-right text-xs tabular-nums', bodyEnLength > BODY_MAX_LENGTH ? 'text-danger' : 'text-text-muted']">{{ bodyEnLength }} / {{ BODY_MAX_LENGTH }}</span>
+            <span v-if="shown('bodyEn')" :class="errClass">{{ shown('bodyEn') }}</span>
+          </label>
+        </div>
+
+        <ActionEditor
+          prefix="primary" title="Bouton principal" :action="state.primaryAction"
+          :label-fr="state.primaryLabelFr" :label-en="state.primaryLabelEn" :errors="primaryErrors"
+          @update:action="setPrimary" @update:label-fr="v => state.primaryLabelFr = v" @update:label-en="v => state.primaryLabelEn = v"
+        />
+        <label class="flex cursor-pointer items-center gap-2.5 text-sm">
+          <input v-model="state.secondaryEnabled" data-test="vm-secondary-enabled" type="checkbox" class="accent-primary">
+          Ajouter un bouton secondaire
+        </label>
+        <ActionEditor
+          v-if="state.secondaryEnabled"
+          prefix="secondary" title="Bouton secondaire" :action="state.secondaryAction"
+          :label-fr="state.secondaryLabelFr" :label-en="state.secondaryLabelEn" :errors="secondaryErrors"
+          @update:action="setSecondary" @update:label-fr="v => state.secondaryLabelFr = v" @update:label-en="v => state.secondaryLabelEn = v"
+        />
+      </template>
+
       <!-- Points forts -->
-      <fieldset>
+      <fieldset v-if="!isInfo">
         <legend :class="[labelClass, 'mb-2']">Points forts (0 à 3), icône + texte FR / EN</legend>
         <div
           v-for="(h, i) in state.highlights" :key="i" :data-test="`vm-highlight-${i}`"
@@ -182,7 +242,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
       </fieldset>
 
       <!-- Boutons -->
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div v-if="!isInfo" class="grid gap-3 sm:grid-cols-2">
         <label :class="labelClass">Bouton principal FR (ouvre la vidéo)
           <input v-model="state.primaryLabelFr" data-test="vm-primary-fr" type="text" :class="inputClass">
           <span v-if="shown('primaryLabelFr')" :class="errClass">{{ shown('primaryLabelFr') }}</span>
@@ -199,7 +259,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         </label>
       </div>
       <p
-        v-if="[state.primaryLabelFr, state.primaryLabelEn, state.secondaryLabelFr, state.secondaryLabelEn].some(longLabel)"
+        v-if="!isInfo && [state.primaryLabelFr, state.primaryLabelEn, state.secondaryLabelFr, state.secondaryLabelEn].some(longLabel)"
         data-test="vm-label-long" class="-mt-3 text-xs text-warning"
       >Libellé long : il risque de ne pas tenir sur une ligne dans l’app. Visez 2 à 4 mots.</p>
 
@@ -242,7 +302,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
 
       <div v-if="modal">
         <p :class="[labelClass, 'mb-1.5']">Résultats de la version en cours (personnes distinctes)</p>
-        <VideoModalStats :stats="modal.stats" />
+        <VideoModalStats :stats="modal.stats" :type="state.type" />
       </div>
 
       <div class="flex justify-end gap-2 border-t border-border pt-4">
@@ -264,7 +324,17 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           @click="lang = l"
         >{{ l.toUpperCase() }}</button>
       </div>
+      <InfoModalPreview
+        v-if="isInfo"
+        :lang="lang" :icon="state.icon"
+        :title-fr="state.titleFr" :title-en="state.titleEn" :subtitle-fr="state.subtitleFr" :subtitle-en="state.subtitleEn"
+        :body-fr="state.bodyFr" :body-en="state.bodyEn"
+        :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn" :primary-kind="state.primaryAction.kind"
+        :secondary-enabled="state.secondaryEnabled" :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
+        :secondary-kind="state.secondaryAction.kind"
+      />
       <VideoModalPreview
+        v-else
         :lang="lang" :youtube-url="state.youtubeUrl" :duration-seconds="state.durationSeconds"
         :title-fr="state.titleFr" :title-en="state.titleEn" :subtitle-fr="state.subtitleFr" :subtitle-en="state.subtitleEn"
         :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn"

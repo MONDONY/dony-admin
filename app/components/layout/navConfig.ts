@@ -84,7 +84,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { to: '/moderation', label: 'Modération', permission: 'MODERATION_VIEW', icon: MessageSquare, shortcut: 'm' },
       { to: '/assistant', label: 'Assistant IA', permission: 'ASSISTANT_MANAGE', icon: Sparkles },
       { to: '/communications', label: 'Communications', permission: 'NOTIFICATION_SEND', icon: Megaphone },
-      { to: '/modals-video', label: 'Modals vidéo', permission: 'NOTIFICATION_SEND', icon: Clapperboard },
+      { to: '/modals-video', label: 'Modals', permission: 'NOTIFICATION_SEND', icon: Clapperboard },
     ],
   },
   {

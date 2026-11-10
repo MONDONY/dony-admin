@@ -9,7 +9,7 @@ function isModal(v: unknown): v is AdminVideoModal {
 }
 
 /**
- * Liste et fiche des campagnes de modals vidéo. Chaque action renvoie son succès (ou la campagne)
+ * Liste et fiche des campagnes de modals. Chaque action renvoie son succès (ou la campagne)
  * et pose `error` avec le `detail` RFC 7807 du back en cas d'échec : la page reste en place,
  * la saisie n'est pas perdue.
  */
@@ -39,7 +39,7 @@ export function useVideoModals() {
       const list = await videoModalService.list()
       items.value = Array.isArray(list) ? list : []
     } catch (e) {
-      error.value = extractProblemMessage(e, 'Impossible de charger les modals vidéo')
+      error.value = extractProblemMessage(e, 'Impossible de charger les modals')
     } finally {
       loading.value = false
     }
@@ -52,7 +52,7 @@ export function useVideoModals() {
       current.value = await videoModalService.get(id)
     } catch (e) {
       current.value = null
-      error.value = extractProblemMessage(e, 'Impossible de charger ce modal vidéo')
+      error.value = extractProblemMessage(e, 'Impossible de charger ce modal')
     } finally {
       loading.value = false
     }

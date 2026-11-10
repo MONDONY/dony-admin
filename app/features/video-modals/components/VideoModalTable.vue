@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
-import { AUDIENCE_LABELS, TRIGGER_SHORT_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
+import { AUDIENCE_LABELS, TRIGGER_SHORT_LABELS, TYPE_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
 
 defineProps<{ items: AdminVideoModal[]; busy?: boolean }>()
 const emit = defineEmits<{
@@ -11,6 +11,7 @@ const emit = defineEmits<{
 }>()
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR') : null)
+const typeLabel = (m: AdminVideoModal) => TYPE_LABELS[m.type ?? 'VIDEO'] ?? TYPE_LABELS.VIDEO
 const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHORT_LABELS[t] ?? t)
 </script>
 
@@ -20,6 +21,7 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
       <thead class="border-b border-border text-left text-text-muted">
         <tr>
           <th class="px-4 py-3 font-medium">Nom</th>
+          <th class="px-4 py-3 font-medium">Type</th>
           <th class="px-4 py-3 font-medium">Actif</th>
           <th class="px-4 py-3 font-medium">Déclencheurs</th>
           <th class="px-4 py-3 font-medium">Version</th>
@@ -32,6 +34,12 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
           <td class="px-4 py-3">
             <NuxtLink :to="`/modals-video/${m.id}`" class="font-semibold hover:text-primary hover:underline">{{ m.name || m.titleFr }}</NuxtLink>
             <span class="block text-xs text-text-muted">{{ m.titleFr }}</span>
+          </td>
+          <td class="px-4 py-3">
+            <span
+              :data-test="`vm-type-${m.id}`"
+              :class="['whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold', m.type === 'INFO' ? 'bg-warning/15 text-text' : 'bg-primary/10 text-primary']"
+            >{{ typeLabel(m) }}</span>
           </td>
           <td class="px-4 py-3">
             <ActiveSwitch
@@ -49,7 +57,7 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
             <span v-if="fmtDate(m.versionPublishedAt)" class="text-xs text-text-muted"> · {{ fmtDate(m.versionPublishedAt) }}</span>
             <span class="block text-xs text-text-muted">{{ AUDIENCE_LABELS[m.audience]?.label ?? m.audience }}</span>
           </td>
-          <td class="px-4 py-3"><VideoModalStats :stats="m.stats" compact /></td>
+          <td class="px-4 py-3"><VideoModalStats :stats="m.stats" :type="m.type" compact /></td>
           <td class="px-4 py-3">
             <div class="flex justify-end gap-1">
               <NuxtLink

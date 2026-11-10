@@ -12,7 +12,7 @@ import { uuidParam } from '@/lib/safeInput'
 definePageMeta({
   middleware: 'admin-only',
   permission: 'NOTIFICATION_SEND',
-  pageTitle: 'Modal vidéo',
+  pageTitle: 'Modal',
   pageSubtitle: 'Contenus, déclencheurs et versions',
 })
 
@@ -74,13 +74,13 @@ async function onRemove() {
     </VideoModalForm>
     <StateBlock
       v-else :loading="loading" :error="error ?? (id ? null : 'Identifiant de modal invalide.')"
-      :empty="!loading && !error && !!id" empty-label="Modal vidéo introuvable." @retry="id && fetchOne(id)"
+      :empty="!loading && !error && !!id" empty-label="Modal introuvable." @retry="id && fetchOne(id)"
     />
 
     <NewVersionDialog :open="versionOpen" :modal="current" :busy="busy" @confirm="onPublish" @cancel="versionOpen = false" />
     <ConfirmActionDialog
       :open="removeOpen"
-      title="Supprimer le modal vidéo"
+      title="Supprimer le modal"
       :message="`« ${current?.name ?? ''} » ne sera plus affiché dans l’app. Ses résultats restent dans l’historique.`"
       confirm-label="Supprimer"
       @confirm="onRemove" @cancel="removeOpen = false"

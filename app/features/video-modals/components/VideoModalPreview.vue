@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Lock, Luggage, MessageCircle, Package, Play, QrCode, Search, Sparkles, Star, Wallet } from 'lucide-vue-next'
 import type { Component } from 'vue'
+import PhoneFrame from '@/features/video-modals/components/PhoneFrame.vue'
 import { extractYoutubeId, formatDuration, youtubeThumbnailUrl } from '@/features/video-modals/lib/youtube'
 import { localized } from '@/features/video-modals/lib/form'
 import type { HighlightIcon, VideoModalHighlight } from '@/features/video-modals/types/index'
@@ -59,16 +60,7 @@ const items = computed(() =>
 </script>
 
 <template>
-  <div class="mx-auto h-[620px] w-[300px] rounded-[44px] bg-[#0F1526] p-2.5 shadow-[0_24px_48px_rgba(4,29,84,0.16)]" data-test="vm-preview">
-    <div class="relative h-full w-full overflow-hidden rounded-[35px] bg-white text-[#0B1535]" :lang="lang">
-      <!-- Écran de l'app derrière le modal -->
-      <div class="absolute inset-0 px-3.5 pt-11" aria-hidden="true">
-        <div class="mb-2.5 h-[34px] rounded-[17px] bg-[#F1F3F8]" />
-        <div class="mb-2.5 h-[110px] rounded-2xl border border-[#E3E7F0]" />
-        <div class="h-[110px] rounded-2xl border border-[#E3E7F0]" />
-      </div>
-      <div class="absolute inset-0 bg-[rgba(10,18,40,0.55)]" aria-hidden="true" />
-
+  <PhoneFrame :lang="lang">
       <div class="absolute inset-x-2.5 bottom-3.5 top-[58px] flex flex-col rounded-[26px] bg-white px-4 pb-3.5">
         <div class="mx-auto -mt-[30px] flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-full bg-[#EAF1FF]">
           <Sparkles class="h-10 w-10 text-[#0B5FFF]" aria-hidden="true" />
@@ -106,6 +98,5 @@ const items = computed(() =>
           <div data-test="vm-preview-secondary" class="flex h-[46px] items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border-[1.5px] border-[#E3E7F0] bg-white px-4 text-[15px] font-extrabold">{{ secondary }}</div>
         </div>
       </div>
-    </div>
-  </div>
+  </PhoneFrame>
 </template>

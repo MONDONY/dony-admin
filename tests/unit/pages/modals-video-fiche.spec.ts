@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { seedAuth } from '~/tests/helpers/auth'
-import { modal } from '../features/video-modals/fixtures'
+import { infoModal, modal } from '../features/video-modals/fixtures'
 
 vi.stubGlobal('definePageMeta', vi.fn())
 const navigateTo = vi.fn()
@@ -36,6 +36,7 @@ describe('pages/modals-video/nouveau', () => {
   it('crée puis ouvre la fiche', async () => {
     svc.create.mockResolvedValue(modal())
     const w = await mountPage('nouveau')
+    await w.get('[data-test="vm-type-VIDEO"]').trigger('click')
     await w.get('[data-test="vm-name"]').setValue('Vidéo d’accueil')
     await w.get('[data-test="vm-url"]').setValue('https://youtu.be/dQw4w9WgXcQ')
     await w.get('[data-test="vm-title-fr"]').setValue('Bienvenue')
@@ -48,6 +49,7 @@ describe('pages/modals-video/nouveau', () => {
   it('422 : reste sur place avec le message', async () => {
     svc.create.mockRejectedValue({ data: { detail: 'Lien YouTube non reconnu' } })
     const w = await mountPage('nouveau')
+    await w.get('[data-test="vm-type-VIDEO"]').trigger('click')
     await w.get('[data-test="vm-name"]').setValue('A')
     await w.get('[data-test="vm-url"]').setValue('https://youtu.be/dQw4w9WgXcQ')
     await w.get('[data-test="vm-title-fr"]').setValue('B')
@@ -55,6 +57,43 @@ describe('pages/modals-video/nouveau', () => {
     await flushPromises()
     expect(navigateTo).not.toHaveBeenCalled()
     expect(w.get('[data-test="vm-error"]').text()).toBe('Lien YouTube non reconnu')
+  })
+})
+
+describe('pages/modals-video/nouveau : type Information', () => {
+  afterEach(() => { mounted.splice(0).forEach(w => w.unmount()) })
+  beforeEach(() => {
+    seedAuth('ADMIN')
+    Object.values(svc).forEach(f => f.mockReset())
+    navigateTo.mockReset()
+  })
+
+  it('le choix du type vient en premier, aucun formulaire avant', async () => {
+    const w = await mountPage('nouveau')
+    expect(w.find('[data-test="vm-type-picker"]').exists()).toBe(true)
+    expect(w.find('[data-test="vm-form"]').exists()).toBe(false)
+    expect(w.text()).toContain('Vidéo')
+    expect(w.text()).toContain('Information')
+  })
+
+  it('Information : formulaire sans vidéo, création du corps INFO, retour possible au choix', async () => {
+    svc.create.mockResolvedValue(infoModal())
+    const w = await mountPage('nouveau')
+    await w.get('[data-test="vm-type-INFO"]').trigger('click')
+    expect(w.find('[data-test="vm-url"]').exists()).toBe(false)
+    expect(w.find('[data-test="vm-body-fr"]').exists()).toBe(true)
+    await w.get('[data-test="vm-change-type"]').trigger('click')
+    expect(w.find('[data-test="vm-type-picker"]').exists()).toBe(true)
+    await w.get('[data-test="vm-type-INFO"]').trigger('click')
+    await w.get('[data-test="vm-name"]').setValue('Annonce')
+    await w.get('[data-test="vm-title-fr"]').setValue('Nouveauté')
+    await w.get('[data-test="vm-body-fr"]').setValue('Un texte')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(svc.create).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'INFO', youtubeUrl: null, bodyFr: 'Un texte', primaryAction: { kind: 'CLOSE', screen: null, url: null },
+    }))
+    expect(navigateTo).toHaveBeenCalledWith(`/modals-video/${infoModal().id}`)
   })
 })
 
@@ -109,6 +148,17 @@ describe('pages/modals-video/[id]', () => {
     expect(w.get('[data-test="vm-version-box"]').text()).toContain('Version 2')
   })
 
+  it('fiche Information : type affiché, enregistrement avec le corps INFO', async () => {
+    svc.get.mockResolvedValue(infoModal())
+    svc.update.mockResolvedValue(infoModal({ titleFr: 'Corrigé' }))
+    const w = await mountPage('[id]')
+    expect(w.get('[data-test="vm-type"]').text()).toContain('Information')
+    await w.get('[data-test="vm-title-fr"]').setValue('Corrigé')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(svc.update).toHaveBeenCalledWith(modal().id, expect.objectContaining({ type: 'INFO', titleFr: 'Corrigé', youtubeUrl: null }))
+  })
+
   it('suppression confirmée : retour à la liste', async () => {
     svc.remove.mockResolvedValue(undefined)
     const w = await mountPage('[id]')
@@ -120,9 +170,9 @@ describe('pages/modals-video/[id]', () => {
   })
 
   it('introuvable : erreur et Réessayer', async () => {
-    svc.get.mockRejectedValueOnce({ data: { detail: 'Modal vidéo introuvable' } })
+    svc.get.mockRejectedValueOnce({ data: { detail: 'Modal introuvable' } })
     const w = await mountPage('[id]')
-    expect(w.get('[data-test="state-error"]').text()).toContain('Modal vidéo introuvable')
+    expect(w.get('[data-test="state-error"]').text()).toContain('Modal introuvable')
     await w.get('[data-test="state-retry"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="vm-form"]').exists()).toBe(true)
