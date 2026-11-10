@@ -11,6 +11,7 @@ const LABELS: Record<string, string> = {
   GUEST_DATA_CLAIMED: 'Données d’invité récupérées',
   GUEST_PROMOTED: 'Invité devenu membre',
   HIGH_CANCELLATION_ALERT: 'Alerte : annulations nombreuses',
+  INDIVIDUAL_FREQUENCY_FLAG_DISMISSED: 'Alerte « particulier à confirmer » écartée',
   INTENT_DECLARED: 'Intention déclarée',
   KYC_PROVIDER_SESSION_ERASED: 'Session d’identité effacée chez le fournisseur',
   KYC_PROVIDER_SESSION_ERASURE_FAILED: 'Échec de l’effacement de la session d’identité',
