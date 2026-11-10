@@ -18,7 +18,7 @@ definePageMeta({
 
 const route = useRoute()
 const crumb = useBreadcrumbLabel()
-const { current, loading, busy, error, fetchOne, save, publishVersion, setActive, remove } = useVideoModals()
+const { current, loading, busy, error, fetchOne, save, uploadImage, removeImage, publishVersion, setActive, remove } = useVideoModals()
 
 const id = computed(() => uuidParam(route.params?.id))
 const saved = ref(false)
@@ -35,6 +35,14 @@ async function onSubmit(input: VideoModalInput) {
   if (!id.value) return
   saved.value = false
   saved.value = (await save(id.value, input)) !== null
+}
+async function onUploadImage(file: File) {
+  saved.value = false
+  await uploadImage(id.value!, file)
+}
+async function onRemoveImage() {
+  saved.value = false
+  if (id.value) await removeImage(id.value)
 }
 async function onToggle(active: boolean) {
   if (id.value) await setActive(id.value, active)
@@ -55,13 +63,17 @@ async function onRemove() {
       class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
     >{{ error }}</p>
     <p
+      v-else-if="route.query.image === 'echec'" data-test="vm-image-failed" role="alert"
+      class="mb-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-text"
+    >Le modal est créé mais son image n’a pas pu être envoyée, il reste inactif. Ajoutez l’image ci-dessous, enregistrez, puis activez-le.</p>
+    <p
       v-else-if="saved" data-test="vm-saved" role="status"
       class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
     >Modifications enregistrées, sans nouvelle version.</p>
 
     <VideoModalForm
       v-if="current" :key="formKey" :modal="current" :busy="busy"
-      @submit="onSubmit" @toggle-active="onToggle" @new-version="versionOpen = true"
+      @submit="onSubmit" @upload-image="onUploadImage" @remove-image="onRemoveImage" @toggle-active="onToggle" @new-version="versionOpen = true"
     >
       <template #actions>
         <button

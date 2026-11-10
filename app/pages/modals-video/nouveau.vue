@@ -12,7 +12,7 @@ definePageMeta({
   pageSubtitle: 'Créé en version 1, pour ceux qui n’ont jamais répondu',
 })
 
-const { busy, error, save } = useVideoModals()
+const { busy, error, createWithImage } = useVideoModals()
 
 /** Le type se choisit d'abord et ne change plus après la création. */
 const type = ref<VideoModalType | null>(null)
@@ -21,9 +21,10 @@ const choices = computed(() => [
   { type: 'INFO' as const, title: 'Information', hint: 'Un message court avec une icône et un ou deux boutons (écran de l’app, lien ou fermeture).', icon: MessageSquareText },
 ])
 
-async function onSubmit(input: VideoModalInput, activate: boolean) {
-  const created = await save(null, input, activate)
-  if (created) await navigateTo(`/modals-video/${created.id}`)
+async function onSubmit(input: VideoModalInput, activate: boolean, imageFile: File | null) {
+  const { modal, imageError } = await createWithImage(input, activate, imageFile)
+  // Image refusée après la création : la fiche existe déjà, on y mène l'admin pour réessayer.
+  if (modal) await navigateTo(imageError ? { path: `/modals-video/${modal.id}`, query: { image: 'echec' } } : `/modals-video/${modal.id}`)
 }
 </script>
 

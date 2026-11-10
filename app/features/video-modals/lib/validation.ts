@@ -1,7 +1,7 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
 import { httpsUrlError } from '@/features/video-modals/lib/url'
 import {
-  BODY_MAX_LENGTH, HIGHLIGHT_ICONS, INFO_SCREENS, MAX_HIGHLIGHTS, MODAL_ICONS, VIDEO_MODAL_TRIGGERS,
+  BODY_MAX_LENGTH, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, MAX_HIGHLIGHTS, MODAL_ICONS, MODAL_LAYOUTS, SIZE_MAX, SIZE_MIN, VIDEO_MODAL_TRIGGERS,
   type VideoModalAction, type VideoModalInput,
 } from '@/features/video-modals/types/index'
 
@@ -10,6 +10,7 @@ export type VideoModalField =
   | 'highlights' | 'triggers' | 'maxDisplays' | 'period'
   | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'primaryUrl' | 'secondaryAction' | 'secondaryUrl'
   | 'primaryLabelEn' | 'secondaryLabelEn'
+  | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn'
 
 export type VideoModalErrors = Partial<Record<VideoModalField, string>>
 
@@ -17,6 +18,11 @@ export const MAX_DISPLAYS_MIN = 1
 export const MAX_DISPLAYS_MAX = 10
 /** Au-delà, un libellé de bouton risque de ne plus tenir sur une ligne dans l'app (360 dp). */
 export const BUTTON_LABEL_SOFT_LIMIT = 26
+
+export interface ValidationOptions {
+  /** Une image est déjà envoyée, ou choisie pour être envoyée juste après la création. */
+  hasImage?: boolean
+}
 
 const blank = (s: string | null | undefined) => !s || s.trim().length === 0
 
@@ -26,9 +32,10 @@ const blank = (s: string | null | undefined) => !s || s.trim().length === 0
  * En plus, côté admin seulement : nom de la campagne, libellés FR des deux boutons et texte FR
  * de chaque point fort, sans lesquels l'app afficherait un bouton ou une ligne vide.
  */
-export function validateVideoModal(input: VideoModalInput): VideoModalErrors {
-  if (input.type === 'INFO') return validateInfoModal(input)
+export function validateVideoModal(input: VideoModalInput, opts: ValidationOptions = {}): VideoModalErrors {
+  if (input.type === 'INFO') return validateInfoModal(input, opts)
   const errors: VideoModalErrors = {}
+  validateFormat(input, errors)
 
   if (blank(input.name)) errors.name = 'Donnez un nom à la campagne.'
   if (!extractYoutubeId(input.youtubeUrl)) {
@@ -69,6 +76,30 @@ export function validateVideoModal(input: VideoModalInput): VideoModalErrors {
   return errors
 }
 
+/** Format et taille : valeurs connues, taille entière de 30 à 100 (ou automatique). */
+function validateFormat(input: VideoModalInput, errors: VideoModalErrors) {
+  if (input.layout !== undefined && !(MODAL_LAYOUTS as readonly string[]).includes(input.layout)) {
+    errors.layout = 'Choisissez un format de la liste.'
+  }
+  const size = input.sizePercent
+  if (size !== undefined && size !== null && (!Number.isInteger(size) || size < SIZE_MIN || size > SIZE_MAX)) {
+    errors.sizePercent = `Taille entre ${SIZE_MIN} et ${SIZE_MAX} % de la hauteur de l’écran.`
+  }
+}
+
+function validateImage(input: VideoModalInput, errors: VideoModalErrors, opts: ValidationOptions) {
+  if (input.imageMode !== undefined && !(IMAGE_MODES as readonly string[]).includes(input.imageMode)) {
+    errors.imageMode = 'Choisissez un mode d’image de la liste.'
+  } else if (input.imageMode && input.imageMode !== 'NONE' && !opts.hasImage) {
+    errors.imageMode = 'Envoyez une image, ou choisissez « Aucune ».'
+  }
+  if (input.imageFit !== undefined && !(IMAGE_FITS as readonly string[]).includes(input.imageFit)) {
+    errors.imageFit = 'Choisissez un cadrage de la liste.'
+  }
+  if ((input.imageAltFr ?? '').trim().length > IMAGE_ALT_MAX_LENGTH) errors.imageAltFr = `${IMAGE_ALT_MAX_LENGTH} caractères au plus.`
+  if ((input.imageAltEn ?? '').trim().length > IMAGE_ALT_MAX_LENGTH) errors.imageAltEn = `${IMAGE_ALT_MAX_LENGTH} caractères au plus.`
+}
+
 function validateSchedule(input: VideoModalInput, errors: VideoModalErrors) {
   const knownTriggers = input.triggers.filter(t => (VIDEO_MODAL_TRIGGERS as readonly string[]).includes(t))
   if (knownTriggers.length === 0) errors.triggers = 'Choisissez au moins un endroit où afficher le modal.'
@@ -107,8 +138,10 @@ function actionError(action: VideoModalAction | null | undefined, labelFr: strin
  * action valide, bouton secondaire facultatif. Le libellé FR est obligatoire pour un écran ou un
  * lien (« OK » par défaut pour Fermer), 26 caractères au plus. Lien https uniquement.
  */
-function validateInfoModal(input: VideoModalInput): VideoModalErrors {
+function validateInfoModal(input: VideoModalInput, opts: ValidationOptions): VideoModalErrors {
   const errors: VideoModalErrors = {}
+  validateFormat(input, errors)
+  validateImage(input, errors, opts)
   if (blank(input.name)) errors.name = 'Donnez un nom à la campagne.'
   if (blank(input.titleFr)) errors.titleFr = 'Le titre en français est obligatoire.'
   if (blank(input.bodyFr)) errors.bodyFr = 'Le texte en français est obligatoire.'
