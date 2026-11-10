@@ -21,11 +21,13 @@ const problem = (status: number, code: string | null, detail: string) => ({
   body: JSON.stringify({ type: 'about:blank', title: 'Erreur', status, detail, ...(code ? { code } : {}) }),
 })
 
+const F9 = { flagId: 'f9', userId: '7a2e4b1c-0000-4a00-8000-0000000000c1', displayName: 'Ibrahima Sy', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: daysAgo(3) }
+
 interface State { posts: { path: string; body: unknown }[]; decided: Set<string>; dismissed: Set<string> }
 
 async function mockBackend(
   page_: Page,
-  opts: { admin?: typeof ADMIN; unverified?: boolean; applicationsMissing?: boolean } = {},
+  opts: { admin?: typeof ADMIN; unverified?: boolean; applicationsMissing?: boolean; individualFlags?: boolean } = {},
 ): Promise<State> {
   const state: State = { posts: [], decided: new Set(), dismissed: new Set() }
   await page_.addInitScript((u) => {
@@ -57,6 +59,16 @@ async function mockBackend(
     state.posts.push({ path: new URL(route.request().url()).pathname, body: null })
     state.dismissed.add(flagId)
     return route.fulfill({ status: 204, body: '' })
+  })
+  // Particuliers à confirmer : tableau, vide par défaut (le test dédié y met un drapeau).
+  await page_.route('**/api/v1/admin/individual-frequency-flags**', (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() === 'POST') {
+      state.posts.push({ path: url.pathname, body: null })
+      state.dismissed.add('f9')
+      return route.fulfill({ status: 204, body: '' })
+    }
+    return route.fulfill({ json: opts.individualFlags && !state.dismissed.has('f9') ? [F9] : [] })
   })
   return state
 }
@@ -149,4 +161,15 @@ test('SUPPORT n’a pas le droit GP_PRO_REVIEW : accès refusé', async ({ page 
   await page.goto('/gp-pro')
   await expect(page).toHaveURL(/denied/)
   await expect(page.locator('[data-test="gp-pro-workbench"]')).toHaveCount(0)
+})
+
+test('particuliers à confirmer : la file se lit sous le poste et « Écarter » demande confirmation', async ({ page }) => {
+  const state = await mockBackend(page, { individualFlags: true })
+  await page.goto('/gp-pro')
+  await expect(page.locator('[data-test="individual-frequency-row-f9"]')).toContainText('5 trajets avec colis sur 30 jours (seuil : 4)')
+  await page.locator('[data-test="individual-frequency-dismiss-f9"]').click()
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="individual-frequency-row-f9"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="individual-frequency-empty"]')).toBeVisible()
+  expect(state.posts).toEqual([{ path: '/api/v1/admin/individual-frequency-flags/f9/dismiss', body: null }])
 })
