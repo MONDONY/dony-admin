@@ -17,6 +17,8 @@ const svc = vi.hoisted(() => ({
   listApplications: vi.fn(), getApplication: vi.fn(), approve: vi.fn(), reject: vi.fn(), listReview: vi.fn(), dismissFlag: vi.fn(),
 }))
 vi.mock('@/features/gp-pro/services/gpProService', () => ({ gpProService: svc }))
+const freq = vi.hoisted(() => ({ list: vi.fn(), dismiss: vi.fn() }))
+vi.mock('@/features/individual-frequency/services/individualFrequencyService', () => ({ individualFrequencyService: freq }))
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 const A1 = { applicationId: 'a1', userId: 'u1', displayName: 'Awa Diop', source: 'SIGNUP', travelFrequency: 'WEEKLY', documentCount: 0, createdAt: day(5) }
@@ -48,6 +50,7 @@ describe('/gp-pro', () => {
     svc.listApplications.mockResolvedValue(page([A2, A1]))
     svc.listReview.mockResolvedValue(page([R2, R1]))
     svc.getApplication.mockImplementation((id: string) => Promise.resolve(detailFor(id)))
+    freq.list.mockResolvedValue([])
   })
   // Le poste écoute le clavier : un montage oublié répondrait aux touches des tests suivants.
   afterEach(() => { while (mounted.length) mounted.pop()!.unmount() })
@@ -343,5 +346,45 @@ describe('/gp-pro', () => {
     await w.find('[data-test="gp-pro-tab-revue"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="gp-pro-dismiss-f1"]').exists()).toBe(false)
+  })
+
+  describe('Particuliers à confirmer', () => {
+    const FLAG = { flagId: 'f9', userId: '7a2e4b1c-0000-4a00-8000-0000000000c1', displayName: 'Ibrahima Sy', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: day(3) }
+
+    it('la file se lit au même endroit que la revue GP Pro, sous le poste', async () => {
+      freq.list.mockResolvedValue([FLAG])
+      const w = await mountPage()
+      expect(freq.list).toHaveBeenCalledTimes(1)
+      expect(w.find('[data-test="gp-pro-workbench"]').exists()).toBe(true)
+      expect(w.get('[data-test="individual-frequency-row-f9"]').text()).toContain('Ibrahima Sy')
+    })
+
+    it('« Écarter » passe par l’endpoint dédié, pas par celui de la revue GP Pro', async () => {
+      freq.list.mockResolvedValueOnce([FLAG])
+      freq.dismiss.mockResolvedValue(undefined)
+      const w = await mountPage()
+      freq.list.mockResolvedValueOnce([])
+      await w.get('[data-test="individual-frequency-dismiss-f9"]').trigger('click')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(freq.dismiss).toHaveBeenCalledWith('f9')
+      expect(svc.dismissFlag).not.toHaveBeenCalled()
+      expect(w.find('[data-test="individual-frequency-row-f9"]').exists()).toBe(false)
+    })
+
+    it('ancien back : la section est absente et la page GP Pro reste intacte', async () => {
+      freq.list.mockRejectedValue({ statusCode: 404, data: {} })
+      const w = await mountPage()
+      expect(w.find('[data-test="individual-frequency-queue"]').exists()).toBe(false)
+      expect(w.find('[data-test="gp-pro-case"]').exists()).toBe(true)
+    })
+
+    it('SUPPORT lit la file sans bouton « Écarter »', async () => {
+      seedAuth('SUPPORT')
+      freq.list.mockResolvedValue([FLAG])
+      const w = await mountPage()
+      expect(w.find('[data-test="individual-frequency-row-f9"]').exists()).toBe(true)
+      expect(w.find('[data-test="individual-frequency-dismiss-f9"]').exists()).toBe(false)
+    })
   })
 })

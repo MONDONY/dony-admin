@@ -784,4 +784,45 @@ describe('SettingsForm', () => {
       expect(w.find('[data-test="calling-code-chip-225"]').exists()).toBe(true)
     })
   })
+
+  describe('seuil d’alerte des particuliers (individual_trips_alert_threshold)', () => {
+    const threshold: PlatformSetting = {
+      key: 'individual_trips_alert_threshold', value: '4', type: 'INTEGER', updatedAt: null, updatedByEmail: null,
+    }
+
+    it('porte un libellé lisible, son unité, ses bornes 1 à 100 et son aide', () => {
+      const w = mountForm({ settings: [threshold] })
+      const row = w.find('[data-test="setting-row-individual_trips_alert_threshold"]')
+      expect(row.text()).toContain('Trajets avec colis avant alerte (voyageur Particulier)')
+      expect(row.text()).not.toContain('individual_trips_alert_threshold')
+      expect(w.find('[data-test="setting-unit-individual_trips_alert_threshold"]').text()).toBe('trajets')
+      expect(w.find('[data-test="setting-hint-individual_trips_alert_threshold"]').text()).toBe('Entre 1 et 100')
+      expect(w.find('[data-test="setting-help-individual_trips_alert_threshold"]').text()).toBe(
+        'Nombre de trajets avec colis sur 30 jours au-delà duquel un voyageur Particulier est signalé à l’équipe. Aucun blocage automatique.',
+      )
+    })
+
+    it('refuse 0 et 101 sans appel réseau, accepte 1 et 100', async () => {
+      const w = mountForm({ settings: [threshold] })
+      const input = w.find('[data-test="setting-value-individual_trips_alert_threshold"]')
+      const save = () => w.find('[data-test="setting-save-individual_trips_alert_threshold"]').element as HTMLButtonElement
+      for (const bad of ['0', '101', '', '4.5']) {
+        await input.setValue(bad)
+        expect(save().disabled).toBe(true)
+        expect(w.find('[data-test="setting-error-individual_trips_alert_threshold"]').text()).toBe('Entre 1 et 100')
+      }
+      for (const good of ['1', '100']) {
+        await input.setValue(good)
+        expect(save().disabled).toBe(false)
+      }
+    })
+
+    it('enregistre la valeur saisie après confirmation', async () => {
+      const w = mountForm({ settings: [threshold] })
+      await w.find('[data-test="setting-value-individual_trips_alert_threshold"]').setValue('6')
+      await w.find('[data-test="setting-save-individual_trips_alert_threshold"]').trigger('click')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['individual_trips_alert_threshold', '6'])
+    })
+  })
 })

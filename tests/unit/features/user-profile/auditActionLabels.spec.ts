@@ -16,6 +16,7 @@ const LISTED = [
   'USER_PRO_PROFILE_UPDATED', 'USER_DOWNGRADED_FROM_PRO', 'USER_MESSAGING_MUTED', 'USER_MESSAGING_UNMUTED', 'USER_CREATED',
   'USER_EMAIL_ATTACHED', 'USER_PHONE_ATTACHED', 'USER_PHONE_RECLAIMED', 'USER_REACTIVATED', 'USER_REACTIVATION_DENIED',
   'RECETTE_TESTER_GRANTED', 'RECETTE_TESTER_REVOKED', 'USER_MONTHLY_TRIP_LIMIT_SET', 'GP_PRO_RESIGNED',
+  'INDIVIDUAL_FREQUENCY_FLAG_DISMISSED',
 ]
 
 describe('auditActionLabels', () => {
@@ -33,6 +34,7 @@ describe('auditActionLabels', () => {
     expect(auditActionLabel('PAYOUTS_RELEASED_HOLD')).toBe('Retenue levée')
     expect(auditActionLabel('TRAVELER_STATUS_DECLARED')).toBe('Statut de voyageur déclaré')
     expect(auditActionLabel('USER_MONTHLY_TRIP_LIMIT_SET')).toBe('Limite mensuelle de trajets modifiée')
+    expect(auditActionLabel('INDIVIDUAL_FREQUENCY_FLAG_DISMISSED')).toBe('Alerte « particulier à confirmer » écartée')
     expect(auditActionLabel('GP_PRO_RESIGNED')).toBe('A quitté le statut GP Pro')
     expect(auditActionLabel('USER_ADMIN_DELETION')).toBe('Compte supprimé par un administrateur')
   })

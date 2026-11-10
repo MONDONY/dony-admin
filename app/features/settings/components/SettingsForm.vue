@@ -58,6 +58,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
     label: 'Tours de remplissage par l’IA (trajet et colis) par utilisateur et par jour',
     unit: 'tours',
   },
+  individual_trips_alert_threshold: { label: 'Trajets avec colis avant alerte (voyageur Particulier)', unit: 'trajets' },
   remote_config_fetch_minutes: {
     label: 'Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)',
     unit: 'minutes',
@@ -138,6 +139,9 @@ const SMS_OPEN_PHRASE = 'OUVRIR SMS'
  * peut encore recevoir un code, ni par où passent les nouveaux inscrits.
  */
 const SETTING_HELP: Record<string, string> = {
+  individual_trips_alert_threshold:
+    'Nombre de trajets avec colis sur 30 jours au-delà duquel un voyageur Particulier est signalé à l’équipe. '
+    + 'Aucun blocage automatique.',
   sms_otp_registered_numbers_only:
     'Activé : un code SMS ne part que vers un numéro déjà inscrit, ou vers le numéro qu’un compte '
     + 'connecté ajoute à son profil ; les nouveaux s’inscrivent par email, Google ou Apple. '
@@ -174,6 +178,7 @@ const INT_BOUNDS: Record<string, [number, number]> = {
   sms_otp_max_sends_per_hour_global: [1, 1000],
   sms_otp_max_sends_per_day_global: [1, 10000],
   remote_config_fetch_minutes: [5, 1440],
+  individual_trips_alert_threshold: [1, 100],
 }
 function hintFor(key: string): string | null {
   const b = INT_BOUNDS[key]
