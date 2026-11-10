@@ -1,8 +1,8 @@
 import type { WireCondition, WireGroup } from '@/features/broadcast/composables/audienceRule'
 import type { AudienceField } from '@/features/broadcast/types/index'
 import {
-  NO_DELAY_TRIGGERS, OPEN_DELAY_SECONDS, PLATFORM_LABELS,
-  type ModalPlatform, type SituationKind, type VideoModalInput, type VideoModalTrigger,
+  CORRIDOR_TRIGGERS, FEW_RESULTS_DEFAULT, NO_DELAY_TRIGGERS, OPEN_DELAY_SECONDS, PLATFORM_LABELS, TRIP_VIEWED_DEFAULT,
+  type ModalCorridor, type ModalPlatform, type SituationKind, type VideoModalInput, type VideoModalTrigger,
 } from '@/features/video-modals/types/index'
 
 /** Un morceau de la phrase : `strong` met en avant ce que l'admin a réglé (or sur fond marine). */
@@ -14,7 +14,7 @@ export interface SummaryPart {
 export type SummaryInput = Pick<
   VideoModalInput,
   'triggers' | 'situations' | 'connectedOnly' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms'
-  | 'samplePercent' | 'frequency' | 'frequencyDays' | 'maxDisplays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'startsAt' | 'endsAt'
+  | 'samplePercent' | 'triggerOptions' | 'corridors' | 'frequency' | 'frequencyDays' | 'maxDisplays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'startsAt' | 'endsAt'
 >
 
 const TRIGGER_PHRASES: Record<VideoModalTrigger, string> = {
@@ -26,6 +26,33 @@ const TRIGGER_PHRASES: Record<VideoModalTrigger, string> = {
   PROFILE_TAB: 'l’arrivée sur l’onglet Moi',
   PUBLISH_TRIP: 'le toucher du bouton « Publier un trajet »',
   SEND_PARCEL: 'le toucher du bouton « Envoyer un colis »',
+  DELIVERY_CONFIRMED: 'une livraison confirmée',
+  PAYMENT_SUCCEEDED: 'un paiement réussi',
+  TRIP_PUBLISHED: 'la publication d’un trajet',
+  REQUEST_PUBLISHED: 'la publication d’une demande d’envoi',
+  KYC_VERIFIED: 'la vérification de l’identité',
+  SEARCH_NO_TRIP_RESULTS: 'une recherche de trajet sans résultat',
+  SEARCH_NO_PARCEL_RESULTS: 'une recherche de colis sans résultat',
+  SEARCH_FEW_RESULTS: 'une recherche avec peu de résultats',
+  FAVORITE_ADDED: 'l’ajout d’un trajet ou d’une alerte aux favoris',
+  FORM_ABANDONED: 'un formulaire de trajet ou de demande quitté sans publier',
+  TRIP_VIEWED_REPEATEDLY: 'la consultation répétée du même trajet',
+  PAYMENT_FAILED: 'un paiement échoué ou annulé',
+  APP_UPDATED: 'la première ouverture après une mise à jour de l’app',
+}
+
+/** Phrase d'un déclencheur ; les deux moments à seuil précisent leur valeur. */
+function triggerPhrase(t: VideoModalTrigger, input: SummaryInput): string {
+  if (t === 'SEARCH_FEW_RESULTS') {
+    const n = input.triggerOptions?.fewResultsMax
+    const max = isNum(n) ? n : FEW_RESULTS_DEFAULT
+    return max === 1 ? 'une recherche qui ne renvoie qu’un seul résultat' : `une recherche qui renvoie de 1 à ${max} résultats`
+  }
+  if (t === 'TRIP_VIEWED_REPEATEDLY') {
+    const n = input.triggerOptions?.tripViewedTimes
+    return `la consultation du même trajet ${isNum(n) ? n : TRIP_VIEWED_DEFAULT} fois`
+  }
+  return TRIGGER_PHRASES[t]
 }
 
 /* eslint-disable no-unused-vars -- nom de paramètre d'un type de fonction */
@@ -111,25 +138,44 @@ function momentParts(input: SummaryInput): SummaryPart[] {
   const triggers: VideoModalTrigger[] = input.triggers.length > 0 ? input.triggers : situations.length > 0 ? ['APP_OPEN'] : []
   const delayed = triggers.filter(t => !NO_DELAY_TRIGGERS.includes(t) && TRIGGER_PHRASES[t])
   const immediate = triggers.filter(t => NO_DELAY_TRIGGERS.includes(t) && TRIGGER_PHRASES[t])
+  const phrase = (t: VideoModalTrigger) => triggerPhrase(t, input)
   const parts: SummaryPart[] = [plain('Ce modal s’ouvrira ')]
   if (delayed.length === 0 && immediate.length === 0) {
     parts.push(strong('à un moment à choisir'))
   } else {
     if (delayed.length > 0) {
-      parts.push(strong(`${OPEN_DELAY_SECONDS} secondes après ${joinOr(delayed.map(t => TRIGGER_PHRASES[t]))}`))
+      parts.push(strong(`${OPEN_DELAY_SECONDS} secondes après ${joinOr(delayed.map(phrase))}`))
     }
     if (delayed.length > 0 && immediate.length > 0) parts.push(plain(', ou '))
-    if (immediate.length > 0) parts.push(strong(`dès ${joinOr(immediate.map(t => TRIGGER_PHRASES[t]))}`), plain(', sans délai'))
+    if (immediate.length > 0) parts.push(strong(`dès ${joinOr(immediate.map(phrase))}`), plain(', sans délai'))
   }
   if (situations.length > 0) {
     parts.push(plain(', tant que '))
     situations.forEach((s, i) => {
       if (i > 0) parts.push(plain(' et '))
-      const phrase = SITUATION_PHRASES[s.kind]
-      parts.push(strong(phrase ? phrase(isNum(s.value) ? s.value : null) : String(s.kind)))
+      const sentence = SITUATION_PHRASES[s.kind]
+      parts.push(strong(sentence ? sentence(isNum(s.value) ? s.value : null) : String(s.kind)))
     })
   }
   return parts
+}
+
+/** « de Paris vers Abidjan », « au départ de Paris », « à l’arrivée à Abidjan ». */
+const deElide = (place: string) => (/^[aeiouyàâäéèêëîïôöùûüh]/i.test(place) ? `d’${place}` : `de ${place}`)
+function corridorPhrase(c: ModalCorridor): string {
+  const from = c.from?.trim()
+  const to = c.to?.trim()
+  if (from && to) return `${deElide(from)} vers ${to}`
+  if (from) return `au départ ${deElide(from)}`
+  if (to) return `à l’arrivée à ${to}`
+  return ''
+}
+
+/** « Trajet ou colis précis » : décrit seulement quand un moment concerné est coché (sinon sans effet). */
+function corridorParts(input: SummaryInput): SummaryPart[] {
+  const corridors = (input.corridors ?? []).map(corridorPhrase).filter(Boolean)
+  if (corridors.length === 0 || !input.triggers.some(t => CORRIDOR_TRIGGERS.includes(t))) return []
+  return [plain(', seulement pour un trajet ou un colis '), strong(joinOr(corridors))]
 }
 
 function audienceParts(input: SummaryInput, fields: AudienceField[]): SummaryPart[] {
@@ -179,6 +225,7 @@ function frequencyParts(input: SummaryInput): SummaryPart[] {
 export function buildSummary(input: SummaryInput, fields: AudienceField[]): SummaryPart[] {
   return [
     ...momentParts(input),
+    ...corridorParts(input),
     ...audienceParts(input, fields),
     plain('. '),
     ...frequencyParts(input),

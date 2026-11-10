@@ -1,8 +1,8 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
 import { httpsUrlError } from '@/features/video-modals/lib/url'
 import {
-  BODY_MAX_LENGTH, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, MAX_HIGHLIGHTS,
-  MODAL_FREQUENCIES, MODAL_ICONS, MODAL_LAYOUTS, MODAL_PLATFORMS, SAMPLE_MAX, SAMPLE_MIN, SITUATIONS, SIZE_MAX, SIZE_MIN, VIDEO_MODAL_TRIGGERS,
+  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, MAX_HIGHLIGHTS,
+  MODAL_FREQUENCIES, MODAL_ICONS, MODAL_LAYOUTS, MODAL_PLATFORMS, SAMPLE_MAX, SAMPLE_MIN, SITUATIONS, SIZE_MAX, SIZE_MIN, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN, VIDEO_MODAL_TRIGGERS,
   type VideoModalAction, type VideoModalInput,
 } from '@/features/video-modals/types/index'
 
@@ -13,6 +13,7 @@ export type VideoModalField =
   | 'primaryLabelEn' | 'secondaryLabelEn'
   | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn'
   | 'frequency' | 'frequencyDays' | 'priority' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations'
+  | 'fewResultsMax' | 'tripViewedTimes' | 'corridors'
 
 export type VideoModalErrors = Partial<Record<VideoModalField, string>>
 
@@ -110,7 +111,7 @@ function compareVersions(a: string, b: string): number {
 function validateSchedule(input: VideoModalInput, errors: VideoModalErrors, opts: ValidationOptions) {
   const knownTriggers = input.triggers.filter(t => (VIDEO_MODAL_TRIGGERS as readonly string[]).includes(t))
   if (knownTriggers.length === 0 && (input.situations ?? []).length === 0) {
-    errors.triggers = 'Choisissez au moins un endroit (écran ou bouton) ou une situation.'
+    errors.triggers = 'Choisissez au moins un endroit (écran ou bouton), un moment ou une situation.'
   }
 
   if (!Number.isInteger(input.maxDisplays) || input.maxDisplays < MAX_DISPLAYS_MIN || input.maxDisplays > MAX_DISPLAYS_MAX) {
@@ -127,6 +128,7 @@ function validateSchedule(input: VideoModalInput, errors: VideoModalErrors, opts
 
   validateFrequency(input, errors)
   validateTargeting(input, errors, opts)
+  validateMoments(input, errors)
 }
 
 function validateFrequency(input: VideoModalInput, errors: VideoModalErrors) {
@@ -182,6 +184,33 @@ function validateTargeting(input: VideoModalInput, errors: VideoModalErrors, opt
         break
       }
     }
+  }
+}
+
+const isIntIn = (v: unknown, min: number, max: number) => typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
+
+/**
+ * Moments d'action (étape 2) : seuil « peu de résultats » de 1 à 20, « même trajet consulté » de 2 à 10,
+ * et 0 à 10 corridors de 80 caractères au plus, avec au moins un côté renseigné. Même bornes que le back (422 sinon).
+ */
+function validateMoments(input: VideoModalInput, errors: VideoModalErrors) {
+  const opts = input.triggerOptions
+  if (opts) {
+    if (!isIntIn(opts.fewResultsMax, FEW_RESULTS_MIN, FEW_RESULTS_MAX)) {
+      errors.fewResultsMax = `Nombre entier, de ${FEW_RESULTS_MIN} à ${FEW_RESULTS_MAX}.`
+    }
+    if (!isIntIn(opts.tripViewedTimes, TRIP_VIEWED_MIN, TRIP_VIEWED_MAX)) {
+      errors.tripViewedTimes = `Nombre entier, de ${TRIP_VIEWED_MIN} à ${TRIP_VIEWED_MAX}.`
+    }
+  }
+
+  const corridors = input.corridors ?? []
+  if (corridors.length > CORRIDORS_MAX) {
+    errors.corridors = `${CORRIDORS_MAX} trajets ou colis au plus.`
+  } else if (corridors.some(c => !c.from?.trim() && !c.to?.trim())) {
+    errors.corridors = 'Renseignez au moins le départ ou l’arrivée de chaque ligne, ou retirez-la.'
+  } else if (corridors.some(c => (c.from ?? '').trim().length > CORRIDOR_TEXT_MAX_LENGTH || (c.to ?? '').trim().length > CORRIDOR_TEXT_MAX_LENGTH)) {
+    errors.corridors = `${CORRIDOR_TEXT_MAX_LENGTH} caractères au plus par ville ou pays.`
   }
 }
 

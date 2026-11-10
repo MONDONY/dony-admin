@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TriggerPicker from '@/features/video-modals/components/TriggerPicker.vue'
-import { COMING_SOON_MOMENTS, SITUATION_KINDS, VIDEO_MODAL_TRIGGERS } from '@/features/video-modals/types/index'
+import { MOMENT_GROUPS, MOMENT_TRIGGERS, SCREEN_TRIGGERS, SITUATION_KINDS } from '@/features/video-modals/types/index'
 
 const mountPicker = (props: Record<string, unknown> = {}) =>
   mount(TriggerPicker, { props: { triggers: ['SEARCH_TAB'], situations: [], isInfo: false, ...props } })
@@ -11,7 +11,7 @@ const sit = (w: ReturnType<typeof mountPicker>, sel: string) => w.get(sel).text(
 describe('TriggerPicker : moments', () => {
   it('les huit déclencheurs existants, libellés de la maquette, SEARCH_TAB coché', () => {
     const w = mountPicker()
-    for (const t of VIDEO_MODAL_TRIGGERS) expect(w.find(`[data-test="vm-trigger-${t}"]`).exists(), t).toBe(true)
+    for (const t of SCREEN_TRIGGERS) expect(w.find(`[data-test="vm-trigger-${t}"]`).exists(), t).toBe(true)
     expect(w.get('[data-test="vm-trigger-APP_OPEN"]').text()).toBe('Ouverture de l’app')
     expect(w.get('[data-test="vm-trigger-PUBLISH_TRIP"]').text()).toBe('Bouton Publier un trajet')
     expect((w.get('[data-test="vm-trigger-SEARCH_TAB"] input').element as HTMLInputElement).checked).toBe(true)
@@ -24,19 +24,85 @@ describe('TriggerPicker : moments', () => {
     expect(w.emitted('toggle-trigger')![0]).toEqual(['TRACKING_TAB'])
   })
 
-  it('moments de l’étape 2 : grisés, « Bientôt », sans case à cocher, jamais émis', async () => {
+  it('moments de l’étape 2 : les treize sont des pastilles cochables, plus aucun « Bientôt »', async () => {
     const w = mountPicker()
-    const all = [...COMING_SOON_MOMENTS.ACTION, ...COMING_SOON_MOMENTS.SEARCH, ...COMING_SOON_MOMENTS.PAYMENT, ...COMING_SOON_MOMENTS.ACCOUNT]
-    expect(all.length).toBe(13)
-    for (const label of all) {
-      const chip = w.findAll('[aria-disabled="true"]').find(c => c.text().startsWith(label))
-      expect(chip, label).toBeDefined()
-      expect(chip!.text()).toContain('Bientôt')
-      expect(chip!.find('input').exists(), label).toBe(false)
-      await chip!.trigger('click')
+    expect(MOMENT_TRIGGERS).toHaveLength(13)
+    expect(w.text()).not.toContain('Bientôt')
+    expect(w.find('[aria-disabled="true"]').exists()).toBe(false)
+    for (const t of MOMENT_TRIGGERS) {
+      const chip = w.get(`[data-test="vm-trigger-${t}"]`)
+      expect(chip.find('input[type="checkbox"]').exists(), t).toBe(true)
+      await chip.get('input').trigger('change')
+      expect(w.emitted('toggle-trigger')!.at(-1), t).toEqual([t])
     }
-    expect(w.emitted('toggle-trigger')).toBeUndefined()
-    expect(w.emitted('toggle-situation')).toBeUndefined()
+  })
+
+  it('moments : libellés de la maquette, rangés par famille', () => {
+    const w = mountPicker()
+    expect(w.get('[data-test="vm-trigger-DELIVERY_CONFIRMED"]').text()).toBe('Livraison confirmée')
+    expect(w.get('[data-test="vm-trigger-SEARCH_NO_TRIP_RESULTS"]').text()).toBe('Recherche de trajet sans résultat')
+    expect(w.get('[data-test="vm-trigger-TRIP_VIEWED_REPEATEDLY"]').text()).toBe('Même trajet consulté plusieurs fois')
+    expect(w.get('[data-test="vm-trigger-PAYMENT_FAILED"]').text()).toBe('Paiement échoué ou annulé')
+    expect(w.get('[data-test="vm-trigger-APP_UPDATED"]').text()).toBe('Première ouverture après une mise à jour')
+    const inside = (family: string) => w.get(`[data-test="vm-moments-${family}"]`)
+    for (const t of MOMENT_GROUPS.ACTION) expect(inside('action').find(`[data-test="vm-trigger-${t}"]`).exists(), t).toBe(true)
+    for (const t of MOMENT_GROUPS.SEARCH) expect(inside('search').find(`[data-test="vm-trigger-${t}"]`).exists(), t).toBe(true)
+    for (const t of [...MOMENT_GROUPS.ACTION, ...MOMENT_GROUPS.SEARCH, ...MOMENT_GROUPS.PAYMENT, ...MOMENT_GROUPS.ACCOUNT]) {
+      expect(w.findAll(`[data-test="vm-trigger-${t}"]`), t).toHaveLength(1)
+    }
+  })
+
+  it('moment coché : pastille bleue, case cochée', () => {
+    const w = mountPicker({ triggers: ['PAYMENT_SUCCEEDED'] })
+    expect((w.get('[data-test="vm-trigger-PAYMENT_SUCCEEDED"] input').element as HTMLInputElement).checked).toBe(true)
+    expect(w.get('[data-test="vm-trigger-PAYMENT_SUCCEEDED"]').classes()).toContain('border-primary')
+    expect(w.get('[data-test="vm-trigger-KYC_VERIFIED"]').classes()).not.toContain('border-primary')
+  })
+
+  it('seuils : visibles seulement quand le moment correspondant est coché', () => {
+    const none = mountPicker()
+    expect(none.find('[data-test="vm-opt-few-results"]').exists()).toBe(false)
+    expect(none.find('[data-test="vm-opt-trip-viewed"]').exists()).toBe(false)
+    const few = mountPicker({ triggers: ['SEARCH_FEW_RESULTS'] })
+    expect(few.find('[data-test="vm-opt-few-results"]').exists()).toBe(true)
+    expect(few.find('[data-test="vm-opt-trip-viewed"]').exists()).toBe(false)
+    const viewed = mountPicker({ triggers: ['TRIP_VIEWED_REPEATEDLY'] })
+    expect(viewed.find('[data-test="vm-opt-few-results"]').exists()).toBe(false)
+    expect(viewed.find('[data-test="vm-opt-trip-viewed"]').exists()).toBe(true)
+  })
+
+  it('seuils : défauts 2 et 3, bornes 1..20 et 2..10, la saisie est émise', async () => {
+    const w = mountPicker({ triggers: ['SEARCH_FEW_RESULTS', 'TRIP_VIEWED_REPEATEDLY'] })
+    const few = w.get('[data-test="vm-few-results-max"]')
+    const viewed = w.get('[data-test="vm-trip-viewed-times"]')
+    expect((few.element as HTMLInputElement).value).toBe('2')
+    expect((viewed.element as HTMLInputElement).value).toBe('3')
+    expect([few.attributes('min'), few.attributes('max')]).toEqual(['1', '20'])
+    expect([viewed.attributes('min'), viewed.attributes('max')]).toEqual(['2', '10'])
+    await few.setValue('5')
+    await viewed.setValue('7')
+    expect(w.emitted('set-trigger-option')).toEqual([['fewResultsMax', '5'], ['tripViewedTimes', '7']])
+  })
+
+  it('seuils : valeurs saisies reprises, erreurs affichées seulement avec le moment coché', () => {
+    const w = mountPicker({
+      triggers: ['SEARCH_FEW_RESULTS', 'TRIP_VIEWED_REPEATEDLY'], triggerOptions: { fewResultsMax: 9, tripViewedTimes: '' },
+      fewResultsError: 'Nombre entier, de 1 à 20.', tripViewedError: 'Nombre entier, de 2 à 10.',
+    })
+    expect((w.get('[data-test="vm-few-results-max"]').element as HTMLInputElement).value).toBe('9')
+    expect((w.get('[data-test="vm-trip-viewed-times"]').element as HTMLInputElement).value).toBe('')
+    expect(w.get('[data-test="vm-few-results-error"]').text()).toContain('1 à 20')
+    expect(w.get('[data-test="vm-trip-viewed-error"]').text()).toContain('2 à 10')
+    const hidden = mountPicker({ fewResultsError: 'x', tripViewedError: 'y' })
+    expect(hidden.find('[data-test="vm-few-results-error"]').exists()).toBe(false)
+    expect(hidden.find('[data-test="vm-trip-viewed-error"]').exists()).toBe(false)
+  })
+
+  it('mention des anciennes versions : seulement quand un moment de l’étape 2 est coché', () => {
+    expect(mountPicker({ triggers: ['SEARCH_TAB', 'APP_OPEN', 'PUBLISH_TRIP'] }).find('[data-test="vm-moments-compat-note"]').exists()).toBe(false)
+    expect(mountPicker({ triggers: [] }).find('[data-test="vm-moments-compat-note"]').exists()).toBe(false)
+    const w = mountPicker({ triggers: ['SEARCH_TAB', 'KYC_VERIFIED'] })
+    expect(w.get('[data-test="vm-moments-compat-note"]').text()).toContain('Les anciennes versions de l’app ne verront que les moments d’écran et de bouton')
   })
 
   it('délai d’ouverture en lecture seule : 2 secondes', () => {

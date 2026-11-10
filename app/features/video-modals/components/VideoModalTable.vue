@@ -2,7 +2,10 @@
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
 import { frequencyLabel } from '@/features/video-modals/lib/labels'
-import { AUDIENCE_LABELS, IMAGE_MODE_LABELS, LAYOUT_LABELS, SITUATIONS, TRIGGER_SHORT_LABELS, TYPE_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
+import {
+  AUDIENCE_LABELS, FEW_RESULTS_DEFAULT, IMAGE_MODE_LABELS, LAYOUT_LABELS, SITUATIONS, TRIGGER_SHORT_LABELS, TRIP_VIEWED_DEFAULT, TYPE_LABELS,
+  type AdminVideoModal, type VideoModalTrigger,
+} from '@/features/video-modals/types/index'
 
 defineProps<{ items: AdminVideoModal[]; busy?: boolean }>()
 const emit = defineEmits<{
@@ -19,7 +22,15 @@ function formatLabel(m: AdminVideoModal) {
   return layout !== 'FULLSCREEN' && m.sizePercent ? `${base} · ${m.sizePercent} %` : base
 }
 const imageLabel = (m: AdminVideoModal) => (m.imageMode && m.imageMode !== 'NONE' ? IMAGE_MODE_LABELS[m.imageMode]?.label ?? null : null)
-const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHORT_LABELS[t] ?? t)
+/** Un moment à seuil rappelle sa valeur : « Peu de résultats (2 au plus) », « Trajet consulté 3 fois ». */
+function triggerLabel(m: AdminVideoModal, t: VideoModalTrigger): string {
+  if (t === 'SEARCH_FEW_RESULTS') return `Recherche, ${m.triggerOptions?.fewResultsMax ?? FEW_RESULTS_DEFAULT} résultats au plus`
+  if (t === 'TRIP_VIEWED_REPEATEDLY') return `Trajet consulté ${m.triggerOptions?.tripViewedTimes ?? TRIP_VIEWED_DEFAULT} fois`
+  return TRIGGER_SHORT_LABELS[t] ?? t
+}
+const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => triggerLabel(m, t))
+/** Corridors ciblés en une ligne : « Paris → Abidjan », un côté vide s'écrit « … ». */
+const corridors = (m: AdminVideoModal) => (m.corridors ?? []).map(c => `${c.from?.trim() || '…'} → ${c.to?.trim() || '…'}`)
 const situations = (m: AdminVideoModal) => (m.situations ?? []).map(s => SITUATIONS[s.kind]?.short ?? s.kind)
 </script>
 
@@ -70,6 +81,9 @@ const situations = (m: AdminVideoModal) => (m.situations ?? []).map(s => SITUATI
                 class="whitespace-nowrap rounded-full border border-dashed border-accent bg-accent/15 px-2 py-0.5 text-xs text-accent"
               >{{ s }}</span>
             </div>
+            <p v-if="corridors(m).length > 0" :data-test="`vm-corridors-${m.id}`" class="mt-1 text-xs text-text-muted">
+              Trajets : {{ corridors(m).join(' ; ') }}
+            </p>
           </td>
           <td class="px-4 py-3" :data-test="`vm-frequency-${m.id}`">
             <span class="whitespace-nowrap">{{ frequencyLabel(m) }}</span>

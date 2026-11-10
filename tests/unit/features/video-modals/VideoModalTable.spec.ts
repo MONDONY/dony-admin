@@ -90,4 +90,28 @@ describe('VideoModalTable', () => {
     expect(badges).toEqual(['Offre non payée', 'Profil incomplet', 'NOPE'])
     expect(mountTable([modal()]).find('[data-test="vm-situation-badge"]').exists()).toBe(false)
   })
+
+  it('moments d’action en pastilles, avec le seuil des moments qui en ont un', () => {
+    const m = modal({
+      triggers: ['SEARCH_TAB', 'DELIVERY_CONFIRMED', 'SEARCH_FEW_RESULTS', 'TRIP_VIEWED_REPEATEDLY', 'PAYMENT_FAILED', 'APP_UPDATED'],
+      triggerOptions: { fewResultsMax: 5, tripViewedTimes: 4 },
+    })
+    const text = mountTable([m]).get(`[data-test="vm-row-${m.id}"]`).text()
+    for (const piece of ['Rechercher', 'Livraison confirmée', 'Recherche, 5 résultats au plus', 'Trajet consulté 4 fois', 'Paiement échoué', 'Après mise à jour']) {
+      expect(text, piece).toContain(piece)
+    }
+  })
+
+  it('moments à seuil sans triggerOptions (ancien back) : seuils par défaut', () => {
+    const text = mountTable([modal({ triggers: ['SEARCH_FEW_RESULTS', 'TRIP_VIEWED_REPEATEDLY'] })]).text()
+    expect(text).toContain('Recherche, 2 résultats au plus')
+    expect(text).toContain('Trajet consulté 3 fois')
+  })
+
+  it('corridors ciblés en une ligne, un côté vide en points de suspension ; rien sans corridor', () => {
+    const m = modal({ triggers: ['FAVORITE_ADDED'], corridors: [{ from: 'Paris', to: 'Abidjan' }, { from: null, to: 'Dakar' }, { from: 'Lyon', to: null }] })
+    expect(mountTable([m]).get(`[data-test="vm-corridors-${m.id}"]`).text()).toBe('Trajets : Paris → Abidjan ; … → Dakar ; Lyon → …')
+    expect(mountTable([modal()]).find(`[data-test="vm-corridors-${modal().id}"]`).exists()).toBe(false)
+    expect(mountTable([modal({ corridors: [] })]).find(`[data-test="vm-corridors-${modal().id}"]`).exists()).toBe(false)
+  })
 })

@@ -6,6 +6,7 @@ import { useAudienceRule } from '@/features/broadcast/composables/useAudienceRul
 import { useBroadcast } from '@/features/broadcast/composables/useBroadcast'
 import ActionEditor from '@/features/video-modals/components/ActionEditor.vue'
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
+import CorridorSection from '@/features/video-modals/components/CorridorSection.vue'
 import AudienceSection from '@/features/video-modals/components/AudienceSection.vue'
 import FrequencySection from '@/features/video-modals/components/FrequencySection.vue'
 import ImageSection from '@/features/video-modals/components/ImageSection.vue'
@@ -15,14 +16,14 @@ import TargetingSummary from '@/features/video-modals/components/TargetingSummar
 import TriggerPicker from '@/features/video-modals/components/TriggerPicker.vue'
 import VideoModalPreview from '@/features/video-modals/components/VideoModalPreview.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
-import { defaultFormState, formStateFromModal, inputFromFormState } from '@/features/video-modals/lib/form'
+import { defaultFormState, formStateFromModal, inputFromFormState, type CorridorDraft, type TriggerOptionsDraft } from '@/features/video-modals/lib/form'
 import { buildSummary } from '@/features/video-modals/lib/summary'
 import { BUTTON_LABEL_SOFT_LIMIT, hasErrors, validateVideoModal } from '@/features/video-modals/lib/validation'
 import { useAudienceEstimate } from '@/features/video-modals/composables/useAudienceEstimate'
 import { validateImageFile } from '@/features/video-modals/lib/image'
 import { extractYoutubeId, formatDuration, youtubeWatchUrl } from '@/features/video-modals/lib/youtube'
 import {
-  AUDIENCE_LABELS, BODY_MAX_LENGTH, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, SITUATIONS, TYPE_LABELS,
+  AUDIENCE_LABELS, BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TRIGGERS, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, SITUATIONS, TYPE_LABELS,
   type AdminVideoModal, type AudienceEstimateRequest, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
 
@@ -160,6 +161,19 @@ function toggleSituation(kind: SituationKind) {
 function setSituationValue(kind: SituationKind, raw: number | string) {
   const s = state.situations.find(x => x.kind === kind)
   if (s) s.value = raw === '' ? '' : Number(raw)
+}
+
+function setTriggerOption(key: keyof TriggerOptionsDraft, raw: number | string) {
+  state.triggerOptions[key] = raw === '' ? '' : Number(raw)
+}
+const corridorApplies = computed(() => state.triggers.some(t => CORRIDOR_TRIGGERS.includes(t)))
+function addCorridor() {
+  if (state.corridors.length < CORRIDORS_MAX) state.corridors.push({ from: '', to: '' })
+}
+const removeCorridor = (i: number) => { state.corridors.splice(i, 1) }
+function setCorridor(i: number, side: keyof CorridorDraft, value: string) {
+  const c = state.corridors[i]
+  if (c) c[side] = value
 }
 
 onMounted(() => { void loadCatalog() })
@@ -367,9 +381,18 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         <h3 class="mb-3 flex items-center gap-3 text-base font-semibold"><span :class="stepClass">1</span>Quand s’ouvre-t-il ?</h3>
         <TriggerPicker
           :triggers="state.triggers" :situations="state.situations" :is-info="isInfo"
+          :trigger-options="state.triggerOptions"
           :error="shown('triggers')" :situations-error="shown('situations')"
+          :few-results-error="shown('fewResultsMax')" :trip-viewed-error="shown('tripViewedTimes')"
           @toggle-trigger="toggleTrigger" @toggle-situation="toggleSituation" @set-situation-value="setSituationValue"
+          @set-trigger-option="setTriggerOption"
         />
+        <div class="mt-5">
+          <CorridorSection
+            :corridors="state.corridors" :applies="corridorApplies" :error="shown('corridors')"
+            @add="addCorridor" @remove="removeCorridor" @set="setCorridor"
+          />
+        </div>
       </section>
 
       <section data-test="vm-step-who" class="border-t border-border pt-5">
