@@ -17,9 +17,10 @@ watch(() => props.open, (o) => {
   if (o) { audience.value = 'NEVER_ANSWERED'; youtubeUrl.value = '' }
 })
 
+const isInfo = computed(() => props.modal?.type === 'INFO')
 const nextVersion = computed(() => (props.modal?.version ?? 0) + 1)
 const urlFilled = computed(() => youtubeUrl.value.trim().length > 0)
-const urlValid = computed(() => !urlFilled.value || extractYoutubeId(youtubeUrl.value) !== null)
+const urlValid = computed(() => isInfo.value || !urlFilled.value || extractYoutubeId(youtubeUrl.value) !== null)
 const canConfirm = computed(() => !props.busy && urlValid.value)
 
 function onEscape(e: KeyboardEvent) {
@@ -33,7 +34,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
 function onConfirm() {
   if (!canConfirm.value) return
   const input: NewVersionInput = { audience: audience.value }
-  if (urlFilled.value) input.youtubeUrl = youtubeUrl.value.trim()
+  if (!isInfo.value && urlFilled.value) input.youtubeUrl = youtubeUrl.value.trim()
   emit('confirm', input)
 }
 </script>
@@ -62,6 +63,7 @@ function onConfirm() {
         </label>
       </fieldset>
 
+      <template v-if="!isInfo">
       <label class="mb-1 block text-xs font-semibold text-text-muted" for="vm-version-url">Nouveau lien YouTube (facultatif)</label>
       <input
         id="vm-version-url" v-model="youtubeUrl" data-test="vm-version-url" type="url" autocomplete="off"
@@ -70,6 +72,7 @@ function onConfirm() {
       >
       <p v-if="!urlValid" data-test="vm-version-url-error" class="mt-1 text-xs text-danger">Lien non reconnu : youtu.be/…, youtube.com/watch?v=…, /shorts/… ou /embed/…</p>
       <p v-else class="mt-1 text-xs text-text-muted">Vide : la vidéo actuelle est gardée. La vidéo doit être publique ou non répertoriée.</p>
+      </template>
 
       <div class="mt-5 flex justify-end gap-2">
         <button

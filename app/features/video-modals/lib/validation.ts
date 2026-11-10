@@ -1,9 +1,15 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
-import { HIGHLIGHT_ICONS, MAX_HIGHLIGHTS, VIDEO_MODAL_TRIGGERS, type VideoModalInput } from '@/features/video-modals/types/index'
+import { httpsUrlError } from '@/features/video-modals/lib/url'
+import {
+  BODY_MAX_LENGTH, HIGHLIGHT_ICONS, INFO_SCREENS, MAX_HIGHLIGHTS, MODAL_ICONS, VIDEO_MODAL_TRIGGERS,
+  type VideoModalAction, type VideoModalInput,
+} from '@/features/video-modals/types/index'
 
 export type VideoModalField =
   | 'name' | 'youtubeUrl' | 'durationSeconds' | 'titleFr' | 'primaryLabelFr' | 'secondaryLabelFr'
   | 'highlights' | 'triggers' | 'maxDisplays' | 'period'
+  | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'primaryUrl' | 'secondaryAction' | 'secondaryUrl'
+  | 'primaryLabelEn' | 'secondaryLabelEn'
 
 export type VideoModalErrors = Partial<Record<VideoModalField, string>>
 
@@ -21,6 +27,7 @@ const blank = (s: string | null | undefined) => !s || s.trim().length === 0
  * de chaque point fort, sans lesquels l'app afficherait un bouton ou une ligne vide.
  */
 export function validateVideoModal(input: VideoModalInput): VideoModalErrors {
+  if (input.type === 'INFO') return validateInfoModal(input)
   const errors: VideoModalErrors = {}
 
   if (blank(input.name)) errors.name = 'Donnez un nom à la campagne.'
@@ -59,6 +66,73 @@ export function validateVideoModal(input: VideoModalInput): VideoModalErrors {
     }
   }
 
+  return errors
+}
+
+function validateSchedule(input: VideoModalInput, errors: VideoModalErrors) {
+  const knownTriggers = input.triggers.filter(t => (VIDEO_MODAL_TRIGGERS as readonly string[]).includes(t))
+  if (knownTriggers.length === 0) errors.triggers = 'Choisissez au moins un endroit où afficher le modal.'
+
+  if (!Number.isInteger(input.maxDisplays) || input.maxDisplays < MAX_DISPLAYS_MIN || input.maxDisplays > MAX_DISPLAYS_MAX) {
+    errors.maxDisplays = `Entre ${MAX_DISPLAYS_MIN} et ${MAX_DISPLAYS_MAX} affichages.`
+  }
+
+  if (input.startsAt && input.endsAt) {
+    const start = Date.parse(input.startsAt)
+    const end = Date.parse(input.endsAt)
+    if (!Number.isNaN(start) && !Number.isNaN(end) && end <= start) {
+      errors.period = 'La fin doit être après le début.'
+    }
+  }
+}
+
+/** Erreur d'une action de bouton Information, ou null. `screen` et `url` sont les clés d'erreur dédiées. */
+function actionError(action: VideoModalAction | null | undefined, labelFr: string): { action?: string; url?: string; label?: string } {
+  if (!action) return { action: 'Choisissez ce que fait le bouton.' }
+  if (action.kind === 'SCREEN') {
+    if (!action.screen || !(INFO_SCREENS as readonly string[]).includes(action.screen)) return { action: 'Choisissez un écran de l’app.' }
+    if (blank(labelFr)) return { label: 'Libellé obligatoire pour ouvrir un écran.' }
+  } else if (action.kind === 'URL') {
+    const urlErr = httpsUrlError(action.url)
+    if (urlErr) return { url: urlErr }
+    if (blank(labelFr)) return { label: 'Libellé obligatoire pour ouvrir un lien.' }
+  } else if (action.kind !== 'CLOSE') {
+    return { action: 'Choisissez ce que fait le bouton.' }
+  }
+  return {}
+}
+
+/**
+ * Modal Information : nom, titre FR, texte FR de 1 à 500 caractères, bouton principal avec une
+ * action valide, bouton secondaire facultatif. Le libellé FR est obligatoire pour un écran ou un
+ * lien (« OK » par défaut pour Fermer), 26 caractères au plus. Lien https uniquement.
+ */
+function validateInfoModal(input: VideoModalInput): VideoModalErrors {
+  const errors: VideoModalErrors = {}
+  if (blank(input.name)) errors.name = 'Donnez un nom à la campagne.'
+  if (blank(input.titleFr)) errors.titleFr = 'Le titre en français est obligatoire.'
+  if (blank(input.bodyFr)) errors.bodyFr = 'Le texte en français est obligatoire.'
+  else if (input.bodyFr!.trim().length > BODY_MAX_LENGTH) errors.bodyFr = `Texte trop long (${BODY_MAX_LENGTH} caractères au plus).`
+  if ((input.bodyEn ?? '').trim().length > BODY_MAX_LENGTH) errors.bodyEn = `Texte trop long (${BODY_MAX_LENGTH} caractères au plus).`
+  if (input.icon && !(MODAL_ICONS as readonly string[]).includes(input.icon)) errors.icon = 'Choisissez une icône de la liste.'
+
+  const p = actionError(input.primaryAction, input.primaryLabelFr)
+  if (p.action) errors.primaryAction = p.action
+  if (p.url) errors.primaryUrl = p.url
+  if (p.label) errors.primaryLabelFr = p.label
+  if (input.primaryLabelFr.trim().length > BUTTON_LABEL_SOFT_LIMIT) errors.primaryLabelFr = `${BUTTON_LABEL_SOFT_LIMIT} caractères au plus, pour tenir sur une ligne.`
+  if (input.primaryLabelEn.trim().length > BUTTON_LABEL_SOFT_LIMIT) errors.primaryLabelEn = `${BUTTON_LABEL_SOFT_LIMIT} caractères au plus, pour tenir sur une ligne.`
+
+  if (input.secondaryAction) {
+    const sec = actionError(input.secondaryAction, input.secondaryLabelFr)
+    if (sec.action) errors.secondaryAction = sec.action
+    if (sec.url) errors.secondaryUrl = sec.url
+    if (sec.label) errors.secondaryLabelFr = sec.label
+    if (input.secondaryLabelFr.trim().length > BUTTON_LABEL_SOFT_LIMIT) errors.secondaryLabelFr = `${BUTTON_LABEL_SOFT_LIMIT} caractères au plus, pour tenir sur une ligne.`
+    if (input.secondaryLabelEn.trim().length > BUTTON_LABEL_SOFT_LIMIT) errors.secondaryLabelEn = `${BUTTON_LABEL_SOFT_LIMIT} caractères au plus, pour tenir sur une ligne.`
+  }
+
+  validateSchedule(input, errors)
   return errors
 }
 

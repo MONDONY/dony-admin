@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import NewVersionDialog from '@/features/video-modals/components/NewVersionDialog.vue'
-import { modal } from './fixtures'
+import { infoModal, modal } from './fixtures'
 
 const mounted: VueWrapper[] = []
 function mountDialog(props: Record<string, unknown> = {}) {
@@ -67,5 +67,12 @@ describe('NewVersionDialog', () => {
   it('campagne sans version connue : version 1 proposée', () => {
     const w = mountDialog({ modal: { ...modal(), version: undefined } })
     expect(w.get('[data-test="vm-version-confirm"]').text()).toBe('Publier la version 1')
+  })
+
+  it('Information : pas de champ lien YouTube, corps sans lien', async () => {
+    const w = mountDialog({ modal: infoModal() })
+    expect(w.find('[data-test="vm-version-url"]').exists()).toBe(false)
+    await w.get('[data-test="vm-version-confirm"]').trigger('click')
+    expect(w.emitted('confirm')![0]).toEqual([{ audience: 'NEVER_ANSWERED' }])
   })
 })

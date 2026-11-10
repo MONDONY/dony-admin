@@ -3,7 +3,7 @@ import {
   defaultFormState, formStateFromModal, inputFromFormState, isoToLocalInput, localInputToIso, localized,
 } from '@/features/video-modals/lib/form'
 import type { AdminVideoModal } from '@/features/video-modals/types/index'
-import { modal } from './fixtures'
+import { infoModal, modal } from './fixtures'
 
 describe('dates', () => {
   it('aller-retour ISO / champ local', () => {
@@ -33,7 +33,7 @@ describe('état du formulaire', () => {
     const m = modal({ startsAt: '2026-11-10T10:00:00.000Z', endsAt: '2026-12-01T00:00:00.000Z' })
     const body = inputFromFormState(formStateFromModal(m))
     expect(body).toEqual({
-      name: m.name, youtubeUrl: m.youtubeUrl, durationSeconds: 204,
+      type: 'VIDEO', name: m.name, youtubeUrl: m.youtubeUrl, durationSeconds: 204,
       titleFr: m.titleFr, titleEn: m.titleEn, subtitleFr: m.subtitleFr, subtitleEn: m.subtitleEn,
       primaryLabelFr: m.primaryLabelFr, primaryLabelEn: m.primaryLabelEn,
       secondaryLabelFr: m.secondaryLabelFr, secondaryLabelEn: m.secondaryLabelEn,
@@ -73,5 +73,52 @@ describe('localized', () => {
     expect(localized('Bonjour', 'Hello', 'en')).toBe('Hello')
     expect(localized('Bonjour', '  ', 'en')).toBe('Bonjour')
     expect(localized('Bonjour', 'Hello', 'fr')).toBe('Bonjour')
+  })
+})
+
+describe('modal Information : état et corps d’API', () => {
+  it('défauts INFO : icône INFO, libellés OK, action Fermer, pas de secondaire', () => {
+    const s = defaultFormState(['SEARCH_TAB'], 'INFO')
+    expect(s.type).toBe('INFO')
+    expect(s.icon).toBe('INFO')
+    expect(s.primaryLabelFr).toBe('OK')
+    expect(s.primaryAction).toEqual({ kind: 'CLOSE', screen: null, url: null })
+    expect(s.secondaryEnabled).toBe(false)
+  })
+
+  it('corps INFO : ni lien, ni durée, ni points forts ; secondaire absent = null', () => {
+    const body = inputFromFormState(formStateFromModal(infoModal()))
+    expect(body).toMatchObject({
+      type: 'INFO', youtubeUrl: null, durationSeconds: null, highlights: [], icon: 'BELL',
+      bodyFr: 'Découvrez le suivi en direct.', primaryAction: { kind: 'SCREEN', screen: 'TRACKING', url: null },
+      secondaryAction: null, secondaryLabelFr: '', secondaryLabelEn: '',
+    })
+  })
+
+  it('corps INFO avec secondaire URL : lien rogné, écran ignoré', () => {
+    const m = infoModal({
+      secondaryAction: { kind: 'URL', screen: 'HELP', url: '  https://yadony.com/aide ' },
+      secondaryLabelFr: 'En savoir plus', secondaryLabelEn: 'Learn more',
+    })
+    const state = formStateFromModal(m)
+    expect(state.secondaryEnabled).toBe(true)
+    const body = inputFromFormState(state)
+    expect(body.secondaryAction).toEqual({ kind: 'URL', screen: null, url: 'https://yadony.com/aide' })
+    expect(body.secondaryLabelFr).toBe('En savoir plus')
+  })
+
+  it('une action SCREEN n’envoie pas de lien', () => {
+    const s = formStateFromModal(infoModal())
+    s.primaryAction = { kind: 'SCREEN', screen: 'HELP', url: 'https://x.fr' }
+    expect(inputFromFormState(s).primaryAction).toEqual({ kind: 'SCREEN', screen: 'HELP', url: null })
+  })
+
+  it('campagne sans type (ancien back) = vidéo ; le corps vidéo porte type VIDEO sans champ Information', () => {
+    const s = formStateFromModal(modal())
+    expect(s.type).toBe('VIDEO')
+    const body = inputFromFormState(s)
+    expect(body.type).toBe('VIDEO')
+    expect(body).not.toHaveProperty('bodyFr')
+    expect(body).not.toHaveProperty('primaryAction')
   })
 })

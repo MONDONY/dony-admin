@@ -33,7 +33,7 @@ describe('useVideoModals', () => {
       expect(vm.error.value).toBe('Service indisponible')
       svc.list.mockRejectedValueOnce({})
       await vm.fetchAll()
-      expect(vm.error.value).toBe('Impossible de charger les modals vidéo')
+      expect(vm.error.value).toBe('Impossible de charger les modals')
     })
   })
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import VideoModalTable from '@/features/video-modals/components/VideoModalTable.vue'
 import type { VideoModalTrigger } from '@/features/video-modals/types/index'
-import { modal } from './fixtures'
+import { infoModal, modal } from './fixtures'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
 const mountTable = (items = [modal()], busy = false) =>
@@ -53,5 +53,20 @@ describe('VideoModalTable', () => {
     expect(w.get('[data-test="vm-switch"]').attributes('disabled')).toBeDefined()
     expect(w.get(`[data-test="vm-remove-${modal().id}"]`).attributes('disabled')).toBeDefined()
     expect(w.get('[data-test="vm-switch"]').attributes('aria-label')).toBe(`Activer ${modal().name}`)
+  })
+
+  it('colonne Type : Vidéo par défaut (ancien back), Information pour INFO', () => {
+    const { type: _t, ...legacy } = modal()
+    const w = mountTable([legacy as never, infoModal()])
+    expect(w.text()).toContain('Type')
+    expect(w.get(`[data-test="vm-type-${modal().id}"]`).text()).toBe('Vidéo')
+    expect(w.get(`[data-test="vm-type-${infoModal().id}"]`).text()).toBe('Information')
+  })
+
+  it('résultats Information : « bouton touché », sans « vue en entier »', () => {
+    const row = mountTable([infoModal()]).get(`[data-test="vm-row-${infoModal().id}"]`)
+    expect(row.text()).toContain('bouton touché')
+    expect(row.text()).not.toContain('vue en entier')
+    expect(row.text()).not.toContain('vidéo ouverte')
   })
 })

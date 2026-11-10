@@ -11,8 +11,8 @@ import type { AdminVideoModal, NewVersionInput } from '@/features/video-modals/t
 definePageMeta({
   middleware: 'admin-only',
   permission: 'NOTIFICATION_SEND',
-  pageTitle: 'Modals vidéo',
-  pageSubtitle: 'Vidéos présentées dans l’app, avec leurs déclencheurs et leurs versions',
+  pageTitle: 'Modals',
+  pageSubtitle: 'Vidéos et messages présentés dans l’app, avec leurs déclencheurs et leurs versions',
 })
 
 const { items, loading, busy, error, fetchAll, publishVersion, setActive, remove } = useVideoModals()
@@ -41,7 +41,7 @@ onMounted(fetchAll)
   <div>
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <p class="max-w-2xl text-sm text-text-muted text-pretty">
-        Une campagne = un modal vidéo, avec ses déclencheurs et ses versions. Plusieurs peuvent être actives ;
+        Une campagne = un modal (vidéo ou information), avec ses déclencheurs et ses versions. Plusieurs peuvent être actives ;
         l’app n’en ouvre qu’une par session, la version publiée le plus récemment d’abord.
       </p>
       <NuxtLink
@@ -61,7 +61,7 @@ onMounted(fetchAll)
     />
     <StateBlock
       v-else :loading="loading" :error="error" :empty="!loading && !error"
-      empty-label="Aucun modal vidéo pour le moment." hint="Tant qu’aucune campagne n’est active, l’app n’affiche rien."
+      empty-label="Aucun modal pour le moment." hint="Tant qu’aucune campagne n’est active, l’app n’affiche rien."
       empty-test="vm-empty" @retry="fetchAll"
     />
 
@@ -71,7 +71,7 @@ onMounted(fetchAll)
     />
     <ConfirmActionDialog
       :open="removeTarget !== null"
-      title="Supprimer le modal vidéo"
+      title="Supprimer le modal"
       :message="`« ${removeTarget?.name ?? ''} » ne sera plus affiché dans l’app. Ses résultats restent dans l’historique.`"
       confirm-label="Supprimer"
       @confirm="onRemove" @cancel="removeTarget = null"
