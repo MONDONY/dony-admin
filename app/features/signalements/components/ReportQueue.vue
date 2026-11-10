@@ -5,7 +5,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportKind, reportKindLabel } from '@/features/signalements/reportKind'
 import { reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
-import { reportReasonTitle, reportTargetLabel } from '@/features/signalements/reportDisplay'
+import { reportedByText, reportReasonTitle, reportTargetLabel } from '@/features/signalements/reportDisplay'
 import { isOpenReport, reportAge } from '@/features/signalements/reportWorkbench'
 import type { AdminReport } from '@/features/signalements/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -83,7 +83,7 @@ function age(r: AdminReport) {
             <StatusBadge v-else :label="reportTargetTypeLabel(r.targetType)" />
             <span class="truncate">{{ reportReasonTitle(r) }}</span>
           </span>
-          <span class="mt-1 block truncate text-xs text-text-muted">Signalé par {{ r.reporterName ?? 'Inconnu' }}</span>
+          <span class="mt-1 block truncate text-xs text-text-muted" :data-test="`report-reporter-${r.id}`">{{ reportedByText(r) }}</span>
         </button>
       </li>
     </ul>

@@ -8,7 +8,7 @@ import ReportRelatedList from './ReportRelatedList.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportDescriptionText, reportKind, reportKindLabel } from '@/features/signalements/reportKind'
 import { reportActionTakenLabel, reportTargetTypeLabel } from '@/features/signalements/reportActionLabels'
-import { reportReasonTitle, reportTargetLabel } from '@/features/signalements/reportDisplay'
+import { isSystemReport, reportReasonTitle, reportTargetLabel, SYSTEM_REPORTER_LABEL } from '@/features/signalements/reportDisplay'
 import { canReplyToReport, hasSupportConversation, supportConversationLink } from '@/features/signalements/reportReply'
 import {
   accountStatusMeta,
@@ -71,6 +71,12 @@ const deletedInfo = computed(() => {
 })
 const description = computed(() => (props.report ? reportDescriptionText(props.report) : null))
 const kind = computed(() => (props.report ? reportKind(props.report) : null))
+/** Signalement créé par le back : aucun signalant, donc ni lien vers un profil ni fiche de confiance. */
+const isSystem = computed(() => !!props.report && isSystemReport(props.report))
+/** « Ce qu’a écrit Awa » ; le texte d'un signalement du système vient de la détection automatique. */
+const descriptionHeading = computed(() => (
+  isSystem.value ? SYSTEM_REPORTER_LABEL : `Ce qu’a écrit ${props.report?.reporterName ?? 'le signalant'}`
+))
 
 // ---- Contexte ----
 const reporter = computed(() => props.context?.reporter ?? null)
@@ -121,7 +127,7 @@ const sameScreenInfo = computed(() => (sameScreen.value ? sameScreenSummary(same
           v-if="description" data-test="case-description"
           class="m-0 rounded-btn bg-surface-elevated px-4 py-3 text-sm text-pretty"
         >
-          <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-muted">Ce qu’a écrit {{ report.reporterName ?? 'le signalant' }}</span>
+          <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-muted" data-test="case-description-heading">{{ descriptionHeading }}</span>
           {{ description }}
         </blockquote>
 
@@ -217,14 +223,15 @@ const sameScreenInfo = computed(() => (sameScreen.value ? sameScreenSummary(same
 
         <section class="rounded-card border border-border bg-surface p-5" aria-label="Signalant">
           <p class="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">Signalant</p>
-          <p class="text-sm font-semibold">
+          <p class="text-sm font-semibold" data-test="case-reporter-name">
+            <template v-if="isSystem">{{ SYSTEM_REPORTER_LABEL }}</template>
             <NuxtLink
-              v-if="reporter && accountLink(reporter.userId)" :to="accountLink(reporter.userId)!" data-test="case-reporter-link"
+              v-else-if="reporter && accountLink(reporter.userId)" :to="accountLink(reporter.userId)!" data-test="case-reporter-link"
               class="text-primary underline-offset-2 hover:underline"
             >{{ report.reporterName ?? reporter.displayName ?? 'Inconnu' }}</NuxtLink>
             <template v-else>{{ report.reporterName ?? 'Inconnu' }}</template>
           </p>
-          <div v-if="reporter && trust" data-test="case-reporter" class="mt-1.5">
+          <div v-if="!isSystem && reporter && trust" data-test="case-reporter" class="mt-1.5">
             <StatusBadge data-test="case-reporter-trust" :label="trust.label" :tone="trust.tone" />
             <ul class="mt-2 space-y-0.5 text-xs text-text-muted">
               <li v-if="memberSinceLabel(reporter.memberSince)">{{ memberSinceLabel(reporter.memberSince) }}</li>

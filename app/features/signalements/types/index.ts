@@ -7,6 +7,12 @@ export type ReportStatusFilter = 'ALL' | ReportStatus
 export type ReportKind = 'BUG' | 'AVIS' | 'SUGGESTION'
 export type ReportTargetType = 'USER' | 'ANNOUNCEMENT' | 'BID' | 'MESSAGE' | 'RATING' | 'APP' | 'PACKAGE_REQUEST'
 /**
+ * Origine d'un signalement : un utilisateur, ou le back lui-même (détection automatique, par
+ * exemple une description de colis qui évoque l'envoi d'argent), sans signalant derrière.
+ * Absent sur un ancien back : signalement d'un utilisateur.
+ */
+export type ReportSource = 'USER' | 'SYSTEM'
+/**
  * Miroir de `com.yadony.api.signalements.ReportAction`. RESOLVE (« Marquer comme traité »)
  * s'applique à tout type de cible ; les actions *_AUTHOR visent l'auteur d'un message, d'un
  * avis ou d'une candidature (`targetAuthor`).
@@ -50,6 +56,8 @@ export interface AdminReport {
   reason: string
   description: string | null
   reporterName: string | null
+  /** `SYSTEM` : détection automatique, sans signalant. Absent sur un ancien back (= `USER`). */
+  source?: ReportSource
   status: ReportStatus
   /** Action prise ; une chaîne inconnue (back plus récent) s'affiche telle quelle. */
   actionTaken: ReportAction | string | null
@@ -137,6 +145,8 @@ export interface RelatedReport {
   status?: string | null
   createdAt?: string | null
   reporterName?: string | null
+  /** `SYSTEM` : détection automatique, sans signalant. Absent sur un ancien back (= `USER`). */
+  source?: ReportSource
 }
 
 /** Une ligne de la fiche de la cible, déjà mise en forme par le back (« Prix » : « 8,5 EUR / kg »). */

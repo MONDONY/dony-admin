@@ -54,6 +54,34 @@ describe('ReportQueue', () => {
     expect(w.find('[data-test="report-row-r1"]').text()).not.toContain('—')
   })
 
+  describe('origine du signalement (source)', () => {
+    const reporterLine = (r: AdminReport) => mountQueue([r]).find('[data-test="report-reporter-r1"]').text()
+
+    it('SYSTEM : « Détection automatique » à la place de « Signalé par Inconnu »', () => {
+      const line = reporterLine({ ...report, targetType: 'PACKAGE_REQUEST', reason: 'PROHIBITED_ITEM', reporterName: null, source: 'SYSTEM' })
+      expect(line).toBe('Détection automatique')
+      expect(line).not.toContain('Inconnu')
+    })
+
+    it('USER : « Signalé par » le nom, ou « Inconnu » sans nom', () => {
+      expect(reporterLine({ ...report, source: 'USER' })).toBe('Signalé par Awa')
+      expect(reporterLine({ ...report, reporterName: null, source: 'USER' })).toBe('Signalé par Inconnu')
+    })
+
+    it('source absente (ancien back) : comportement d’avant', () => {
+      expect(reporterLine(report)).toBe('Signalé par Awa')
+      expect(reporterLine({ ...report, reporterName: null })).toBe('Signalé par Inconnu')
+    })
+
+    it('le motif et le type de cible restent ceux du signalement', () => {
+      const w = mountQueue([{ ...report, targetType: 'PACKAGE_REQUEST', reason: 'PROHIBITED_ITEM', reporterName: null, source: 'SYSTEM' }])
+      const row = w.find('[data-test="report-row-r1"]').text()
+      expect(row).toContain('Demande d\'envoi')
+      expect(row).toContain('Objet interdit au transport')
+      expect(row).not.toContain('PROHIBITED_ITEM')
+    })
+  })
+
   describe('âge et urgence d’un signalement ouvert', () => {
     const at = (hours: number) => ({ ...report, createdAt: new Date(NOW - hours * H).toISOString() })
 

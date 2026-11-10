@@ -6,6 +6,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import PhotoViewer from '@/components/ui/PhotoViewer.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
+import { reportedByText } from '@/features/signalements/reportDisplay'
 import { PACKAGE_REQUEST_REMOVAL_REASONS } from '@/features/bids/removalReasons'
 import {
   dateToleranceLabel, isActiveShipmentBlock, negotiationStatusMeta, reportStatusLabelMeta, packageRequestStatusMeta, parcelSizeLabel,
@@ -185,7 +186,7 @@ function money(amount: number | null, currency: string | null) {
               </span>
             </div>
             <p v-if="r.details" class="mt-1 text-text-muted text-pretty">{{ r.details }}</p>
-            <p class="mt-1 text-xs text-text-muted">Signalé par {{ r.reporterName ?? 'un utilisateur inconnu' }}</p>
+            <p class="mt-1 text-xs text-text-muted" :data-test="`pr-report-reporter-${r.id}`">{{ reportedByText(r, 'un utilisateur inconnu') }}</p>
           </li>
         </ul>
         <p v-else class="text-sm text-text-muted">Aucun signalement</p>

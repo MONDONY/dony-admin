@@ -110,6 +110,13 @@ describe('buildTimeline', () => {
     ])
     expect(buildTimeline(report, null)).toHaveLength(1)
   })
+
+  it('source : SYSTEM reçu de la « Détection automatique », USER et source absente par le signalant', () => {
+    expect(buildTimeline({ ...report, reporterName: null, source: 'SYSTEM' }, [])[0]!.by).toBe('Détection automatique')
+    expect(buildTimeline({ ...report, source: 'USER' }, [])[0]!.by).toBe('par Awa Diallo')
+    expect(buildTimeline({ ...report, reporterName: null, source: 'USER' }, [])[0]!.by).toBeNull()
+    expect(buildTimeline(report, [])[0]!.by).toBe('par Awa Diallo')
+  })
 })
 
 describe('fiche de la cible', () => {

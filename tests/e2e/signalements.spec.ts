@@ -121,6 +121,31 @@ test('filtering by target type sends targetType to the API', async ({ page }) =>
   await expect.poll(() => capturedUrl).toContain('targetType=ANNOUNCEMENT')
 })
 
+test('un signalement de la détection automatique se lit « Détection automatique », jamais « Inconnu »', async ({ page }) => {
+  const systemReport = {
+    ...REPORTS_PAGE.content[0], id: 'r2', targetType: 'PACKAGE_REQUEST', targetId: 'pr1', targetLabel: 'Paris → Dakar',
+    reason: 'PROHIBITED_ITEM', description: 'Détection automatique : mot « cash » dans la description du colis.',
+    reporterName: null, source: 'SYSTEM',
+  }
+  // r1 sans nom ni `source` : le contrat d'un ancien back, qui garde « Inconnu ».
+  const anonymousReport = { ...REPORTS_PAGE.content[0], reporterName: null }
+  await page.route('**/api/v1/admin/reports**', (route) => {
+    if (route.request().url().includes('/context')) {
+      return route.fulfill({ json: { messagesRestricted: false, history: [], relatedReports: [] } })
+    }
+    return route.fulfill({ json: { ...REPORTS_PAGE, content: [systemReport, anonymousReport], totalElements: 2 } })
+  })
+  await page.goto('/signalements')
+  await expect(page.locator('[data-test="report-reporter-r2"]')).toHaveText('Détection automatique')
+  await expect(page.locator('[data-test="report-reporter-r1"]')).toHaveText('Signalé par Inconnu')
+  await expect(page.locator('[data-test="report-row-r2"]')).toContainText('Objet interdit au transport')
+
+  await page.locator('[data-test="report-open-r2"]').click()
+  await expect(page.locator('[data-test="case-reporter-name"]')).toHaveText('Détection automatique')
+  await expect(page.locator('[data-test="case-description-heading"]')).toHaveText('Détection automatique')
+  await expect(page.locator('[data-test="case-reporter-link"]')).toHaveCount(0)
+})
+
 test('resolving a USER report offers Suspendre la cible but not Retirer le contenu', async ({ page }) => {
   await page.goto('/signalements')
   await expect(page.locator('[data-test="resolve-action-label"]').first()).toBeVisible()
