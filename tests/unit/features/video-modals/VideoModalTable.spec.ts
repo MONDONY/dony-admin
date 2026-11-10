@@ -1,0 +1,57 @@
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import VideoModalTable from '@/features/video-modals/components/VideoModalTable.vue'
+import type { VideoModalTrigger } from '@/features/video-modals/types/index'
+import { modal } from './fixtures'
+
+const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
+const mountTable = (items = [modal()], busy = false) =>
+  mount(VideoModalTable, { props: { items, busy }, global: { stubs: { NuxtLink } } })
+
+describe('VideoModalTable', () => {
+  it('nom, déclencheurs, version, public et résultats', () => {
+    const m = modal({ triggers: ['SEARCH_TAB', 'PUBLISH_TRIP'], version: 2, audience: 'EVERYONE' })
+    const row = mountTable([m]).get(`[data-test="vm-row-${m.id}"]`)
+    expect(row.text()).toContain('Vidéo d’accueil')
+    expect(row.text()).toContain('Rechercher')
+    expect(row.text()).toContain('Publier un trajet')
+    expect(row.text()).toContain('v2')
+    expect(row.text()).toContain('Tout le monde')
+    expect(row.text()).toContain('612')
+    expect(row.text()).toContain('vue en entier')
+    expect(row.get('a').attributes('href')).toBe(`/modals-video/${m.id}`)
+  })
+
+  it('valeurs absentes ou inconnues : replis lisibles', () => {
+    const m = modal({
+      name: '', versionPublishedAt: null, stats: null,
+      triggers: ['FUTURE_TAB' as VideoModalTrigger], audience: 'SEGMENT' as never,
+    })
+    const text = mountTable([m]).text()
+    expect(text).toContain('Bienvenue sur Yadony')
+    expect(text).toContain('FUTURE_TAB')
+    expect(text).toContain('SEGMENT')
+    expect(text).toContain('0 affichés')
+    const noTriggers = mountTable([{ ...modal(), triggers: undefined as never }])
+    expect(noTriggers.text()).toContain('v1')
+  })
+
+  it('interrupteur, nouvelle version et suppression émettent la campagne', async () => {
+    const m = modal({ active: true })
+    const w = mountTable([m])
+    await w.get('[data-test="vm-switch"]').trigger('click')
+    expect(w.emitted('toggle-active')![0]).toEqual([m, false])
+    await w.get(`[data-test="vm-version-${m.id}"]`).trigger('click')
+    expect(w.emitted('new-version')![0]).toEqual([m])
+    await w.get(`[data-test="vm-remove-${m.id}"]`).trigger('click')
+    expect(w.emitted('remove')![0]).toEqual([m])
+    expect(w.get('[data-test="vm-switch"]').attributes('aria-label')).toBe(`Désactiver ${m.name}`)
+  })
+
+  it('occupé : actions bloquées', () => {
+    const w = mountTable([modal()], true)
+    expect(w.get('[data-test="vm-switch"]').attributes('disabled')).toBeDefined()
+    expect(w.get(`[data-test="vm-remove-${modal().id}"]`).attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="vm-switch"]').attributes('aria-label')).toBe(`Activer ${modal().name}`)
+  })
+})

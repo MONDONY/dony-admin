@@ -31,6 +31,7 @@ const FORBIDDEN_TO_SUPPORT = [
   ['Audit', 'AUDIT_VIEW'],
   ['Exports', 'EXPORT_RUN'],
   ['Communications', 'NOTIFICATION_SEND'],
+  ['Modals vidéo', 'NOTIFICATION_SEND'],
   ['Paramètres', 'CONFIG_MANAGE'],
   ['Tarification', 'CONFIG_MANAGE'],
   ['Demandes RGPD', 'USER_GDPR_DELETE'],

@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
   Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, Megaphone, Settings,
   LifeBuoy, IdCard, Coins, Sparkles, BadgeCheck, Percent,
-  UsersRound, Wallet, Activity, MessagesSquare, SlidersHorizontal,
+  UsersRound, Wallet, Activity, MessagesSquare, SlidersHorizontal, Clapperboard,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import type { AdminPermission } from '@/stores/auth'
@@ -84,6 +84,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { to: '/moderation', label: 'Modération', permission: 'MODERATION_VIEW', icon: MessageSquare, shortcut: 'm' },
       { to: '/assistant', label: 'Assistant IA', permission: 'ASSISTANT_MANAGE', icon: Sparkles },
       { to: '/communications', label: 'Communications', permission: 'NOTIFICATION_SEND', icon: Megaphone },
+      { to: '/modals-video', label: 'Modals vidéo', permission: 'NOTIFICATION_SEND', icon: Clapperboard },
     ],
   },
   {
