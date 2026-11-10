@@ -2,6 +2,7 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { reportStatusMeta } from './reportStatus'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
+import { reporterLabel } from '@/features/signalements/reportDisplay'
 import type { RelatedReport } from '@/features/signalements/types/index'
 
 /** Signalements voisins (même cible, ou même écran) : un clic ouvre le dossier. */
@@ -25,7 +26,7 @@ function when(iso?: string | null): string {
       >
         <span class="min-w-0">
           <span class="block truncate font-medium">{{ o.reason ? reportReasonLabel(o.reason) : 'Motif inconnu' }}</span>
-          <span class="block truncate text-xs text-text-muted">{{ o.reporterName ?? 'Signalant inconnu' }} · {{ when(o.createdAt) }}</span>
+          <span class="block truncate text-xs text-text-muted">{{ reporterLabel(o, 'Signalant inconnu') }} · {{ when(o.createdAt) }}</span>
         </span>
         <StatusBadge v-if="o.status" v-bind="reportStatusMeta(o.status as 'OPEN' | 'RESOLVED' | 'DISMISSED')" />
       </button>

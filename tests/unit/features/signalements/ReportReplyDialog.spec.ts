@@ -69,6 +69,15 @@ describe('ReportReplyDialog', () => {
     expect(recap.find('[data-test^="reply-recap-photo-"]').exists()).toBe(false)
   })
 
+  it('rappel : « Détection automatique » pour SYSTEM, le nom pour USER ou source absente', () => {
+    const recap = (r: AdminReport) => mountDialog(r).find('[data-test="reply-recap"]').text()
+    const system = recap({ ...bug, reporterName: null, source: 'SYSTEM' })
+    expect(system).toContain('Détection automatique')
+    expect(system).not.toContain('Inconnu')
+    expect(recap({ ...bug, source: 'USER' })).toContain('Awa Diallo')
+    expect(recap(bug)).toContain('Awa Diallo')
+  })
+
   it('Envoyer désactivé sans texte, puis actif ; compteur et dépassement', async () => {
     const w = mountDialog()
     const submit = w.find('[data-test="reply-submit"]')

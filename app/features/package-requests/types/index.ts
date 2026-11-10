@@ -4,6 +4,8 @@
  * `feature/admin-moderation-demandes`). Les statuts et codes restent des `string` côté
  * données : un statut ajouté côté back avant le front s'affiche tel quel au lieu de casser.
  */
+import type { ReportSource } from '@/features/signalements/types/index'
+
 export const PACKAGE_REQUEST_STATUSES = [
   'DRAFT', 'OPEN', 'NEGOTIATING', 'ACCEPTED', 'EXPIRED', 'CANCELLED', 'COMPLETED', 'REMOVED_BY_ADMIN',
 ] as const
@@ -43,8 +45,11 @@ export interface AdminPackageRequestNegotiation {
 
 export interface AdminPackageRequestReport {
   id: string
-  reporterId: string
+  /** Null pour un signalement de la détection automatique (`source` SYSTEM). */
+  reporterId: string | null
   reporterName: string | null
+  /** `SYSTEM` : détection automatique, sans signalant. Absent sur un ancien back (= `USER`). */
+  source?: ReportSource
   reason: string
   details: string | null
   /** Statut du signalement dans /admin/reports (OPEN, RESOLVED, DISMISSED). */

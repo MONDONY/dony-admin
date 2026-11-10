@@ -84,6 +84,34 @@ describe('PackageRequestDetailPanel', () => {
     expect(w.find('[data-test="pr-report-r2"]').text()).toContain('Informations fausses ou trompeuses')
   })
 
+  describe('origine de chaque signalement (source)', () => {
+    const base = { id: 'r3', reporterId: null, reporterName: null, reason: 'PROHIBITED_ITEM', details: 'Détection automatique : mot « cash » dans la description du colis.', status: 'OPEN', createdAt: '2026-11-10T09:00:00Z' }
+    const reporterLine = (report: Record<string, unknown>) =>
+      mountPanel({ request: detail({ reports: [report] }) }).find('[data-test="pr-report-reporter-r3"]').text()
+
+    it('SYSTEM : « Détection automatique » à la place de « Signalé par un utilisateur inconnu »', () => {
+      const line = reporterLine({ ...base, source: 'SYSTEM' })
+      expect(line).toBe('Détection automatique')
+      expect(line).not.toContain('inconnu')
+    })
+
+    it('SYSTEM : motif et statut inchangés', () => {
+      const w = mountPanel({ request: detail({ reports: [{ ...base, source: 'SYSTEM' }] }) })
+      expect(w.find('[data-test="pr-report-r3"]').text()).toContain('Objet interdit au transport')
+      expect(w.find('[data-test="pr-report-status-r3"]').text()).toBe('Ouvert')
+    })
+
+    it('USER : « Signalé par » le nom, ou un utilisateur inconnu', () => {
+      expect(reporterLine({ ...base, reporterId: 'u2', reporterName: 'Moussa', source: 'USER' })).toBe('Signalé par Moussa')
+      expect(reporterLine({ ...base, source: 'USER' })).toBe('Signalé par un utilisateur inconnu')
+    })
+
+    it('source absente (ancien back) : comportement d’avant', () => {
+      expect(reporterLine({ ...base, reporterId: 'u2', reporterName: 'Moussa' })).toBe('Signalé par Moussa')
+      expect(reporterLine(base)).toBe('Signalé par un utilisateur inconnu')
+    })
+  })
+
   it('canRemove faux pour un brouillon : explication dédiée', () => {
     const w = mountPanel({ request: detail({ status: 'DRAFT', canRemove: false, removeBlockedReason: 'package-request-draft' }) })
     expect(w.find('[data-test="pr-remove-blocked"]').text()).toContain('brouillon')

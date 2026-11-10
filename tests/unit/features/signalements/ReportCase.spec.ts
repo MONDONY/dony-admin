@@ -42,6 +42,51 @@ describe('ReportCase', () => {
       expect(w.text()).not.toContain('—')
     })
 
+    describe('origine du signalement (source)', () => {
+      const system: AdminReport = {
+        ...report, targetType: 'PACKAGE_REQUEST', targetId: 'pr1', targetLabel: 'Paris → Dakar', reason: 'PROHIBITED_ITEM',
+        description: 'Détection automatique : mot « cash » dans la description du colis.', reporterName: null, source: 'SYSTEM',
+      }
+
+      it('SYSTEM : le signalant est « Détection automatique », jamais « Inconnu »', () => {
+        const w = mountCase(system)
+        expect(w.find('[data-test="case-reporter-name"]').text()).toBe('Détection automatique')
+        expect(w.find('[data-test="case-description-heading"]').text()).toBe('Détection automatique')
+        expect(w.text()).not.toContain('Inconnu')
+        expect(w.text()).not.toContain('le signalant')
+      })
+
+      it('SYSTEM : ni lien vers un profil ni fiche de confiance, même si le contexte rendait un compte', () => {
+        const reporter = { userId: '11111111-1111-4111-8111-111111111111', displayName: 'Awa', totalReports: 4, resolvedReports: 3, dismissedReports: 1 }
+        const w = mountCase(system, { context: { messagesRestricted: false, history: [], relatedReports: [], reporter } })
+        expect(w.find('[data-test="case-reporter-link"]').exists()).toBe(false)
+        expect(w.find('[data-test="case-reporter"]').exists()).toBe(false)
+        expect(w.find('[data-test="case-reporter-name"]').text()).toBe('Détection automatique')
+      })
+
+      it('SYSTEM : motif, statut et cible inchangés', () => {
+        const w = mountCase(system)
+        expect(w.text()).toContain('Objet interdit au transport')
+        expect(w.text()).toContain('Ouvert')
+        expect(w.text()).toContain('Paris → Dakar')
+        expect(w.find('[data-test="report-open-request-r1"]').exists()).toBe(true)
+      })
+
+      it('USER : le nom du signalant et « Ce qu’a écrit … »', () => {
+        const w = mountCase({ ...report, source: 'USER' })
+        expect(w.find('[data-test="case-reporter-name"]').text()).toBe('Awa')
+        expect(w.find('[data-test="case-description-heading"]').text()).toBe('Ce qu’a écrit Awa')
+        expect(mountCase({ ...report, reporterName: null, source: 'USER' }).find('[data-test="case-reporter-name"]').text()).toBe('Inconnu')
+      })
+
+      it('source absente (ancien back) : comportement d’avant', () => {
+        expect(mountCase(report).find('[data-test="case-description-heading"]').text()).toBe('Ce qu’a écrit Awa')
+        const anonymous = mountCase({ ...report, reporterName: null })
+        expect(anonymous.find('[data-test="case-reporter-name"]').text()).toBe('Inconnu')
+        expect(anonymous.find('[data-test="case-description-heading"]').text()).toBe('Ce qu’a écrit le signalant')
+      })
+    })
+
     it('numéro court du signalement et statut', () => {
       const w = mountCase({ ...report, id: 'abcdef1234567890' })
       expect(w.text()).toContain('n° abcdef12')
@@ -434,6 +479,20 @@ describe('ReportCase', () => {
         expect(second.text()).toContain('Signalant inconnu')
       })
 
+      it('signalement voisin du système : « Détection automatique » ; USER inchangé', () => {
+        const w = mountWith(report, ctx({
+          relatedReports: [
+            { id: 'o3', reason: 'PROHIBITED_ITEM', status: 'OPEN', createdAt: null, reporterName: null, source: 'SYSTEM' },
+            { id: 'o4', reason: 'SCAM_ATTEMPT', status: 'OPEN', createdAt: null, reporterName: null, source: 'USER' },
+          ],
+        }))
+        const system = w.find('[data-test="related-o3"]').text()
+        expect(system).toContain('Détection automatique')
+        expect(system).not.toContain('Signalant inconnu')
+        expect(system).toContain('Objet interdit au transport')
+        expect(w.find('[data-test="related-o4"]').text()).toContain('Signalant inconnu')
+      })
+
       it('aucun autre signalement : pas de section', () => {
         expect(mountWith(report, ctx()).find('[data-test="case-related"]').exists()).toBe(false)
       })
@@ -453,6 +512,12 @@ describe('ReportCase', () => {
         expect(items[1]!.text()).toContain('Premier avertissement')
         // La chronologie porte l'issue : pas de doublon.
         expect(w.find('[data-test="report-action-taken-r1"]').exists()).toBe(false)
+      })
+
+      it('signalement du système : reçu de la « Détection automatique »', () => {
+        const w = mountWith({ ...report, reporterName: null, source: 'SYSTEM' }, ctx())
+        expect(w.find('[data-test="timeline-0"]').text()).toContain('Signalement reçu')
+        expect(w.find('[data-test="timeline-0"]').text()).toContain('Détection automatique')
       })
 
       it('signalement supprimé : la ligne « Supprimé le … » reste, avec la restauration', () => {

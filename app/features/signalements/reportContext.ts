@@ -1,4 +1,5 @@
 import { reportActionTakenLabel } from '@/features/signalements/reportActionLabels'
+import { isSystemReport, SYSTEM_REPORTER_LABEL } from '@/features/signalements/reportDisplay'
 import type {
   AdminReport,
   ReportContextReporter,
@@ -79,14 +80,20 @@ function auditLabel(e: ReportHistoryEntry): string {
   return AUDIT_LABELS[e.action] ?? e.action
 }
 
+/** Qui a envoyé le signalement : « par Awa », la détection automatique du back, ou rien si on l'ignore. */
+function receivedBy(report: Pick<AdminReport, 'reporterName' | 'source'>): string | null {
+  if (isSystemReport(report)) return SYSTEM_REPORTER_LABEL
+  return report.reporterName ? `par ${report.reporterName}` : null
+}
+
 /**
  * Chronologie du dossier, du plus ancien au plus récent : la réception, puis chaque geste tracé
  * (le back les rend du plus récent au plus ancien).
  */
-export function buildTimeline(report: Pick<AdminReport, 'id' | 'createdAt' | 'reporterName'>, history: readonly ReportHistoryEntry[] | null | undefined): TimelineItem[] {
+export function buildTimeline(report: Pick<AdminReport, 'id' | 'createdAt' | 'reporterName' | 'source'>, history: readonly ReportHistoryEntry[] | null | undefined): TimelineItem[] {
   const received: TimelineItem = {
     key: `received-${report.id}`, label: 'Signalement reçu', at: report.createdAt,
-    by: report.reporterName ? `par ${report.reporterName}` : null, note: null,
+    by: receivedBy(report), note: null,
   }
   const steps = [...(history ?? [])].reverse().map((e, i): TimelineItem => ({
     key: `${e.action}-${i}`, label: auditLabel(e), at: e.at ?? null,

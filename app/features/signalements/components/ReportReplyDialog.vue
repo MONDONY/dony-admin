@@ -4,6 +4,7 @@ import SupportAttachmentUploader from '@/features/support/components/SupportAtta
 import { useReportReply } from '@/features/signalements/composables/useReportReply'
 import { REPORT_REPLY_MAX, hasSupportConversation, supportConversationLink } from '@/features/signalements/reportReply'
 import { reportReasonLabel } from '@/features/signalements/reportReasons'
+import { reporterLabel } from '@/features/signalements/reportDisplay'
 import type { AdminReport, ReportReplyResponse } from '@/features/signalements/types/index'
 
 /**
@@ -81,7 +82,7 @@ function onKeydown(e: KeyboardEvent) {
           class="rounded-btn bg-surface-elevated px-3 py-2.5 text-sm shadow-[inset_0_0_0_1px_rgb(0_0_0/0.06)]"
         >
           <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-text-muted">
-            <span>{{ reportReasonLabel(report.reason) }} · {{ report.reporterName ?? 'Inconnu' }}</span>
+            <span>{{ reportReasonLabel(report.reason) }} · {{ reporterLabel(report) }}</span>
             <span class="tabular-nums">{{ fmt(report.createdAt) }}</span>
           </div>
           <p
