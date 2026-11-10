@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
-import { AUDIENCE_LABELS, TRIGGER_SHORT_LABELS, TYPE_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
+import { AUDIENCE_LABELS, IMAGE_MODE_LABELS, LAYOUT_LABELS, TRIGGER_SHORT_LABELS, TYPE_LABELS, type AdminVideoModal } from '@/features/video-modals/types/index'
 
 defineProps<{ items: AdminVideoModal[]; busy?: boolean }>()
 const emit = defineEmits<{
@@ -12,6 +12,12 @@ const emit = defineEmits<{
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR') : null)
 const typeLabel = (m: AdminVideoModal) => TYPE_LABELS[m.type ?? 'VIDEO'] ?? TYPE_LABELS.VIDEO
+function formatLabel(m: AdminVideoModal) {
+  const layout = m.layout ?? 'BOTTOM_SHEET'
+  const base = LAYOUT_LABELS[layout]?.label ?? LAYOUT_LABELS.BOTTOM_SHEET.label
+  return layout !== 'FULLSCREEN' && m.sizePercent ? `${base} · ${m.sizePercent} %` : base
+}
+const imageLabel = (m: AdminVideoModal) => (m.imageMode && m.imageMode !== 'NONE' ? IMAGE_MODE_LABELS[m.imageMode]?.label ?? null : null)
 const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHORT_LABELS[t] ?? t)
 </script>
 
@@ -22,6 +28,7 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
         <tr>
           <th class="px-4 py-3 font-medium">Nom</th>
           <th class="px-4 py-3 font-medium">Type</th>
+          <th class="px-4 py-3 font-medium">Format</th>
           <th class="px-4 py-3 font-medium">Actif</th>
           <th class="px-4 py-3 font-medium">Déclencheurs</th>
           <th class="px-4 py-3 font-medium">Version</th>
@@ -40,6 +47,10 @@ const triggers = (m: AdminVideoModal) => (m.triggers ?? []).map(t => TRIGGER_SHO
               :data-test="`vm-type-${m.id}`"
               :class="['whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold', m.type === 'INFO' ? 'bg-warning/15 text-text' : 'bg-primary/10 text-primary']"
             >{{ typeLabel(m) }}</span>
+          </td>
+          <td class="px-4 py-3" :data-test="`vm-format-${m.id}`">
+            <span class="whitespace-nowrap">{{ formatLabel(m) }}</span>
+            <span v-if="imageLabel(m)" class="block text-xs text-text-muted">Image : {{ imageLabel(m) }}</span>
           </td>
           <td class="px-4 py-3">
             <ActiveSwitch

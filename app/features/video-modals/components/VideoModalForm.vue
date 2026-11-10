@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { CircleCheck, CircleAlert, ExternalLink, Plus, Trash2 } from 'lucide-vue-next'
 import ActionEditor from '@/features/video-modals/components/ActionEditor.vue'
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
+import ImageSection from '@/features/video-modals/components/ImageSection.vue'
 import InfoModalPreview from '@/features/video-modals/components/InfoModalPreview.vue'
+import LayoutPicker from '@/features/video-modals/components/LayoutPicker.vue'
 import VideoModalPreview from '@/features/video-modals/components/VideoModalPreview.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
 import { defaultFormState, formStateFromModal, inputFromFormState } from '@/features/video-modals/lib/form'
 import { BUTTON_LABEL_SOFT_LIMIT, MAX_DISPLAYS_MAX, MAX_DISPLAYS_MIN, hasErrors, validateVideoModal } from '@/features/video-modals/lib/validation'
+import { validateImageFile } from '@/features/video-modals/lib/image'
 import { extractYoutubeId, formatDuration, youtubeWatchUrl } from '@/features/video-modals/lib/youtube'
 import {
   AUDIENCE_LABELS, BODY_MAX_LENGTH, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, TRIGGER_LABELS, TYPE_LABELS, VIDEO_MODAL_TRIGGERS,
@@ -22,7 +25,10 @@ import {
 /** `type` ne sert qu'à la création : en modification, il vient de la campagne et ne change plus. */
 const props = defineProps<{ modal: AdminVideoModal | null; busy?: boolean; type?: VideoModalType }>()
 const emit = defineEmits<{
-  submit: [input: VideoModalInput, activate: boolean]
+  /** `imageFile` : fichier choisi à la création, à envoyer juste après. */
+  submit: [input: VideoModalInput, activate: boolean, imageFile: File | null]
+  'upload-image': [file: File]
+  'remove-image': []
   'toggle-active': [active: boolean]
   'new-version': []
 }>()
@@ -35,7 +41,15 @@ const lang = ref<'fr' | 'en'>('fr')
 const isEdit = computed(() => props.modal !== null)
 const isInfo = computed(() => state.type === 'INFO')
 const active = computed(() => (isEdit.value ? props.modal!.active : activateOnCreate.value))
-const errors = computed(() => validateVideoModal(inputFromFormState(state)))
+
+// Image : celle du serveur (modification) ou le fichier choisi avant la création.
+const pendingFile = ref<File | null>(null)
+const pendingUrl = ref<string | null>(null)
+const fileError = ref<string | null>(null)
+const serverImageUrl = computed(() => props.modal?.imageUrl ?? null)
+const previewImageUrl = computed(() => pendingUrl.value ?? serverImageUrl.value)
+const hasImage = computed(() => previewImageUrl.value !== null || pendingFile.value !== null)
+const errors = computed(() => validateVideoModal(inputFromFormState(state), { hasImage: hasImage.value }))
 const shown = (k: keyof typeof errors.value) => (submitted.value ? errors.value[k] : undefined)
 
 const videoId = computed(() => extractYoutubeId(state.youtubeUrl))
@@ -52,6 +66,34 @@ const secondaryErrors = computed(() => ({
 }))
 const setPrimary = (a: VideoModalAction) => { state.primaryAction = a }
 const setSecondary = (a: VideoModalAction) => { state.secondaryAction = a }
+
+function revokePending() {
+  if (pendingUrl.value && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(pendingUrl.value)
+  pendingUrl.value = null
+  pendingFile.value = null
+}
+async function onPickImage(file: File) {
+  fileError.value = await validateImageFile(file)
+  if (fileError.value) return
+  if (isEdit.value) {
+    emit('upload-image', file)
+    return
+  }
+  revokePending()
+  pendingFile.value = file
+  pendingUrl.value = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : null
+}
+function onRemoveImage() {
+  fileError.value = null
+  if (pendingFile.value) revokePending()
+  else emit('remove-image')
+  if (!isEdit.value || !serverImageUrl.value) state.imageMode = 'NONE'
+}
+// Le back repasse le mode à « Aucune » quand l'image requise disparaît : la saisie suit.
+watch(serverImageUrl, (url) => {
+  if (!url && state.imageMode !== 'NONE') state.imageMode = 'NONE'
+})
+onBeforeUnmount(revokePending)
 
 const longLabel = (s: string) => s.trim().length > BUTTON_LABEL_SOFT_LIMIT
 
@@ -79,7 +121,7 @@ function removeHighlight(i: number) {
 function onSubmit() {
   submitted.value = true
   if (props.busy || hasErrors(errors.value)) return
-  emit('submit', inputFromFormState(state), !isEdit.value && activateOnCreate.value)
+  emit('submit', inputFromFormState(state), !isEdit.value && activateOnCreate.value, pendingFile.value)
 }
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : null)
@@ -109,6 +151,15 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         <input v-model="state.name" data-test="vm-name" type="text" :class="inputClass" placeholder="Vidéo d’accueil">
         <span v-if="shown('name')" :class="errClass">{{ shown('name') }}</span>
       </label>
+
+      <!-- Format et taille -->
+      <LayoutPicker
+        v-model:layout="state.layout" v-model:size-percent="state.sizePercent"
+        :error="shown('layout')" :size-error="shown('sizePercent')"
+      />
+      <p data-test="vm-compat-note" class="-mt-3 rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-text text-pretty">
+        Les nouveaux formats et images ne s’affichent que sur la version récente de l’application ; les anciennes versions ne reçoivent pas ces modals.
+      </p>
 
       <!-- Déclencheurs -->
       <fieldset>
@@ -197,6 +248,13 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
             <span v-if="shown('bodyEn')" :class="errClass">{{ shown('bodyEn') }}</span>
           </label>
         </div>
+
+        <ImageSection
+          v-model:mode="state.imageMode" v-model:fit="state.imageFit" v-model:alt-fr="state.imageAltFr" v-model:alt-en="state.imageAltEn"
+          :preview-url="previewImageUrl" :pending-name="pendingFile?.name ?? null" :is-edit="isEdit" :busy="busy" :file-error="fileError"
+          :mode-error="shown('imageMode')" :alt-fr-error="shown('imageAltFr')" :alt-en-error="shown('imageAltEn')"
+          @pick="onPickImage" @remove="onRemoveImage"
+        />
 
         <ActionEditor
           prefix="primary" title="Bouton principal" :action="state.primaryAction"
@@ -332,6 +390,9 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn" :primary-kind="state.primaryAction.kind"
         :secondary-enabled="state.secondaryEnabled" :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
         :secondary-kind="state.secondaryAction.kind"
+        :layout="state.layout" :size-percent="state.sizePercent"
+        :image-mode="state.imageMode" :image-fit="state.imageFit" :image-url="previewImageUrl"
+        :image-alt-fr="state.imageAltFr" :image-alt-en="state.imageAltEn"
       />
       <VideoModalPreview
         v-else
@@ -339,7 +400,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         :title-fr="state.titleFr" :title-en="state.titleEn" :subtitle-fr="state.subtitleFr" :subtitle-en="state.subtitleEn"
         :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn"
         :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
-        :highlights="state.highlights"
+        :highlights="state.highlights" :layout="state.layout" :size-percent="state.sizePercent"
       />
       <p class="mt-2 text-center text-xs text-text-muted">Aperçu en direct, {{ lang === 'fr' ? 'en français' : 'en anglais' }}.</p>
     </div>

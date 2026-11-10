@@ -1,7 +1,7 @@
-import type { AdminVideoModal, ModalIcon, VideoModalAction, VideoModalInput, VideoModalTrigger, VideoModalType } from '@/features/video-modals/types/index'
+import type { AdminVideoModal, ImageFit, ImageMode, ModalIcon, ModalLayout, VideoModalAction, VideoModalInput, VideoModalTrigger, VideoModalType } from '@/features/video-modals/types/index'
 
 /** État du formulaire : comme le corps d'API, mais les dates au format d'un `<input type="datetime-local">`. */
-export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 'endsAt' | 'durationSeconds' | 'youtubeUrl' | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'secondaryAction'> {
+export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 'endsAt' | 'durationSeconds' | 'youtubeUrl' | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'secondaryAction' | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn'> {
   youtubeUrl: string
   durationSeconds: number | string | null
   startsAt: string
@@ -14,6 +14,14 @@ export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 
   /** Le bouton secondaire est facultatif : décoché, aucune action n'est envoyée. */
   secondaryEnabled: boolean
   secondaryAction: VideoModalAction
+  /** Format et taille ; `sizePercent` null = automatique. */
+  layout: ModalLayout
+  sizePercent: number | null
+  /** Image (Information seulement). */
+  imageMode: ImageMode
+  imageFit: ImageFit
+  imageAltFr: string
+  imageAltEn: string
 }
 
 export const closeAction = (): VideoModalAction => ({ kind: 'CLOSE', screen: null, url: null })
@@ -61,6 +69,12 @@ export function defaultFormState(triggers: VideoModalTrigger[] = ['SEARCH_TAB'],
     maxDisplays: 3,
     startsAt: '',
     endsAt: '',
+    layout: 'BOTTOM_SHEET',
+    sizePercent: null,
+    imageMode: 'NONE',
+    imageFit: 'COVER',
+    imageAltFr: '',
+    imageAltEn: '',
   }
 }
 
@@ -93,6 +107,13 @@ export function formStateFromModal(m: AdminVideoModal): VideoModalFormState {
     maxDisplays: m.maxDisplays ?? 3,
     startsAt: isoToLocalInput(m.startsAt),
     endsAt: isoToLocalInput(m.endsAt),
+    // Campagne d'avant le format : feuille du bas, taille automatique, sans image.
+    layout: m.layout ?? 'BOTTOM_SHEET',
+    sizePercent: m.sizePercent ?? null,
+    imageMode: m.imageMode ?? 'NONE',
+    imageFit: m.imageFit ?? 'COVER',
+    imageAltFr: m.imageAltFr ?? '',
+    imageAltEn: m.imageAltEn ?? '',
   }
 }
 
@@ -108,6 +129,12 @@ function actionBody(a: VideoModalAction): VideoModalAction {
     screen: a.kind === 'SCREEN' ? a.screen : null,
     url: a.kind === 'URL' ? (a.url ?? '').trim() : null,
   }
+}
+
+/** Plein écran : toujours 100 %, la taille n'est pas envoyée. */
+function sizeBody(s: VideoModalFormState): number | null {
+  if (s.layout === 'FULLSCREEN' || s.sizePercent === null || (s.sizePercent as unknown) === '') return null
+  return Number(s.sizePercent)
 }
 
 /**
@@ -135,6 +162,12 @@ export function inputFromFormState(s: VideoModalFormState): VideoModalInput {
       secondaryLabelFr: s.secondaryEnabled ? s.secondaryLabelFr.trim() : '',
       secondaryLabelEn: s.secondaryEnabled ? s.secondaryLabelEn.trim() : '',
       secondaryAction: s.secondaryEnabled ? actionBody(s.secondaryAction) : null,
+      layout: s.layout,
+      sizePercent: sizeBody(s),
+      imageMode: s.imageMode,
+      imageFit: s.imageFit,
+      imageAltFr: s.imageAltFr.trim(),
+      imageAltEn: s.imageAltEn.trim(),
       highlights: [],
       triggers: [...s.triggers],
       maxDisplays: Number(s.maxDisplays),
@@ -156,6 +189,8 @@ export function inputFromFormState(s: VideoModalFormState): VideoModalInput {
     secondaryLabelFr: s.secondaryLabelFr.trim(),
     secondaryLabelEn: s.secondaryLabelEn.trim(),
     highlights: s.highlights.map(h => ({ icon: h.icon, textFr: h.textFr.trim(), textEn: h.textEn.trim() })),
+    layout: s.layout,
+    sizePercent: sizeBody(s),
     triggers: [...s.triggers],
     maxDisplays: Number(s.maxDisplays),
     startsAt: localInputToIso(s.startsAt),

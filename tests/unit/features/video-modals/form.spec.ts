@@ -39,6 +39,8 @@ describe('état du formulaire', () => {
       secondaryLabelFr: m.secondaryLabelFr, secondaryLabelEn: m.secondaryLabelEn,
       highlights: m.highlights, triggers: m.triggers, maxDisplays: 3,
       startsAt: '2026-11-10T10:00:00.000Z', endsAt: '2026-12-01T00:00:00.000Z',
+      // Campagne d'avant le format : feuille du bas, taille automatique, aucun champ d'image pour une vidéo.
+      layout: 'BOTTOM_SHEET', sizePercent: null,
     })
   })
 

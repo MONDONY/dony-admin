@@ -25,6 +25,16 @@ export const videoModalService = {
     if (url) body.youtubeUrl = url
     return useApi()<AdminVideoModal>(`${BASE}/${id}/versions`, { method: 'POST', body })
   },
+  /** Envoie (ou remplace) l'image : multipart, champ `file`. */
+  uploadImage(id: string, file: File): Promise<AdminVideoModal> {
+    const body = new FormData()
+    body.append('file', file)
+    return useApi()<AdminVideoModal>(`${BASE}/${id}/image`, { method: 'POST', body })
+  },
+  /** Retire l'image ; le back repasse le mode à « Aucune » si elle était requise. */
+  removeImage(id: string): Promise<AdminVideoModal> {
+    return useApi()<AdminVideoModal>(`${BASE}/${id}/image`, { method: 'DELETE' })
+  },
   setActive(id: string, active: boolean): Promise<AdminVideoModal> {
     return useApi()<AdminVideoModal>(`${BASE}/${id}/active`, { method: 'PATCH', body: { active } })
   },

@@ -2,10 +2,11 @@
 import { computed } from 'vue'
 import { Lock, Luggage, MessageCircle, Package, Play, QrCode, Search, Sparkles, Star, Wallet } from 'lucide-vue-next'
 import type { Component } from 'vue'
+import ModalShell from '@/features/video-modals/components/ModalShell.vue'
 import PhoneFrame from '@/features/video-modals/components/PhoneFrame.vue'
 import { extractYoutubeId, formatDuration, youtubeThumbnailUrl } from '@/features/video-modals/lib/youtube'
 import { localized } from '@/features/video-modals/lib/form'
-import type { HighlightIcon, VideoModalHighlight } from '@/features/video-modals/types/index'
+import type { HighlightIcon, ModalLayout, VideoModalHighlight } from '@/features/video-modals/types/index'
 
 /**
  * Aperçu du modal tel que l'app le montre (maquette `modal-video-accueil.html`, section 1) :
@@ -25,6 +26,8 @@ const props = defineProps<{
   secondaryLabelFr: string
   secondaryLabelEn: string
   highlights: VideoModalHighlight[]
+  layout?: ModalLayout
+  sizePercent?: number | null
 }>()
 
 const ICONS: Record<HighlightIcon, { icon: Component; fg: string; bg: string }> = {
@@ -61,8 +64,8 @@ const items = computed(() =>
 
 <template>
   <PhoneFrame :lang="lang">
-      <div class="absolute inset-x-2.5 bottom-3.5 top-[58px] flex flex-col rounded-[26px] bg-white px-4 pb-3.5">
-        <div class="mx-auto -mt-[30px] flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-full bg-[#EAF1FF]">
+      <ModalShell :layout="layout" :size-percent="sizePercent" fill-auto :close-label="lang === 'en' ? 'Close' : 'Fermer'">
+        <div class="mx-auto flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-full bg-[#EAF1FF]" :class="layout === 'FULLSCREEN' ? 'mt-3' : '-mt-[30px]'">
           <Sparkles class="h-10 w-10 text-[#0B5FFF]" aria-hidden="true" />
         </div>
         <h3 data-test="vm-preview-title" class="mx-1 mb-1.5 mt-3 text-center text-[21px] font-bold leading-tight tracking-tight [text-wrap:balance]">{{ title }}</h3>
@@ -97,6 +100,6 @@ const items = computed(() =>
           <div data-test="vm-preview-primary" class="flex h-[46px] items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full bg-[#0B5FFF] px-4 text-[15px] font-extrabold text-white">{{ primary }}</div>
           <div data-test="vm-preview-secondary" class="flex h-[46px] items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap rounded-full border-[1.5px] border-[#E3E7F0] bg-white px-4 text-[15px] font-extrabold">{{ secondary }}</div>
         </div>
-      </div>
+      </ModalShell>
   </PhoneFrame>
 </template>

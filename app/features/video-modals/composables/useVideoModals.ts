@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { videoModalService } from '@/features/video-modals/services/videoModalService'
+import { validateImageFile } from '@/features/video-modals/lib/image'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminVideoModal, NewVersionInput, VideoModalInput } from '@/features/video-modals/types/index'
 
@@ -90,6 +91,69 @@ export function useVideoModals() {
     }
   }
 
+  /**
+   * Envoie ou remplace l'image d'une campagne existante. Le fichier est vérifié ici avant tout
+   * envoi (poids, contenu réel, dimensions) ; le back refuse aussi en 422.
+   */
+  async function uploadImage(id: string, file: File): Promise<boolean> {
+    busy.value = true
+    error.value = null
+    try {
+      const problem = await validateImageFile(file)
+      if (problem) {
+        error.value = problem
+        return false
+      }
+      const res = await videoModalService.uploadImage(id, file)
+      if (isModal(res)) apply(res)
+      else await refresh(id)
+      return true
+    } catch (e) {
+      error.value = extractProblemMessage(e, 'Envoi de l’image impossible')
+      return false
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** Retire l'image ; sans corps de réponse, la fiche locale passe en « Aucune image ». */
+  async function removeImage(id: string): Promise<boolean> {
+    busy.value = true
+    error.value = null
+    try {
+      const res = await videoModalService.removeImage(id)
+      if (isModal(res)) apply(res)
+      else patchLocal(id, { imageUrl: null, imageMode: 'NONE' })
+      return true
+    } catch (e) {
+      error.value = extractProblemMessage(e, 'Suppression de l’image impossible')
+      return false
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /**
+   * Création avec image : le back exige une image avant d'accepter un mode d'image, et l'envoi
+   * a besoin d'un `id`. On crée donc d'abord sans image, on envoie le fichier, on enregistre le
+   * mode choisi, et on n'active qu'à la fin (jamais de modal actif sans son image). Si l'envoi
+   * échoue, la campagne existe, inactive : `imageError` dit pourquoi, l'admin réessaie sur la fiche.
+   */
+  async function createWithImage(
+    input: VideoModalInput, activate: boolean, file: File | null,
+  ): Promise<{ modal: AdminVideoModal | null; imageError: string | null }> {
+    if (!file) return { modal: await save(null, input, activate), imageError: null }
+    const created = await save(null, { ...input, imageMode: 'NONE' }, false)
+    if (!created) return { modal: null, imageError: null }
+    if (!(await uploadImage(created.id, file))) {
+      return { modal: current.value ?? created, imageError: error.value ?? 'Envoi de l’image impossible' }
+    }
+    const withMode = await save(created.id, input)
+    if (!withMode) return { modal: current.value ?? created, imageError: error.value ?? 'Enregistrement du mode d’image impossible' }
+    if (activate) await setActive(created.id, true)
+    return { modal: current.value ?? withMode, imageError: null }
+  }
+
   async function publishVersion(id: string, input: NewVersionInput): Promise<boolean> {
     busy.value = true
     error.value = null
@@ -146,5 +210,5 @@ export function useVideoModals() {
     } catch { /* la liste reste celle d'avant : l'action a pourtant réussi */ }
   }
 
-  return { items, current, loading, busy, error, fetchAll, fetchOne, save, publishVersion, setActive, remove }
+  return { items, current, loading, busy, error, fetchAll, fetchOne, save, uploadImage, removeImage, createWithImage, publishVersion, setActive, remove }
 }

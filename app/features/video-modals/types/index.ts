@@ -112,6 +112,44 @@ export const ICON_LABELS: Record<ModalIcon, string> = {
 
 export const MAX_HIGHLIGHTS = 3
 
+/** Habillage du modal dans l'app (complément `modal-format-contrat.md`). */
+export const MODAL_LAYOUTS = ['BOTTOM_SHEET', 'CENTERED', 'FULLSCREEN'] as const
+export type ModalLayout = typeof MODAL_LAYOUTS[number]
+
+export const LAYOUT_LABELS: Record<ModalLayout, { label: string; hint: string }> = {
+  BOTTOM_SHEET: { label: 'Feuille du bas', hint: 'Monte depuis le bas de l’écran' },
+  CENTERED: { label: 'Carte centrée', hint: 'Au milieu, fond assombri' },
+  FULLSCREEN: { label: 'Plein écran', hint: 'Occupe tout l’écran' },
+}
+
+/** Hauteur maximale en % de la hauteur de l'écran ; `null` = automatique selon le contenu. */
+export const SIZE_MIN = 30
+export const SIZE_MAX = 100
+export const SIZE_STEP = 5
+
+/** Image du modal Information : aucune, bannière au-dessus du titre, ou affiche qui remplace titre et texte. */
+export const IMAGE_MODES = ['NONE', 'TOP', 'POSTER'] as const
+export type ImageMode = typeof IMAGE_MODES[number]
+
+export const IMAGE_MODE_LABELS: Record<ImageMode, { label: string; hint: string }> = {
+  NONE: { label: 'Aucune', hint: 'Icône, titre et texte seulement' },
+  TOP: { label: 'Bannière en haut', hint: 'Au-dessus du titre et du texte' },
+  POSTER: { label: 'Affiche seule', hint: 'L’image remplit le modal, sans titre ni texte' },
+}
+
+export const IMAGE_FITS = ['COVER', 'CONTAIN'] as const
+export type ImageFit = typeof IMAGE_FITS[number]
+
+export const IMAGE_FIT_LABELS: Record<ImageFit, { label: string; hint: string }> = {
+  COVER: { label: 'Remplir', hint: 'Recadre l’image pour remplir la zone' },
+  CONTAIN: { label: 'Entière', hint: 'Montre toute l’image, des marges peuvent apparaître' },
+}
+
+export const IMAGE_ALT_MAX_LENGTH = 200
+export const IMAGE_MAX_BYTES = 3 * 1024 * 1024
+export const IMAGE_MAX_SIDE = 2400
+export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+
 export interface VideoModalHighlight {
   icon: HighlightIcon
   textFr: string
@@ -145,6 +183,14 @@ export interface VideoModalInput {
   icon?: ModalIcon
   primaryAction?: VideoModalAction | null
   secondaryAction?: VideoModalAction | null
+  /** Format et taille (vidéo et information). Absents d'un back plus ancien : feuille du bas, taille automatique. */
+  layout?: ModalLayout
+  sizePercent?: number | null
+  /** Modal Information seulement. `imageUrl` est géré par le serveur : jamais envoyé. */
+  imageMode?: ImageMode
+  imageFit?: ImageFit
+  imageAltFr?: string
+  imageAltEn?: string
 }
 
 /** Nombre d'utilisateurs distincts sur la version courante. */
@@ -164,6 +210,8 @@ export interface AdminVideoModal extends Omit<VideoModalInput, 'type'> {
   audience: VideoModalAudience
   versionPublishedAt: string | null
   youtubeVideoId: string | null
+  /** Rempli par le serveur après l'envoi d'un fichier. */
+  imageUrl?: string | null
   createdAt: string
   updatedAt: string
   stats: VideoModalStats | null
