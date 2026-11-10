@@ -184,6 +184,60 @@ describe('ReportDecisionPanel', () => {
     expect((w.find('[data-test="resolve-reporter-message"]').element as HTMLTextAreaElement).value).toBe('')
   })
 
+  describe('origine du signalement (source)', () => {
+    const system: AdminReport = {
+      ...base, targetType: 'PACKAGE_REQUEST', targetId: 'pr1', targetLabel: 'Paris → Dakar', reason: 'PROHIBITED_ITEM',
+      description: 'Détection automatique : mot « cash » dans la description du colis.', reporterName: null, source: 'SYSTEM',
+      availableActions: ['DISMISS', 'REMOVE_CONTENT', 'RESOLVE'],
+    }
+
+    it('SYSTEM : pas de champ « Mot pour le signalant » ni de remerciement, quelle que soit l’action', async () => {
+      const w = mountPanel(system)
+      for (const action of ['RESOLVE', 'REMOVE_CONTENT', 'DISMISS']) {
+        await choose(w, action)
+        expect(w.find('[data-test="resolve-reporter-message"]').exists()).toBe(false)
+        expect(w.find('[data-test="resolve-preview-reporter"]').exists()).toBe(false)
+        expect(w.text()).not.toContain('Mot pour')
+      }
+    })
+
+    it('SYSTEM : rien n’est envoyé au signalant (reporterMessage vide), le reste part comme avant', async () => {
+      const w = mountPanel(system)
+      expect(w.find('[data-test="resolve-preview-none"]').text()).toBe('Aucune notification n’est envoyée.')
+      await confirmBtn(w).trigger('click')
+      await choose(w, 'REMOVE_CONTENT')
+      await w.find('[data-test="resolve-note"]').setValue('envoi d’argent en espèces')
+      await confirmBtn(w).trigger('click')
+      expect(w.emitted('confirm')).toEqual([
+        ['RESOLVE', '', '', ''],
+        ['REMOVE_CONTENT', 'envoi d’argent en espèces', '', ''],
+      ])
+    })
+
+    it('SYSTEM : un nom qui traînerait ne fait pas réapparaître le champ', () => {
+      const w = mountPanel({ ...system, reporterName: 'Awa' })
+      expect(w.find('[data-test="resolve-reporter-message"]').exists()).toBe(false)
+      expect(w.find('[data-test="resolve-preview-reporter"]').exists()).toBe(false)
+    })
+
+    it('USER : champ présent, remerciement nominatif et mot transmis', async () => {
+      const w = mountPanel({ ...messageReport, source: 'USER' })
+      expect(w.text()).toContain('Mot pour Awa')
+      expect(w.find('[data-test="resolve-preview-reporter"]').text()).toContain('Awa')
+      await w.find('[data-test="resolve-reporter-message"]').setValue('  Le message a été retiré.  ')
+      await confirmBtn(w).trigger('click')
+      expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', '', '', 'Le message a été retiré.'])
+    })
+
+    it('source absente (ancien back) : comportement d’avant', async () => {
+      const w = mountPanel(messageReport)
+      expect(w.text()).toContain('Mot pour Awa')
+      await w.find('[data-test="resolve-reporter-message"]').setValue('Merci.')
+      await confirmBtn(w).trigger('click')
+      expect(w.emitted('confirm')![0]).toEqual(['RESOLVE', '', '', 'Merci.'])
+    })
+  })
+
   it('motifs rapides : un clic remplit la note, absents pour les sanctions', async () => {
     const w = mountPanel(messageReport)
     expect(w.find('[data-test="resolve-quick-Pris en compte"]').exists()).toBe(true)

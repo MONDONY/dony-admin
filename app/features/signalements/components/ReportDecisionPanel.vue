@@ -24,6 +24,7 @@ import {
   reportActionLabel,
   reportActionTakenLabel,
 } from '@/features/signalements/reportActionLabels'
+import { isSystemReport } from '@/features/signalements/reportDisplay'
 
 const props = withDefaults(defineProps<{
   /** Signalement à traiter ; null = rien de sélectionné. */
@@ -69,7 +70,10 @@ watch(() => props.report?.id, () => {
 watch(chosen, () => { acknowledged.value = false })
 
 const warns = computed(() => (chosen.value ? sendsWarning(chosen.value) : false))
-const informsReporter = computed(() => (chosen.value ? notifiesReporter(chosen.value) : false))
+/** Signalement de la détection automatique : pas de signalant, donc personne à remercier. */
+const isSystem = computed(() => !!props.report && isSystemReport(props.report))
+// Sans signalant, ni champ « Mot pour le signalant » ni `reporterMessage` : il n'arriverait à personne.
+const informsReporter = computed(() => (chosen.value && !isSystem.value ? notifiesReporter(chosen.value) : false))
 const quickNotes = computed(() => (chosen.value ? quickNotesFor(chosen.value) : []))
 const noteRequired = computed(() => (chosen.value ? isNoteRequired(chosen.value) : false))
 const strong = computed(() => (chosen.value ? requiresStrongConfirmation(chosen.value) : false))
