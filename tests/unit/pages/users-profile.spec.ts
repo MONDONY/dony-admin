@@ -27,6 +27,10 @@ vi.mock('@/features/users/services/usersService', () => ({
     getDeletionImpact: (...a: unknown[]) => impactMock(...a), deleteUser: (...a: unknown[]) => deleteUserMock(...a),
   },
 }))
+const dismissFlagMock = vi.fn()
+vi.mock('@/features/individual-frequency/services/individualFrequencyService', () => ({
+  individualFrequencyService: { list: vi.fn(), dismiss: (...a: unknown[]) => dismissFlagMock(...a) },
+}))
 const overviewMock = vi.fn()
 const sectionMock = vi.fn()
 vi.mock('@/features/user-profile/services/userProfileService', () => ({
@@ -63,7 +67,7 @@ async function mountPage(query: Record<string, string> = {}, id: string = ID, ro
 describe('users/[id].vue', () => {
   beforeEach(() => {
     navigateToMock.mockReset(); replaceMock.mockReset(); getMock.mockReset(); overviewMock.mockReset(); sectionMock.mockReset(); getKycMock.mockReset()
-    suspendMock.mockReset(); cancelDeletionMock.mockReset(); setCommissionMock.mockReset(); impactMock.mockReset(); deleteUserMock.mockReset()
+    suspendMock.mockReset(); dismissFlagMock.mockReset(); cancelDeletionMock.mockReset(); setCommissionMock.mockReset(); impactMock.mockReset(); deleteUserMock.mockReset()
     sectionMock.mockResolvedValue({ content: [], totalPages: 0, number: 0, totalElements: 0 })
     getMock.mockResolvedValue(USER)
     overviewMock.mockResolvedValue({ kpis: { ...NULLS, parcelsInProgress: 2 }, inProgress: [], timeline: [] })
@@ -411,6 +415,33 @@ describe('users/[id].vue', () => {
   })
 
   describe('bandeaux d’en-tête', () => {
+    const ALERT = { flagId: 'f1', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }
+
+    it('alerte « particulier à confirmer » : bandeau avec la phrase du contrat', async () => {
+      getMock.mockResolvedValue({ ...USER, travelerStatus: 'INDIVIDUAL', individualFrequencyAlert: ALERT })
+      const w = await mountPage()
+      expect(w.get('[data-test="user-individual-frequency-text"]').text())
+        .toBe('5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier.')
+    })
+
+    it('sans individualFrequencyAlert (ancien back ou aucun drapeau) : aucun bandeau', async () => {
+      const w = await mountPage()
+      expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(false)
+    })
+
+    it('« Écarter » poste sur le drapeau puis relit la fiche, le bandeau disparaît', async () => {
+      getMock.mockResolvedValueOnce({ ...USER, travelerStatus: 'INDIVIDUAL', individualFrequencyAlert: ALERT })
+      getMock.mockResolvedValue(USER)
+      dismissFlagMock.mockResolvedValue(undefined)
+      const w = await mountPage()
+      await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+      expect(dismissFlagMock).toHaveBeenCalledWith('f1')
+      expect(getMock).toHaveBeenCalledTimes(2)
+      expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(false)
+    })
+
     const PD = { ...USER, status: 'PENDING_DELETION', deletionScheduledFor: '2026-11-15T12:00:00Z' }
 
     it('suppression demandée : annuler avec motif remplace la fiche', async () => {

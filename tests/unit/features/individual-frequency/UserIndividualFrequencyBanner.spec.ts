@@ -1,0 +1,92 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { seedAuth } from '~/tests/helpers/auth'
+
+const svc = vi.hoisted(() => ({ list: vi.fn(), dismiss: vi.fn() }))
+vi.mock('@/features/individual-frequency/services/individualFrequencyService', () => ({ individualFrequencyService: svc }))
+
+import UserIndividualFrequencyBanner from '@/features/individual-frequency/components/UserIndividualFrequencyBanner.vue'
+
+const ALERT = { flagId: 'f1', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }
+
+function mountBanner(alert: unknown, role: 'ADMIN' | 'SUPPORT' = 'ADMIN', overrides: Record<string, boolean> = {}) {
+  seedAuth(role, overrides)
+  return mount(UserIndividualFrequencyBanner, { props: { alert: alert as never } })
+}
+
+describe('UserIndividualFrequencyBanner', () => {
+  beforeEach(() => { vi.clearAllMocks(); svc.dismiss.mockResolvedValue(undefined) })
+
+  it('affiche la phrase du contrat quand l’alerte est présente', () => {
+    const w = mountBanner(ALERT)
+    const b = w.get('[data-test="user-individual-frequency"]')
+    expect(b.attributes('role')).toBe('status')
+    expect(b.text()).toContain('5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier.')
+    expect(b.text()).toContain('Aucun blocage automatique')
+  })
+
+  it.each([undefined, null])('alerte absente (%s) : aucun bandeau', (alert) => {
+    const w = mountBanner(alert)
+    expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(false)
+    expect(w.text()).toBe('')
+  })
+
+  it('alerte sans flagId (contrat incomplet) : aucun bandeau', () => {
+    expect(mountBanner({ tripsCount: 5 }).find('[data-test="user-individual-frequency"]').exists()).toBe(false)
+  })
+
+  it('« Écarter » confirme, poste, puis demande la relecture de la fiche', async () => {
+    const w = mountBanner(ALERT)
+    await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
+    expect(svc.dismiss).not.toHaveBeenCalled()
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.dismiss).toHaveBeenCalledWith('f1')
+    expect(w.emitted('changed')).toHaveLength(1)
+    expect(w.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('annuler la confirmation n’appelle rien', async () => {
+    const w = mountBanner(ALERT)
+    await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
+    await w.get('[data-test="cancel"]').trigger('click')
+    expect(svc.dismiss).not.toHaveBeenCalled()
+    expect(w.emitted('changed')).toBeUndefined()
+  })
+
+  it('échec : message sous le bandeau, aucune relecture', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 500, data: { detail: 'Panne' } })
+    const w = mountBanner(ALERT)
+    await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="user-individual-frequency-error"]').text()).toBe('Panne')
+    expect(w.emitted('changed')).toBeUndefined()
+  })
+
+  it('alerte déjà écartée ailleurs (404 avec code) : la fiche est relue', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 404, data: { code: 'individual-frequency-flag-not-found' } })
+    const w = mountBanner(ALERT)
+    await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.emitted('changed')).toHaveLength(1)
+  })
+
+  it('endpoint absent : le bouton disparaît, pas d’erreur', async () => {
+    svc.dismiss.mockRejectedValue({ statusCode: 404 })
+    const w = mountBanner(ALERT)
+    await w.get('[data-test="user-individual-frequency-dismiss"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="user-individual-frequency-dismiss"]').exists()).toBe(false)
+    expect(w.find('[data-test="user-individual-frequency-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(true)
+  })
+
+  it('sans GP_PRO_REVIEW : le bandeau se lit, sans bouton', () => {
+    const w = mountBanner(ALERT, 'ADMIN', { GP_PRO_REVIEW: false })
+    expect(w.find('[data-test="user-individual-frequency"]').exists()).toBe(true)
+    expect(w.find('[data-test="user-individual-frequency-dismiss"]').exists()).toBe(false)
+  })
+})

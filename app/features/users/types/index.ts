@@ -1,3 +1,4 @@
+import type { IndividualFrequencyAlert } from '@/features/individual-frequency/types/index'
 import type { KycDecisionFields } from '@/features/kyc/types/index'
 
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'PENDING_DELETION'
@@ -98,6 +99,11 @@ export interface AdminUserDetail extends AdminUserListItem {
   monthlyTripLimit?: number | null
   /** Trajets publiés ce mois-ci ; absent d'un back antérieur au lot 2b : le bloc de limite reste masqué. */
   monthlyTripsUsed?: number
+  /**
+   * Alerte « particulier à confirmer » ouverte (trajets avec colis au-dessus du seuil). Absente
+   * sans alerte (le back omet les nuls) et d'un back antérieur au lot 4 : aucun bandeau.
+   */
+  individualFrequencyAlert?: IndividualFrequencyAlert | null
 }
 
 export interface AdminUserPage {

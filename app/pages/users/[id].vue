@@ -13,6 +13,7 @@ import UserSupportTab from '@/features/user-profile/components/UserSupportTab.vu
 import UserKpiGrid from '@/features/user-profile/components/UserKpiGrid.vue'
 import UserActionsMenu from '@/features/user-profile/components/UserActionsMenu.vue'
 import UserAccountBanners from '@/features/user-profile/components/UserAccountBanners.vue'
+import UserIndividualFrequencyBanner from '@/features/individual-frequency/components/UserIndividualFrequencyBanner.vue'
 import UserManageTab from '@/features/user-profile/components/UserManageTab.vue'
 import { useAccountActions } from '@/features/user-profile/composables/useAccountActions'
 import { useUserOverview } from '@/features/user-profile/composables/useUserOverview'
@@ -173,6 +174,7 @@ onBeforeUnmount(() => { unmounted = true; crumb.clear() })
         :cancel-deletion-reason-error="actions.cancelDeletionReasonError.value"
         @cancel-deletion="actions.cancelDeletion"
       />
+      <UserIndividualFrequencyBanner :key="`frequency-${user.id}`" :alert="user.individualFrequencyAlert" @changed="refreshDetail" />
       <UserAlertBand :alerts="alerts" />
       <StateBlock v-if="ov.isLoading.value || ov.error.value" :loading="ov.isLoading.value" :error="ov.error.value" @retry="loadOverview" />
       <UserKpiGrid v-if="ov.overview.value" :kpis="ov.overview.value.kpis" />
