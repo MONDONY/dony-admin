@@ -46,6 +46,13 @@ export const usersService = {
   setCommissionRate(id: string, rate: number | null): Promise<AdminUserDetail> {
     return useApi()<AdminUserDetail>(`/admin/users/${encodeURIComponent(id)}/commission-rate`, { method: 'PUT', body: { rate } })
   },
+  /**
+   * Limite mensuelle de trajets publiés (1 à 100, `null` = aucune limite). Même droit que la
+   * dérogation de commission. La fiche est relue ensuite par l'appelant.
+   */
+  setMonthlyTripLimit(id: string, limit: number | null): Promise<unknown> {
+    return useApi()<unknown>(`/admin/users/${encodeURIComponent(id)}/monthly-trip-limit`, { method: 'PUT', body: { limit } })
+  },
   suspendPublishing(id: string, reason: string): Promise<void> {
     return useApi()<void>(`/admin/users/${encodeURIComponent(id)}/suspend-publishing`, { method: 'POST', query: { reason } })
   },

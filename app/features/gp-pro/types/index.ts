@@ -41,6 +41,9 @@ export interface AdminGpProApplicationDetail {
   source?: GpProApplicationSource | string | null
   travelFrequency?: GpProTravelFrequency | string | null
   commercialName?: string | null
+  /** Numéro d'entreprise et pays déclarés dans la demande ; absents d'une demande d'ancienne app. */
+  businessRegistrationNumber?: string | null
+  businessCountry?: string | null
   createdAt?: string | null
   kycStatus?: string | null
   publishedTrips?: number

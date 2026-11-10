@@ -98,6 +98,14 @@ const alertCls = (n: number | undefined) => ((n ?? 0) > 0 ? 'border-danger/40 bg
               <dt class="text-text-muted">Nom commercial</dt>
               <dd class="text-right font-medium" data-test="gp-pro-detail-commercial" :class="detail.commercialName ? '' : 'text-text-muted'">{{ detail.commercialName ?? 'Non renseigné' }}</dd>
             </div>
+            <div v-if="detail.businessRegistrationNumber" class="flex justify-between gap-3 py-2">
+              <dt class="text-text-muted">Numéro d’entreprise</dt>
+              <dd class="text-right font-medium tabular-nums" data-test="gp-pro-detail-registration">{{ detail.businessRegistrationNumber }}</dd>
+            </div>
+            <div v-if="detail.businessCountry" class="flex justify-between gap-3 py-2">
+              <dt class="text-text-muted">Pays de l’entreprise</dt>
+              <dd class="text-right font-medium" data-test="gp-pro-detail-country">{{ detail.businessCountry }}</dd>
+            </div>
             <div class="flex justify-between gap-3 py-2"><dt class="text-text-muted">Origine</dt><dd class="text-right font-medium">{{ sourceLabel(detail.source) }}</dd></div>
           </dl>
         </section>

@@ -133,6 +133,106 @@ describe('UserManageTab', () => {
     })
   })
 
+  describe('limite mensuelle de trajets', () => {
+    const withUsage = (extra: Record<string, unknown> = {}) => ({ monthlyTripsUsed: 3, ...extra })
+
+    it('affiche la limite et le nombre de trajets publiés ce mois-ci', () => {
+      const w = mountTab(withUsage({ monthlyTripLimit: 5 }))
+      expect(w.get('[data-test="trip-limit-card"]').exists()).toBe(true)
+      expect(w.get('[data-test="trip-limit-used"]').text()).toBe('3 trajets publiés ce mois-ci')
+      expect((w.get('[data-test="trip-limit-input"]').element as HTMLInputElement).value).toBe('5')
+      expect(w.get('[data-test="trip-limit-state"]').text()).toContain('5 trajets par mois')
+    })
+
+    it('un seul trajet : singulier', () => {
+      const w = mountTab({ monthlyTripsUsed: 1 })
+      expect(w.get('[data-test="trip-limit-used"]').text()).toBe('1 trajet publié ce mois-ci')
+    })
+
+    it('sans limite (champ absent du JSON) : « Aucune limite », champ vide', () => {
+      const w = mountTab(withUsage())
+      expect(w.get('[data-test="trip-limit-state"]').text()).toContain('Aucune limite')
+      expect((w.get('[data-test="trip-limit-input"]').element as HTMLInputElement).value).toBe('')
+    })
+
+    it('champ vide : envoie null (aucune limite)', async () => {
+      const w = mountTab(withUsage({ monthlyTripLimit: 5 }))
+      await w.get('[data-test="trip-limit-input"]').setValue('')
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      expect(w.emitted('setMonthlyTripLimit')![0]).toEqual([null])
+      expect(w.find('[data-test="trip-limit-invalid"]').exists()).toBe(false)
+    })
+
+    it.each([['1', 1], ['12', 12], ['100', 100]])('valeur « %s » : envoie %d', async (v, n) => {
+      const w = mountTab(withUsage())
+      await w.get('[data-test="trip-limit-input"]').setValue(v)
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      expect(w.emitted('setMonthlyTripLimit')![0]).toEqual([n])
+    })
+
+    it.each(['0', '101', '-3', '2.5'])('valeur « %s » hors de 1 à 100 : erreur locale, aucun appel', async (v) => {
+      const w = mountTab(withUsage())
+      await w.get('[data-test="trip-limit-input"]').setValue(v)
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      expect(w.emitted('setMonthlyTripLimit')).toBeUndefined()
+      expect(w.get('[data-test="trip-limit-invalid"]').attributes('role')).toBe('alert')
+      expect(w.get('[data-test="trip-limit-invalid"]').text()).toContain('entre 1 et 100')
+    })
+
+    it('la saisie valide efface l’erreur locale', async () => {
+      const w = mountTab(withUsage())
+      await w.get('[data-test="trip-limit-input"]').setValue('0')
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      await w.get('[data-test="trip-limit-input"]').setValue('4')
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      expect(w.find('[data-test="trip-limit-invalid"]').exists()).toBe(false)
+      expect(w.emitted('setMonthlyTripLimit')![0]).toEqual([4])
+    })
+
+    it('le champ suit la fiche après une mise à jour', async () => {
+      const w = mountTab(withUsage())
+      await w.setProps({ user: { ...USER, monthlyTripsUsed: 3, monthlyTripLimit: 8 } })
+      expect((w.get('[data-test="trip-limit-input"]').element as HTMLInputElement).value).toBe('8')
+      await w.setProps({ user: { ...USER, monthlyTripsUsed: 3 } })
+      expect((w.get('[data-test="trip-limit-input"]').element as HTMLInputElement).value).toBe('')
+    })
+
+    it('confirmation de succès une fois l’enregistrement terminé sans erreur', async () => {
+      const w = mountTab(withUsage())
+      await w.get('[data-test="trip-limit-input"]').setValue('6')
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      await w.setProps({ busy: true })
+      await w.setProps({ busy: false, user: { ...USER, monthlyTripsUsed: 3, monthlyTripLimit: 6 } })
+      expect(w.get('[data-test="trip-limit-saved"]').attributes('role')).toBe('status')
+    })
+
+    it('pas de confirmation de succès quand le geste a échoué', async () => {
+      const w = mountTab(withUsage())
+      await w.get('[data-test="trip-limit-input"]').setValue('6')
+      await w.get('[data-test="trip-limit-save"]').trigger('click')
+      await w.setProps({ busy: true })
+      await w.setProps({ busy: false, error: 'Droit insuffisant' })
+      expect(w.find('[data-test="trip-limit-saved"]').exists()).toBe(false)
+      expect(w.get('[data-test="manage-error"]').text()).toBe('Droit insuffisant')
+    })
+
+    it('ancien back sans les champs : pas de bloc, pas d’erreur', () => {
+      const w = mountTab()
+      expect(w.find('[data-test="trip-limit-card"]').exists()).toBe(false)
+      expect(w.find('[data-test="manage-error"]').exists()).toBe(false)
+    })
+
+    it('bloc absent sans le droit USER_COMMISSION', () => {
+      const w = mountTab(withUsage(), 'ADMIN', { USER_COMMISSION: false })
+      expect(w.find('[data-test="trip-limit-card"]').exists()).toBe(false)
+    })
+
+    it('bouton désactivé pendant l’enregistrement', () => {
+      const w = mountTab(withUsage(), 'ADMIN', {}, true)
+      expect(w.get('[data-test="trip-limit-save"]').attributes('disabled')).toBeDefined()
+    })
+  })
+
   describe('accès PRO', () => {
     it('aucun abonnement : offrir avec motif', async () => {
       const w = mountTab()

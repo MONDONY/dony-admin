@@ -200,7 +200,7 @@ onBeforeUnmount(() => { unmounted = true; crumb.clear() })
       <section v-else-if="tab === 'manage'" id="profile-panel-manage" aria-labelledby="profile-tab-manage" data-test="tab-content-manage">
         <UserManageTab
           :key="user.id" :user="user" :busy="actions.busy.value" :error="actions.error.value"
-          @set-commission="actions.setCommissionRate" @grant-pro="actions.grantPro" @revoke-pro="actions.revokePro"
+          @set-commission="actions.setCommissionRate" @set-monthly-trip-limit="actions.setMonthlyTripLimit" @grant-pro="actions.grantPro" @revoke-pro="actions.revokePro"
           @changed="refreshDetail"
         />
       </section>

@@ -91,6 +91,13 @@ export interface AdminUserDetail extends AdminUserListItem {
   businessName?: string | null
   businessRegistrationNumber?: string | null
   businessCountry?: string | null
+  /**
+   * Limite mensuelle de trajets publiés (1 à 100). Absente = aucune limite (le back omet les nuls)
+   * ou back antérieur au lot 2b.
+   */
+  monthlyTripLimit?: number | null
+  /** Trajets publiés ce mois-ci ; absent d'un back antérieur au lot 2b : le bloc de limite reste masqué. */
+  monthlyTripsUsed?: number
 }
 
 export interface AdminUserPage {

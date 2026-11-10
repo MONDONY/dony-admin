@@ -426,20 +426,11 @@ describe('SettingsForm', () => {
     expect((w.find('[data-test="setting-value-flights_enabled"]').element as HTMLSelectElement).value).toBe('false')
   })
 
-  it('traveler_status_required porte son libellé et un sélecteur Activé / Désactivé', () => {
+  it('traveler_status_required n’a plus de libellé dédié : la clé brute reste lisible', () => {
     const w = mountForm({ settings: [travelerStatusRequired] })
     const row = w.find('[data-test="setting-row-traveler_status_required"]')
-    expect(row.text()).toContain('Statut de voyageur obligatoire pour publier')
-    expect(row.text()).not.toContain('traveler_status_required')
-    expect((w.find('[data-test="setting-value-traveler_status_required"]').element as HTMLSelectElement).value).toBe('false')
-  })
-
-  it('activer le statut de voyageur obligatoire : confirmation puis mise à jour', async () => {
-    const w = mountForm({ settings: [travelerStatusRequired] })
-    await w.find('[data-test="setting-value-traveler_status_required"]').setValue('true')
-    await w.find('[data-test="setting-save-traveler_status_required"]').trigger('click')
-    await w.find('[data-test="confirm"]').trigger('click')
-    expect(w.emitted('update')![0]).toEqual(['traveler_status_required', 'true'])
+    expect(row.text()).not.toContain('Statut de voyageur obligatoire pour publier')
+    expect(row.text()).toContain('traveler_status_required')
   })
 
   it('activer les billets d’avion : confirmation simple qui annonce l’onglet et les six onglets', async () => {
