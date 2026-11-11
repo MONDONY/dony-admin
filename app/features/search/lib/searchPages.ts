@@ -47,6 +47,7 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { key: 'reports', label: 'Signalements', keywords: 'scarabee bugs reports', to: '/signalements', permission: 'REPORT_VIEW' },
   { key: 'communications', label: 'Communications', keywords: 'notifications push broadcast envoi', to: '/communications', permission: 'NOTIFICATION_SEND' },
   { key: 'video-modals', label: 'Modals', keywords: 'modal video youtube information annonce diffusion accueil tutoriel campagne', to: '/modals-video', permission: 'NOTIFICATION_SEND' },
+  { key: 'dac7', label: 'Déclaration DAC7', keywords: 'impots fiscal numero fiscal nif dgfip declaration voyageurs revenus teletd', to: '/dac7', permission: 'DAC7_REPORT' },
   { key: 'pricing', label: 'Tarification', keywords: 'commission grille paliers taux minimum frais de service', to: '/tarification', permission: 'CONFIG_MANAGE' },
   { key: 'pricing-simulator', label: 'Simulateur de marge', parent: 'Tarification', keywords: 'commission marge tva stripe mobile money', to: { path: '/tarification', query: { tab: 'simulateur' } }, permission: 'CONFIG_MANAGE' },
   { key: 'pricing-history', label: 'Historique des grilles', parent: 'Tarification', keywords: 'commission grilles annulees', to: { path: '/tarification', query: { tab: 'historique' } }, permission: 'CONFIG_MANAGE' },

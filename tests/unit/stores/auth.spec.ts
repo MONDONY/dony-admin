@@ -153,8 +153,19 @@ describe('useAuthStore (admin)', () => {
   // 37 avec TOPUP_CODE_MANAGE (codes de recharge du solde, PR yadony-back feature/codes-recharge-solde).
   // 38 avec ASSISTANT_MANAGE (clés d'API des fournisseurs de l'assistant IA, yadony-back #547).
   // 39 avec GP_PRO_REVIEW (demandes et retrait du badge GP Pro, yadony-back #560).
-  it('exposes 39 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(39)
+  // 40 avec DAC7_REPORT (préparation et export de la déclaration DAC7, yadony-back lot 3b).
+  it('exposes 40 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(40)
+  })
+
+  it('DAC7_REPORT : ADMIN et SUPER_ADMIN, pas SUPPORT (déclaration fiscale de la plateforme)', () => {
+    expect(effectivePermissions('ADMIN', {}).has('DAC7_REPORT')).toBe(true)
+    expect(effectivePermissions('SUPER_ADMIN', {}).has('DAC7_REPORT')).toBe(true)
+    expect(effectivePermissions('SUPPORT', {}).has('DAC7_REPORT')).toBe(false)
+  })
+
+  it('DAC7_REPORT peut être accordée à SUPPORT par un override', () => {
+    expect(effectivePermissions('SUPPORT', { DAC7_REPORT: true }).has('DAC7_REPORT')).toBe(true)
   })
 
   it('GP_PRO_REVIEW : ADMIN et SUPER_ADMIN, pas SUPPORT (le badge est un signal de confiance)', () => {

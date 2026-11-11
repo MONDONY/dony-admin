@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, UserX, CreditCard, Package, AlertTriangle,
   Bell, MessageSquare, Ticket, ScrollText, Download, Flag, ShieldCheck, Megaphone, Settings,
   LifeBuoy, IdCard, Coins, Sparkles, BadgeCheck, Percent,
-  UsersRound, Wallet, Activity, MessagesSquare, SlidersHorizontal, Clapperboard,
+  UsersRound, Wallet, Landmark, Activity, MessagesSquare, SlidersHorizontal, Clapperboard,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import type { AdminPermission } from '@/stores/auth'
@@ -60,6 +60,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { to: '/topup-codes', label: 'Codes de recharge', permission: 'TOPUP_CODE_MANAGE', icon: Coins },
       { to: '/ajustements-solde', label: 'Corrections à approuver', permission: 'WALLET_ADJUST', icon: ShieldCheck },
       { to: '/tarification', label: 'Tarification', permission: 'CONFIG_MANAGE', icon: Percent },
+      { to: '/dac7', label: 'Déclaration DAC7', permission: 'DAC7_REPORT', icon: Landmark },
     ],
   },
   {

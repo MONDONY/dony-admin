@@ -38,6 +38,7 @@ const FORBIDDEN_TO_SUPPORT = [
   ['Administrateurs', 'ADMIN_MANAGE'],
   ['Assistant IA', 'ASSISTANT_MANAGE'],
   ['GP Pro', 'GP_PRO_REVIEW'],
+  ['Déclaration DAC7', 'DAC7_REPORT'],
 ] as const
 
 describe('AppSidebar — entrées interdites au rôle SUPPORT', () => {

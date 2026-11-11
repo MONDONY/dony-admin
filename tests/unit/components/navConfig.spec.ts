@@ -14,6 +14,13 @@ describe('navConfig', () => {
     expect(new Set(tos).size).toBe(tos.length)
   })
 
+  it('la déclaration DAC7 est dans le domaine Argent, sous le droit DAC7_REPORT', () => {
+    const e = ALL_NAV_ENTRIES.find(x => x.to === '/dac7')
+    expect(e?.permission).toBe('DAC7_REPORT')
+    expect(e?.label).toBe('Déclaration DAC7')
+    expect(resolveActiveGroup('/dac7')?.id).toBe('money')
+  })
+
   describe('resolveActiveEntry', () => {
     it('route exacte', () => {
       expect(resolveActiveEntry('/colis')?.to).toBe('/colis')
