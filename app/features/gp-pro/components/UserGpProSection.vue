@@ -51,7 +51,7 @@ const btn = 'rounded-btn px-4 py-2 text-sm border border-border transition-[back
 <template>
   <section data-test="gp-pro-section" class="mt-4 space-y-2">
     <p class="text-text-muted">
-      GP Pro —
+      GP Pro :
       <span data-test="gp-pro-state" :class="gpPro ? 'font-medium text-success' : ''">
         {{ gpPro ? `actif depuis le ${fmtDate(gpProGrantedAt)}` : 'non attribué' }}
       </span>
