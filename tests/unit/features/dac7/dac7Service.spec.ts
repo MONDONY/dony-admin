@@ -80,7 +80,7 @@ describe('dac7Service : fichiers', () => {
     })
     const res = await dac7Service.exportFile(2026, 'PARTIAL')
     expect(api.raw).toHaveBeenCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL' }, responseType: 'blob' })
-    expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', excluded: 4, encrypted: true })
+    expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, excluded: 4, encrypted: true })
   })
 
   it('exportFile : non chiffré, sans exclus ni nom (repli sur un nom neutre)', async () => {
@@ -89,6 +89,7 @@ describe('dac7Service : fichiers', () => {
     expect(res.encrypted).toBe(false)
     expect(res.excluded).toBeNull()
     expect(res.filename).toBe('dac7-2026-complet')
+    expect(res.filenameFallback).toBe(true)
   })
 
   it('exportFile : en-têtes illisibles = inconnus, jamais « chiffré » par défaut', async () => {

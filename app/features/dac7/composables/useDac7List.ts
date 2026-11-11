@@ -13,22 +13,33 @@ export function useDac7List<T>(fetcher: (year: number) => Promise<T[]>, errorTex
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const unavailable = ref(false)
+  // Jeton d'appel : la réponse du dernier `load` gagne, une réponse en retard est ignorée.
+  let current = 0
+  let loadedYear: number | null = null
 
   async function load(year: number) {
+    const mine = ++current
+    // Autre année : l'ancienne liste disparaît, l'état de chargement prend sa place.
+    if (loadedYear !== year) items.value = []
+    loadedYear = year
     isLoading.value = true
     error.value = null
     try {
-      items.value = await fetcher(year)
+      const rows = await fetcher(year)
+      if (mine !== current) return
+      items.value = rows
       unavailable.value = false
     } catch (e) {
+      if (mine !== current) return
+      items.value = []
       if (isEndpointMissing(e)) {
         unavailable.value = true
-        items.value = []
       } else {
+        unavailable.value = false
         error.value = extractProblemMessage(e, errorText)
       }
     } finally {
-      isLoading.value = false
+      if (mine === current) isLoading.value = false
     }
   }
 

@@ -3,7 +3,7 @@ import { onMounted, watch } from 'vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
 import { useDac7List } from '@/features/dac7/composables/useDac7List'
 import { dac7Service } from '@/features/dac7/services/dac7Service'
-import { DAC7_UNAVAILABLE, anomalyTypeLabel, fmtDay, refundSourceLabel } from '@/features/dac7/types/index'
+import { DAC7_UNAVAILABLE, NOT_AVAILABLE, anomalyTypeLabel, fmtDay, refundSourceLabel } from '@/features/dac7/types/index'
 import type { Dac7AnomalyRow } from '@/features/dac7/types/index'
 import { gate, toHref, userRoute } from '@/lib/adminLinks'
 import { useAuthStore } from '@/stores/auth'
@@ -54,7 +54,7 @@ function link(r: Dac7AnomalyRow): string | null {
                 >Ouvrir la fiche</NuxtLink>
               </td>
               <td class="px-4 py-3 text-sm">{{ refundSourceLabel(r.source) }}</td>
-              <td class="px-4 py-3 text-sm tabular-nums">{{ r.currency || '–' }}</td>
+              <td class="px-4 py-3 text-sm tabular-nums">{{ r.currency || NOT_AVAILABLE }}</td>
               <td class="px-4 py-3 text-sm tabular-nums text-text-muted">{{ fmtDay(r.day) }}</td>
             </tr>
           </tbody>

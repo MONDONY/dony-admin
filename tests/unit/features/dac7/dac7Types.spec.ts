@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest'
 import {
   blockerInfo, DAC7_BLOCKER_CODES, DAC7_FILTERS, diligenceActionLabel, eurLabel, identityMeta, residencyMeta,
   solicitationMeta, anomalyTypeLabel, refundSourceLabel, dac7CodeMessage, DAC7_NOTE_MAX, noteValid,
-  yearOptions, countLabel,
+  yearOptions, countLabel, partialMayHelp, defaultYear, currentUtcYear, NOT_AVAILABLE,
 } from '@/features/dac7/types/index'
 
 describe('blocages', () => {
   it('chaque code du contrat a une explication française complète', () => {
     expect(DAC7_BLOCKER_CODES).toEqual([
       'IDENTITY_INCOMPLETE', 'TAX_INFO_MISSING', 'EUR_INCOMPLETE', 'COMMISSION_INCOMPLETE',
-      'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS',
+      'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS', 'OPERATOR_CONFIG_MISSING',
     ])
     for (const code of DAC7_BLOCKER_CODES) {
       const info = blockerInfo(code)
@@ -22,8 +22,23 @@ describe('blocages', () => {
   it('un code inconnu s’affiche tel quel, sans casser', () => {
     const info = blockerInfo('NOUVEAU_CODE')
     expect(info.known).toBe(false)
-    expect(info.title).toBe('NOUVEAU_CODE')
+    expect(info.title).toBe('Blocage non reconnu : NOUVEAU_CODE')
     expect(info.explanation).toMatch(/pas connu de cette version/i)
+    expect(info.explanation).not.toMatch(/partiel/i)
+  })
+  it('société déclarante non configurée : à régler côté serveur, sans suggérer le mode Partiel', () => {
+    const info = blockerInfo('OPERATOR_CONFIG_MISSING')
+    expect(info.explanation).toBe('Les informations de la société déclarante ne sont pas configurées côté serveur : contactez l’équipe technique.')
+    expect(info.explanation).not.toMatch(/partiel/i)
+  })
+  it('le mode Partiel n’est proposé que pour des blocages connus qu’il contourne', () => {
+    expect(partialMayHelp(['TAX_INFO_MISSING'])).toBe(true)
+    expect(partialMayHelp(['TAX_INFO_MISSING', 'IDENTITY_INCOMPLETE'])).toBe(true)
+    expect(partialMayHelp([])).toBe(false)
+    expect(partialMayHelp(['NO_SELLERS'])).toBe(false)
+    expect(partialMayHelp(['OPERATOR_CONFIG_MISSING'])).toBe(false)
+    expect(partialMayHelp(['TAX_INFO_MISSING', 'OPERATOR_CONFIG_MISSING'])).toBe(false)
+    expect(partialMayHelp(['TAX_INFO_MISSING', 'INCONNU'])).toBe(false)
   })
 })
 
@@ -74,11 +89,13 @@ describe('libellés', () => {
     // Intl met des espaces insécables (fines) : on compare à l'espace normal.
     expect(eurLabel(1234.5).replace(/\s/g, ' ')).toBe('1 234,50 €')
     expect(eurLabel(0).replace(/\s/g, ' ')).toBe('0,00 €')
-    expect(eurLabel(undefined)).toBe('–')
-    expect(eurLabel(null)).toBe('–')
+    expect(eurLabel(undefined)).toBe('n/d')
+    expect(eurLabel(null)).toBe('n/d')
+    expect(NOT_AVAILABLE).toBe('n/d')
   })
-  it('compteur : 0 par défaut', () => {
-    expect(countLabel(undefined)).toBe('0')
+  it('compteur : n/d quand le serveur ne l’envoie pas, 0 quand il envoie zéro', () => {
+    expect(countLabel(undefined)).toBe('n/d')
+    expect(countLabel(0)).toBe('0')
     expect(countLabel(12)).toBe('12')
   })
 })
@@ -102,9 +119,22 @@ describe('décision et codes d’erreur', () => {
 })
 
 describe('années', () => {
-  it('de l’année courante à 2023, la plus récente d’abord', () => {
-    expect(yearOptions(2026)).toEqual([2026, 2025, 2024, 2023])
+  it('l’année UTC courante et les deux précédentes, la plus récente d’abord', () => {
+    expect(yearOptions(2026)).toEqual([2026, 2025, 2024])
+    expect(yearOptions(2024)).toEqual([2024, 2023])
     expect(yearOptions(2023)).toEqual([2023])
     expect(yearOptions(2022)).toEqual([2023])
+  })
+  it('année par défaut : l’année courante, sauf en janvier (l’année écoulée)', () => {
+    expect(defaultYear(new Date('2026-11-11T10:00:00Z'))).toBe(2026)
+    expect(defaultYear(new Date('2026-12-31T23:59:59Z'))).toBe(2026)
+    expect(defaultYear(new Date('2027-01-01T00:00:00Z'))).toBe(2026)
+    expect(defaultYear(new Date('2027-01-31T12:00:00Z'))).toBe(2026)
+    expect(defaultYear(new Date('2027-02-01T00:00:00Z'))).toBe(2027)
+    expect(defaultYear(new Date('2023-01-10T00:00:00Z'))).toBe(2023)
+  })
+  it('l’année se lit en UTC : le 1er janvier à 0 h 30 heure de Paris, le serveur est encore en 2026', () => {
+    expect(currentUtcYear(new Date('2026-12-31T23:30:00Z'))).toBe(2026)
+    expect(yearOptions(currentUtcYear(new Date('2026-12-31T23:30:00Z')))[0]).toBe(2026)
   })
 })

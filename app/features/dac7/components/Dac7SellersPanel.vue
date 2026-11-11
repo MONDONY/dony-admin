@@ -6,7 +6,7 @@ import TabBar from '@/components/ui/TabBar.vue'
 import Dac7SellerDrawer from '@/features/dac7/components/Dac7SellerDrawer.vue'
 import { useDac7Sellers } from '@/features/dac7/composables/useDac7Sellers'
 import {
-  DAC7_FILTERS, DAC7_UNAVAILABLE, eurLabel, fmtDay, identityMeta, residencyMeta, solicitationMeta,
+  DAC7_FILTERS, DAC7_UNAVAILABLE, NOT_AVAILABLE, eurLabel, fmtDay, identityMeta, residencyMeta, solicitationMeta,
 } from '@/features/dac7/types/index'
 import type { Dac7Filter, Dac7Seller } from '@/features/dac7/types/index'
 
@@ -21,6 +21,9 @@ const sellers = useDac7Sellers()
 const filter = ref<Dac7Filter>('ALL')
 const selectedId = ref<string | null>(null)
 const snapshot = ref<Dac7Seller | null>(null)
+
+/** Le back omet les montants d'un voyageur dont la résidence est inconnue ou non déclarable : ce n'est pas zéro. */
+const NOT_COMPUTED = 'non calculé'
 
 const tabs = DAC7_FILTERS.map(f => ({ id: f.value, label: f.label }))
 /** Le voyageur ouvert reste affiché même si un filtre le fait sortir de la liste. */
@@ -76,7 +79,7 @@ watch([() => props.year, filter], () => { close(); void reload() })
                 >{{ s.displayName || 'Nom non renseigné' }}</button>
               </td>
               <td class="px-4 py-3 text-sm">
-                <span class="tabular-nums">{{ s.residenceCountry || '–' }}</span>
+                <span class="tabular-nums">{{ s.residenceCountry || NOT_AVAILABLE }}</span>
                 <StatusBadge class="ml-2" v-bind="residencyMeta(s.residencyStatus)" />
               </td>
               <td class="px-4 py-3 text-sm">
@@ -86,14 +89,14 @@ watch([() => props.year, filter], () => { close(); void reload() })
               <td class="px-4 py-3 text-sm"><StatusBadge v-bind="solicitationMeta(s.solicitation)" /></td>
               <td class="px-4 py-3 text-sm tabular-nums">{{ s.remindersSent ?? 0 }} / 2</td>
               <td class="px-4 py-3 text-sm tabular-nums text-text-muted">{{ fmtDay(s.lastDiligenceAt) }}</td>
-              <td class="px-4 py-3 text-right text-sm tabular-nums">{{ s.operations ?? 0 }}</td>
+              <td class="px-4 py-3 text-right text-sm tabular-nums">{{ s.operations ?? NOT_COMPUTED }}</td>
               <td class="px-4 py-3 text-right text-sm tabular-nums">
-                {{ eurLabel(s.netEur ?? 0) }}
-                <span v-if="s.eurComplete === false" class="block text-xs text-warning">partiel</span>
+                {{ s.netEur == null ? NOT_COMPUTED : eurLabel(s.netEur) }}
+                <span v-if="s.netEur != null && s.eurComplete === false" class="block text-xs text-warning">partiel</span>
               </td>
               <td class="px-4 py-3 text-right text-sm tabular-nums">
-                {{ eurLabel(s.commissionEur ?? 0) }}
-                <span v-if="s.commissionComplete === false" class="block text-xs text-warning">partielle</span>
+                {{ s.commissionEur == null ? NOT_COMPUTED : eurLabel(s.commissionEur) }}
+                <span v-if="s.commissionEur != null && s.commissionComplete === false" class="block text-xs text-warning">partielle</span>
               </td>
             </tr>
           </tbody>

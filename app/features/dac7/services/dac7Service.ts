@@ -53,9 +53,11 @@ export const dac7Service = {
    */
   async exportFile(year: number, mode: Dac7ExportMode): Promise<Dac7FileResult> {
     const res = await useApi().raw<Blob>(`${BASE}/exports`, { method: 'POST', body: { year, mode }, responseType: 'blob' })
+    const named = filenameFromContentDisposition(res.headers.get('content-disposition'))
     return {
       blob: res._data as Blob,
-      filename: filenameFromContentDisposition(res.headers.get('content-disposition')) ?? `dac7-${year}-${mode === 'FULL' ? 'complet' : 'partiel'}`,
+      filename: named ?? `dac7-${year}-${mode === 'FULL' ? 'complet' : 'partiel'}`,
+      filenameFallback: named === null,
       excluded: headerInt(res.headers, 'x-dac7-excluded'),
       encrypted: headerBool(res.headers, 'x-dac7-encrypted'),
     }

@@ -15,7 +15,9 @@ const svc = vi.hoisted(() => ({
 vi.mock('@/features/dac7/services/dac7Service', () => ({ dac7Service: svc }))
 vi.mock('@/lib/downloadBlob', () => ({ downloadBlob: vi.fn() }))
 
-const YEAR = new Date().getFullYear()
+import { defaultYear, currentUtcYear } from '@/features/dac7/types/index'
+
+const YEAR = defaultYear()
 const OVERVIEW = {
   year: YEAR, enabled: true, remindersEnabled: false, declarableSellers: 5, withTaxInfo: 3, missingTaxInfo: 2,
   identityReview: 0, unknownResidence: 0, nonDeclarable: 1, refundsToReconcile: 4, pendingSplits: 0, anomalies: 2,
@@ -55,20 +57,107 @@ describe('/dac7', () => {
     expect(w.find('[data-test="dac7-blocker-TAX_INFO_MISSING"]').exists()).toBe(true)
   })
 
-  it('le sélecteur propose l’année courante en premier, jusqu’à 2023', async () => {
+  it('le sélecteur propose l’année UTC courante et les deux précédentes, jamais une année postérieure', async () => {
     const w = await mountPage()
     const years = w.findAll('[data-test="dac7-year"] option').map(o => Number(o.text()))
-    expect(years[0]).toBe(YEAR)
-    expect(years.at(-1)).toBe(2023)
+    expect(years).toEqual([currentUtcYear(), currentUtcYear() - 1, currentUtcYear() - 2])
+    expect(Math.max(...years)).toBeLessThanOrEqual(new Date().getUTCFullYear())
+    expect(svc.overview).toHaveBeenCalledWith(expect.any(Number))
+    expect(svc.overview.mock.calls[0][0]).toBeLessThanOrEqual(new Date().getUTCFullYear())
+  })
+
+  it('en janvier, l’année par défaut est l’année écoulée (déclaration due le 31 janvier)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-01-15T10:00:00Z'))
+    try {
+      const w = await mountPage()
+      expect(svc.overview).toHaveBeenCalledWith(2026)
+      expect((w.get('[data-test="dac7-year"]').element as HTMLSelectElement).value).toBe('2026')
+      expect(w.findAll('[data-test="dac7-year"] option').map(o => Number(o.text()))).toEqual([2027, 2026, 2025])
+    } finally { vi.useRealTimers() }
   })
 
   it('changer d’année relit la synthèse et la liste', async () => {
     const w = await mountPage()
     svc.overview.mockClear(); svc.sellers.mockClear()
-    await w.get('[data-test="dac7-year"]').setValue('2024')
+    const other = currentUtcYear() - 2
+    await w.get('[data-test="dac7-year"]').setValue(String(other))
     await flushPromises()
-    expect(svc.overview).toHaveBeenCalledWith(2024)
-    expect(svc.sellers).toHaveBeenCalledWith(2024, 'ALL')
+    expect(svc.overview).toHaveBeenCalledWith(other)
+    expect(svc.sellers).toHaveBeenCalledWith(other, 'ALL')
+  })
+
+  it('course : la synthèse tardive d’une année abandonnée n’écrase pas celle de l’année affichée', async () => {
+    const pending: ((_v: unknown) => void)[] = []
+    svc.overview.mockReset()
+    svc.overview.mockImplementation(() => new Promise((resolve) => { pending.push(resolve) }))
+    const w = await mountPage()
+    pending[0]({ ...OVERVIEW, declarableSellers: 11 })
+    await flushPromises()
+    expect(w.get('[data-test="dac7-card-declarableSellers"]').text()).toContain('11')
+    const y1 = currentUtcYear() - 1
+    const y2 = currentUtcYear() - 2
+    await w.get('[data-test="dac7-year"]').setValue(String(y1))
+    await flushPromises()
+    // L'ancienne année disparaît tout de suite : chargement visible, pas de chiffres périmés.
+    expect(w.find('[data-test="dac7-card-declarableSellers"]').exists()).toBe(false)
+    expect(w.text()).toContain('Chargement')
+    await w.get('[data-test="dac7-year"]').setValue(String(y2))
+    await flushPromises()
+    pending[2]({ ...OVERVIEW, declarableSellers: 22 })
+    await flushPromises()
+    pending[1]({ ...OVERVIEW, declarableSellers: 99 })
+    await flushPromises()
+    expect(w.get('[data-test="dac7-card-declarableSellers"]').text()).toContain('22')
+    expect(w.get('[data-test="dac7-card-declarableSellers"]').text()).not.toContain('99')
+  })
+
+  it('le sélecteur d’année est verrouillé pendant un export, puis rendu', async () => {
+    let resolve: (_value: unknown) => void = () => {}
+    svc.exportFile.mockReturnValue(new Promise((r) => { resolve = r }))
+    const w = await mountPage()
+    await w.get('[data-test="dac7-tab-export"]').trigger('click')
+    await w.get('[data-test="dac7-export-run"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-year"]').attributes('disabled')).toBeDefined()
+    resolve({ blob: new Blob(['x']), filename: 'f.pgp', filenameFallback: false, excluded: 0, encrypted: true })
+    await flushPromises()
+    expect(w.get('[data-test="dac7-year"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('le sélecteur est aussi verrouillé pendant l’envoi des récapitulatifs', async () => {
+    let resolve: (_value: unknown) => void = () => {}
+    svc.sendStatements.mockReturnValue(new Promise((r) => { resolve = r }))
+    const w = await mountPage()
+    await w.get('[data-test="dac7-tab-export"]').trigger('click')
+    await w.get('[data-test="dac7-statements-send"]').trigger('click')
+    await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-year"]').attributes('disabled')).toBeDefined()
+    resolve({ sent: 1, skipped: 0 })
+    await flushPromises()
+    expect(w.get('[data-test="dac7-year"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('le bandeau « non chiffré » survit au changement d’onglet', async () => {
+    svc.exportFile.mockResolvedValue({ blob: new Blob(['x']), filename: 'f.xml', filenameFallback: false, excluded: 0, encrypted: false })
+    const w = await mountPage()
+    await w.get('[data-test="dac7-tab-export"]').trigger('click')
+    await w.get('[data-test="dac7-export-run"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="dac7-unencrypted-banner"]').exists()).toBe(true)
+    await w.get('[data-test="dac7-tab-anomalies"]').trigger('click')
+    await flushPromises()
+    await w.get('[data-test="dac7-tab-export"]').trigger('click')
+    expect(w.find('[data-test="dac7-unencrypted-banner"]').exists()).toBe(true)
+  })
+
+  it('synthèse sans liste de blocages : « État inconnu »', async () => {
+    svc.overview.mockResolvedValue({ year: YEAR })
+    const w = await mountPage()
+    expect(w.find('[data-test="dac7-state-unknown"]').exists()).toBe(true)
+    expect(w.find('[data-test="dac7-ready"]').exists()).toBe(false)
   })
 
   it('onglet Voyageurs par défaut ; les autres se chargent à l’ouverture', async () => {
@@ -85,8 +174,8 @@ describe('/dac7', () => {
     expect(svc.anomalies).toHaveBeenCalledWith(YEAR)
     await w.get('[data-test="dac7-tab-export"]').trigger('click')
     await flushPromises()
-    expect(w.find('[data-test="dac7-export-panel"]').exists()).toBe(true)
-    expect(w.find('[data-test="dac7-statements-panel"]').exists()).toBe(true)
+    expect(w.get('[data-test="dac7-export-panel"]').isVisible()).toBe(true)
+    expect(w.get('[data-test="dac7-statements-panel"]').isVisible()).toBe(true)
   })
 
   it('les onglets portent les compteurs de la synthèse', async () => {

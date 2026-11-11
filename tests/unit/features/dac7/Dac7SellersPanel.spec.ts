@@ -84,6 +84,61 @@ describe('Dac7SellersPanel : tableau', () => {
     expect(w.text()).not.toContain('undefined')
   })
 
+  it('montants absents (résidence inconnue ou non déclarable) : « non calculé », pas zéro', async () => {
+    svc.sellers.mockResolvedValue([{ userId: U1, displayName: 'Awa Diop', residencyStatus: 'RESIDENCE_INCONNUE', taxInfoProvided: false }])
+    const w = await mountPanel()
+    const row = norm(w.get(`[data-test="dac7-seller-row-${U1}"]`).text())
+    expect(row.match(/non calculé/g)).toHaveLength(3)
+    expect(row).not.toContain('0,00')
+    expect(row).not.toMatch(/partiel/i)
+    expect(row).not.toMatch(/[–—]/)
+  })
+
+  it('un zéro envoyé par le serveur reste un zéro', async () => {
+    svc.sellers.mockResolvedValue([{ userId: U1, operations: 0, netEur: 0, commissionEur: 0 }])
+    const w = await mountPanel()
+    const row = norm(w.get(`[data-test="dac7-seller-row-${U1}"]`).text())
+    expect(row).toContain('0,00 €')
+    expect(row).not.toContain('non calculé')
+  })
+
+  it('course : la réponse tardive d’un filtre abandonné est ignorée, et les anciennes lignes disparaissent', async () => {
+    const pending: ((_v: unknown) => void)[] = []
+    svc.sellers.mockReset()
+    svc.sellers.mockImplementation(() => new Promise((resolve) => { pending.push(resolve) }))
+    const w = mount(Dac7SellersPanel, { props: { year: 2026 }, global: { stubs: { NuxtLink: { props: ['to'], template: '<a><slot /></a>' } } } })
+    await flushPromises()
+    pending[0]([S1])
+    await flushPromises()
+    expect(w.text()).toContain('Awa Diop')
+    await w.get('[data-test="dac7-filter-MISSING_TAX_INFO"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).not.toContain('Awa Diop')
+    expect(w.text()).toContain('Chargement')
+    await w.get('[data-test="dac7-filter-ALL"]').trigger('click')
+    await flushPromises()
+    pending[2]([S2])
+    await flushPromises()
+    pending[1]([{ ...S1, userId: 'tardif', displayName: 'Filtre tardif' }])
+    await flushPromises()
+    expect(w.text()).toContain('Moussa Ba')
+    expect(w.text()).not.toContain('Filtre tardif')
+  })
+
+  it('une erreur vide l’ancienne liste, « Non disponible » disparaît à la relecture réussie', async () => {
+    const w = await mountPanel()
+    expect(w.findAll('[data-test^="dac7-seller-row-"]')).toHaveLength(2)
+    svc.sellers.mockRejectedValueOnce({ statusCode: 404, data: {} })
+    await w.get('[data-test="dac7-filter-NON_DECLARABLE"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="dac7-unavailable"]').exists()).toBe(true)
+    expect(w.findAll('[data-test^="dac7-seller-row-"]')).toHaveLength(0)
+    await w.get('[data-test="dac7-filter-ALL"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="dac7-unavailable"]').exists()).toBe(false)
+    expect(w.findAll('[data-test^="dac7-seller-row-"]')).toHaveLength(2)
+  })
+
   it('les cinq filtres relisent la liste', async () => {
     const w = await mountPanel()
     const labels = ['dac7-filter-ALL', 'dac7-filter-MISSING_TAX_INFO', 'dac7-filter-IDENTITY_REVIEW', 'dac7-filter-UNKNOWN_RESIDENCE', 'dac7-filter-NON_DECLARABLE']

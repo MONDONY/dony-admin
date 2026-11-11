@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
-import { blockerInfo, countLabel, eurLabel } from '@/features/dac7/types/index'
+import { blockerInfo, countLabel, eurLabel, partialMayHelp } from '@/features/dac7/types/index'
 import type { Dac7Overview } from '@/features/dac7/types/index'
 
 /**
@@ -27,6 +27,9 @@ const COUNTS: { key: CountKey; label: string; attention?: boolean }[] = [
 ]
 
 const blockers = computed(() => (props.overview?.blockers ?? []).map(blockerInfo))
+const partialHelps = computed(() => partialMayHelp(props.overview?.blockers ?? []))
+/** Vrai seulement si le serveur a envoyé la liste (vide) ET ne dit pas le contraire : sinon l'état est inconnu. */
+const noBlocker = computed(() => Array.isArray(props.overview?.blockers) && props.overview!.blockers!.length === 0 && props.overview!.exportReady !== false)
 const jurisdictions = computed(() => (props.overview?.invalidPartnerJurisdictions ?? []).join(', '))
 </script>
 
@@ -65,14 +68,14 @@ const jurisdictions = computed(() => (props.overview?.invalidPartnerJurisdiction
         </div>
         <div data-test="dac7-card-netEur" class="rounded-card border border-border bg-surface p-4">
           <p class="text-xs text-text-muted">Net versé aux voyageurs</p>
-          <p class="mt-1 font-display text-2xl font-bold tabular-nums">{{ eurLabel(overview.totals?.netEur ?? 0) }}</p>
+          <p class="mt-1 font-display text-2xl font-bold tabular-nums">{{ eurLabel(overview.totals?.netEur) }}</p>
           <p v-if="overview.eurComplete === false" data-test="dac7-partial-eur" class="mt-1 text-xs text-warning text-pretty">
             Montant partiel : des taux de change manquent.
           </p>
         </div>
         <div data-test="dac7-card-commissionEur" class="rounded-card border border-border bg-surface p-4">
           <p class="text-xs text-text-muted">Commission de Yadony</p>
-          <p class="mt-1 font-display text-2xl font-bold tabular-nums">{{ eurLabel(overview.totals?.commissionEur ?? 0) }}</p>
+          <p class="mt-1 font-display text-2xl font-bold tabular-nums">{{ eurLabel(overview.totals?.commissionEur) }}</p>
           <p v-if="overview.commissionComplete === false" data-test="dac7-partial-commission" class="mt-1 text-xs text-warning text-pretty">
             Commission partielle : certaines sont introuvables.
           </p>
@@ -85,7 +88,8 @@ const jurisdictions = computed(() => (props.overview?.invalidPartnerJurisdiction
       >
         <h2 class="font-display text-base font-bold text-danger">L’export complet est bloqué</h2>
         <p class="mt-1 text-sm text-text-muted text-pretty">
-          Réglez ces points, ou exportez en mode Partiel (seuls les voyageurs complets sont alors déclarés).
+          <template v-if="partialHelps">Réglez ces points, ou exportez en mode Partiel (seuls les voyageurs complets sont alors déclarés).</template>
+          <template v-else>Réglez ces points avant d’exporter : le mode Partiel ne les contourne pas.</template>
         </p>
         <ul class="mt-3 flex flex-col gap-3">
           <li v-for="b in blockers" :key="b.code" :data-test="`dac7-blocker-${b.code}`">
@@ -98,9 +102,13 @@ const jurisdictions = computed(() => (props.overview?.invalidPartnerJurisdiction
         </ul>
       </div>
       <p
-        v-else data-test="dac7-ready" role="status"
+        v-else-if="noBlocker" data-test="dac7-ready" role="status"
         class="rounded-card border border-success/30 bg-success/5 px-4 py-3 text-sm text-success text-pretty"
       >Aucun blocage : l’export complet est possible.</p>
+      <p
+        v-else data-test="dac7-state-unknown" role="status"
+        class="rounded-card border border-border bg-surface px-4 py-3 text-sm text-text-muted text-pretty"
+      >État inconnu : le serveur n’a pas indiqué si l’export est possible.</p>
     </template>
   </section>
 </template>

@@ -9,7 +9,7 @@ import Dac7SellersPanel from '@/features/dac7/components/Dac7SellersPanel.vue'
 import Dac7StatementsPanel from '@/features/dac7/components/Dac7StatementsPanel.vue'
 import Dac7Summary from '@/features/dac7/components/Dac7Summary.vue'
 import { useDac7Overview } from '@/features/dac7/composables/useDac7Overview'
-import { DAC7_UNAVAILABLE, yearOptions } from '@/features/dac7/types/index'
+import { DAC7_UNAVAILABLE, currentUtcYear, defaultYear, yearOptions } from '@/features/dac7/types/index'
 
 definePageMeta({
   middleware: 'admin-only', permission: 'DAC7_REPORT',
@@ -18,9 +18,15 @@ definePageMeta({
 
 type Section = 'sellers' | 'refunds' | 'anomalies' | 'export'
 
-const currentYear = new Date().getFullYear()
-const years = yearOptions(currentYear)
-const year = ref(currentYear)
+// Année UTC, celle que le serveur compare (il refuse une année postérieure, 422) ; en janvier on
+// ouvre l'année écoulée, celle de la déclaration due le 31 janvier.
+const years = yearOptions(currentUtcYear())
+const year = ref(defaultYear())
+/** Un export ou un envoi est en cours : le sélecteur d'année est verrouillé. */
+const working = ref(false)
+const exportBusy = ref(false)
+const statementsBusy = ref(false)
+watch([exportBusy, statementsBusy], () => { working.value = exportBusy.value || statementsBusy.value })
 const section = ref<Section>('sellers')
 const summary = useDac7Overview()
 /** Les onglets attendent la première réponse de la synthèse : un ancien back ne reçoit alors qu'une requête. */
@@ -50,7 +56,7 @@ watch(year, reload)
         <label class="flex items-center gap-2 text-sm text-text-muted">
           Année
           <select
-            v-model.number="year" data-test="dac7-year"
+            v-model.number="year" data-test="dac7-year" :disabled="working"
             class="rounded-btn border border-border bg-bg px-3 py-1.5 text-sm text-text"
           >
             <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
@@ -66,9 +72,10 @@ watch(year, reload)
         <Dac7SellersPanel v-if="section === 'sellers'" :year="year" @changed="reload" />
         <Dac7RefundsPanel v-else-if="section === 'refunds'" :year="year" />
         <Dac7AnomaliesPanel v-else-if="section === 'anomalies'" :year="year" />
-        <div v-else class="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <Dac7ExportPanel :year="year" :blockers-count="summary.overview.value?.blockers?.length ?? 0" />
-          <Dac7StatementsPanel :year="year" />
+        <!-- Monté dès l'arrivée et seulement masqué : un fichier non chiffré déjà téléchargé reste signalé en changeant d'onglet. -->
+        <div v-show="section === 'export'" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <Dac7ExportPanel :year="year" :blockers-count="summary.overview.value?.blockers?.length ?? 0" @busy="exportBusy = $event" />
+          <Dac7StatementsPanel :year="year" @busy="statementsBusy = $event" />
         </div>
       </template>
     </template>

@@ -9,6 +9,7 @@ import { DAC7_UNAVAILABLE } from '@/features/dac7/types/index'
  * la confirmation demande de saisir un mot pour éviter l'envoi par un clic distrait.
  */
 const props = defineProps<{ year: number }>()
+const emit = defineEmits<{ busy: [value: boolean] }>()
 
 const CONFIRM_WORD = 'ENVOYER'
 const statements = useDac7Statements()
@@ -22,6 +23,8 @@ async function onConfirm() {
 }
 
 watch(() => props.year, () => statements.reset())
+// La page verrouille le sélecteur d'année pendant l'envoi : le résultat reste celui de l'année affichée.
+watch(() => statements.busy.value, v => emit('busy', v))
 </script>
 
 <template>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useDac7Export } from '@/features/dac7/composables/useDac7Export'
-import { DAC7_UNAVAILABLE, blockerInfo } from '@/features/dac7/types/index'
+import { DAC7_UNAVAILABLE, blockerInfo, partialMayHelp } from '@/features/dac7/types/index'
 import type { Dac7ExportMode } from '@/features/dac7/types/index'
 
 /**
@@ -13,6 +13,8 @@ const props = defineProps<{
   /** Nombre de blocages signalés par la synthèse (indication seulement : le serveur reste juge). */
   blockersCount?: number
 }>()
+
+const emit = defineEmits<{ busy: [value: boolean] }>()
 
 const exporter = useDac7Export()
 const mode = ref<Dac7ExportMode>('FULL')
@@ -28,7 +30,17 @@ const excludedLabel = computed(() => {
   return n && n > 0 ? `${n} voyageur${n > 1 ? 's' : ''} exclu${n > 1 ? 's' : ''} du fichier : voir le CSV de contrôle.` : null
 })
 
-watch(() => props.year, () => exporter.reset())
+// Les échecs et blocages valent pour une année ; le dernier fichier téléchargé, lui, reste signalé
+// (il est déjà sur le disque) jusqu'au prochain export ou à la sortie de la page.
+watch(() => props.year, () => exporter.resetFailures())
+// La page verrouille le sélecteur d'année tant qu'un fichier se génère : un résultat tardif ne
+// peut ainsi jamais s'afficher dans la vue d'une autre année.
+watch(() => exporter.busy.value || exporter.csvBusy.value, v => emit('busy', v))
+
+const refusedTitle = computed(() => exporter.blockedMode.value === 'PARTIAL'
+  ? 'Export partiel refusé : des points restent à régler.'
+  : 'Export complet refusé : des points restent à régler.')
+const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && partialMayHelp(exporter.blockers.value ?? []))
 </script>
 
 <template>
@@ -81,25 +93,32 @@ watch(() => props.year, () => exporter.reset())
       v-if="exporter.blockers.value" data-test="dac7-export-blocked" role="alert"
       class="rounded-card border border-danger/30 bg-danger/5 p-4"
     >
-      <p class="text-sm font-semibold text-danger">Export complet refusé : des points restent à régler.</p>
+      <p class="text-sm font-semibold text-danger">{{ refusedTitle }}</p>
       <ul v-if="blockerList.length" class="mt-2 flex flex-col gap-2">
         <li v-for="b in blockerList" :key="b.code" :data-test="`dac7-export-blocker-${b.code}`">
           <p class="text-sm font-medium">{{ b.title }}</p>
           <p class="text-sm text-text-muted text-pretty">{{ b.explanation }}</p>
         </li>
       </ul>
-      <p class="mt-2 text-sm text-text-muted text-pretty">Vous pouvez aussi choisir le mode Partiel.</p>
+      <p v-if="suggestPartial" class="mt-2 text-sm text-text-muted text-pretty">Vous pouvez aussi choisir le mode Partiel.</p>
     </div>
 
     <div v-if="exporter.result.value" data-test="dac7-export-result" role="status" class="flex flex-col gap-2 rounded-card border border-border bg-bg p-4">
       <p class="text-sm text-pretty">
-        Fichier téléchargé :
+        Fichier de l’année {{ exporter.result.value.year }} téléchargé :
         <span class="break-all font-mono text-xs">{{ exporter.result.value.filename }}</span>
       </p>
       <p
+        v-if="exporter.result.value.filenameFallback" data-test="dac7-filename-fallback"
+        class="rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-text text-pretty"
+      >Nom de fichier inconnu : renommez-le selon la règle de nommage de la DGFiP avant tout test.</p>
+      <div
         v-if="exporter.result.value.encrypted === false" data-test="dac7-unencrypted-banner"
-        class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger"
-      >Fichier non chiffré, ne pas déposer</p>
+        class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-danger"
+      >
+        <p class="text-sm font-semibold">Fichier non chiffré, ne pas déposer</p>
+        <p class="text-xs text-pretty">Il contient des données personnelles en clair : supprimez-le de votre ordinateur.</p>
+      </div>
       <p v-else-if="exporter.result.value.encrypted === true" class="text-sm text-success">Fichier chiffré.</p>
       <p
         v-else data-test="dac7-export-encryption-unknown"

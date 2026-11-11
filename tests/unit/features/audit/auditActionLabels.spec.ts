@@ -10,8 +10,13 @@ describe('auditActionLabel', () => {
     expect(auditActionLabel('DAC7_TEAM_DECISION')).toBe('Décision de l’équipe sur un voyageur DAC7')
   })
 
+  it('CSV de contrôle et purge du numéro fiscal', () => {
+    expect(auditActionLabel('DAC7_CONTROL_CSV_GENERATED')).toBe('CSV de contrôle DAC7 généré')
+    expect(auditActionLabel('DAC7_TAX_INFO_PURGED')).toBe('Numéro fiscal purgé')
+  })
+
   it('une autre action DAC7 reste lisible, sans inventer son sens', () => {
-    expect(auditActionLabel('DAC7_CONTROL_CSV_GENERATED')).toBe('DAC7 : DAC7_CONTROL_CSV_GENERATED')
+    expect(auditActionLabel('DAC7_AUTRE_ACTION')).toBe('DAC7 : DAC7_AUTRE_ACTION')
   })
 
   it('une action inconnue ou absente n’a pas de libellé', () => {

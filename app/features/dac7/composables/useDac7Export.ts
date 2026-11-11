@@ -9,68 +9,92 @@ import type { Dac7ExportMode } from '@/features/dac7/types/index'
 /** Ce que l'écran garde du dernier fichier généré : jamais son contenu, seulement ses métadonnées. */
 export interface Dac7ExportSummary {
   filename: string
+  /** Vrai quand le serveur n'a pas donné de nom : le fichier porte un nom de repli, sans extension. */
+  filenameFallback: boolean
+  year: number
   mode: Dac7ExportMode
   excluded: number | null
   encrypted: boolean | null
 }
 
 /**
+ * Code métier d'un corps d'erreur : `code`, ou `type` quand il n'est pas le `about:blank` par
+ * défaut de Spring. Sans l'un ni l'autre, l'erreur n'est pas une réponse métier du back.
+ */
+function businessCode(e: unknown, body: Record<string, unknown> | null): string | null {
+  if (typeof body?.code === 'string' && body.code.trim()) return body.code
+  if (typeof body?.type === 'string' && body.type.trim() && body.type !== 'about:blank') return body.type
+  return problemCode(e)
+}
+
+/**
  * Export du fichier DAC7 et CSV de contrôle. Le fichier part directement au téléchargement du
  * navigateur : l'application ne l'envoie nulle part, le dépôt à la DGFiP reste un geste humain.
+ *
+ * Le corps d'une erreur arrive en Blob (`responseType: 'blob'`) : on le lit AVANT de conclure à
+ * un ancien back, car un 404 ou 405 qui porte un code métier est une vraie réponse du serveur.
  */
 export function useDac7Export() {
   const busy = ref(false)
   const csvBusy = ref(false)
   const result = ref<Dac7ExportSummary | null>(null)
   const blockers = ref<string[] | null>(null)
+  /** Mode demandé quand l'export a été refusé : le texte du refus en dépend. */
+  const blockedMode = ref<Dac7ExportMode | null>(null)
   const error = ref<string | null>(null)
   const unavailable = ref(false)
 
-  function reset() {
-    result.value = null
+  /** Efface les échecs de l'essai précédent (le résultat du dernier fichier reste, voir `clearResult`). */
+  function resetFailures() {
     blockers.value = null
+    blockedMode.value = null
     error.value = null
+    unavailable.value = false
   }
+  function clearResult() { result.value = null }
 
-  async function failure(e: unknown, fallback: string) {
-    if (isEndpointMissing(e)) { unavailable.value = true; return }
+  async function failure(e: unknown, fallback: string, mode: Dac7ExportMode | null) {
     const body = await readProblemBody(e)
-    if (problemCode(e ?? undefined) === 'dac7-export-blocked' || body?.code === 'dac7-export-blocked') {
+    const code = businessCode(e, body)
+    if (!code && isEndpointMissing(e)) { unavailable.value = true; return }
+    if (mode && code === 'dac7-export-blocked') {
       const list = body?.blockers
       blockers.value = Array.isArray(list) ? list.filter((b): b is string => typeof b === 'string') : []
+      blockedMode.value = mode
       return
     }
-    error.value = dac7CodeMessage(typeof body?.code === 'string' ? body.code : null) ?? await extractProblemMessageAsync(e, fallback)
+    error.value = dac7CodeMessage(code) ?? await extractProblemMessageAsync(e, fallback)
   }
 
   async function run(year: number, mode: Dac7ExportMode) {
-    reset()
+    resetFailures()
     busy.value = true
     try {
       const file = await dac7Service.exportFile(year, mode)
       downloadBlob(file.blob, file.filename)
-      result.value = { filename: file.filename, mode, excluded: file.excluded, encrypted: file.encrypted }
-      unavailable.value = false
+      result.value = {
+        filename: file.filename, filenameFallback: file.filenameFallback, year, mode,
+        excluded: file.excluded, encrypted: file.encrypted,
+      }
     } catch (e) {
-      await failure(e, 'Le fichier n’a pas pu être généré')
+      await failure(e, 'Le fichier n’a pas pu être généré', mode)
     } finally {
       busy.value = false
     }
   }
 
   async function runControl(year: number) {
-    reset()
+    resetFailures()
     csvBusy.value = true
     try {
       const file = await dac7Service.controlCsv(year)
       downloadBlob(file.blob, file.filename)
-      unavailable.value = false
     } catch (e) {
-      await failure(e, 'Le CSV de contrôle n’a pas pu être généré')
+      await failure(e, 'Le CSV de contrôle n’a pas pu être généré', null)
     } finally {
       csvBusy.value = false
     }
   }
 
-  return { busy, csvBusy, result, blockers, error, unavailable, reset, run, runControl }
+  return { busy, csvBusy, result, blockers, blockedMode, error, unavailable, resetFailures, clearResult, run, runControl }
 }

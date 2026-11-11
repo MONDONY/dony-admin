@@ -12,6 +12,11 @@ describe('extractProblemMessage', () => {
     expect(extractProblemMessage(err, 'secours')).toBe('Network error')
   })
 
+  it('un message technique d’ofetch cède la place au texte de repli en français', () => {
+    const err = Object.assign(new Error('[POST] "https://x/admin/dac7/exports": 500 Internal Server Error'), { data: {} })
+    expect(extractProblemMessage(err, 'Le fichier n’a pas pu être généré')).toBe('Le fichier n’a pas pu être généré')
+  })
+
   it('retombe sur le message de secours quand ni detail ni message ne sont exploitables', () => {
     expect(extractProblemMessage({}, 'secours')).toBe('secours')
     expect(extractProblemMessage(undefined, 'secours')).toBe('secours')

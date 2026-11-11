@@ -24,21 +24,32 @@ export function useDac7SellerCase() {
   const actionError = ref<string | null>(null)
   const notice = ref<string | null>(null)
 
+  // Jeton d'appel : la réponse du dernier chargement gagne (changement de voyageur, relecture).
+  let current = 0
+  let loadedUser: string | null = null
+
   async function loadDiligence(userId: string) {
+    const mine = ++current
+    if (loadedUser !== userId) entries.value = []
+    loadedUser = userId
     isLoading.value = true
     error.value = null
     try {
-      entries.value = await dac7Service.diligence(userId)
+      const rows = await dac7Service.diligence(userId)
+      if (mine !== current) return
+      entries.value = rows
       unavailable.value = false
     } catch (e) {
+      if (mine !== current) return
+      entries.value = []
       if (isEndpointMissing(e)) {
         unavailable.value = true
-        entries.value = []
       } else {
+        unavailable.value = false
         error.value = extractProblemMessage(e, 'Impossible de charger le registre des diligences')
       }
     } finally {
-      isLoading.value = false
+      if (mine === current) isLoading.value = false
     }
   }
 

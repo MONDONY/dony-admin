@@ -98,6 +98,8 @@ export interface Dac7StatementsResult { sent?: number; skipped?: number }
 export interface Dac7FileResult {
   blob: Blob
   filename: string
+  /** Vrai quand le serveur n'a pas donné de nom : `filename` est alors un nom de repli sans extension. */
+  filenameFallback: boolean
   /** Voyageurs laissés de côté (mode Partiel) ; null si l'en-tête est absent. */
   excluded: number | null
   /** true / false d'après `X-Dac7-Encrypted` ; null si l'en-tête n'est pas lisible. */
@@ -118,7 +120,7 @@ export const DAC7_FILTERS: { value: Dac7Filter; label: string }[] = [
 
 export const DAC7_BLOCKER_CODES = [
   'IDENTITY_INCOMPLETE', 'TAX_INFO_MISSING', 'EUR_INCOMPLETE', 'COMMISSION_INCOMPLETE',
-  'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS',
+  'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS', 'OPERATOR_CONFIG_MISSING',
 ] as const
 
 const BLOCKERS: Record<string, { title: string; explanation: string }> = {
@@ -151,6 +153,21 @@ const BLOCKERS: Record<string, { title: string; explanation: string }> = {
     title: 'Aucun voyageur à déclarer',
     explanation: 'Aucun voyageur déclarable n’a eu d’opération cette année : il n’y a rien à exporter.',
   },
+  OPERATOR_CONFIG_MISSING: {
+    title: 'Société déclarante non configurée',
+    explanation: 'Les informations de la société déclarante ne sont pas configurées côté serveur : contactez l’équipe technique.',
+  },
+}
+
+/** Les seuls blocages que le mode Partiel contourne : ils concernent des voyageurs, qu'il met de côté. */
+const PARTIAL_CAN_HELP = new Set(['IDENTITY_INCOMPLETE', 'TAX_INFO_MISSING'])
+
+/**
+ * Vrai quand proposer le mode Partiel est honnête : au moins un blocage, tous connus et tous
+ * contournables. Un blocage inconnu, `NO_SELLERS` ou `OPERATOR_CONFIG_MISSING` est refusé aussi en Partiel.
+ */
+export function partialMayHelp(codes: readonly string[]): boolean {
+  return codes.length > 0 && codes.every(c => PARTIAL_CAN_HELP.has(c))
 }
 
 export interface BlockerInfo { code: string; title: string; explanation: string; known: boolean }
@@ -158,7 +175,10 @@ export interface BlockerInfo { code: string; title: string; explanation: string;
 export function blockerInfo(code: string): BlockerInfo {
   const known = BLOCKERS[code]
   if (known) return { code, ...known, known: true }
-  return { code, title: code, explanation: 'Ce blocage n’est pas connu de cette version de l’admin. Il empêche l’export complet.', known: false }
+  return {
+    code, title: `Blocage non reconnu : ${code}`, known: false,
+    explanation: 'Ce blocage n’est pas connu de cette version de l’admin. Il empêche l’export : contactez l’équipe technique.',
+  }
 }
 
 const RESIDENCY: Record<string, Meta> = {
@@ -222,13 +242,16 @@ export function refundSourceLabel(s: string | null | undefined): string {
   return SOURCES[s] ?? s
 }
 
+/** Valeur vide affichée en toutes lettres : jamais un tiret, qui prête au doute. */
+export const NOT_AVAILABLE = 'n/d'
+
 const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
 export function eurLabel(n: number | null | undefined): string {
-  return n == null ? '–' : EUR.format(n)
+  return n == null ? NOT_AVAILABLE : EUR.format(n)
 }
 
 export function countLabel(n: number | null | undefined): string {
-  return String(n ?? 0)
+  return n == null ? NOT_AVAILABLE : String(n)
 }
 
 export function noteValid(note: string): boolean {
@@ -246,20 +269,38 @@ export function dac7CodeMessage(code: string | null | undefined): string | null 
   return code ? CODE_MESSAGES[code] ?? null : null
 }
 
-/** De l'année courante jusqu'à 2023 (première année DAC7), la plus récente d'abord. */
-export function yearOptions(current: number): number[] {
+/**
+ * Années proposées : l'année UTC courante et les deux précédentes (jamais avant 2023), la plus
+ * récente d'abord. Le back refuse une année supérieure à l'année UTC (422) : on n'en propose pas.
+ */
+export function yearOptions(utcYear: number): number[] {
+  const top = Math.max(utcYear, DAC7_FIRST_YEAR)
   const out: number[] = []
-  for (let y = Math.max(current, DAC7_FIRST_YEAR); y >= DAC7_FIRST_YEAR; y--) out.push(y)
+  for (let y = top; y > top - 3 && y >= DAC7_FIRST_YEAR; y--) out.push(y)
   return out
 }
 
+/** Année UTC de l'instant donné, celle que le serveur compare. */
+export function currentUtcYear(now: Date = new Date()): number {
+  return now.getUTCFullYear()
+}
+
+/**
+ * Année affichée à l'ouverture : l'année courante, sauf en janvier où la déclaration due le 31
+ * janvier concerne l'année écoulée. Jamais au-delà de l'année UTC, jamais avant 2023.
+ */
+export function defaultYear(now: Date = new Date()): number {
+  const y = currentUtcYear(now)
+  return Math.max(now.getUTCMonth() === 0 ? y - 1 : y, DAC7_FIRST_YEAR)
+}
+
 export function fmtDateTime(d: string | null | undefined): string {
-  if (!d) return '–'
+  if (!d) return NOT_AVAILABLE
   const t = Date.parse(d)
-  return Number.isNaN(t) ? '–' : new Date(t).toLocaleString('fr-FR')
+  return Number.isNaN(t) ? NOT_AVAILABLE : new Date(t).toLocaleString('fr-FR')
 }
 export function fmtDay(d: string | null | undefined): string {
-  if (!d) return '–'
+  if (!d) return NOT_AVAILABLE
   const t = Date.parse(d)
-  return Number.isNaN(t) ? '–' : new Date(t).toLocaleDateString('fr-FR')
+  return Number.isNaN(t) ? NOT_AVAILABLE : new Date(t).toLocaleDateString('fr-FR')
 }

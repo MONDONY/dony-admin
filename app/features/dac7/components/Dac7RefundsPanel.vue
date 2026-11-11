@@ -3,7 +3,7 @@ import { onMounted, watch } from 'vue'
 import StateBlock from '@/components/ui/StateBlock.vue'
 import { useDac7List } from '@/features/dac7/composables/useDac7List'
 import { dac7Service } from '@/features/dac7/services/dac7Service'
-import { DAC7_UNAVAILABLE, eurLabel, fmtDay, refundSourceLabel } from '@/features/dac7/types/index'
+import { DAC7_UNAVAILABLE, NOT_AVAILABLE, eurLabel, fmtDay, refundSourceLabel } from '@/features/dac7/types/index'
 import type { Dac7RefundRow } from '@/features/dac7/types/index'
 import { gate, toHref, userRoute } from '@/lib/adminLinks'
 import { useAuthStore } from '@/stores/auth'
@@ -58,7 +58,7 @@ function link(r: Dac7RefundRow): string | null {
                 >Ouvrir la fiche</NuxtLink>
               </td>
               <td class="px-4 py-3 text-sm">{{ refundSourceLabel(r.source) }}</td>
-              <td class="px-4 py-3 text-right text-sm tabular-nums">{{ r.amount ?? '–' }} {{ r.currency }}</td>
+              <td class="px-4 py-3 text-right text-sm tabular-nums">{{ r.amount ?? NOT_AVAILABLE }} {{ r.currency }}</td>
               <td class="px-4 py-3 text-right text-sm tabular-nums">{{ eurLabel(r.amountEur) }}</td>
               <td class="px-4 py-3 text-sm tabular-nums text-text-muted">{{ fmtDay(r.operationPaidAt) }}<span v-if="r.operationYear"> ({{ r.operationYear }})</span></td>
               <td class="px-4 py-3 text-sm tabular-nums text-text-muted">

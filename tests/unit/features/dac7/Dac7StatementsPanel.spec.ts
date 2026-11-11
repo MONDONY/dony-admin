@@ -95,4 +95,34 @@ describe('Dac7StatementsPanel', () => {
     await w.setProps({ year: 2025 })
     expect(w.find('[data-test="dac7-statements-result"]').exists()).toBe(false)
   })
+
+  it('prévient la page pendant l’envoi (verrou du sélecteur d’année)', async () => {
+    let resolve: (_value: unknown) => void = () => {}
+    svc.sendStatements.mockReturnValue(new Promise((r) => { resolve = r }))
+    const w = mountIt()
+    await w.get('[data-test="dac7-statements-send"]').trigger('click')
+    await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.emitted('busy')?.at(-1)).toEqual([true])
+    resolve({ sent: 1, skipped: 0 })
+    await flushPromises()
+    expect(w.emitted('busy')?.at(-1)).toEqual([false])
+  })
+
+  it('« Non disponible » disparaît à l’essai suivant', async () => {
+    svc.sendStatements.mockRejectedValueOnce({ statusCode: 404, data: {} })
+    const w = mountIt()
+    const send = async () => {
+      await w.get('[data-test="dac7-statements-send"]').trigger('click')
+      await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+      await w.get('[data-test="confirm"]').trigger('click')
+      await flushPromises()
+    }
+    await send()
+    expect(w.find('[data-test="dac7-unavailable"]').exists()).toBe(true)
+    await send()
+    expect(w.find('[data-test="dac7-unavailable"]').exists()).toBe(false)
+    expect(w.find('[data-test="dac7-statements-result"]').exists()).toBe(true)
+  })
 })

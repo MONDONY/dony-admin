@@ -11,14 +11,13 @@ export function useDac7Statements() {
   const error = ref<string | null>(null)
   const unavailable = ref(false)
 
-  function reset() { result.value = null; error.value = null }
+  function reset() { result.value = null; error.value = null; unavailable.value = false }
 
   async function send(year: number) {
     reset()
     busy.value = true
     try {
       result.value = (await dac7Service.sendStatements(year)) ?? {}
-      unavailable.value = false
     } catch (e) {
       if (isEndpointMissing(e)) unavailable.value = true
       else error.value = extractProblemMessage(e, 'Les récapitulatifs n’ont pas pu être envoyés')

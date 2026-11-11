@@ -59,7 +59,9 @@ describe('Dac7Summary', () => {
     expect(w.find('[data-test="dac7-badge-rappels"]').exists()).toBe(false)
     expect(w.text()).not.toContain('NaN')
     expect(w.text()).not.toContain('undefined')
-    expect(w.get('[data-test="dac7-card-declarableSellers"]').text()).toContain('0')
+    expect(w.get('[data-test="dac7-card-declarableSellers"]').text()).toContain('n/d')
+    expect(w.get('[data-test="dac7-card-netEur"]').text()).toContain('n/d')
+    expect(w.text()).not.toMatch(/[–—]/)
   })
 
   it('export prêt : aucun blocage', () => {
@@ -83,9 +85,32 @@ describe('Dac7Summary', () => {
     expect(w.get('[data-test="dac7-blocker-INVALID_PARTNER_JURISDICTION"]').text()).toContain('XX, ZZ')
   })
 
-  it('un blocage inconnu s’affiche quand même', () => {
-    const w = mountIt({ ...OVERVIEW, blockers: ['NOUVEAU'] })
-    expect(w.get('[data-test="dac7-blocker-NOUVEAU"]').text()).toContain('NOUVEAU')
+  it('un blocage inconnu s’affiche avec un message générique, jamais le code seul', () => {
+    const w = mountIt({ ...OVERVIEW, exportReady: false, blockers: ['NOUVEAU'] })
+    const t = w.get('[data-test="dac7-blocker-NOUVEAU"]').text()
+    expect(t).toContain('Blocage non reconnu : NOUVEAU')
+    expect(w.get('[data-test="dac7-blockers"]').text()).not.toMatch(/exportez en mode Partiel/)
+  })
+
+  it('société déclarante non configurée : explication, et le mode Partiel n’est pas proposé', () => {
+    const w = mountIt({ ...OVERVIEW, exportReady: false, blockers: ['OPERATOR_CONFIG_MISSING'] })
+    expect(w.get('[data-test="dac7-blocker-OPERATOR_CONFIG_MISSING"]').text()).toContain('contactez l’équipe technique')
+    expect(w.get('[data-test="dac7-blockers"]').text()).toMatch(/ne les contourne pas/)
+    expect(w.get('[data-test="dac7-blockers"]').text()).not.toMatch(/exportez en mode Partiel/)
+  })
+
+  it('le mode Partiel n’est proposé que si tous les blocages sont contournables', () => {
+    const w = mountIt({ ...OVERVIEW, exportReady: false, blockers: ['TAX_INFO_MISSING'] })
+    expect(w.get('[data-test="dac7-blockers"]').text()).toMatch(/exportez en mode Partiel/)
+  })
+
+  it('liste de blocages absente ou export non prêt sans blocage : « État inconnu », pas « Aucun blocage »', () => {
+    const noList = mountIt({ year: 2026, declarableSellers: 1 })
+    expect(noList.get('[data-test="dac7-state-unknown"]').text()).toContain('État inconnu')
+    expect(noList.find('[data-test="dac7-ready"]').exists()).toBe(false)
+    const notReady = mountIt({ ...OVERVIEW, exportReady: false, blockers: [] })
+    expect(notReady.find('[data-test="dac7-state-unknown"]').exists()).toBe(true)
+    expect(notReady.find('[data-test="dac7-ready"]').exists()).toBe(false)
   })
 
   it('pas encore chargé : rien à montrer ; en chargement : l’état de chargement', () => {

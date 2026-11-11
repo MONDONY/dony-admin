@@ -1,4 +1,13 @@
 /**
+ * Message technique d'ofetch (`[POST] "https://…": 500 Internal Server Error`) : en anglais et
+ * inutile à un humain. Il laisse la place au texte de repli, écrit en français.
+ */
+function plainMessage(e: unknown): string | null {
+  const m = (e as Error | undefined)?.message
+  return m && !m.startsWith('[') ? m : null
+}
+
+/**
  * Le backend renvoie du RFC 7807 (`ProblemDetail`) : `detail` porte le message écrit pour
  * un humain, `code` le slug technique. `useApi()` (ofetch) expose le corps parsé via
  * `error.data`. On ne retombe sur `error.message` (générique, type « 422 Unprocessable
@@ -7,7 +16,7 @@
 export function extractProblemMessage(e: unknown, fallback: string): string {
   const data = (e as { data?: { detail?: string } } | undefined)?.data
   if (typeof data?.detail === 'string' && data.detail.trim().length > 0) return data.detail
-  return (e as Error | undefined)?.message || fallback
+  return plainMessage(e) ?? fallback
 }
 
 /**
@@ -21,7 +30,7 @@ export async function extractProblemMessageAsync(e: unknown, fallback: string): 
       const parsed = JSON.parse(await data.text()) as { detail?: unknown }
       if (typeof parsed?.detail === 'string' && parsed.detail.trim().length > 0) return parsed.detail
     } catch { /* corps non JSON : on retombe sur le message */ }
-    return (e as Error | undefined)?.message || fallback
+    return plainMessage(e) ?? fallback
   }
   return extractProblemMessage(e, fallback)
 }
