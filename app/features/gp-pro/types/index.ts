@@ -166,5 +166,5 @@ export const GP_PRO_STALE_CODES = new Set([
 ])
 
 export function fmtDate(d: string | null | undefined): string {
-  return d ? new Date(d).toLocaleDateString('fr-FR') : '—'
+  return d ? new Date(d).toLocaleDateString('fr-FR') : '-'
 }

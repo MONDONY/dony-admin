@@ -33,7 +33,7 @@ describe('libellés GP Pro', () => {
   })
 
   it('date courte, tiret sans date', () => {
-    expect(fmtDate(null)).toBe('—')
+    expect(fmtDate(null)).toBe('-')
     expect(fmtDate('2026-10-17T10:00:00Z')).toContain('2026')
   })
 })
