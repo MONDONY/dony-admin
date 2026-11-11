@@ -441,7 +441,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           <p class="mt-2 text-xs text-text-muted text-pretty">« Enregistrer » corrige le modal sans le remontrer. « Nouvelle version » le remontre au public que vous choisissez.</p>
         </template>
         <p v-else class="text-xs text-text-muted text-pretty">
-          Version 1, montrée à : <b>{{ isInfo ? 'tout le monde' : AUDIENCE_LABELS.NEVER_ANSWERED.label.toLowerCase() }}</b>. Pour la remontrer plus tard à d’autres publics, publiez une nouvelle version.
+          Version 1, montrée à : <b>{{ isInfo ? 'tout le monde' : 'ceux qui n’ont jamais répondu' }}</b>. Pour la remontrer plus tard à d’autres publics, publiez une nouvelle version.
         </p>
       </div>
 

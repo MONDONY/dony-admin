@@ -264,7 +264,7 @@ export const VIDEO_MODAL_AUDIENCES = ['NEVER_ANSWERED', 'EVERYONE', 'NOT_WATCHED
 export type VideoModalAudience = typeof VIDEO_MODAL_AUDIENCES[number]
 
 export const AUDIENCE_LABELS: Record<VideoModalAudience, { label: string; hint: string }> = {
-  NEVER_ANSWERED: { label: 'Ceux qui n’ont jamais répondu', hint: 'Nouveaux et anciens qui ne l’ont pas encore vue' },
+  NEVER_ANSWERED: { label: 'Ceux qui n’ont pas répondu à la version précédente', hint: 'Seule la version précédente compte, pas les plus anciennes. Les nouveaux inscrits la voient aussi.' },
   EVERYONE: { label: 'Tout le monde, même ceux qui ont déjà répondu', hint: 'Pour une nouvelle vidéo importante' },
   NOT_WATCHED_PREVIOUS: { label: 'Ceux qui n’ont pas regardé la vidéo précédente', hint: 'Deuxième chance pour ceux qui avaient ignoré' },
 }

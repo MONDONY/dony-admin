@@ -43,6 +43,17 @@ describe('NewVersionDialog', () => {
     expect(w.emitted('confirm')).toBeUndefined()
   })
 
+  it('lien http refusé, message qui parle de https', async () => {
+    const w = mountDialog()
+    await w.get('[data-test="vm-version-url"]').setValue('http://youtu.be/dQw4w9WgXcQ')
+    expect(w.get('[data-test="vm-version-url-error"]').text()).toContain('https://')
+    expect(w.get('[data-test="vm-version-confirm"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('libellé de l’audience par défaut : version précédente seule', () => {
+    expect(mountDialog().get('[data-test="vm-audience-NEVER_ANSWERED"]').text()).toContain('n’ont pas répondu à la version précédente')
+  })
+
   it('occupé : bouton bloqué', () => {
     expect(mountDialog({ busy: true }).get('[data-test="vm-version-confirm"]').attributes('disabled')).toBeDefined()
   })

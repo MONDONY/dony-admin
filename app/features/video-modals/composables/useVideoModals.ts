@@ -20,6 +20,12 @@ export function useVideoModals() {
   const loading = ref(false)
   const busy = ref(false)
   const error = ref<string | null>(null)
+  /** Campagnes dont l'activation est en vol (une entrée par clic non résolu). */
+  const pendingActive = ref<string[]>([])
+  /** Dernier état connu du serveur par campagne, pour revenir en arrière sur erreur. */
+  const confirmedActive = new Map<string, boolean>()
+  /** Les demandes d'une même campagne partent l'une après l'autre : le dernier clic gagne. */
+  const activeQueue = new Map<string, Promise<unknown>>()
 
   function apply(modal: AdminVideoModal) {
     const i = items.value.findIndex(m => m.id === modal.id)
@@ -170,20 +176,40 @@ export function useVideoModals() {
     }
   }
 
-  async function setActive(id: string, active: boolean): Promise<boolean> {
-    busy.value = true
+  /**
+   * Active ou désactive : l'interrupteur bouge tout de suite (mise à jour optimiste). Les clics rapprochés
+   * s'enchaînent dans l'ordre, aucun n'est perdu ; sur erreur, retour au dernier état confirmé par le serveur.
+   */
+  function setActive(id: string, active: boolean): Promise<boolean> {
     error.value = null
-    try {
-      const res = await videoModalService.setActive(id, active)
-      if (isModal(res)) apply(res)
-      else patchLocal(id, { active })
-      return true
-    } catch (e) {
-      error.value = extractProblemMessage(e, active ? 'Activation impossible' : 'Désactivation impossible')
-      return false
-    } finally {
-      busy.value = false
+    if (!confirmedActive.has(id)) {
+      const known = items.value.find(m => m.id === id) ?? (current.value?.id === id ? current.value : null)
+      confirmedActive.set(id, known ? known.active : !active)
     }
+    patchLocal(id, { active })
+    pendingActive.value.push(id)
+    const run = async (): Promise<boolean> => {
+      try {
+        const res = await videoModalService.setActive(id, active)
+        confirmedActive.set(id, active)
+        // Un clic plus récent attend : sa valeur reste affichée, la réponse de celui-ci ne la réécrit pas.
+        if (pendingActive.value.filter(p => p === id).length <= 1) {
+          if (isModal(res)) apply(res)
+          else patchLocal(id, { active })
+        }
+        return true
+      } catch (e) {
+        error.value = extractProblemMessage(e, active ? 'Activation impossible' : 'Désactivation impossible')
+        patchLocal(id, { active: confirmedActive.get(id) ?? !active })
+        return false
+      } finally {
+        const k = pendingActive.value.indexOf(id)
+        if (k >= 0) pendingActive.value.splice(k, 1)
+      }
+    }
+    const result = (activeQueue.get(id) ?? Promise.resolve()).then(run)
+    activeQueue.set(id, result)
+    return result
   }
 
   async function remove(id: string): Promise<boolean> {
@@ -210,5 +236,5 @@ export function useVideoModals() {
     } catch { /* la liste reste celle d'avant : l'action a pourtant réussi */ }
   }
 
-  return { items, current, loading, busy, error, fetchAll, fetchOne, save, uploadImage, removeImage, createWithImage, publishVersion, setActive, remove }
+  return { items, current, loading, busy, pendingActive, error, fetchAll, fetchOne, save, uploadImage, removeImage, createWithImage, publishVersion, setActive, remove }
 }

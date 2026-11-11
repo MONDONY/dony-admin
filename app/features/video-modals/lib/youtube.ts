@@ -1,7 +1,7 @@
 /**
  * Formes de lien acceptées, identiques au contrat (le back valide de la même façon, 422 sinon) :
  * `youtu.be/ID`, `youtube.com/watch?v=ID`, `youtube.com/shorts/ID`, `youtube.com/embed/ID`.
- * L'ID fait 11 caractères `[A-Za-z0-9_-]`. Les paramètres en plus (`?si=`, `&t=`) sont tolérés.
+ * Le lien commence par `https://` (http et lien sans schéma sont refusés). L'ID fait 11 caractères `[A-Za-z0-9_-]`. Les paramètres en plus (`?si=`, `&t=`) sont tolérés.
  */
 const ID_RE = /^[A-Za-z0-9_-]{11}$/
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com'])
@@ -9,10 +9,11 @@ const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com'
 function parseUrl(raw: string): URL | null {
   const value = raw.trim()
   if (!value) return null
-  // Un lien copié sans schéma (« youtu.be/ID ») reste reconnu.
-  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  // https uniquement : ni http, ni lien sans schéma (le schéma n'est jamais ajouté de force).
+  if (!/^https:\/\//i.test(value)) return null
   try {
-    return new URL(withScheme)
+    const url = new URL(value)
+    return url.protocol === 'https:' ? url : null
   } catch {
     return null
   }

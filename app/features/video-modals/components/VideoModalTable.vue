@@ -7,7 +7,7 @@ import {
   type AdminVideoModal, type VideoModalTrigger,
 } from '@/features/video-modals/types/index'
 
-defineProps<{ items: AdminVideoModal[]; busy?: boolean }>()
+withDefaults(defineProps<{ items: AdminVideoModal[]; busy?: boolean; pendingIds?: string[] }>(), { busy: false, pendingIds: () => [] })
 const emit = defineEmits<{
   'toggle-active': [modal: AdminVideoModal, active: boolean]
   'new-version': [modal: AdminVideoModal]
@@ -69,7 +69,7 @@ const situations = (m: AdminVideoModal) => (m.situations ?? []).map(s => SITUATI
           </td>
           <td class="px-4 py-3">
             <ActiveSwitch
-              :model-value="m.active" :disabled="busy" :label="m.active ? `Désactiver ${m.name}` : `Activer ${m.name}`"
+              :model-value="m.active" :disabled="busy" :loading="pendingIds.includes(m.id)" :label="m.active ? `Désactiver ${m.name}` : `Activer ${m.name}`"
               @update:model-value="(v: boolean) => emit('toggle-active', m, v)"
             />
           </td>

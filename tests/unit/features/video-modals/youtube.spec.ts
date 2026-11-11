@@ -7,17 +7,23 @@ describe('extractYoutubeId', () => {
   it.each([
     `https://youtu.be/${ID}`,
     `https://youtu.be/${ID}?si=abc123`,
-    `youtu.be/${ID}`,
     `https://www.youtube.com/watch?v=${ID}`,
     `https://youtube.com/watch?v=${ID}&t=42s`,
     `https://m.youtube.com/watch?feature=share&v=${ID}`,
     `https://www.youtube.com/shorts/${ID}`,
     `https://www.youtube.com/embed/${ID}?rel=0`,
-    `http://www.youtube.com/embed/${ID}/`,
+    `https://www.youtube.com/embed/${ID}/`,
     `  https://youtu.be/${ID}  `,
     'https://youtu.be/a_b-C1d2E3f',
   ])('reconnaît %s', (url) => {
     expect(extractYoutubeId(url)).toMatch(/^[A-Za-z0-9_-]{11}$/)
+  })
+
+  it('les 4 formes https sont acceptées, http est refusé sans ajout de schéma', () => {
+    for (const u of [`https://youtu.be/${ID}`, `https://www.youtube.com/watch?v=${ID}`, `https://www.youtube.com/shorts/${ID}`, `https://www.youtube.com/embed/${ID}`]) {
+      expect(extractYoutubeId(u)).toBe(ID)
+      expect(extractYoutubeId(u.replace('https://', 'http://'))).toBeNull()
+    }
   })
 
   it('renvoie exactement l’ID', () => {
@@ -38,7 +44,13 @@ describe('extractYoutubeId', () => {
     `https://www.youtube.com/shorts/${ID}/extra`,
     'https://www.youtube.com/embed/abc$def!gh',
     `https://notyoutube.com/watch?v=${ID}`,
-    'http://[invalide',
+    'https://[invalide',
+    `http://youtu.be/${ID}`,
+    `http://www.youtube.com/watch?v=${ID}`,
+    `youtu.be/${ID}`,
+    `www.youtube.com/watch?v=${ID}`,
+    `ftp://youtu.be/${ID}`,
+    `javascript:https://youtu.be/${ID}`,
   ])('refuse « %s »', (url) => {
     expect(extractYoutubeId(url)).toBeNull()
   })

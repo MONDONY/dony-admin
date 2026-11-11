@@ -15,8 +15,10 @@ definePageMeta({
   pageSubtitle: 'Vidéos et messages présentés dans l’app, avec leur moment, leur ciblage et leurs versions',
 })
 
-const { items, loading, busy, error, fetchAll, publishVersion, setActive, remove } = useVideoModals()
+const { items, loading, busy, pendingActive, error, fetchAll, publishVersion, setActive, remove } = useVideoModals()
 
+/** Faux tant que la première liste n'est pas arrivée : jamais de « Aucun modal » avant ou pendant le chargement. */
+const loaded = ref(false)
 const versionTarget = ref<AdminVideoModal | null>(null)
 const removeTarget = ref<AdminVideoModal | null>(null)
 
@@ -34,7 +36,10 @@ async function onRemove() {
   await remove(id)
 }
 
-onMounted(fetchAll)
+onMounted(async () => {
+  await fetchAll()
+  loaded.value = true
+})
 </script>
 
 <template>
@@ -56,11 +61,11 @@ onMounted(fetchAll)
     >{{ error }}</p>
 
     <VideoModalTable
-      v-if="items.length" :items="items" :busy="busy"
+      v-if="items.length" :items="items" :busy="busy" :pending-ids="pendingActive"
       @toggle-active="onToggle" @new-version="(m) => versionTarget = m" @remove="(m) => removeTarget = m"
     />
     <StateBlock
-      v-else :loading="loading" :error="error" :empty="!loading && !error"
+      v-else :loading="loading || !loaded" :error="error" :empty="loaded && !loading && !error"
       empty-label="Aucun modal pour le moment." hint="Tant qu’aucune campagne n’est active, l’app n’affiche rien."
       empty-test="vm-empty" @retry="fetchAll"
     />

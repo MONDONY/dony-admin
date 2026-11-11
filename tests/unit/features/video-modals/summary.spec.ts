@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildSummary, describeCondition, describeConditions, summaryText, type SummaryInput } from '@/features/video-modals/lib/summary'
+import { FEW_RESULTS_DEFAULT } from '@/features/video-modals/types/index'
 import { audienceFields, ciRule } from './fixtures'
 
 const base = (over: Partial<SummaryInput> = {}): SummaryInput => ({
@@ -45,12 +46,39 @@ describe('phrase « En clair » : moment', () => {
       ],
     })
     // Sans déclencheur : ouverture de l'app (contrat).
-    expect(t).toContain('2 secondes après l’ouverture de l’app, tant que une offre acceptée n’est pas payée depuis 6 h et une offre reçue reste sans réponse depuis 12 h')
+    expect(t).toContain('2 secondes après l’ouverture de l’app, tant qu’une offre acceptée n’est pas payée depuis 6 h et qu’une offre reçue reste sans réponse depuis 12 h')
     for (const piece of [
       'une contre-offre est en attente depuis 24 h', 'la vérification d’identité est commencée puis abandonnée', 'le profil est incomplet',
-      'la première livraison est réussie sans parrainage', 'la personne revient après 14 jours d’absence',
+      'et que la vérification d’identité est commencée', 'et que le profil est incomplet', 'la première livraison est réussie sans parrainage', 'la personne revient après 14 jours d’absence',
       '3 jours se sont écoulés depuis l’installation, sans action',
     ]) expect(t).toContain(piece)
+  })
+
+  it('élision : « tant qu’une » devant une voyelle, « tant que » sinon, « et qu’/que » ensuite', () => {
+    expect(text({ situations: [{ kind: 'PROFILE_INCOMPLETE', value: null }, { kind: 'OFFER_UNANSWERED', value: 2 }] }))
+      .toContain('tant que le profil est incomplet et qu’une offre reçue reste sans réponse depuis 2 h')
+    expect(text({ situations: [{ kind: 'OFFER_UNANSWERED', value: 2 }] })).toContain('tant qu’une offre reçue')
+    expect(text({ situations: [{ kind: 'OFFER_UNANSWERED', value: 2 }] })).not.toMatch(/tant que une|que une/)
+  })
+
+  it('singulier / pluriel : 1 jour, 1 fois, 1 résultat', () => {
+    expect(text({ triggers: [], situations: [{ kind: 'RETURN_AFTER_ABSENCE', value: 1 }] })).toContain('après 1 jour d’absence')
+    expect(text({ triggers: [], situations: [{ kind: 'DAYS_SINCE_INSTALL_NO_ACTION', value: 1 }] })).toContain('1 jour s’est écoulé depuis l’installation')
+    expect(text({ triggers: [], situations: [{ kind: 'DAYS_SINCE_INSTALL_NO_ACTION', value: 0 }] })).toContain('0 jours se sont écoulés')
+    expect(text({ triggers: ['TRIP_VIEWED_REPEATEDLY'], triggerOptions: { tripViewedTimes: 1 } })).toContain('du même trajet une fois')
+    expect(text({ triggers: ['TRIP_VIEWED_REPEATEDLY'], triggerOptions: { tripViewedTimes: 3 } })).toContain('du même trajet 3 fois')
+  })
+
+  it('recherche avec peu de résultats : 1, 2, plus, seuil invalide', () => {
+    const t = (n: number | undefined) => text({ triggers: ['SEARCH_FEW_RESULTS'], triggerOptions: n === undefined ? undefined : { fewResultsMax: n } })
+    expect(t(1)).toContain('ne renvoie qu’un seul résultat')
+    expect(t(2)).toContain('de 1 à 2 résultats')
+    expect(t(5)).toContain('de 1 à 5 résultats')
+    for (const bad of [0, -3, 2.5, Number.NaN]) {
+      expect(t(bad)).toContain(`de 1 à ${FEW_RESULTS_DEFAULT} résultats`)
+      expect(t(bad)).not.toContain('de 1 à 0')
+    }
+    expect(t(undefined)).toContain(`de 1 à ${FEW_RESULTS_DEFAULT} résultats`)
   })
 
   it('situation sans valeur lisible : points de suspension', () => {

@@ -36,6 +36,37 @@ describe('pages/modals-video', () => {
     expect(w.get('[data-test="vm-new"]').attributes('href')).toBe('/modals-video/nouveau')
   })
 
+  it('pas de « Aucun modal » pendant le chargement initial', async () => {
+    // eslint-disable-next-line no-unused-vars -- type de fonction
+    let resolve!: (value: unknown[]) => void
+    svc.list.mockReturnValue(new Promise((r) => { resolve = r }))
+    const mod = await import('@/pages/modals-video/index.vue')
+    const w = mount(mod.default, { global: { stubs: { NuxtLink } }, attachTo: document.body })
+    mounted.push(w)
+    expect(w.find('[data-test="vm-empty"]').exists()).toBe(false)
+    await flushPromises()
+    expect(w.find('[data-test="vm-empty"]').exists()).toBe(false)
+    expect(w.text()).toContain('Chargement')
+    resolve([])
+    await flushPromises()
+    expect(w.find('[data-test="vm-empty"]').exists()).toBe(true)
+  })
+
+  it('activation : l’interrupteur bascule tout de suite, puis revient en arrière si le back refuse', async () => {
+    // eslint-disable-next-line no-unused-vars -- type de fonction
+    let reject!: (reason: unknown) => void
+    svc.setActive.mockReturnValue(new Promise((_, rej) => { reject = rej }))
+    const w = await mountPage()
+    await w.get('[data-test="vm-switch"]').trigger('click')
+    expect(w.get('[data-test="vm-switch"]').attributes('aria-checked')).toBe('true')
+    expect(w.find('[data-test="vm-switch-loading"]').exists()).toBe(true)
+    reject({ data: { detail: 'Refusé' } })
+    await flushPromises()
+    expect(w.get('[data-test="vm-switch"]').attributes('aria-checked')).toBe('false')
+    expect(w.find('[data-test="vm-switch-loading"]').exists()).toBe(false)
+    expect(w.get('[data-test="vm-error"]').text()).toContain('Refusé')
+  })
+
   it('échec du chargement : erreur et Réessayer', async () => {
     svc.list.mockRejectedValueOnce({ data: { detail: 'Panne' } })
     const w = await mountPage()

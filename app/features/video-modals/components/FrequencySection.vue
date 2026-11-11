@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
 import {
   FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, MODAL_FREQUENCIES, type ModalFrequency,
@@ -9,9 +8,9 @@ import { MAX_DISPLAYS_MAX, MAX_DISPLAYS_MIN } from '@/features/video-modals/lib/
 /**
  * « À quelle fréquence ? » : une fois, jusqu'à N fois, à chaque ouverture ou tous les N jours, avec les
  * règles de réponse (arrêt après un bouton touché, case « Ne plus afficher »), la priorité et la période.
- * Une vidéo propose « une fois » et « jusqu'à N fois » ; une information, les quatre.
+ * Les quatre fréquences sont proposées pour une vidéo comme pour une information (le back les accepte pour les deux types).
  */
-const props = defineProps<{
+defineProps<{
   isInfo: boolean
   errors: Partial<Record<'frequency' | 'frequencyDays' | 'maxDisplays' | 'priority' | 'period', string | undefined>>
 }>()
@@ -26,7 +25,7 @@ const startsAt = defineModel<string>('startsAt', { required: true })
 const endsAt = defineModel<string>('endsAt', { required: true })
 
 /** Une campagne déjà réglée sur une fréquence « information » la garde visible, même si elle est vidéo. */
-const options = computed(() => MODAL_FREQUENCIES.filter(f => props.isInfo || f === 'ONCE' || f === 'UP_TO_N' || f === frequency.value))
+const options = MODAL_FREQUENCIES
 
 const inputClass = 'rounded-btn border border-border bg-bg p-2 text-center text-sm font-bold tabular-nums text-accent'
 const errClass = 'mt-1 text-xs text-danger'
