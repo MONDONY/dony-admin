@@ -2,6 +2,7 @@
 import StateBlock from '@/components/ui/StateBlock.vue'
 import { ref } from 'vue'
 import type { AdminAuditEntry } from '@/features/audit/types/index'
+import { auditActionLabel } from '@/features/audit/lib/auditActionLabels'
 defineProps<{ entries: AdminAuditEntry[]; loading: boolean }>()
 const expanded = ref<Set<string>>(new Set())
 function toggle(id: string) {
@@ -30,7 +31,10 @@ function pretty(p: Record<string, unknown> | null) { return JSON.stringify(p, nu
       <tbody>
         <template v-for="e in entries" :key="e.id">
           <tr :data-test="`audit-row-${e.id}`" class="border-b border-border">
-            <td class="px-4 py-3 text-sm font-medium tabular-nums">{{ e.action }}</td>
+            <td class="px-4 py-3 text-sm font-medium tabular-nums">
+              {{ e.action }}
+              <span v-if="auditActionLabel(e.action)" :data-test="`audit-label-${e.id}`" class="block text-xs font-normal text-text-muted">{{ auditActionLabel(e.action) }}</span>
+            </td>
             <td class="px-4 py-3 text-sm text-text-muted">{{ e.entityType }}<span v-if="e.entityId" class="text-text-muted/70"> · {{ e.entityId }}</span></td>
             <td class="px-4 py-3 text-sm text-text-muted">{{ e.actorName ?? e.actorId ?? '—' }}</td>
             <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ e.ipAddress ?? '—' }}</td>

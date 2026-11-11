@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (39 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (40 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -43,6 +43,7 @@ export type AdminPermission =
   | 'KYC_DECIDE'
   | 'TOPUP_CODE_MANAGE'
   | 'ASSISTANT_MANAGE'
+  | 'DAC7_REPORT'
 
 export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'ADMIN_MANAGE',
@@ -97,6 +98,9 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   'TOPUP_CODE_MANAGE',
   // Assistant IA : clés d'API des fournisseurs. Jamais au rôle SUPPORT (une clé est un secret).
   'ASSISTANT_MANAGE',
+  // Déclaration fiscale DAC7 : voir la préparation, relancer les voyageurs, générer le fichier de la
+  // DGFiP. Engage la plateforme vis-à-vis de l'administration : jamais au rôle SUPPORT.
+  'DAC7_REPORT',
 ]
 
 /**

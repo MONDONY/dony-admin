@@ -40,6 +40,13 @@ describe('matchPages', () => {
     expect(matchPages('gp', only('USER_VIEW')).map(p => p.key)).not.toContain('gp-pro')
   })
 
+  it('trouve la déclaration DAC7, seulement avec DAC7_REPORT', () => {
+    expect(matchPages('dac7', all).map(p => p.key)).toContain('dac7')
+    expect(matchPages('impots', all).map(p => p.key)).toContain('dac7')
+    expect(matchPages('dac7', only('USER_VIEW')).map(p => p.key)).not.toContain('dac7')
+    expect(matchPages('dac7', only('DAC7_REPORT')).map(p => p.key)).toEqual(['dac7'])
+  })
+
   it('chaque entrée du menu latéral a sa page de recherche, avec la même permission', () => {
     // Le menu se construit depuis `navConfig` : c'est la source unique, la recherche ⌘K doit la couvrir.
     expect(ALL_NAV_ENTRIES.length).toBeGreaterThan(15)
