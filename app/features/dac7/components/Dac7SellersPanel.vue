@@ -6,7 +6,7 @@ import TabBar from '@/components/ui/TabBar.vue'
 import Dac7SellerDrawer from '@/features/dac7/components/Dac7SellerDrawer.vue'
 import { useDac7Sellers } from '@/features/dac7/composables/useDac7Sellers'
 import {
-  DAC7_FILTERS, DAC7_UNAVAILABLE, NOT_AVAILABLE, eurLabel, fmtDay, identityHint, identityMeta, residencyMeta, solicitationMeta,
+  DAC7_FILTERS, DAC7_UNAVAILABLE, NOT_AVAILABLE, eurLabel, exclusionLabel, fmtDay, identityHint, identityMeta, residencyMeta, solicitationMeta,
 } from '@/features/dac7/types/index'
 import type { Dac7Filter, Dac7Seller } from '@/features/dac7/types/index'
 
@@ -81,7 +81,7 @@ watch([() => props.year, filter], () => { close(); void reload() })
                   :class="['text-left font-medium underline-offset-2 hover:underline', s.displayName ? '' : 'italic text-text-muted']"
                   @click="open(s)"
                 >{{ s.displayName || 'Nom non renseigné' }}</button>
-                <StatusBadge v-if="s.alreadyExported" class="ml-2" label="Déjà déposé" tone="info" :data-test="`dac7-exported-${s.userId}`" />
+                <StatusBadge v-if="s.alreadyExported" class="ml-2" label="Déjà déposé" tone="info" :title="exclusionLabel('ALREADY_DEPOSITED')" :data-test="`dac7-exported-${s.userId}`" />
               </td>
               <td class="px-4 py-3 text-sm">
                 <span class="tabular-nums">{{ s.residenceCountry || NOT_AVAILABLE }}</span>

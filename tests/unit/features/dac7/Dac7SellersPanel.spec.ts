@@ -148,6 +148,15 @@ describe('Dac7SellersPanel : tableau', () => {
     expect(w.find(`[data-test="dac7-identity-hint-${U2}"]`).exists()).toBe(false)
   })
 
+  it('identité NOT_CHECKED : badge « Non vérifiée » et « affinez le filtre », pas une panne', async () => {
+    svc.sellers.mockResolvedValue([{ userId: U1, displayName: 'Awa Diop', identityStatus: 'NOT_CHECKED' }])
+    const w = await mountPanel()
+    const row = w.get(`[data-test="dac7-seller-row-${U1}"]`).text()
+    expect(row).toContain('Non vérifiée')
+    expect(row).not.toContain('Indisponible')
+    expect(w.get(`[data-test="dac7-identity-hint-${U1}"]`).text()).toBe('Trop de voyageurs pour lire toutes les pièces d’identité en une fois, affinez le filtre')
+  })
+
   it('identité illisible (INCOMPLETE + IDENTITY_SOURCE_UNREADABLE) : à compléter à la main', async () => {
     svc.sellers.mockResolvedValue([{ userId: U1, displayName: 'Awa Diop', identityStatus: 'INCOMPLETE', identityReason: 'IDENTITY_SOURCE_UNREADABLE' }])
     const w = await mountPanel()
@@ -158,6 +167,7 @@ describe('Dac7SellersPanel : tableau', () => {
     svc.sellers.mockResolvedValue([{ ...S1, alreadyExported: true }, S2])
     const w = await mountPanel()
     expect(w.get(`[data-test="dac7-seller-row-${U1}"]`).text()).toContain('Déjà déposé')
+    expect(w.get(`[data-test="dac7-exported-${U1}"]`).attributes('title')).toBe('Déjà déposé : voyageur présent dans un fichier marqué comme déposé cette année')
     expect(w.get(`[data-test="dac7-seller-row-${U2}"]`).text()).not.toContain('Déjà déposé')
   })
 
@@ -354,8 +364,22 @@ describe('Dac7SellersPanel : tiroir', () => {
     await w.get('[data-test="dac7-decision-submit"]').trigger('click')
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
-    expect(w.get('[data-test="dac7-drawer-error"]').text()).toBe('La note semble contenir un numéro : retirez-le.')
+    expect(w.get('[data-test="dac7-drawer-error"]').text()).toBe('La note semble contenir un identifiant : retirez-le.')
     expect((w.get('[data-test="dac7-decision-note"]').element as HTMLTextAreaElement).value).toBe('Une note')
+  })
+
+  it.each([
+    ['texte du back en français : affiché tel quel', 'La note contient un IBAN : retirez-le.', 'La note contient un IBAN : retirez-le.'],
+    ['texte du back en anglais : message générique', 'Note contains a sensitive identifier', 'La note semble contenir un identifiant : retirez-le.'],
+  ])('422 dac7-note-sensitive, %s', async (_n, detail, expected) => {
+    svc.decision.mockRejectedValueOnce({ statusCode: 422, data: { code: 'dac7-note-sensitive', detail } })
+    const w = await mountPanel()
+    await open(w)
+    await w.get('[data-test="dac7-decision-note"]').setValue('Une note')
+    await w.get('[data-test="dac7-decision-submit"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-drawer-error"]').text()).toBe(expected)
   })
 
   it('autre erreur de relance : le detail du serveur', async () => {

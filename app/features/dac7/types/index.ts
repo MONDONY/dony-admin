@@ -16,8 +16,6 @@ export type Dac7ExportMode = 'FULL' | 'PARTIAL'
 export interface Dac7ExportOptions {
   /** Numéro d'ordre de la déclaration (0 par défaut). */
   sequence?: number
-  /** Reprendre aussi les voyageurs déjà exportés cette année (mode Partiel). */
-  includeAlreadyExported?: boolean
 }
 
 export interface Dac7Totals {
@@ -57,7 +55,10 @@ export interface Dac7Seller {
   residenceCountry?: string | null
   residencyStatus?: string | null
   taxInfoProvided?: boolean
-  /** COMPLETE | INCOMPLETE | UNAVAILABLE (lecture d'identité en panne : réessayer plus tard). */
+  /**
+   * COMPLETE | INCOMPLETE | UNAVAILABLE (lecture d'identité en panne : réessayer plus tard)
+   * | NOT_CHECKED (pas lue cette fois, trop de voyageurs : pages admin et CSV seulement).
+   */
   identityStatus?: string | null
   solicitation?: string | null
   remindersSent?: number
@@ -147,7 +148,7 @@ export const DAC7_FILTERS: { value: Dac7Filter; label: string }[] = [
 export const DAC7_BLOCKER_CODES = [
   'IDENTITY_INCOMPLETE', 'TAX_INFO_MISSING', 'EUR_INCOMPLETE', 'COMMISSION_INCOMPLETE',
   'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS', 'OPERATOR_CONFIG_MISSING',
-  'IDENTITY_UNAVAILABLE', 'PENDING_SPLITS', 'XSD_INVALID',
+  'IDENTITY_UNAVAILABLE', 'PENDING_SPLITS', 'XSD_INVALID', 'IDENTITY_NOT_CHECKED',
 ] as const
 
 const BLOCKERS: Record<string, { title: string; explanation: string }> = {
@@ -196,6 +197,10 @@ const BLOCKERS: Record<string, { title: string; explanation: string }> = {
     title: 'Fichier non conforme au format',
     explanation: 'Le fichier n’est pas conforme au format de la DGFiP pour certains voyageurs : voir la liste.',
   },
+  IDENTITY_NOT_CHECKED: {
+    title: 'Identités non vérifiées',
+    explanation: 'Certaines identités n’ont pas été vérifiées : filtrez par voyageur ou réessayez avec moins de résultats.',
+  },
 }
 
 /** Les seuls blocages que le mode Partiel contourne : ils concernent des voyageurs, qu'il met de côté. */
@@ -234,10 +239,13 @@ const IDENTITY: Record<string, Meta> = {
   COMPLETE: { label: 'Complète', tone: 'success' },
   INCOMPLETE: { label: 'À revoir', tone: 'warning' },
   UNAVAILABLE: { label: 'Indisponible', tone: 'warning' },
+  // Pas une panne : la page n'a pas eu le temps de lire cette pièce, elle se complète au rechargement.
+  NOT_CHECKED: { label: 'Non vérifiée', tone: 'neutral' },
 }
 /** Phrase d'aide sous le badge d'identité, quand il y en a une. */
 export function identityHint(s: string | null | undefined, reason?: string | null): string | null {
   if (s === 'UNAVAILABLE') return 'Lecture d’identité indisponible, réessayez plus tard'
+  if (s === 'NOT_CHECKED') return 'Trop de voyageurs pour lire toutes les pièces d’identité en une fois, affinez le filtre'
   if (reason === 'IDENTITY_SOURCE_UNREADABLE') return 'La pièce d’identité vérifiée est illisible : à compléter à la main'
   return null
 }
@@ -306,6 +314,16 @@ export function noteValid(note: string): boolean {
   return n >= 1 && n <= DAC7_NOTE_MAX
 }
 
+const EXCLUSIONS: Record<string, string> = {
+  ALREADY_DEPOSITED: 'Déjà déposé : voyageur présent dans un fichier marqué comme déposé cette année',
+  IDENTITY_NOT_CHECKED: 'Non vérifiée : trop de voyageurs pour lire toutes les pièces d’identité en une fois, affinez le filtre',
+}
+/** Raison d'exclusion d'un voyageur (colonne `exclusions` du CSV) : un code inconnu s'affiche tel quel. */
+export function exclusionLabel(code: string | null | undefined): string {
+  if (!code) return NOT_AVAILABLE
+  return EXCLUSIONS[code] ?? code
+}
+
 /** Messages des 409 métier : le serveur peut en écrire un `detail`, ceux-ci sont le repli et l'emportent. */
 const CODE_MESSAGES: Record<string, string> = {
   'dac7-not-solicitable': 'Ce voyageur ne peut pas être sollicité : il a déjà fourni son numéro fiscal, n’est pas concerné ou n’a pas à être relancé.',
@@ -313,14 +331,34 @@ const CODE_MESSAGES: Record<string, string> = {
   'dac7-export-blocked': 'L’export complet est bloqué : des points restent à régler.',
   'dac7-year-not-closed': 'Le récapitulatif d’une année ne peut être envoyé qu’après la fin de cette année.',
   'dac7-unencrypted-not-allowed': 'L’export non chiffré est refusé en production : configurez la clé de la DGFiP.',
-  'dac7-note-sensitive': 'La note semble contenir un numéro : retirez-le.',
+  'dac7-note-sensitive': 'La note semble contenir un identifiant : retirez-le.',
   'dac7-reminders-exhausted': 'Demande et deux rappels déjà envoyés.',
   'dac7-collection-disabled': 'La collecte est éteinte : aucun message ne peut être envoyé.',
   'dac7-sequence-used': 'Ce numéro d’ordre a déjà servi pour cette année : laissez le champ vide pour utiliser le suivant.',
   'dac7-export-run-not-found': 'Export introuvable.',
+  'dac7-export-in-progress': 'Un export est déjà en cours pour cette année : patientez puis réessayez.',
+  'dac7-already-deposited-conflict': 'Les voyageurs déjà déposés sont toujours exclus d’un nouvel export : rechargez la page puis relancez l’export.',
 }
-export function dac7CodeMessage(code: string | null | undefined): string | null {
-  return code ? CODE_MESSAGES[code] ?? null : null
+/** Messages qui changent de sens selon le geste : « année non terminée » vaut pour le récapitulatif ET pour le dépôt. */
+const DEPOSIT_MESSAGES: Record<string, string> = {
+  'dac7-year-not-closed': 'Cette année n’est pas terminée : le fichier ne peut pas encore être marqué comme déposé.',
+}
+export function dac7CodeMessage(code: string | null | undefined, context?: 'deposit'): string | null {
+  if (!code) return null
+  return (context === 'deposit' ? DEPOSIT_MESSAGES[code] : undefined) ?? CODE_MESSAGES[code] ?? null
+}
+
+const FRENCH_WORDS = /\b(la|le|les|une|un|des|du|de|ne|pas|est|vous|votre|retirez|contient|identifiant|numéro)\b/gi
+const ENGLISH_WORDS = /\b(the|is|contains|must|please|remove|your|you|and|with)\b/i
+/** Heuristique prudente : un accent ou deux mots français, et aucun mot anglais courant. */
+export function looksFrench(text: string): boolean {
+  if (!text.trim() || ENGLISH_WORDS.test(text)) return false
+  return /[àâçéèêëîïôùûü]/i.test(text) || (text.match(FRENCH_WORDS)?.length ?? 0) >= 2
+}
+
+/** Note refusée (422) : le texte du back tel quel s'il est en français, sinon notre phrase générique. */
+export function noteSensitiveMessage(detail: unknown): string {
+  return typeof detail === 'string' && looksFrench(detail) ? detail : CODE_MESSAGES['dac7-note-sensitive']!
 }
 
 /**

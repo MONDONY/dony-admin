@@ -49,7 +49,7 @@ describe('Dac7ExportPanel', () => {
   it('« Exporter le fichier » : demande le mode choisi, télécharge sous le nom du serveur', async () => {
     const w = mountIt()
     await run(w)
-    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'FULL', { sequence: undefined, includeAlreadyExported: false })
+    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'FULL', { sequence: undefined })
     expect(download).toHaveBeenCalledWith(BLOB, 'FR_DAC7_2026.xml.gz.pgp')
     const res = w.get('[data-test="dac7-export-result"]').text()
     expect(res).toContain('FR_DAC7_2026.xml.gz.pgp')
@@ -63,7 +63,7 @@ describe('Dac7ExportPanel', () => {
     const w = mountIt()
     await w.get('[data-test="dac7-mode-PARTIAL"]').setValue(true)
     await run(w)
-    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'PARTIAL', { sequence: undefined, includeAlreadyExported: false })
+    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'PARTIAL', { sequence: undefined })
     expect(w.get('[data-test="dac7-export-excluded"]').text()).toContain('3 voyageurs exclus')
     expect(w.get('[data-test="dac7-export-excluded"]').text()).toMatch(/CSV de contrôle/)
   })
@@ -306,15 +306,57 @@ describe('Dac7ExportPanel', () => {
     expect(w.emitted('busy')?.at(-1)).toEqual([false])
   })
 
-  it('case « Inclure les voyageurs déjà exportés » décochée par défaut, envoyée quand cochée', async () => {
+  it('plus de case « Inclure les voyageurs déjà déposés » : un texte d’aide la remplace', async () => {
     const w = mountIt()
-    const box = w.get('[data-test="dac7-include-exported"]')
-    expect((box.element as HTMLInputElement).checked).toBe(false)
-    expect(w.text()).toContain('Inclure les voyageurs déjà déposés cette année')
-    expect(w.text()).not.toContain('déjà exportés')
-    await box.setValue(true)
+    expect(w.find('[data-test="dac7-include-exported"]').exists()).toBe(false)
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Inclure les voyageurs')
+    expect(w.get('[data-test="dac7-deposited-help"]').text())
+      .toBe('Les voyageurs déjà déposés sont toujours exclus d’un nouvel export. Pour corriger un montant déjà déposé, voyez votre comptable (déclaration rectificative).')
     await run(w)
-    expect(svc.exportFile).toHaveBeenLastCalledWith(2026, 'FULL', { sequence: undefined, includeAlreadyExported: true })
+    expect(svc.exportFile.mock.calls.at(-1)?.[2]).toEqual({ sequence: undefined })
+  })
+
+  it.each([
+    ['dac7-export-in-progress', 'Un export est déjà en cours pour cette année : patientez puis réessayez.'],
+    ['dac7-already-deposited-conflict', /déjà déposés.*toujours exclus/],
+  ])('409 %s à l’export : phrase claire, ni blocage ni fichier', async (code, expected) => {
+    svc.exportFile.mockRejectedValue({ statusCode: 409, data: new Blob([JSON.stringify({ code, detail: 'brut', travelerIds: ['u-1'] })]) })
+    const w = mountIt()
+    await run(w)
+    const t = w.get('[data-test="dac7-export-error"]').text()
+    if (typeof expected === 'string') expect(t).toBe(expected)
+    else expect(t).toMatch(expected)
+    expect(w.find('[data-test="dac7-export-blocked"]').exists()).toBe(false)
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('code inconnu à l’export : message du serveur, sinon texte de repli en français', async () => {
+    svc.exportFile.mockRejectedValueOnce({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-code-neuf', detail: 'Un cas nouveau' })]) })
+    const w = mountIt()
+    await run(w)
+    expect(w.get('[data-test="dac7-export-error"]').text()).toBe('Un cas nouveau')
+    svc.exportFile.mockRejectedValueOnce({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-code-neuf' })]) })
+    await run(w)
+    expect(w.get('[data-test="dac7-export-error"]').text()).toBe('Le fichier n’a pas pu être généré')
+  })
+
+  it('FULL après un dépôt : les voyageurs déposés exclus ne bloquent rien, le fichier est téléchargé', async () => {
+    svc.exportFile.mockResolvedValue(ok({ excluded: 2 }))
+    const w = mountIt()
+    await run(w)
+    expect(w.find('[data-test="dac7-export-blocked"]').exists()).toBe(false)
+    expect(w.get('[data-test="dac7-export-excluded"]').text()).toContain('2 voyageurs exclus')
+    expect(download).toHaveBeenCalled()
+  })
+
+  it('IDENTITY_NOT_CHECKED dans un refus : explication du contrôleur, pas de suggestion Partiel', async () => {
+    svc.exportFile.mockRejectedValue(blocked(['IDENTITY_NOT_CHECKED']))
+    const w = mountIt()
+    await run(w)
+    const t = w.get('[data-test="dac7-export-blocker-IDENTITY_NOT_CHECKED"]').text()
+    expect(t).toContain('Certaines identités n’ont pas été vérifiées : filtrez par voyageur ou réessayez avec moins de résultats')
+    expect(w.get('[data-test="dac7-export-blocked"]').text()).not.toMatch(/choisir le mode Partiel/)
   })
 
   it('numéro d’ordre dans un panneau « Avancé » replié, envoyé quand renseigné', async () => {
@@ -324,7 +366,7 @@ describe('Dac7ExportPanel', () => {
     expect(w.get('[data-test="dac7-advanced"] summary').text()).toBe('Avancé')
     await w.get('[data-test="dac7-sequence"]').setValue('2')
     await run(w)
-    expect(svc.exportFile).toHaveBeenLastCalledWith(2026, 'FULL', { sequence: 2, includeAlreadyExported: false })
+    expect(svc.exportFile).toHaveBeenLastCalledWith(2026, 'FULL', { sequence: 2 })
   })
 
   it('numéro d’ordre invalide (négatif, décimal) : message et export désactivé', async () => {
@@ -411,7 +453,7 @@ describe('Dac7ExportPanel', () => {
     expect(btn.text()).toBe('J’ai déposé ce fichier sur Télé-TD')
     await btn.trigger('click')
     expect(svc.markDeposited).not.toHaveBeenCalled()
-    expect(w.get('[data-test="overlay"]').text()).toContain('Les voyageurs de ce fichier seront exclus des prochains exports partiels.')
+    expect(w.get('[data-test="overlay"]').text()).toContain('Les voyageurs de ce fichier seront exclus des prochains exports.')
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
     expect(svc.markDeposited).toHaveBeenCalledWith('run-1')
@@ -480,5 +522,27 @@ describe('Dac7ExportPanel', () => {
     expect(w.find('[data-test="dac7-export-blocked"]').exists()).toBe(false)
     await w.get('[data-test="dac7-sequence"]').setValue('')
     expect(w.get('[data-test="dac7-export-run"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it.each([
+    ['dac7-export-in-progress', 'Un export est déjà en cours pour cette année : patientez puis réessayez.'],
+    ['dac7-year-not-closed', 'Cette année n’est pas terminée : le fichier ne peut pas encore être marqué comme déposé.'],
+  ])('409 %s au marquage « déposé » : phrase claire, le bouton reste', async (code, expected) => {
+    svc.markDeposited.mockRejectedValue({ statusCode: 409, data: { code, detail: 'brut' } })
+    const w = mountIt()
+    await run(w)
+    await w.get('[data-test="dac7-export-deposit"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-export-deposit-error"]').text()).toBe(expected)
+    expect(w.find('[data-test="dac7-export-deposited"]').exists()).toBe(false)
+    expect(w.find('[data-test="dac7-export-deposit"]').exists()).toBe(true)
+  })
+
+  it('409 dac7-year-not-closed à l’export garde sa phrase d’origine (le dépôt a la sienne)', async () => {
+    svc.exportFile.mockRejectedValue({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-year-not-closed' })]) })
+    const w = mountIt()
+    await run(w)
+    expect(w.get('[data-test="dac7-export-error"]').text()).not.toContain('marqué comme déposé')
   })
 })

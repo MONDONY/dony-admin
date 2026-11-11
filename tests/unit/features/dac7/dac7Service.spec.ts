@@ -83,11 +83,12 @@ describe('dac7Service : fichiers', () => {
     expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, runId: 'run-1', excluded: 4, warnings: 7, encrypted: true })
   })
 
-  it('exportFile : les options partent seulement renseignées (numéro d’ordre > 0, voyageurs déjà exportés)', async () => {
+  it('exportFile : le numéro d’ordre part seulement s’il est > 0, et includeAlreadyExported ne part jamais', async () => {
     api.raw.mockResolvedValue({ _data: new Blob(['x']), headers: headers({}) })
-    await dac7Service.exportFile(2026, 'PARTIAL', { sequence: 2, includeAlreadyExported: true })
-    expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL', sequence: 2, includeAlreadyExported: true }, responseType: 'blob' })
-    await dac7Service.exportFile(2026, 'FULL', { sequence: 0, includeAlreadyExported: false })
+    await dac7Service.exportFile(2026, 'PARTIAL', { sequence: 2 })
+    expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL', sequence: 2 }, responseType: 'blob' })
+    // Même un appelant d'un ancien état de la page ne peut plus l'envoyer : le serveur le refuse (409).
+    await dac7Service.exportFile(2026, 'FULL', { sequence: 0, includeAlreadyExported: true } as never)
     expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'FULL' }, responseType: 'blob' })
     const bare = await dac7Service.exportFile(2026, 'FULL')
     expect(bare.warnings).toBeNull()

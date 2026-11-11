@@ -22,7 +22,6 @@ const emit = defineEmits<{ busy: [value: boolean] }>()
 const exporter = useDac7Export()
 const mode = ref<Dac7ExportMode>('FULL')
 const confirmingDeposit = ref(false)
-const includeAlreadyExported = ref(false)
 /** Numéro d'ordre de la déclaration : vide = valeur par défaut du serveur (0). */
 const sequence = ref<number | string>('')
 const sequenceValid = computed(() => sequence.value === '' || (Number.isInteger(sequence.value) && Number(sequence.value) >= 0))
@@ -35,7 +34,6 @@ async function onDeposit() {
 function runExport() {
   void exporter.run(props.year, mode.value, {
     sequence: sequence.value === '' ? undefined : Number(sequence.value),
-    includeAlreadyExported: includeAlreadyExported.value,
   })
 }
 
@@ -102,13 +100,9 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
       </label>
     </fieldset>
 
-    <label class="flex cursor-pointer items-start gap-2 text-sm">
-      <input v-model="includeAlreadyExported" type="checkbox" data-test="dac7-include-exported" class="mt-1">
-      <span>
-        <span class="font-medium">Inclure les voyageurs déjà déposés cette année</span>
-        <span class="block text-xs text-text-muted text-pretty">Sans cette case, un export Partiel écarte ceux déjà présents dans un fichier marqué comme déposé.</span>
-      </span>
-    </label>
+    <p data-test="dac7-deposited-help" class="text-xs text-text-muted text-pretty">
+      Les voyageurs déjà déposés sont toujours exclus d’un nouvel export. Pour corriger un montant déjà déposé, voyez votre comptable (déclaration rectificative).
+    </p>
 
     <details data-test="dac7-advanced" class="rounded-btn border border-border px-3 py-2 text-sm">
       <summary class="cursor-pointer font-medium">Avancé</summary>
@@ -205,7 +199,7 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
     </div>
     <ConfirmActionDialog
       :open="confirmingDeposit" title="Marquer le fichier comme déposé"
-      message="Les voyageurs de ce fichier seront exclus des prochains exports partiels."
+      message="Les voyageurs de ce fichier seront exclus des prochains exports."
       confirm-label="Marquer comme déposé" confirm-tone="primary"
       @confirm="onDeposit" @cancel="confirmingDeposit = false"
     />

@@ -52,10 +52,10 @@ export const dac7Service = {
    * (Blob) porte `blockers` : l'appelant le lit avec `readProblemBody`.
    */
   async exportFile(year: number, mode: Dac7ExportMode, options: Dac7ExportOptions = {}): Promise<Dac7FileResult> {
-    // Les options ne partent que renseignées : le serveur applique sinon ses valeurs par défaut.
+    // Le numéro d'ordre ne part que renseigné (> 0). `includeAlreadyExported` n'est plus jamais
+    // envoyé : le back le refuse (409 `dac7-already-deposited-conflict`), les déposés sont toujours exclus.
     const body: Record<string, unknown> = { year, mode }
     if (options.sequence && options.sequence > 0) body.sequence = options.sequence
-    if (options.includeAlreadyExported) body.includeAlreadyExported = true
     const res = await useApi().raw<Blob>(`${BASE}/exports`, { method: 'POST', body, responseType: 'blob' })
     const named = filenameFromContentDisposition(res.headers.get('content-disposition'))
     return {

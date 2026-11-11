@@ -101,6 +101,20 @@ describe('Dac7Summary', () => {
     expect(w.get('[data-test="dac7-blockers"]').text()).not.toMatch(/exportez en mode Partiel/)
   })
 
+  it('IDENTITY_NOT_CHECKED : explication, et on dit que le rechargement le règle (pas un blocage du mode Partiel)', () => {
+    const w = mountIt({ ...OVERVIEW, exportReady: false, blockers: ['IDENTITY_NOT_CHECKED'] })
+    const t = w.get('[data-test="dac7-blockers"]').text()
+    expect(w.get('[data-test="dac7-blocker-IDENTITY_NOT_CHECKED"]').text()).toContain('Certaines identités n’ont pas été vérifiées : filtrez par voyageur ou réessayez avec moins de résultats')
+    expect(w.get('[data-test="dac7-identity-not-checked-note"]').text()).toMatch(/chaque rechargement/)
+    expect(t).not.toMatch(/exportez en mode Partiel/)
+    expect(t).not.toMatch(/ne les contourne pas/)
+  })
+
+  it('IDENTITY_NOT_CHECKED avec un autre blocage : le texte général reste', () => {
+    const w = mountIt({ ...OVERVIEW, exportReady: false, blockers: ['IDENTITY_NOT_CHECKED', 'NO_SELLERS'] })
+    expect(w.get('[data-test="dac7-blockers"]').text()).toMatch(/ne les contourne pas/)
+  })
+
   it('le mode Partiel n’est proposé que si tous les blocages sont contournables', () => {
     const w = mountIt({ ...OVERVIEW, exportReady: false, blockers: ['TAX_INFO_MISSING'] })
     expect(w.get('[data-test="dac7-blockers"]').text()).toMatch(/exportez en mode Partiel/)
