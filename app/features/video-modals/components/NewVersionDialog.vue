@@ -70,7 +70,7 @@ function onConfirm() {
         :placeholder="modal.youtubeUrl || 'https://youtu.be/…'"
         class="w-full rounded-btn border border-border bg-bg p-2 text-sm"
       >
-      <p v-if="!urlValid" data-test="vm-version-url-error" class="mt-1 text-xs text-danger">Lien non reconnu : youtu.be/…, youtube.com/watch?v=…, /shorts/… ou /embed/…</p>
+      <p v-if="!urlValid" data-test="vm-version-url-error" class="mt-1 text-xs text-danger">Lien non reconnu : il doit commencer par https:// (youtu.be/…, youtube.com/watch?v=…, /shorts/… ou /embed/…)</p>
       <p v-else class="mt-1 text-xs text-text-muted">Vide : la vidéo actuelle est gardée. La vidéo doit être publique ou non répertoriée.</p>
       </template>
 

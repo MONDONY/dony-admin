@@ -196,6 +196,75 @@ describe('useVideoModals', () => {
     })
   })
 
+  describe('setActive optimiste', () => {
+    /* eslint-disable no-unused-vars -- types de fonction */
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      let reject!: (reason: unknown) => void
+      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+      return { promise, resolve, reject }
+    }
+    /* eslint-enable no-unused-vars */
+
+    it('l’interrupteur bascule avant la réponse, avec indicateur par ligne', async () => {
+      svc.list.mockResolvedValue([modal({ active: false })])
+      const d = deferred<unknown>()
+      svc.setActive.mockReturnValue(d.promise)
+      const vm = useVideoModals()
+      await vm.fetchAll()
+      const p = vm.setActive(modal().id, true)
+      expect(vm.items.value[0]!.active).toBe(true)
+      expect(vm.pendingActive.value).toEqual([modal().id])
+      expect(vm.busy.value).toBe(false)
+      d.resolve(modal({ active: true }))
+      expect(await p).toBe(true)
+      expect(vm.pendingActive.value).toEqual([])
+      expect(vm.items.value[0]!.active).toBe(true)
+    })
+
+    it('erreur : retour à l’état précédent et message', async () => {
+      svc.list.mockResolvedValue([modal({ active: false })])
+      svc.setActive.mockRejectedValue(problem('Refusé'))
+      const vm = useVideoModals()
+      await vm.fetchAll()
+      expect(await vm.setActive(modal().id, true)).toBe(false)
+      expect(vm.items.value[0]!.active).toBe(false)
+      expect(vm.error.value).toBe('Refusé')
+      expect(vm.pendingActive.value).toEqual([])
+    })
+
+    it('clics rapprochés : tous partent dans l’ordre, le dernier gagne', async () => {
+      svc.list.mockResolvedValue([modal({ active: false })])
+      const d1 = deferred<unknown>()
+      svc.setActive.mockReturnValueOnce(d1.promise).mockResolvedValueOnce(modal({ active: false }))
+      const vm = useVideoModals()
+      await vm.fetchAll()
+      const p1 = vm.setActive(modal().id, true)
+      const p2 = vm.setActive(modal().id, false)
+      expect(vm.items.value[0]!.active).toBe(false)
+      expect(vm.pendingActive.value).toHaveLength(2)
+      await Promise.resolve()
+      expect(svc.setActive).toHaveBeenCalledTimes(1)
+      d1.resolve(modal({ active: true }))
+      await Promise.all([p1, p2])
+      expect(svc.setActive.mock.calls.map(c => c[1])).toEqual([true, false])
+      expect(vm.items.value[0]!.active).toBe(false)
+      expect(vm.pendingActive.value).toEqual([])
+    })
+
+    it('un clic échoue puis un autre réussit : état final du serveur', async () => {
+      svc.list.mockResolvedValue([modal({ active: false })])
+      svc.setActive.mockRejectedValueOnce({}).mockResolvedValueOnce(modal({ active: false }))
+      const vm = useVideoModals()
+      await vm.fetchAll()
+      const p1 = vm.setActive(modal().id, true)
+      const p2 = vm.setActive(modal().id, false)
+      expect(await p1).toBe(false)
+      expect(await p2).toBe(true)
+      expect(vm.items.value[0]!.active).toBe(false)
+    })
+  })
+
   describe('remove', () => {
     it('retire de la liste et vide la fiche', async () => {
       svc.list.mockResolvedValue([modal(), modal({ id: 'other' })])

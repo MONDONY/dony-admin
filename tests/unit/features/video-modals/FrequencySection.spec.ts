@@ -26,20 +26,19 @@ function mountSection(isInfo: boolean, over: Record<string, unknown> = {}, error
 }
 
 describe('FrequencySection', () => {
-  it('information : les quatre fréquences ; vidéo : « une fois » et « jusqu’à N fois »', () => {
-    const info = mountSection(true).w
-    for (const f of ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS']) expect(info.find(`[data-test="vm-frequency-${f}"]`).exists(), f).toBe(true)
-    const video = mountSection(false).w
-    expect(video.find('[data-test="vm-frequency-ONCE"]').exists()).toBe(true)
-    expect(video.find('[data-test="vm-frequency-UP_TO_N"]').exists()).toBe(true)
-    expect(video.find('[data-test="vm-frequency-EVERY_OPEN"]').exists()).toBe(false)
-    expect(video.find('[data-test="vm-frequency-EVERY_N_DAYS"]').exists()).toBe(false)
+  it('information et vidéo : les quatre fréquences', () => {
+    for (const isInfo of [true, false]) {
+      const w = mountSection(isInfo).w
+      for (const f of ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS']) expect(w.find(`[data-test="vm-frequency-${f}"]`).exists(), `${isInfo} ${f}`).toBe(true)
+    }
   })
 
-  it('une vidéo déjà réglée sur une fréquence « information » la garde visible', () => {
-    const { w } = mountSection(false, { frequency: 'EVERY_OPEN' })
-    expect(w.find('[data-test="vm-frequency-EVERY_OPEN"]').exists()).toBe(true)
-    expect(w.find('[data-test="vm-frequency-EVERY_N_DAYS"]').exists()).toBe(false)
+  it('vidéo : « tous les N jours » propose le champ du nombre de jours et l’erreur', () => {
+    const { w } = mountSection(false, { frequency: 'EVERY_N_DAYS' }, { frequencyDays: 'Nombre de jours entier, de 1 à 365.' })
+    const input = w.get('[data-test="vm-frequency-days"]')
+    expect(input.attributes('min')).toBe('1')
+    expect(input.attributes('max')).toBe('365')
+    expect(w.get('[data-test="vm-frequency-days-error"]').text()).toContain('1 à 365')
   })
 
   it('choisir une option change la fréquence', async () => {

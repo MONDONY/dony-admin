@@ -36,3 +36,17 @@ describe('VideoModalStats', () => {
     expect(w.get('[data-test="vm-stats-compact"]').text()).toContain('0 bouton touché')
   })
 })
+
+describe('VideoModalStats : visiteurs sans compte', () => {
+  it('la fiche dit que les visiteurs sans compte ne sont pas comptés', () => {
+    for (const type of ['VIDEO', 'INFO'] as const) {
+      const w = mount(VideoModalStats, { props: { stats, type } })
+      expect(w.get('[data-test="vm-stats-visitors-note"]').text()).toBe('Les visiteurs sans compte ne sont pas comptés.')
+    }
+  })
+
+  it('la version compacte le dit en infobulle', () => {
+    const w = mount(VideoModalStats, { props: { stats, compact: true } })
+    expect(w.get('[data-test="vm-stats-compact"]').attributes('title')).toBe('Les visiteurs sans compte ne sont pas comptés.')
+  })
+})

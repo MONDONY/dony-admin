@@ -45,12 +45,14 @@ const TRIGGER_PHRASES: Record<VideoModalTrigger, string> = {
 function triggerPhrase(t: VideoModalTrigger, input: SummaryInput): string {
   if (t === 'SEARCH_FEW_RESULTS') {
     const n = input.triggerOptions?.fewResultsMax
-    const max = isNum(n) ? n : FEW_RESULTS_DEFAULT
+    // Seuil invalide (non entier, nul ou négatif) : on retombe sur la valeur par défaut, comme l'app.
+    const max = isNum(n) && Number.isInteger(n) && n >= 1 ? n : FEW_RESULTS_DEFAULT
     return max === 1 ? 'une recherche qui ne renvoie qu’un seul résultat' : `une recherche qui renvoie de 1 à ${max} résultats`
   }
   if (t === 'TRIP_VIEWED_REPEATEDLY') {
     const n = input.triggerOptions?.tripViewedTimes
-    return `la consultation du même trajet ${isNum(n) ? n : TRIP_VIEWED_DEFAULT} fois`
+    const times = isNum(n) ? n : TRIP_VIEWED_DEFAULT
+    return `la consultation du même trajet ${times === 1 ? 'une' : times} fois`
   }
   return TRIGGER_PHRASES[t]
 }
@@ -66,9 +68,16 @@ const SITUATION_PHRASES: Record<SituationKind, SituationPhrase> = {
   KYC_ABANDONED: () => 'la vérification d’identité est commencée puis abandonnée',
   PROFILE_INCOMPLETE: () => 'le profil est incomplet',
   FIRST_DELIVERY_NO_REFERRAL: () => 'la première livraison est réussie sans parrainage',
-  RETURN_AFTER_ABSENCE: v => `la personne revient après ${v ?? '…'} jours d’absence`,
-  DAYS_SINCE_INSTALL_NO_ACTION: v => `${v ?? '…'} jours se sont écoulés depuis l’installation, sans action`,
+  RETURN_AFTER_ABSENCE: v => `la personne revient après ${v ?? '…'} ${v === 1 ? 'jour' : 'jours'} d’absence`,
+  DAYS_SINCE_INSTALL_NO_ACTION: v => (v === 1
+    ? '1 jour s’est écoulé depuis l’installation, sans action'
+    : `${v ?? '…'} jours se sont écoulés depuis l’installation, sans action`),
 }
+
+/** « que » ou « qu’ » selon l'initiale de ce qui suit (voyelle ou h muet : « qu’une », « qu’il »). */
+const queElided = (next: string) => (/^[aeiouyàâäéèêëîïôöùûüh]/i.test(next) ? 'qu’' : 'que ')
+
+const deElide = (place: string) => (/^[aeiouyàâäéèêëîïôöùûüh]/i.test(place) ? `d’${place}` : `de ${place}`)
 
 const plain = (text: string): SummaryPart => ({ text })
 const strong = (text: string): SummaryPart => ({ text, strong: true })
@@ -102,8 +111,8 @@ function valueText(field: AudienceField | undefined, c: WireCondition): string {
       const o = v as { origin?: string | null; destination?: string | null }
       const from = o.origin?.trim()
       const to = o.destination?.trim()
-      if (from && to) return `de ${from} vers ${to}`
-      return from ? `au départ de ${from}` : to ? `à l’arrivée à ${to}` : ''
+      if (from && to) return `${deElide(from)} vers ${to}`
+      return from ? `au départ ${deElide(from)}` : to ? `à l’arrivée à ${to}` : ''
     }
     default: return String(v)
   }
@@ -150,18 +159,17 @@ function momentParts(input: SummaryInput): SummaryPart[] {
     if (immediate.length > 0) parts.push(strong(`dès ${joinOr(immediate.map(phrase))}`), plain(', sans délai'))
   }
   if (situations.length > 0) {
-    parts.push(plain(', tant que '))
     situations.forEach((s, i) => {
-      if (i > 0) parts.push(plain(' et '))
       const sentence = SITUATION_PHRASES[s.kind]
-      parts.push(strong(sentence ? sentence(isNum(s.value) ? s.value : null) : String(s.kind)))
+      const text = sentence ? sentence(isNum(s.value) ? s.value : null) : String(s.kind)
+      // « tant qu’une offre… », « tant que le profil… », puis « et qu’… » / « et que… » : élision devant une voyelle.
+      parts.push(plain(`${i === 0 ? ', tant ' : ' et '}${queElided(text)}`), strong(text))
     })
   }
   return parts
 }
 
 /** « de Paris vers Abidjan », « au départ de Paris », « à l’arrivée à Abidjan ». */
-const deElide = (place: string) => (/^[aeiouyàâäéèêëîïôöùûüh]/i.test(place) ? `d’${place}` : `de ${place}`)
 function corridorPhrase(c: ModalCorridor): string {
   const from = c.from?.trim()
   const to = c.to?.trim()

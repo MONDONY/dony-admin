@@ -46,7 +46,7 @@ export function validateVideoModal(input: VideoModalInput, opts: ValidationOptio
   if (!extractYoutubeId(input.youtubeUrl)) {
     errors.youtubeUrl = blank(input.youtubeUrl)
       ? 'Collez le lien de la vidéo YouTube.'
-      : 'Lien non reconnu : youtu.be/…, youtube.com/watch?v=…, /shorts/… ou /embed/…'
+      : 'Lien non reconnu : il doit commencer par https:// (youtu.be/…, youtube.com/watch?v=…, /shorts/… ou /embed/…)'
   }
   if (input.durationSeconds !== null && (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 0)) {
     errors.durationSeconds = 'Durée en secondes, nombre entier positif.'

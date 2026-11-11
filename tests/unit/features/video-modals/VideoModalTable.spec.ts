@@ -5,8 +5,23 @@ import type { VideoModalTrigger } from '@/features/video-modals/types/index'
 import { infoModal, modal } from './fixtures'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
-const mountTable = (items = [modal()], busy = false) =>
-  mount(VideoModalTable, { props: { items, busy }, global: { stubs: { NuxtLink } } })
+const mountTable = (items = [modal()], busy = false, pendingIds: string[] = []) =>
+  mount(VideoModalTable, { props: { items, busy, pendingIds }, global: { stubs: { NuxtLink } } })
+
+describe('VideoModalTable : indicateur par ligne', () => {
+  it('une demande en vol montre un indicateur sur la seule ligne concernée, sans bloquer le clic', async () => {
+    const a = modal({ id: 'a' })
+    const b = modal({ id: 'b' })
+    const w = mountTable([a, b], false, ['a'])
+    expect(w.get('[data-test="vm-row-a"]').find('[data-test="vm-switch-loading"]').exists()).toBe(true)
+    expect(w.get('[data-test="vm-row-b"]').find('[data-test="vm-switch-loading"]').exists()).toBe(false)
+    const sw = w.get('[data-test="vm-row-a"] [data-test="vm-switch"]')
+    expect(sw.attributes('aria-busy')).toBe('true')
+    expect(sw.attributes('disabled')).toBeUndefined()
+    await sw.trigger('click')
+    expect(w.emitted('toggle-active')).toHaveLength(1)
+  })
+})
 
 describe('VideoModalTable', () => {
   it('nom, déclencheurs, version, public et résultats', () => {

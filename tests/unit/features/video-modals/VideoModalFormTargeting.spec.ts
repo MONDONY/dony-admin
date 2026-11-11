@@ -39,12 +39,13 @@ describe('VideoModalForm : ciblage', () => {
   afterEach(() => vi.useRealTimers())
 
   describe('défauts selon le type', () => {
-    it('vidéo : une seule fois, arrêt après une réponse, tout le monde ; deux fréquences proposées', async () => {
+    it('vidéo : une seule fois, arrêt après une réponse, tout le monde ; quatre fréquences proposées', async () => {
       const w = await ready()
       expect((w.get('[data-test="vm-frequency-ONCE"] input').element as HTMLInputElement).checked).toBe(true)
       expect(w.get('[data-test="vm-stop-after-answer"]').attributes('aria-checked')).toBe('true')
       expect(w.get('[data-test="vm-dont-show-again"]').attributes('aria-checked')).toBe('false')
-      expect(w.find('[data-test="vm-frequency-EVERY_OPEN"]').exists()).toBe(false)
+      expect(w.find('[data-test="vm-frequency-EVERY_OPEN"]').exists()).toBe(true)
+      expect(w.find('[data-test="vm-frequency-EVERY_N_DAYS"]').exists()).toBe(true)
       expect(w.get('[data-test="vm-version-box"]').text()).toContain('n’ont jamais répondu')
       await fillVideo(w)
       await w.get('form').trigger('submit')
@@ -90,7 +91,7 @@ describe('VideoModalForm : ciblage', () => {
         triggers: [], situations: [{ kind: 'OFFER_ACCEPTED_UNPAID', value: 9 }, { kind: 'PROFILE_INCOMPLETE', value: null }],
       })
       // La phrase en clair dit que la campagne s'ouvre à l'ouverture de l'app, tant que les situations sont vraies.
-      expect(w.get('[data-test="vm-summary-text"]').text()).toContain('2 secondes après l’ouverture de l’app, tant que une offre acceptée n’est pas payée depuis 9 h et le profil est incomplet')
+      expect(w.get('[data-test="vm-summary-text"]').text()).toContain('2 secondes après l’ouverture de l’app, tant qu’une offre acceptée n’est pas payée depuis 9 h et que le profil est incomplet')
     })
 
     it('décocher une situation la retire ; valeur hors bornes ou vide : refus', async () => {
