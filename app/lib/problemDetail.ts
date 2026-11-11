@@ -25,3 +25,16 @@ export async function extractProblemMessageAsync(e: unknown, fallback: string): 
   }
   return extractProblemMessage(e, fallback)
 }
+
+/**
+ * Corps JSON d'une erreur, y compris reçu en Blob (requête `responseType: 'blob'`). Sert à lire
+ * un champ métier (`blockers` d'un refus d'export) que `detail` ne porte pas. Null si absent
+ * ou illisible.
+ */
+export async function readProblemBody(e: unknown): Promise<Record<string, unknown> | null> {
+  let data = (e as { data?: unknown } | undefined)?.data
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    try { data = JSON.parse(await data.text()) } catch { return null }
+  }
+  return data !== null && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null
+}

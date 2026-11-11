@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractProblemMessage, extractProblemMessageAsync } from '@/lib/problemDetail'
+import { extractProblemMessage, extractProblemMessageAsync, readProblemBody } from '@/lib/problemDetail'
 
 describe('extractProblemMessage', () => {
   it('préfère le champ detail du ProblemDetail RFC 7807', () => {
@@ -43,5 +43,21 @@ describe('extractProblemMessageAsync', () => {
   it('se comporte comme la version synchrone hors Blob', async () => {
     expect(await extractProblemMessageAsync({ data: { detail: 'lisible' } }, 'secours')).toBe('lisible')
     expect(await extractProblemMessageAsync(undefined, 'secours')).toBe('secours')
+  })
+})
+
+describe('readProblemBody', () => {
+  it('lit le corps JSON d’une erreur reçue en Blob', async () => {
+    const err = { data: new Blob([JSON.stringify({ code: 'dac7-export-blocked', blockers: ['NO_SELLERS'] })]) }
+    expect(await readProblemBody(err)).toEqual({ code: 'dac7-export-blocked', blockers: ['NO_SELLERS'] })
+  })
+  it('rend l’objet déjà analysé tel quel', async () => {
+    expect(await readProblemBody({ data: { code: 'x' } })).toEqual({ code: 'x' })
+  })
+  it('corps illisible, absent ou non objet : null', async () => {
+    expect(await readProblemBody({ data: new Blob(['pas du json']) })).toBeNull()
+    expect(await readProblemBody({ data: new Blob(['"texte"']) })).toBeNull()
+    expect(await readProblemBody({})).toBeNull()
+    expect(await readProblemBody(undefined)).toBeNull()
   })
 })
