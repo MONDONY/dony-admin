@@ -6,7 +6,7 @@ import TabBar from '@/components/ui/TabBar.vue'
 import Dac7SellerDrawer from '@/features/dac7/components/Dac7SellerDrawer.vue'
 import { useDac7Sellers } from '@/features/dac7/composables/useDac7Sellers'
 import {
-  DAC7_FILTERS, DAC7_UNAVAILABLE, NOT_AVAILABLE, eurLabel, fmtDay, identityMeta, residencyMeta, solicitationMeta,
+  DAC7_FILTERS, DAC7_UNAVAILABLE, NOT_AVAILABLE, eurLabel, fmtDay, identityHint, identityMeta, residencyMeta, solicitationMeta,
 } from '@/features/dac7/types/index'
 import type { Dac7Filter, Dac7Seller } from '@/features/dac7/types/index'
 
@@ -15,7 +15,7 @@ import type { Dac7Filter, Dac7Seller } from '@/features/dac7/types/index'
  * Jamais de numéro fiscal ici : seulement « fourni » ou « manquant ».
  */
 const props = defineProps<{ year: number }>()
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: []; loaded: [sellers: Dac7Seller[]] }>()
 
 const sellers = useDac7Sellers()
 const filter = ref<Dac7Filter>('ALL')
@@ -32,7 +32,11 @@ const selected = computed(() => {
   return sellers.items.value.find(s => s.userId === selectedId.value) ?? snapshot.value
 })
 
-function reload() { return sellers.load(props.year, filter.value) }
+async function reload() {
+  await sellers.load(props.year, filter.value)
+  // Le parent garde les noms pour nommer les voyageurs d'un refus d'export.
+  emit('loaded', sellers.items.value)
+}
 function open(s: Dac7Seller) { snapshot.value = s; selectedId.value = s.userId }
 function close() { selectedId.value = null; snapshot.value = null }
 async function onChanged() { await reload(); emit('changed') }
@@ -77,6 +81,7 @@ watch([() => props.year, filter], () => { close(); void reload() })
                   :class="['text-left font-medium underline-offset-2 hover:underline', s.displayName ? '' : 'italic text-text-muted']"
                   @click="open(s)"
                 >{{ s.displayName || 'Nom non renseigné' }}</button>
+                <StatusBadge v-if="s.alreadyExported" class="ml-2" label="Déjà exporté" tone="info" :data-test="`dac7-exported-${s.userId}`" />
               </td>
               <td class="px-4 py-3 text-sm">
                 <span class="tabular-nums">{{ s.residenceCountry || NOT_AVAILABLE }}</span>
@@ -85,7 +90,10 @@ watch([() => props.year, filter], () => { close(); void reload() })
               <td class="px-4 py-3 text-sm">
                 <StatusBadge :label="s.taxInfoProvided ? 'Fourni' : 'Manquant'" :tone="s.taxInfoProvided ? 'success' : 'warning'" />
               </td>
-              <td class="px-4 py-3 text-sm"><StatusBadge v-bind="identityMeta(s.identityStatus)" /></td>
+              <td class="px-4 py-3 text-sm">
+                <StatusBadge v-bind="identityMeta(s.identityStatus)" />
+                <span v-if="identityHint(s.identityStatus)" :data-test="`dac7-identity-hint-${s.userId}`" class="mt-1 block text-xs text-text-muted text-pretty">{{ identityHint(s.identityStatus) }}</span>
+              </td>
               <td class="px-4 py-3 text-sm"><StatusBadge v-bind="solicitationMeta(s.solicitation)" /></td>
               <td class="px-4 py-3 text-sm tabular-nums">{{ s.remindersSent ?? 0 }} / 2</td>
               <td class="px-4 py-3 text-sm tabular-nums text-text-muted">{{ fmtDay(s.lastDiligenceAt) }}</td>

@@ -76,11 +76,20 @@ describe('dac7Service : fichiers', () => {
     const blob = new Blob(['x'])
     api.raw.mockResolvedValue({
       _data: blob,
-      headers: headers({ 'content-disposition': 'attachment; filename="FR_DAC7_2026.xml.gz.pgp"', 'x-dac7-excluded': '4', 'x-dac7-encrypted': 'true' }),
+      headers: headers({ 'content-disposition': 'attachment; filename="FR_DAC7_2026.xml.gz.pgp"', 'x-dac7-excluded': '4', 'x-dac7-warnings': '7', 'x-dac7-encrypted': 'true' }),
     })
     const res = await dac7Service.exportFile(2026, 'PARTIAL')
     expect(api.raw).toHaveBeenCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL' }, responseType: 'blob' })
-    expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, excluded: 4, encrypted: true })
+    expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, excluded: 4, warnings: 7, encrypted: true })
+  })
+
+  it('exportFile : les options partent seulement renseignées (numéro d’ordre > 0, voyageurs déjà exportés)', async () => {
+    api.raw.mockResolvedValue({ _data: new Blob(['x']), headers: headers({}) })
+    await dac7Service.exportFile(2026, 'PARTIAL', { sequence: 2, includeAlreadyExported: true })
+    expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL', sequence: 2, includeAlreadyExported: true }, responseType: 'blob' })
+    await dac7Service.exportFile(2026, 'FULL', { sequence: 0, includeAlreadyExported: false })
+    expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'FULL' }, responseType: 'blob' })
+    expect((await dac7Service.exportFile(2026, 'FULL')).warnings).toBeNull()
   })
 
   it('exportFile : non chiffré, sans exclus ni nom (repli sur un nom neutre)', async () => {

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { isEndpointMissing } from '@/lib/endpointMissing'
-import { extractProblemMessage } from '@/lib/problemDetail'
+import { gestureError } from '@/features/dac7/lib/errors'
 import { dac7Service } from '@/features/dac7/services/dac7Service'
 import type { Dac7StatementsResult } from '@/features/dac7/types/index'
 
@@ -20,7 +20,7 @@ export function useDac7Statements() {
       result.value = (await dac7Service.sendStatements(year)) ?? {}
     } catch (e) {
       if (isEndpointMissing(e)) unavailable.value = true
-      else error.value = extractProblemMessage(e, 'Les récapitulatifs n’ont pas pu être envoyés')
+      else error.value = gestureError(e, 'Les récapitulatifs n’ont pas pu être envoyés')
     } finally {
       busy.value = false
     }

@@ -139,6 +139,28 @@ describe('Dac7SellersPanel : tableau', () => {
     expect(w.findAll('[data-test^="dac7-seller-row-"]')).toHaveLength(2)
   })
 
+  it('identité UNAVAILABLE : badge « Indisponible » et phrase « réessayez plus tard »', async () => {
+    svc.sellers.mockResolvedValue([{ userId: U1, displayName: 'Awa Diop', identityStatus: 'UNAVAILABLE' }])
+    const w = await mountPanel()
+    const row = w.get(`[data-test="dac7-seller-row-${U1}"]`).text()
+    expect(row).toContain('Indisponible')
+    expect(w.get(`[data-test="dac7-identity-hint-${U1}"]`).text()).toBe('Lecture d’identité indisponible, réessayez plus tard')
+    expect(w.find(`[data-test="dac7-identity-hint-${U2}"]`).exists()).toBe(false)
+  })
+
+  it('pastille « Déjà exporté » seulement quand le serveur le dit', async () => {
+    svc.sellers.mockResolvedValue([{ ...S1, alreadyExported: true }, S2])
+    const w = await mountPanel()
+    expect(w.get(`[data-test="dac7-seller-row-${U1}"]`).text()).toContain('Déjà exporté')
+    expect(w.get(`[data-test="dac7-seller-row-${U2}"]`).text()).not.toContain('Déjà exporté')
+  })
+
+  it('prévient le parent de la liste chargée (pour nommer les voyageurs d’un refus d’export)', async () => {
+    const w = await mountPanel()
+    const loaded = w.emitted('loaded')!
+    expect(loaded.at(-1)![0]).toEqual([S1, S2])
+  })
+
   it('les cinq filtres relisent la liste', async () => {
     const w = await mountPanel()
     const labels = ['dac7-filter-ALL', 'dac7-filter-MISSING_TAX_INFO', 'dac7-filter-IDENTITY_REVIEW', 'dac7-filter-UNKNOWN_RESIDENCE', 'dac7-filter-NON_DECLARABLE']
@@ -303,6 +325,31 @@ describe('Dac7SellersPanel : tiroir', () => {
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
     expect(w.get('[data-test="dac7-drawer-error"]').text()).toMatch(/moins de 7 jours/)
+  })
+
+  it.each([
+    ['dac7-reminders-exhausted', /Demande et deux rappels déjà envoyés/],
+    ['dac7-collection-disabled', /La collecte est éteinte/],
+  ])('409 %s : phrase claire', async (code, re) => {
+    svc.remind.mockRejectedValueOnce({ statusCode: 409, data: { code, detail: 'brut' } })
+    const w = await mountPanel()
+    await open(w)
+    await w.get('[data-test="dac7-remind"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-drawer-error"]').text()).toMatch(re)
+  })
+
+  it('422 dac7-note-sensitive : « retirez-le », la note reste saisie', async () => {
+    svc.decision.mockRejectedValueOnce({ statusCode: 422, data: { code: 'dac7-note-sensitive' } })
+    const w = await mountPanel()
+    await open(w)
+    await w.get('[data-test="dac7-decision-note"]').setValue('Une note')
+    await w.get('[data-test="dac7-decision-submit"]').trigger('click')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-drawer-error"]').text()).toBe('La note semble contenir un numéro : retirez-le.')
+    expect((w.get('[data-test="dac7-decision-note"]').element as HTMLTextAreaElement).value).toBe('Une note')
   })
 
   it('autre erreur de relance : le detail du serveur', async () => {

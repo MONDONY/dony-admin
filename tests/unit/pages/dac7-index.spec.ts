@@ -244,4 +244,18 @@ describe('/dac7', () => {
     for (const s of spies) expect(s).not.toHaveBeenCalled()
     spies.forEach(s => s.mockRestore())
   })
+
+  it('un refus d’export nomme les voyageurs d’après la liste déjà chargée', async () => {
+    svc.sellers.mockResolvedValue([{ userId: 'u-1', displayName: 'Awa Diop' }])
+    svc.exportFile.mockRejectedValue({ statusCode: 409, data: new Blob([JSON.stringify({
+      code: 'dac7-export-blocked', blockers: ['XSD_INVALID'], travelerIds: ['u-1', 'u-2'],
+    })]) })
+    const w = await mountPage()
+    await w.get('[data-test="dac7-tab-export"]').trigger('click')
+    await w.get('[data-test="dac7-export-run"]').trigger('click')
+    await flushPromises()
+    const t = w.get('[data-test="dac7-export-travelers"]').text()
+    expect(t).toContain('Awa Diop')
+    expect(t).toContain('u-2')
+  })
 })

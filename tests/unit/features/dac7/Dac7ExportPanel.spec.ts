@@ -9,7 +9,7 @@ vi.mock('@/lib/downloadBlob', () => ({ downloadBlob: download }))
 import Dac7ExportPanel from '@/features/dac7/components/Dac7ExportPanel.vue'
 
 const BLOB = new Blob(['<xml/>'])
-const ok = (extra: Record<string, unknown> = {}) => ({ blob: BLOB, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, excluded: 0, encrypted: true, ...extra })
+const ok = (extra: Record<string, unknown> = {}) => ({ blob: BLOB, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, excluded: 0, warnings: null, encrypted: true, ...extra })
 const blocked = (blockers: unknown) => ({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-export-blocked', detail: 'Export bloqué', blockers })]) })
 
 function mountIt(props: Record<string, unknown> = {}) {
@@ -48,7 +48,7 @@ describe('Dac7ExportPanel', () => {
   it('« Exporter le fichier » : demande le mode choisi, télécharge sous le nom du serveur', async () => {
     const w = mountIt()
     await run(w)
-    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'FULL')
+    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'FULL', { sequence: undefined, includeAlreadyExported: false })
     expect(download).toHaveBeenCalledWith(BLOB, 'FR_DAC7_2026.xml.gz.pgp')
     const res = w.get('[data-test="dac7-export-result"]').text()
     expect(res).toContain('FR_DAC7_2026.xml.gz.pgp')
@@ -62,7 +62,7 @@ describe('Dac7ExportPanel', () => {
     const w = mountIt()
     await w.get('[data-test="dac7-mode-PARTIAL"]').setValue(true)
     await run(w)
-    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'PARTIAL')
+    expect(svc.exportFile).toHaveBeenCalledWith(2026, 'PARTIAL', { sequence: undefined, includeAlreadyExported: false })
     expect(w.get('[data-test="dac7-export-excluded"]').text()).toContain('3 voyageurs exclus')
     expect(w.get('[data-test="dac7-export-excluded"]').text()).toMatch(/CSV de contrôle/)
   })
@@ -303,5 +303,97 @@ describe('Dac7ExportPanel', () => {
     resolve(ok())
     await flushPromises()
     expect(w.emitted('busy')?.at(-1)).toEqual([false])
+  })
+
+  it('case « Inclure les voyageurs déjà exportés » décochée par défaut, envoyée quand cochée', async () => {
+    const w = mountIt()
+    const box = w.get('[data-test="dac7-include-exported"]')
+    expect((box.element as HTMLInputElement).checked).toBe(false)
+    expect(w.text()).toContain('Inclure les voyageurs déjà exportés cette année')
+    await box.setValue(true)
+    await run(w)
+    expect(svc.exportFile).toHaveBeenLastCalledWith(2026, 'FULL', { sequence: undefined, includeAlreadyExported: true })
+  })
+
+  it('numéro d’ordre dans un panneau « Avancé » replié, envoyé quand renseigné', async () => {
+    const w = mountIt()
+    const details = w.get('[data-test="dac7-advanced"]').element as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    expect(w.get('[data-test="dac7-advanced"] summary').text()).toBe('Avancé')
+    await w.get('[data-test="dac7-sequence"]').setValue('2')
+    await run(w)
+    expect(svc.exportFile).toHaveBeenLastCalledWith(2026, 'FULL', { sequence: 2, includeAlreadyExported: false })
+  })
+
+  it('numéro d’ordre invalide (négatif, décimal) : message et export désactivé', async () => {
+    const w = mountIt()
+    await w.get('[data-test="dac7-sequence"]').setValue('-1')
+    expect(w.get('[data-test="dac7-sequence-error"]').exists()).toBe(true)
+    expect(w.get('[data-test="dac7-export-run"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-test="dac7-sequence"]').setValue('1.5')
+    expect(w.get('[data-test="dac7-export-run"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-test="dac7-sequence"]').setValue('')
+    expect(w.find('[data-test="dac7-sequence-error"]').exists()).toBe(false)
+    expect(w.get('[data-test="dac7-export-run"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('X-Dac7-Warnings : « N éléments à vérifier (remboursements, anomalies) » après un export réussi', async () => {
+    svc.exportFile.mockResolvedValue(ok({ warnings: 5 }))
+    const w = mountIt()
+    await run(w)
+    expect(w.get('[data-test="dac7-export-warnings"]').text()).toBe('5 éléments à vérifier (remboursements, anomalies).')
+    svc.exportFile.mockResolvedValue(ok({ warnings: 1 }))
+    await run(w)
+    expect(w.get('[data-test="dac7-export-warnings"]').text()).toContain('1 élément à vérifier')
+    svc.exportFile.mockResolvedValue(ok({ warnings: 0 }))
+    await run(w)
+    expect(w.find('[data-test="dac7-export-warnings"]').exists()).toBe(false)
+  })
+
+  it('409 avec travelerIds : les voyageurs concernés, nommés depuis le tableau, sinon l’identifiant', async () => {
+    svc.exportFile.mockRejectedValue({ statusCode: 409, data: new Blob([JSON.stringify({
+      code: 'dac7-export-blocked', blockers: ['XSD_INVALID'], travelerIds: ['u-1', 'u-2'],
+    })]) })
+    const w = mountIt({ names: { 'u-1': 'Awa Diop' } })
+    await run(w)
+    const t = w.get('[data-test="dac7-export-travelers"]').text()
+    expect(t).toContain('Awa Diop')
+    expect(t).toContain('u-2')
+    expect(t).not.toContain('u-1')
+    expect(w.get('[data-test="dac7-export-blocker-XSD_INVALID"]').text()).toContain('pas conforme au format de la DGFiP')
+  })
+
+  it('travelerIds très longue : les 20 premiers, puis « et N autres »', async () => {
+    const ids = Array.from({ length: 23 }, (_, i) => `id-${i}`)
+    svc.exportFile.mockRejectedValue({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-export-blocked', blockers: ['PENDING_SPLITS'], travelerIds: ids })]) })
+    const w = mountIt()
+    await run(w)
+    expect(w.get('[data-test="dac7-export-travelers"]').text()).toContain('et 3 autres')
+    expect(w.get('[data-test="dac7-export-travelers"]').text()).not.toContain('id-22')
+  })
+
+  it('refus sans travelerIds : pas de ligne « Voyageurs concernés »', async () => {
+    svc.exportFile.mockRejectedValue(blocked(['NO_SELLERS']))
+    const w = mountIt()
+    await run(w)
+    expect(w.find('[data-test="dac7-export-travelers"]').exists()).toBe(false)
+  })
+
+  it('409 dac7-unencrypted-not-allowed : phrase claire, aucun fichier', async () => {
+    svc.exportFile.mockRejectedValue({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-unencrypted-not-allowed', detail: 'brut' })]) })
+    const w = mountIt()
+    await run(w)
+    expect(w.get('[data-test="dac7-export-error"]').text()).toBe('L’export non chiffré est refusé en production : configurez la clé de la DGFiP.')
+    expect(w.find('[data-test="dac7-export-blocked"]').exists()).toBe(false)
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('un nouvel essai efface les voyageurs du refus précédent', async () => {
+    svc.exportFile.mockRejectedValueOnce({ statusCode: 409, data: new Blob([JSON.stringify({ code: 'dac7-export-blocked', blockers: ['PENDING_SPLITS'], travelerIds: ['u-9'] })]) })
+    const w = mountIt()
+    await run(w)
+    expect(w.find('[data-test="dac7-export-travelers"]').exists()).toBe(true)
+    await run(w)
+    expect(w.find('[data-test="dac7-export-travelers"]').exists()).toBe(false)
   })
 })

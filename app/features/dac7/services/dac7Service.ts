@@ -1,7 +1,7 @@
 import { useApi } from '@/composables/useApi'
 import { filenameFromContentDisposition } from '@/lib/contentDisposition'
 import type {
-  Dac7AnomalyRow, Dac7DiligenceEntry, Dac7ExportMode, Dac7FileResult, Dac7Filter, Dac7Overview,
+  Dac7AnomalyRow, Dac7DiligenceEntry, Dac7ExportMode, Dac7ExportOptions, Dac7FileResult, Dac7Filter, Dac7Overview,
   Dac7RefundRow, Dac7Seller, Dac7StatementsResult,
 } from '@/features/dac7/types/index'
 
@@ -51,14 +51,19 @@ export const dac7Service = {
    * Génère le fichier. Un refus (409 `dac7-export-blocked`) arrive en erreur, dont le corps JSON
    * (Blob) porte `blockers` : l'appelant le lit avec `readProblemBody`.
    */
-  async exportFile(year: number, mode: Dac7ExportMode): Promise<Dac7FileResult> {
-    const res = await useApi().raw<Blob>(`${BASE}/exports`, { method: 'POST', body: { year, mode }, responseType: 'blob' })
+  async exportFile(year: number, mode: Dac7ExportMode, options: Dac7ExportOptions = {}): Promise<Dac7FileResult> {
+    // Les options ne partent que renseignées : le serveur applique sinon ses valeurs par défaut.
+    const body: Record<string, unknown> = { year, mode }
+    if (options.sequence && options.sequence > 0) body.sequence = options.sequence
+    if (options.includeAlreadyExported) body.includeAlreadyExported = true
+    const res = await useApi().raw<Blob>(`${BASE}/exports`, { method: 'POST', body, responseType: 'blob' })
     const named = filenameFromContentDisposition(res.headers.get('content-disposition'))
     return {
       blob: res._data as Blob,
       filename: named ?? `dac7-${year}-${mode === 'FULL' ? 'complet' : 'partiel'}`,
       filenameFallback: named === null,
       excluded: headerInt(res.headers, 'x-dac7-excluded'),
+      warnings: headerInt(res.headers, 'x-dac7-warnings'),
       encrypted: headerBool(res.headers, 'x-dac7-encrypted'),
     }
   },

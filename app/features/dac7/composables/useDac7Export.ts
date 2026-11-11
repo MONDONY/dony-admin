@@ -4,7 +4,7 @@ import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { extractProblemMessageAsync, readProblemBody } from '@/lib/problemDetail'
 import { dac7Service } from '@/features/dac7/services/dac7Service'
 import { dac7CodeMessage } from '@/features/dac7/types/index'
-import type { Dac7ExportMode } from '@/features/dac7/types/index'
+import type { Dac7ExportMode, Dac7ExportOptions } from '@/features/dac7/types/index'
 
 /** Ce que l'écran garde du dernier fichier généré : jamais son contenu, seulement ses métadonnées. */
 export interface Dac7ExportSummary {
@@ -14,6 +14,8 @@ export interface Dac7ExportSummary {
   year: number
   mode: Dac7ExportMode
   excluded: number | null
+  /** Remboursements à réconcilier + anomalies à vérifier avant de déposer ; null si inconnu. */
+  warnings: number | null
   encrypted: boolean | null
 }
 
@@ -41,6 +43,8 @@ export function useDac7Export() {
   const blockers = ref<string[] | null>(null)
   /** Mode demandé quand l'export a été refusé : le texte du refus en dépend. */
   const blockedMode = ref<Dac7ExportMode | null>(null)
+  /** Voyageurs en cause d'un refus (identifiants seulement : l'écran résout les noms). */
+  const travelerIds = ref<string[]>([])
   const error = ref<string | null>(null)
   const unavailable = ref(false)
 
@@ -48,6 +52,7 @@ export function useDac7Export() {
   function resetFailures() {
     blockers.value = null
     blockedMode.value = null
+    travelerIds.value = []
     error.value = null
     unavailable.value = false
   }
@@ -61,20 +66,22 @@ export function useDac7Export() {
       const list = body?.blockers
       blockers.value = Array.isArray(list) ? list.filter((b): b is string => typeof b === 'string') : []
       blockedMode.value = mode
+      const ids = body?.travelerIds
+      travelerIds.value = Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : []
       return
     }
     error.value = dac7CodeMessage(code) ?? await extractProblemMessageAsync(e, fallback)
   }
 
-  async function run(year: number, mode: Dac7ExportMode) {
+  async function run(year: number, mode: Dac7ExportMode, options: Dac7ExportOptions = {}) {
     resetFailures()
     busy.value = true
     try {
-      const file = await dac7Service.exportFile(year, mode)
+      const file = await dac7Service.exportFile(year, mode, options)
       downloadBlob(file.blob, file.filename)
       result.value = {
         filename: file.filename, filenameFallback: file.filenameFallback, year, mode,
-        excluded: file.excluded, encrypted: file.encrypted,
+        excluded: file.excluded, warnings: file.warnings, encrypted: file.encrypted,
       }
     } catch (e) {
       await failure(e, 'Le fichier n’a pas pu être généré', mode)
@@ -96,5 +103,5 @@ export function useDac7Export() {
     }
   }
 
-  return { busy, csvBusy, result, blockers, blockedMode, error, unavailable, resetFailures, clearResult, run, runControl }
+  return { busy, csvBusy, result, blockers, blockedMode, travelerIds, error, unavailable, resetFailures, clearResult, run, runControl }
 }

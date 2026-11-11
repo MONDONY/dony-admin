@@ -12,7 +12,7 @@ const props = defineProps<{ overview: Dac7Overview | null; loading: boolean; err
 defineEmits<{ retry: [] }>()
 
 type CountKey = 'declarableSellers' | 'withTaxInfo' | 'missingTaxInfo' | 'identityReview'
-  | 'unknownResidence' | 'nonDeclarable' | 'refundsToReconcile' | 'pendingSplits' | 'anomalies'
+  | 'unknownResidence' | 'nonDeclarable' | 'refundsToReconcile' | 'pendingSplits' | 'anomalies' | 'warnings'
 
 const COUNTS: { key: CountKey; label: string; attention?: boolean }[] = [
   { key: 'declarableSellers', label: 'Voyageurs déclarables' },
@@ -24,6 +24,7 @@ const COUNTS: { key: CountKey; label: string; attention?: boolean }[] = [
   { key: 'refundsToReconcile', label: 'Remboursements à réconcilier', attention: true },
   { key: 'pendingSplits', label: 'Partages en attente de versement' },
   { key: 'anomalies', label: 'Anomalies', attention: true },
+  { key: 'warnings', label: 'À vérifier avant d’exporter', attention: true },
 ]
 
 const blockers = computed(() => (props.overview?.blockers ?? []).map(blockerInfo))

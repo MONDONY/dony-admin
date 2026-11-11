@@ -5,7 +5,7 @@ import Dac7Summary from '@/features/dac7/components/Dac7Summary.vue'
 const OVERVIEW = {
   year: 2026, enabled: true, remindersEnabled: true,
   declarableSellers: 12, withTaxInfo: 9, missingTaxInfo: 3, identityReview: 2, unknownResidence: 1, nonDeclarable: 4,
-  refundsToReconcile: 5, pendingSplits: 1, anomalies: 6, invalidPartnerJurisdictions: [],
+  refundsToReconcile: 5, pendingSplits: 1, anomalies: 6, warnings: 11, invalidPartnerJurisdictions: [],
   totals: { operations: 240, netEur: 18234.5, commissionEur: 2100 },
   eurComplete: true, commissionComplete: true, exportReady: true, blockers: [],
 }
@@ -27,6 +27,8 @@ describe('Dac7Summary', () => {
     expect(text('refundsToReconcile')).toContain('5')
     expect(text('pendingSplits')).toContain('1')
     expect(text('anomalies')).toContain('6')
+    expect(text('warnings')).toContain('11')
+    expect(text('warnings')).toContain('À vérifier avant d’exporter')
   })
 
   it('affiche les totaux en euros', () => {

@@ -12,12 +12,37 @@ const props = defineProps<{
   year: number
   /** Nombre de blocages signalés par la synthèse (indication seulement : le serveur reste juge). */
   blockersCount?: number
+  /** Noms des voyageurs déjà chargés dans le tableau, par identifiant : sert à nommer les voyageurs d'un refus. */
+  names?: Record<string, string>
 }>()
 
 const emit = defineEmits<{ busy: [value: boolean] }>()
 
 const exporter = useDac7Export()
 const mode = ref<Dac7ExportMode>('FULL')
+const includeAlreadyExported = ref(false)
+/** Numéro d'ordre de la déclaration : vide = valeur par défaut du serveur (0). */
+const sequence = ref<number | string>('')
+const sequenceValid = computed(() => sequence.value === '' || (Number.isInteger(sequence.value) && Number(sequence.value) >= 0))
+
+function runExport() {
+  void exporter.run(props.year, mode.value, {
+    sequence: sequence.value === '' ? undefined : Number(sequence.value),
+    includeAlreadyExported: includeAlreadyExported.value,
+  })
+}
+
+const MAX_NAMED = 20
+/** Voyageurs d'un refus : le nom quand le tableau le connaît, sinon l'identifiant seul. */
+const concerned = computed(() => {
+  const ids = exporter.travelerIds.value
+  const label = (id: string) => props.names?.[id] || id
+  return { shown: ids.slice(0, MAX_NAMED).map(label), more: Math.max(0, ids.length - MAX_NAMED) }
+})
+const warningsLabel = computed(() => {
+  const n = exporter.result.value?.warnings
+  return n && n > 0 ? `${n} élément${n > 1 ? 's' : ''} à vérifier (remboursements, anomalies).` : null
+})
 
 const MODES: { value: Dac7ExportMode; label: string; help: string }[] = [
   { value: 'FULL', label: 'Complet', help: 'Tous les voyageurs déclarables. Refusé tant qu’il reste un blocage.' },
@@ -70,11 +95,32 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
       </label>
     </fieldset>
 
+    <label class="flex cursor-pointer items-start gap-2 text-sm">
+      <input v-model="includeAlreadyExported" type="checkbox" data-test="dac7-include-exported" class="mt-1">
+      <span>
+        <span class="font-medium">Inclure les voyageurs déjà exportés cette année</span>
+        <span class="block text-xs text-text-muted text-pretty">Sans cette case, un export Partiel écarte ceux déjà retenus dans un export précédent.</span>
+      </span>
+    </label>
+
+    <details data-test="dac7-advanced" class="rounded-btn border border-border px-3 py-2 text-sm">
+      <summary class="cursor-pointer font-medium">Avancé</summary>
+      <label class="mt-2 flex flex-col gap-1 text-sm">
+        <span>Numéro d’ordre de la déclaration</span>
+        <input
+          v-model.number="sequence" type="number" min="0" step="1" inputmode="numeric" data-test="dac7-sequence"
+          placeholder="0" class="w-32 rounded-btn border border-border bg-bg p-2 text-sm tabular-nums"
+        >
+        <span class="text-xs text-text-muted text-pretty">Facultatif, 0 par défaut. À changer seulement pour un nouveau dépôt de la même année.</span>
+        <span v-if="!sequenceValid" data-test="dac7-sequence-error" class="text-xs text-danger">Entrez un nombre entier, 0 ou plus.</span>
+      </label>
+    </details>
+
     <div class="flex flex-wrap gap-2">
       <button
-        type="button" data-test="dac7-export-run" :disabled="exporter.busy.value || exporter.csvBusy.value"
+        type="button" data-test="dac7-export-run" :disabled="exporter.busy.value || exporter.csvBusy.value || !sequenceValid"
         class="rounded-btn bg-primary px-4 py-2 text-sm text-white transition-[background-color,scale] hover:bg-primary/90 active:scale-[0.96] disabled:opacity-40"
-        @click="exporter.run(year, mode)"
+        @click="runExport"
       >{{ exporter.busy.value ? 'Génération…' : 'Exporter le fichier' }}</button>
       <button
         type="button" data-test="dac7-export-csv" :disabled="exporter.busy.value || exporter.csvBusy.value"
@@ -100,6 +146,10 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
           <p class="text-sm text-text-muted text-pretty">{{ b.explanation }}</p>
         </li>
       </ul>
+      <p v-if="concerned.shown.length" data-test="dac7-export-travelers" class="mt-2 text-sm text-pretty">
+        <span class="font-medium">Voyageurs concernés :</span>
+        {{ concerned.shown.join(', ') }}<span v-if="concerned.more"> et {{ concerned.more }} autre{{ concerned.more > 1 ? 's' : '' }}</span>
+      </p>
       <p v-if="suggestPartial" class="mt-2 text-sm text-text-muted text-pretty">Vous pouvez aussi choisir le mode Partiel.</p>
     </div>
 
@@ -125,6 +175,7 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
         class="rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-text text-pretty"
       >Le serveur n’a pas indiqué si le fichier est chiffré : vérifiez-le avant tout dépôt.</p>
       <p v-if="excludedLabel" data-test="dac7-export-excluded" class="text-sm text-text-muted text-pretty">{{ excludedLabel }}</p>
+      <p v-if="warningsLabel" data-test="dac7-export-warnings" class="text-sm text-warning text-pretty">{{ warningsLabel }}</p>
     </div>
   </section>
 </template>

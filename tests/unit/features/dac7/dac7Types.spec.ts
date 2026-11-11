@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   blockerInfo, DAC7_BLOCKER_CODES, DAC7_FILTERS, diligenceActionLabel, eurLabel, identityMeta, residencyMeta,
   solicitationMeta, anomalyTypeLabel, refundSourceLabel, dac7CodeMessage, DAC7_NOTE_MAX, noteValid,
-  yearOptions, countLabel, partialMayHelp, defaultYear, currentUtcYear, NOT_AVAILABLE,
+  yearOptions, countLabel, partialMayHelp, closedYears, identityHint, defaultYear, currentUtcYear, NOT_AVAILABLE,
 } from '@/features/dac7/types/index'
 
 describe('blocages', () => {
@@ -10,6 +10,7 @@ describe('blocages', () => {
     expect(DAC7_BLOCKER_CODES).toEqual([
       'IDENTITY_INCOMPLETE', 'TAX_INFO_MISSING', 'EUR_INCOMPLETE', 'COMMISSION_INCOMPLETE',
       'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS', 'OPERATOR_CONFIG_MISSING',
+      'IDENTITY_UNAVAILABLE', 'PENDING_SPLITS', 'XSD_INVALID',
     ])
     for (const code of DAC7_BLOCKER_CODES) {
       const info = blockerInfo(code)
@@ -26,6 +27,11 @@ describe('blocages', () => {
     expect(info.explanation).toMatch(/pas connu de cette version/i)
     expect(info.explanation).not.toMatch(/partiel/i)
   })
+  it('les trois nouveaux blocages du back, expliqués en français', () => {
+    expect(blockerInfo('IDENTITY_UNAVAILABLE').explanation).toBe('La vérification d’identité est temporairement indisponible pour certains voyageurs : réessayez plus tard.')
+    expect(blockerInfo('PENDING_SPLITS').explanation).toBe('Des partages de colis décidés par l’équipe n’ont pas encore été versés aux voyageurs : attendez la fin des transferts.')
+    expect(blockerInfo('XSD_INVALID').explanation).toBe('Le fichier n’est pas conforme au format de la DGFiP pour certains voyageurs : voir la liste.')
+  })
   it('société déclarante non configurée : à régler côté serveur, sans suggérer le mode Partiel', () => {
     const info = blockerInfo('OPERATOR_CONFIG_MISSING')
     expect(info.explanation).toBe('Les informations de la société déclarante ne sont pas configurées côté serveur : contactez l’équipe technique.')
@@ -35,6 +41,7 @@ describe('blocages', () => {
     expect(partialMayHelp(['TAX_INFO_MISSING'])).toBe(true)
     expect(partialMayHelp(['TAX_INFO_MISSING', 'IDENTITY_INCOMPLETE'])).toBe(true)
     expect(partialMayHelp([])).toBe(false)
+    expect(partialMayHelp(['IDENTITY_UNAVAILABLE', 'PENDING_SPLITS', 'XSD_INVALID'])).toBe(true)
     expect(partialMayHelp(['NO_SELLERS'])).toBe(false)
     expect(partialMayHelp(['OPERATOR_CONFIG_MISSING'])).toBe(false)
     expect(partialMayHelp(['TAX_INFO_MISSING', 'OPERATOR_CONFIG_MISSING'])).toBe(false)
@@ -48,6 +55,9 @@ describe('libellés', () => {
     expect(DAC7_FILTERS.map(f => f.label)).toEqual(['Tous', 'Numéro fiscal manquant', 'Identité à revoir', 'Résidence inconnue', 'Non déclarables'])
   })
   it('résidence, identité, sollicitation', () => {
+    expect(identityMeta('UNAVAILABLE').label).toBe('Indisponible')
+    expect(identityHint('UNAVAILABLE')).toBe('Lecture d’identité indisponible, réessayez plus tard')
+    expect(identityHint('COMPLETE')).toBeNull()
     expect(residencyMeta('DECLARABLE').label).toBe('Déclarable')
     expect(residencyMeta('NON_DECLARABLE').label).toBe('Non déclarable')
     expect(residencyMeta('RESIDENCE_INCONNUE').label).toBe('Résidence inconnue')
@@ -76,6 +86,7 @@ describe('libellés', () => {
     expect(anomalyTypeLabel('REFUND_DATE_ESTIMATED')).toMatch(/remboursement/i)
     expect(anomalyTypeLabel('DELIVERY_DATE_ESTIMATED')).toMatch(/livraison/i)
     expect(anomalyTypeLabel('TRAVELER_UNKNOWN')).toMatch(/voyageur/i)
+    expect(anomalyTypeLabel('RATE_DATE_ESTIMATED')).toMatch(/dernier taux/i)
     expect(anomalyTypeLabel('Z')).toBe('Z')
     expect(anomalyTypeLabel(undefined)).toBe('Anomalie')
     expect(refundSourceLabel('PAYMENT')).toBe('Paiement')
@@ -113,6 +124,11 @@ describe('décision et codes d’erreur', () => {
     expect(dac7CodeMessage('dac7-not-solicitable')).toMatch(/pas sollicitable|ne peut pas être sollicité/i)
     expect(dac7CodeMessage('dac7-remind-too-soon')).toMatch(/7 jours/)
     expect(dac7CodeMessage('dac7-export-blocked')).toMatch(/bloqu/i)
+    expect(dac7CodeMessage('dac7-year-not-closed')).toBe('Le récapitulatif d’une année ne peut être envoyé qu’après la fin de cette année.')
+    expect(dac7CodeMessage('dac7-unencrypted-not-allowed')).toBe('L’export non chiffré est refusé en production : configurez la clé de la DGFiP.')
+    expect(dac7CodeMessage('dac7-note-sensitive')).toBe('La note semble contenir un numéro : retirez-le.')
+    expect(dac7CodeMessage('dac7-reminders-exhausted')).toBe('Demande et deux rappels déjà envoyés.')
+    expect(dac7CodeMessage('dac7-collection-disabled')).toBe('La collecte est éteinte : aucun message ne peut être envoyé.')
     expect(dac7CodeMessage('autre')).toBeNull()
     expect(dac7CodeMessage(null)).toBeNull()
   })
@@ -124,6 +140,12 @@ describe('années', () => {
     expect(yearOptions(2024)).toEqual([2024, 2023])
     expect(yearOptions(2023)).toEqual([2023])
     expect(yearOptions(2022)).toEqual([2023])
+  })
+  it('années terminées : les trois dernières avant l’année UTC', () => {
+    expect(closedYears(2026)).toEqual([2025, 2024, 2023])
+    expect(closedYears(2025)).toEqual([2024, 2023])
+    expect(closedYears(2023)).toEqual([])
+    expect(closedYears(2030)).toEqual([2029, 2028, 2027])
   })
   it('année par défaut : l’année courante, sauf en janvier (l’année écoulée)', () => {
     expect(defaultYear(new Date('2026-11-11T10:00:00Z'))).toBe(2026)

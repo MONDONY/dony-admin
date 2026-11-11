@@ -1,15 +1,9 @@
 import { ref } from 'vue'
 import { extractProblemMessage } from '@/lib/problemDetail'
-import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
+import { isEndpointMissing } from '@/lib/endpointMissing'
+import { gestureError } from '@/features/dac7/lib/errors'
 import { dac7Service } from '@/features/dac7/services/dac7Service'
-import { DAC7_UNAVAILABLE, dac7CodeMessage } from '@/features/dac7/types/index'
 import type { Dac7DiligenceEntry } from '@/features/dac7/types/index'
-
-/** Message d'un geste refusé : l'ancien back d'abord, puis nos phrases pour les 409 métier, puis le serveur. */
-function gestureError(e: unknown, fallback: string): string {
-  if (isEndpointMissing(e)) return DAC7_UNAVAILABLE
-  return dac7CodeMessage(problemCode(e)) ?? extractProblemMessage(e, fallback)
-}
 
 /**
  * Fiche d'un voyageur : registre des diligences, relance manuelle et décision de l'équipe.

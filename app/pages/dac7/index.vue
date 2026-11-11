@@ -8,6 +8,7 @@ import Dac7RefundsPanel from '@/features/dac7/components/Dac7RefundsPanel.vue'
 import Dac7SellersPanel from '@/features/dac7/components/Dac7SellersPanel.vue'
 import Dac7StatementsPanel from '@/features/dac7/components/Dac7StatementsPanel.vue'
 import Dac7Summary from '@/features/dac7/components/Dac7Summary.vue'
+import type { Dac7Seller } from '@/features/dac7/types/index'
 import { useDac7Overview } from '@/features/dac7/composables/useDac7Overview'
 import { DAC7_UNAVAILABLE, currentUtcYear, defaultYear, yearOptions } from '@/features/dac7/types/index'
 
@@ -31,6 +32,13 @@ const section = ref<Section>('sellers')
 const summary = useDac7Overview()
 /** Les onglets attendent la première réponse de la synthèse : un ancien back ne reçoit alors qu'une requête. */
 const settled = ref(false)
+/** Noms des voyageurs déjà chargés, par identifiant : nomment les voyageurs d'un refus d'export. */
+const names = ref<Record<string, string>>({})
+function onSellersLoaded(rows: Dac7Seller[]) {
+  const next = { ...names.value }
+  for (const r of rows) if (r.displayName) next[r.userId] = r.displayName
+  names.value = next
+}
 
 const tabs = computed<TabItem<Section>[]>(() => [
   { id: 'sellers', label: 'Voyageurs' },
@@ -41,7 +49,7 @@ const tabs = computed<TabItem<Section>[]>(() => [
 
 const reload = () => summary.load(year.value)
 onMounted(async () => { await reload(); settled.value = true })
-watch(year, reload)
+watch(year, () => { names.value = {}; void reload() })
 </script>
 
 <template>
@@ -69,12 +77,12 @@ watch(year, reload)
       <template v-if="settled">
         <TabBar v-model="section" :tabs="tabs" variant="underline" aria-label="Sections de la déclaration" test-prefix="dac7-tab" />
 
-        <Dac7SellersPanel v-if="section === 'sellers'" :year="year" @changed="reload" />
+        <Dac7SellersPanel v-if="section === 'sellers'" :year="year" @changed="reload" @loaded="onSellersLoaded" />
         <Dac7RefundsPanel v-else-if="section === 'refunds'" :year="year" />
         <Dac7AnomaliesPanel v-else-if="section === 'anomalies'" :year="year" />
         <!-- Monté dès l'arrivée et seulement masqué : un fichier non chiffré déjà téléchargé reste signalé en changeant d'onglet. -->
         <div v-show="section === 'export'" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <Dac7ExportPanel :year="year" :blockers-count="summary.overview.value?.blockers?.length ?? 0" @busy="exportBusy = $event" />
+          <Dac7ExportPanel :year="year" :blockers-count="summary.overview.value?.blockers?.length ?? 0" :names="names" @busy="exportBusy = $event" />
           <Dac7StatementsPanel :year="year" @busy="statementsBusy = $event" />
         </div>
       </template>

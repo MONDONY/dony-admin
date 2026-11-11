@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useDac7Statements } from '@/features/dac7/composables/useDac7Statements'
-import { DAC7_UNAVAILABLE } from '@/features/dac7/types/index'
+import { DAC7_UNAVAILABLE, closedYears, currentUtcYear } from '@/features/dac7/types/index'
 
 /**
  * Envoi du récapitulatif annuel aux voyageurs déclarés. Geste de l'admin, jamais automatique ;
- * la confirmation demande de saisir un mot pour éviter l'envoi par un clic distrait.
+ * la confirmation demande de saisir un mot pour éviter l'envoi par un clic distrait. Le back
+ * refuse une année qui n'est pas terminée (422 `dac7-year-not-closed`) : ce panneau a son propre
+ * sélecteur, limité aux années terminées, et ne suit pas l'année de la page quand elle est en cours.
  */
 const props = defineProps<{ year: number }>()
 const emit = defineEmits<{ busy: [value: boolean] }>()
@@ -15,14 +17,21 @@ const CONFIRM_WORD = 'ENVOYER'
 const statements = useDac7Statements()
 const confirming = ref(false)
 
+const utcYear = currentUtcYear()
+const years = closedYears(utcYear)
+/** L'année de la page quand elle est terminée, sinon la plus récente année terminée. */
+const sendYear = ref<number | null>(years.includes(props.year) ? props.year : (years[0] ?? null))
+const pageYearOpen = computed(() => props.year >= utcYear)
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`
 
 async function onConfirm() {
   confirming.value = false
-  await statements.send(props.year)
+  if (sendYear.value !== null) await statements.send(sendYear.value)
 }
 
-watch(() => props.year, () => statements.reset())
+watch(sendYear, () => statements.reset())
+watch(() => props.year, (y) => { if (years.includes(y)) sendYear.value = y })
 // La page verrouille le sélecteur d'année pendant l'envoi : le résultat reste celui de l'année affichée.
 watch(() => statements.busy.value, v => emit('busy', v))
 </script>
@@ -34,9 +43,24 @@ watch(() => statements.busy.value, v => emit('busy', v))
       Chaque voyageur déclaré reçoit son récapitulatif de l’année (notification, et e-mail si possible), une seule fois
       par année. Aucun voyageur non déclaré n’est sollicité.
     </p>
+    <label v-if="years.length" class="flex items-center gap-2 text-sm text-text-muted">
+      Année du récapitulatif
+      <select
+        v-model.number="sendYear" data-test="dac7-statements-year" :disabled="statements.busy.value"
+        class="rounded-btn border border-border bg-bg px-3 py-1.5 text-sm text-text"
+      >
+        <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+      </select>
+    </label>
+    <p v-if="!years.length" data-test="dac7-statements-closed-hint" class="text-sm text-text-muted text-pretty">
+      Aucune année n’est encore terminée : le récapitulatif d’une année ne peut être envoyé qu’après la fin de cette année.
+    </p>
+    <p v-else-if="pageYearOpen" data-test="dac7-statements-closed-hint" class="text-sm text-text-muted text-pretty">
+      L’année {{ year }} n’est pas terminée : le récapitulatif d’une année ne peut être envoyé qu’après la fin de cette année.
+    </p>
     <div>
       <button
-        type="button" data-test="dac7-statements-send" :disabled="statements.busy.value"
+        type="button" data-test="dac7-statements-send" :disabled="statements.busy.value || sendYear === null"
         class="rounded-btn border border-border px-4 py-2 text-sm transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96] disabled:opacity-40"
         @click="confirming = true"
       >Envoyer les récapitulatifs aux voyageurs</button>
@@ -54,7 +78,7 @@ watch(() => statements.busy.value, v => emit('busy', v))
 
     <ConfirmActionDialog
       :open="confirming" title="Envoyer les récapitulatifs"
-      :message="`Le récapitulatif ${year} part à chaque voyageur déclaré qui ne l’a pas déjà reçu. Cet envoi ne peut pas être rappelé.`"
+      :message="`Le récapitulatif ${sendYear} part à chaque voyageur déclaré qui ne l’a pas déjà reçu. Cet envoi ne peut pas être rappelé.`"
       :confirmation-phrase="CONFIRM_WORD" :confirmation-label="`Saisissez « ${CONFIRM_WORD} » pour confirmer`"
       confirm-label="Envoyer" confirm-tone="primary"
       @confirm="onConfirm" @cancel="confirming = false"

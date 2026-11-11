@@ -5,8 +5,11 @@ const svc = vi.hoisted(() => ({ sendStatements: vi.fn() }))
 vi.mock('@/features/dac7/services/dac7Service', () => ({ dac7Service: svc }))
 
 import Dac7StatementsPanel from '@/features/dac7/components/Dac7StatementsPanel.vue'
+import { currentUtcYear } from '@/features/dac7/types/index'
 
-const mountIt = () => mount(Dac7StatementsPanel, { props: { year: 2026 } })
+// Le back n'accepte qu'une année terminée : on envoie pour la dernière année close.
+const CLOSED = currentUtcYear() - 1
+const mountIt = (year = CLOSED) => mount(Dac7StatementsPanel, { props: { year } })
 
 describe('Dac7StatementsPanel', () => {
   beforeEach(() => {
@@ -26,7 +29,7 @@ describe('Dac7StatementsPanel', () => {
     const w = mountIt()
     await w.get('[data-test="dac7-statements-send"]').trigger('click')
     expect(svc.sendStatements).not.toHaveBeenCalled()
-    expect(w.get('[role="dialog"]').text()).toContain('2026')
+    expect(w.get('[role="dialog"]').text()).toContain(String(CLOSED))
     expect(w.get('[data-test="confirm"]').attributes('disabled')).toBeDefined()
     await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
     expect(w.get('[data-test="confirm"]').attributes('disabled')).toBeUndefined()
@@ -46,7 +49,7 @@ describe('Dac7StatementsPanel', () => {
     await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
-    expect(svc.sendStatements).toHaveBeenCalledWith(2026)
+    expect(svc.sendStatements).toHaveBeenCalledWith(CLOSED)
     const r = w.get('[data-test="dac7-statements-result"]').text()
     expect(r).toContain('3 envoyés')
     expect(r).toContain('1 ignoré')
@@ -86,13 +89,13 @@ describe('Dac7StatementsPanel', () => {
     expect(w.find('[data-test="dac7-statements-error"]').exists()).toBe(false)
   })
 
-  it('une nouvelle année efface le résultat de l’ancienne', async () => {
+  it('un autre choix d’année efface le résultat de la précédente', async () => {
     const w = mountIt()
     await w.get('[data-test="dac7-statements-send"]').trigger('click')
     await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
-    await w.setProps({ year: 2025 })
+    await w.get('[data-test="dac7-statements-year"]').setValue(String(CLOSED - 1))
     expect(w.find('[data-test="dac7-statements-result"]').exists()).toBe(false)
   })
 
@@ -124,5 +127,48 @@ describe('Dac7StatementsPanel', () => {
     await send()
     expect(w.find('[data-test="dac7-unavailable"]').exists()).toBe(false)
     expect(w.find('[data-test="dac7-statements-result"]').exists()).toBe(true)
+  })
+
+  it('le sélecteur ne propose que des années terminées', () => {
+    const w = mountIt()
+    const years = w.findAll('[data-test="dac7-statements-year"] option').map(o => Number(o.text()))
+    expect(years.length).toBeGreaterThan(0)
+    for (const y of years) expect(y).toBeLessThan(currentUtcYear())
+    expect(years[0]).toBe(CLOSED)
+  })
+
+  it('année de la page en cours : explication, et l’envoi vise la dernière année terminée', async () => {
+    const w = mountIt(currentUtcYear())
+    expect(w.get('[data-test="dac7-statements-closed-hint"]').text()).toMatch(/n’est pas terminée/)
+    expect((w.get('[data-test="dac7-statements-year"]').element as HTMLSelectElement).value).toBe(String(CLOSED))
+    await w.get('[data-test="dac7-statements-send"]').trigger('click')
+    await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(svc.sendStatements).toHaveBeenCalledWith(CLOSED)
+  })
+
+  it('année de la page terminée : pas d’avertissement', () => {
+    expect(mountIt().find('[data-test="dac7-statements-closed-hint"]').exists()).toBe(false)
+  })
+
+  it('422 dac7-year-not-closed (garde du serveur) : phrase claire', async () => {
+    svc.sendStatements.mockRejectedValue({ statusCode: 422, data: { code: 'dac7-year-not-closed', detail: 'brut' } })
+    const w = mountIt()
+    await w.get('[data-test="dac7-statements-send"]').trigger('click')
+    await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-statements-error"]').text()).toBe('Le récapitulatif d’une année ne peut être envoyé qu’après la fin de cette année.')
+  })
+
+  it('409 dac7-collection-disabled : phrase claire', async () => {
+    svc.sendStatements.mockRejectedValue({ statusCode: 409, data: { code: 'dac7-collection-disabled' } })
+    const w = mountIt()
+    await w.get('[data-test="dac7-statements-send"]').trigger('click')
+    await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-test="dac7-statements-error"]').text()).toContain('La collecte est éteinte')
   })
 })
