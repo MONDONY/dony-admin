@@ -40,10 +40,12 @@ watch(() => props.year, () => statements.reset())
     </div>
 
     <p v-if="statements.unavailable.value" data-test="dac7-unavailable" class="text-sm text-text-muted">{{ DAC7_UNAVAILABLE }}</p>
-    <p v-if="statements.error.value" data-test="dac7-statements-error" role="alert"
+    <p
+      v-if="statements.error.value" data-test="dac7-statements-error" role="alert"
       class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
     >{{ statements.error.value }}</p>
-    <p v-if="statements.result.value" data-test="dac7-statements-result" role="status"
+    <p
+      v-if="statements.result.value" data-test="dac7-statements-result" role="status"
       class="rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
     >{{ plural(statements.result.value.sent ?? 0, 'envoyé') }}, {{ plural(statements.result.value.skipped ?? 0, 'ignoré') }}.</p>
 

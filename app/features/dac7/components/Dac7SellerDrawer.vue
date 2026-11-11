@@ -82,10 +82,12 @@ async function onConfirm() {
         >Fermer</button>
       </div>
 
-      <p v-if="work.notice.value" data-test="dac7-drawer-notice" role="status"
+      <p
+        v-if="work.notice.value" data-test="dac7-drawer-notice" role="status"
         class="mb-3 rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
       >{{ work.notice.value }}</p>
-      <p v-if="work.actionError.value" data-test="dac7-drawer-error" role="alert"
+      <p
+        v-if="work.actionError.value" data-test="dac7-drawer-error" role="alert"
         class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
       >{{ work.actionError.value }}</p>
 

@@ -137,7 +137,7 @@ describe('Dac7ExportPanel', () => {
   })
 
   it('le bouton est désactivé pendant la génération', async () => {
-    let resolve!: (v: unknown) => void
+    let resolve: (_value: unknown) => void = () => {}
     svc.exportFile.mockReturnValue(new Promise((r) => { resolve = r }))
     const w = mountIt()
     await w.get('[data-test="dac7-export-run"]').trigger('click')
