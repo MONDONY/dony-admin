@@ -29,6 +29,8 @@ const COUNTS: { key: CountKey; label: string; attention?: boolean }[] = [
 
 const blockers = computed(() => (props.overview?.blockers ?? []).map(blockerInfo))
 const partialHelps = computed(() => partialMayHelp(props.overview?.blockers ?? []))
+/** `IDENTITY_NOT_CHECKED` ne vient que de la lecture de la page : il se règle au rechargement, pas par le mode Partiel. */
+const onlyNotChecked = computed(() => (props.overview?.blockers ?? []).every(c => c === 'IDENTITY_NOT_CHECKED'))
 /** Vrai seulement si le serveur a envoyé la liste (vide) ET ne dit pas le contraire : sinon l'état est inconnu. */
 const noBlocker = computed(() => Array.isArray(props.overview?.blockers) && props.overview!.blockers!.length === 0 && props.overview!.exportReady !== false)
 const jurisdictions = computed(() => (props.overview?.invalidPartnerJurisdictions ?? []).join(', '))
@@ -89,13 +91,17 @@ const jurisdictions = computed(() => (props.overview?.invalidPartnerJurisdiction
       >
         <h2 class="font-display text-base font-bold text-danger">L’export complet est bloqué</h2>
         <p class="mt-1 text-sm text-text-muted text-pretty">
-          <template v-if="partialHelps">Réglez ces points, ou exportez en mode Partiel (seuls les voyageurs complets sont alors déclarés).</template>
+          <template v-if="onlyNotChecked">Ce point se règle en rechargeant la synthèse ou en filtrant par voyageur.</template>
+          <template v-else-if="partialHelps">Réglez ces points, ou exportez en mode Partiel (seuls les voyageurs complets sont alors déclarés).</template>
           <template v-else>Réglez ces points avant d’exporter : le mode Partiel ne les contourne pas.</template>
         </p>
         <ul class="mt-3 flex flex-col gap-3">
           <li v-for="b in blockers" :key="b.code" :data-test="`dac7-blocker-${b.code}`">
             <p class="text-sm font-semibold">{{ b.title }}</p>
             <p class="text-sm text-text-muted text-pretty">{{ b.explanation }}</p>
+            <p v-if="b.code === 'IDENTITY_NOT_CHECKED'" data-test="dac7-identity-not-checked-note" class="text-xs text-text-muted text-pretty">
+              Les identités manquantes se complètent à chaque rechargement. L’export, lui, relit chaque pièce d’identité au moment de la génération.
+            </p>
             <p v-if="b.code === 'INVALID_PARTNER_JURISDICTION' && jurisdictions" class="text-xs tabular-nums text-text-muted">
               Codes concernés : {{ jurisdictions }}
             </p>

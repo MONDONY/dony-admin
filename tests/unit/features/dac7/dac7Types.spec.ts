@@ -3,6 +3,7 @@ import {
   blockerInfo, DAC7_BLOCKER_CODES, DAC7_FILTERS, diligenceActionLabel, eurLabel, identityMeta, residencyMeta,
   solicitationMeta, anomalyTypeLabel, refundSourceLabel, dac7CodeMessage, DAC7_NOTE_MAX, noteValid,
   yearOptions, countLabel, partialMayHelp, closedYears, identityHint, defaultYear, currentUtcYear, NOT_AVAILABLE,
+  exclusionLabel, noteSensitiveMessage, looksFrench,
 } from '@/features/dac7/types/index'
 
 describe('blocages', () => {
@@ -10,7 +11,7 @@ describe('blocages', () => {
     expect(DAC7_BLOCKER_CODES).toEqual([
       'IDENTITY_INCOMPLETE', 'TAX_INFO_MISSING', 'EUR_INCOMPLETE', 'COMMISSION_INCOMPLETE',
       'INVALID_PARTNER_JURISDICTION', 'NO_SELLERS', 'OPERATOR_CONFIG_MISSING',
-      'IDENTITY_UNAVAILABLE', 'PENDING_SPLITS', 'XSD_INVALID',
+      'IDENTITY_UNAVAILABLE', 'PENDING_SPLITS', 'XSD_INVALID', 'IDENTITY_NOT_CHECKED',
     ])
     for (const code of DAC7_BLOCKER_CODES) {
       const info = blockerInfo(code)
@@ -31,6 +32,12 @@ describe('blocages', () => {
     expect(blockerInfo('IDENTITY_UNAVAILABLE').explanation).toBe('La vérification d’identité est temporairement indisponible pour certains voyageurs : réessayez plus tard.')
     expect(blockerInfo('PENDING_SPLITS').explanation).toBe('Des partages de colis décidés par l’équipe n’ont pas encore été versés aux voyageurs : attendez la fin des transferts.')
     expect(blockerInfo('XSD_INVALID').explanation).toBe('Le fichier n’est pas conforme au format de la DGFiP pour certains voyageurs : voir la liste.')
+  })
+  it('IDENTITY_NOT_CHECKED : phrase du contrôleur, jamais présentée comme une panne ni contournée par Partiel', () => {
+    const info = blockerInfo('IDENTITY_NOT_CHECKED')
+    expect(info.known).toBe(true)
+    expect(info.explanation).toBe('Certaines identités n’ont pas été vérifiées : filtrez par voyageur ou réessayez avec moins de résultats.')
+    expect(partialMayHelp(['IDENTITY_NOT_CHECKED'])).toBe(false)
   })
   it('société déclarante non configurée : à régler côté serveur, sans suggérer le mode Partiel', () => {
     const info = blockerInfo('OPERATOR_CONFIG_MISSING')
@@ -58,6 +65,8 @@ describe('libellés', () => {
     expect(identityMeta('UNAVAILABLE').label).toBe('Indisponible')
     expect(identityHint('UNAVAILABLE')).toBe('Lecture d’identité indisponible, réessayez plus tard')
     expect(identityHint('COMPLETE')).toBeNull()
+    expect(identityMeta('NOT_CHECKED')).toEqual({ label: 'Non vérifiée', tone: 'neutral' })
+    expect(identityHint('NOT_CHECKED')).toBe('Trop de voyageurs pour lire toutes les pièces d’identité en une fois, affinez le filtre')
     expect(identityHint('INCOMPLETE', 'IDENTITY_SOURCE_UNREADABLE')).toBe('La pièce d’identité vérifiée est illisible : à compléter à la main')
     expect(identityHint('INCOMPLETE', 'ADDRESS')).toBeNull()
     expect(residencyMeta('DECLARABLE').label).toBe('Déclarable')
@@ -128,13 +137,51 @@ describe('décision et codes d’erreur', () => {
     expect(dac7CodeMessage('dac7-export-blocked')).toMatch(/bloqu/i)
     expect(dac7CodeMessage('dac7-year-not-closed')).toBe('Le récapitulatif d’une année ne peut être envoyé qu’après la fin de cette année.')
     expect(dac7CodeMessage('dac7-unencrypted-not-allowed')).toBe('L’export non chiffré est refusé en production : configurez la clé de la DGFiP.')
-    expect(dac7CodeMessage('dac7-note-sensitive')).toBe('La note semble contenir un numéro : retirez-le.')
+    expect(dac7CodeMessage('dac7-note-sensitive')).toBe('La note semble contenir un identifiant : retirez-le.')
     expect(dac7CodeMessage('dac7-reminders-exhausted')).toBe('Demande et deux rappels déjà envoyés.')
     expect(dac7CodeMessage('dac7-collection-disabled')).toBe('La collecte est éteinte : aucun message ne peut être envoyé.')
     expect(dac7CodeMessage('dac7-sequence-used')).toBe('Ce numéro d’ordre a déjà servi pour cette année : laissez le champ vide pour utiliser le suivant.')
     expect(dac7CodeMessage('dac7-export-run-not-found')).toBe('Export introuvable.')
     expect(dac7CodeMessage('autre')).toBeNull()
     expect(dac7CodeMessage(null)).toBeNull()
+  })
+  it('nouveaux 409 : export en cours, déjà déposé, année non terminée au dépôt', () => {
+    expect(dac7CodeMessage('dac7-export-in-progress')).toBe('Un export est déjà en cours pour cette année : patientez puis réessayez.')
+    expect(dac7CodeMessage('dac7-export-in-progress', 'deposit')).toBe('Un export est déjà en cours pour cette année : patientez puis réessayez.')
+    expect(dac7CodeMessage('dac7-already-deposited-conflict')).toMatch(/déjà déposés.*toujours exclus/)
+    expect(dac7CodeMessage('dac7-year-not-closed', 'deposit')).toBe('Cette année n’est pas terminée : le fichier ne peut pas encore être marqué comme déposé.')
+    expect(dac7CodeMessage('dac7-year-not-closed')).toMatch(/récapitulatif/)
+    expect(dac7CodeMessage('dac7-not-solicitable', 'deposit')).toMatch(/sollicité/)
+  })
+})
+
+describe('exclusions', () => {
+  it('ALREADY_DEPOSITED remplace ALREADY_EXPORTED', () => {
+    expect(exclusionLabel('ALREADY_DEPOSITED')).toBe('Déjà déposé : voyageur présent dans un fichier marqué comme déposé cette année')
+    expect(exclusionLabel('ALREADY_EXPORTED')).toBe('ALREADY_EXPORTED')
+  })
+  it('IDENTITY_NOT_CHECKED et code inconnu', () => {
+    expect(exclusionLabel('IDENTITY_NOT_CHECKED')).toBe('Non vérifiée : trop de voyageurs pour lire toutes les pièces d’identité en une fois, affinez le filtre')
+    expect(exclusionLabel('CODE_NEUF')).toBe('CODE_NEUF')
+    expect(exclusionLabel(null)).toBe(NOT_AVAILABLE)
+  })
+})
+
+describe('note de décision refusée (422)', () => {
+  it('reconnaît un texte français', () => {
+    expect(looksFrench('La note semble contenir un identifiant Stripe : retirez-le.')).toBe(true)
+    expect(looksFrench('La note ne doit pas contenir de numéro')).toBe(true)
+    expect(looksFrench('The note contains an identifier, please remove it')).toBe(false)
+    expect(looksFrench('Unprocessable Entity')).toBe(false)
+    expect(looksFrench('')).toBe(false)
+  })
+  it('affiche le texte du back tel quel s’il est en français, sinon la phrase générique', () => {
+    const generic = 'La note semble contenir un identifiant : retirez-le.'
+    expect(noteSensitiveMessage('La note contient un IBAN : retirez-le.')).toBe('La note contient un IBAN : retirez-le.')
+    expect(noteSensitiveMessage('Note contains a sensitive identifier')).toBe(generic)
+    expect(noteSensitiveMessage(undefined)).toBe(generic)
+    expect(noteSensitiveMessage('   ')).toBe(generic)
+    expect(noteSensitiveMessage(42)).toBe(generic)
   })
 })
 

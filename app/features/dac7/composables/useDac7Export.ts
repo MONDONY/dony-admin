@@ -77,7 +77,7 @@ export function useDac7Export() {
       if (result.value?.runId === runId) result.value = { ...result.value, deposited: true }
       return true
     } catch (e) {
-      depositError.value = gestureError(e, 'Le fichier n’a pas pu être marqué comme déposé')
+      depositError.value = gestureError(e, 'Le fichier n’a pas pu être marqué comme déposé', 'deposit')
       return false
     } finally {
       depositBusy.value = false
