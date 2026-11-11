@@ -50,9 +50,9 @@ describe('PackageRequestsTable', () => {
     expect(w.find('[data-test="pr-row-p2"]').text()).toContain('ARCHIVED')
   })
 
-  it('la colonne du prix s’appelle « Budget »', () => {
+  it('la colonne du prix s’appelle « Budget net »', () => {
     const w = mount(PackageRequestsTable, { props: { requests: [], loading: false } })
-    expect(w.find('thead').text()).toContain('Budget')
+    expect(w.find('thead').text()).toContain('Budget net')
     expect(w.find('thead').text()).not.toContain('Prix visé')
   })
 

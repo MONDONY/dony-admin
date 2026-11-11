@@ -24,7 +24,7 @@ function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` 
           <th class="px-4 py-2 font-medium">Expéditeur</th>
           <th class="px-4 py-2 font-medium">Date souhaitée</th>
           <th class="px-4 py-2 font-medium">Poids</th>
-          <th class="px-4 py-2 font-medium">Budget</th>
+          <th class="px-4 py-2 font-medium" title="Montant reçu par le voyageur ; le prix affiché dans l'app est le prix brut">Budget net</th>
           <th class="px-4 py-2 font-medium">Négos</th>
           <th class="px-4 py-2 font-medium">Statut</th>
         </tr>

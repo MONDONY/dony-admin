@@ -69,8 +69,19 @@ describe('PackageRequestDetailPanel', () => {
     expect(w.find('[data-test="pr-date-tolerance"]').text()).toBe('± 3 jours')
     expect(w.find('[data-test="pr-recipient-city"]').text()).toBe('Rufisque')
     expect(w.find('[data-test="pr-budget"]').text()).toContain('40,00 EUR')
-    expect(w.text()).toContain('Budget')
     expect(w.text()).not.toContain('Prix visé')
+  })
+
+  it('libellé « Budget net (hors frais) » avec info-bulle sur le prix brut', () => {
+    const label = mountPanel().find('[data-test="pr-budget-label"]')
+    expect(label.text()).toBe('Budget net (hors frais)')
+    expect(label.attributes('title')).toBe("Montant reçu par le voyageur ; le prix affiché dans l'app est le prix brut")
+  })
+
+  it.each([['XOF', 'XOF'], ['USD', 'USD'], ['EUR', 'EUR']])('budget affiché dans la devise de la demande (%s)', (currency, symbol) => {
+    const text = mountPanel({ request: detail({ currency, targetPrice: 37.38 }) }).find('[data-test="pr-budget"]').text()
+    expect(text).toContain(symbol)
+    if (currency !== 'EUR') expect(text).not.toContain('EUR')
   })
 
   it('ville du destinataire absente : pas de ligne', () => {

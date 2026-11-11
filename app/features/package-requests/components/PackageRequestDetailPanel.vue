@@ -111,7 +111,7 @@ function money(amount: number | null, currency: string | null) {
         <div><dt class="text-text-muted">Transport</dt><dd>{{ transportModeLabel(request.transportMode) }}</dd></div>
         <div><dt class="text-text-muted">Contenu</dt><dd>{{ request.contentCategory ?? 'Non renseigné' }}</dd></div>
         <div>
-          <dt class="text-text-muted">Budget</dt>
+          <dt class="text-text-muted" data-test="pr-budget-label" title="Montant reçu par le voyageur ; le prix affiché dans l'app est le prix brut">Budget net (hors frais)</dt>
           <dd class="tabular-nums" data-test="pr-budget">{{ money(request.targetPrice, request.currency) ?? 'À négocier' }}</dd>
           <dd class="text-xs text-text-muted">{{ request.negotiable ? 'Prix négociable' : 'Prix ferme' }}</dd>
         </div>
