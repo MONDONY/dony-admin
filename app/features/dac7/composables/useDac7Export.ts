@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { downloadBlob } from '@/lib/downloadBlob'
 import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { extractProblemMessageAsync, readProblemBody } from '@/lib/problemDetail'
+import { gestureError } from '@/features/dac7/lib/errors'
 import { dac7Service } from '@/features/dac7/services/dac7Service'
 import { dac7CodeMessage } from '@/features/dac7/types/index'
 import type { Dac7ExportMode, Dac7ExportOptions } from '@/features/dac7/types/index'
@@ -14,6 +15,10 @@ export interface Dac7ExportSummary {
   year: number
   mode: Dac7ExportMode
   excluded: number | null
+  /** Identifiant du fichier généré (`X-Dac7-Run-Id`) ; null si le serveur ne l'a pas donné. */
+  runId: string | null
+  /** Marqué comme déposé sur Télé-TD (voyageurs écartés des prochains exports partiels). */
+  deposited: boolean
   /** Remboursements à réconcilier + anomalies à vérifier avant de déposer ; null si inconnu. */
   warnings: number | null
   encrypted: boolean | null
@@ -47,16 +52,37 @@ export function useDac7Export() {
   const travelerIds = ref<string[]>([])
   const error = ref<string | null>(null)
   const unavailable = ref(false)
+  const depositBusy = ref(false)
+  const depositError = ref<string | null>(null)
 
   /** Efface les échecs de l'essai précédent (le résultat du dernier fichier reste, voir `clearResult`). */
   function resetFailures() {
     blockers.value = null
     blockedMode.value = null
     travelerIds.value = []
+    depositError.value = null
     error.value = null
     unavailable.value = false
   }
   function clearResult() { result.value = null }
+
+  /** Marque le dernier fichier comme déposé. Rend true au succès (idempotent côté serveur). */
+  async function markDeposited(): Promise<boolean> {
+    const runId = result.value?.runId
+    if (!runId) return false
+    depositError.value = null
+    depositBusy.value = true
+    try {
+      await dac7Service.markDeposited(runId)
+      if (result.value?.runId === runId) result.value = { ...result.value, deposited: true }
+      return true
+    } catch (e) {
+      depositError.value = gestureError(e, 'Le fichier n’a pas pu être marqué comme déposé')
+      return false
+    } finally {
+      depositBusy.value = false
+    }
+  }
 
   async function failure(e: unknown, fallback: string, mode: Dac7ExportMode | null) {
     const body = await readProblemBody(e)
@@ -82,6 +108,7 @@ export function useDac7Export() {
       result.value = {
         filename: file.filename, filenameFallback: file.filenameFallback, year, mode,
         excluded: file.excluded, warnings: file.warnings, encrypted: file.encrypted,
+        runId: file.runId, deposited: false,
       }
     } catch (e) {
       await failure(e, 'Le fichier n’a pas pu être généré', mode)
@@ -103,5 +130,5 @@ export function useDac7Export() {
     }
   }
 
-  return { busy, csvBusy, result, blockers, blockedMode, travelerIds, error, unavailable, resetFailures, clearResult, run, runControl }
+  return { busy, csvBusy, result, blockers, blockedMode, travelerIds, error, unavailable, resetFailures, clearResult, run, runControl, depositBusy, depositError, markDeposited }
 }

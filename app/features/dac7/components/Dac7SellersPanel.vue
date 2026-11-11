@@ -81,7 +81,7 @@ watch([() => props.year, filter], () => { close(); void reload() })
                   :class="['text-left font-medium underline-offset-2 hover:underline', s.displayName ? '' : 'italic text-text-muted']"
                   @click="open(s)"
                 >{{ s.displayName || 'Nom non renseigné' }}</button>
-                <StatusBadge v-if="s.alreadyExported" class="ml-2" label="Déjà exporté" tone="info" :data-test="`dac7-exported-${s.userId}`" />
+                <StatusBadge v-if="s.alreadyExported" class="ml-2" label="Déjà déposé" tone="info" :data-test="`dac7-exported-${s.userId}`" />
               </td>
               <td class="px-4 py-3 text-sm">
                 <span class="tabular-nums">{{ s.residenceCountry || NOT_AVAILABLE }}</span>
@@ -92,7 +92,7 @@ watch([() => props.year, filter], () => { close(); void reload() })
               </td>
               <td class="px-4 py-3 text-sm">
                 <StatusBadge v-bind="identityMeta(s.identityStatus)" />
-                <span v-if="identityHint(s.identityStatus)" :data-test="`dac7-identity-hint-${s.userId}`" class="mt-1 block text-xs text-text-muted text-pretty">{{ identityHint(s.identityStatus) }}</span>
+                <span v-if="identityHint(s.identityStatus, s.identityReason)" :data-test="`dac7-identity-hint-${s.userId}`" class="mt-1 block text-xs text-text-muted text-pretty">{{ identityHint(s.identityStatus, s.identityReason) }}</span>
               </td>
               <td class="px-4 py-3 text-sm"><StatusBadge v-bind="solicitationMeta(s.solicitation)" /></td>
               <td class="px-4 py-3 text-sm tabular-nums">{{ s.remindersSent ?? 0 }} / 2</td>

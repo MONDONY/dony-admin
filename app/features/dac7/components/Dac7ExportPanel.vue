@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useDac7Export } from '@/features/dac7/composables/useDac7Export'
 import { DAC7_UNAVAILABLE, blockerInfo, partialMayHelp } from '@/features/dac7/types/index'
 import type { Dac7ExportMode } from '@/features/dac7/types/index'
@@ -20,10 +21,16 @@ const emit = defineEmits<{ busy: [value: boolean] }>()
 
 const exporter = useDac7Export()
 const mode = ref<Dac7ExportMode>('FULL')
+const confirmingDeposit = ref(false)
 const includeAlreadyExported = ref(false)
 /** Numéro d'ordre de la déclaration : vide = valeur par défaut du serveur (0). */
 const sequence = ref<number | string>('')
 const sequenceValid = computed(() => sequence.value === '' || (Number.isInteger(sequence.value) && Number(sequence.value) >= 0))
+
+async function onDeposit() {
+  confirmingDeposit.value = false
+  await exporter.markDeposited()
+}
 
 function runExport() {
   void exporter.run(props.year, mode.value, {
@@ -98,8 +105,8 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
     <label class="flex cursor-pointer items-start gap-2 text-sm">
       <input v-model="includeAlreadyExported" type="checkbox" data-test="dac7-include-exported" class="mt-1">
       <span>
-        <span class="font-medium">Inclure les voyageurs déjà exportés cette année</span>
-        <span class="block text-xs text-text-muted text-pretty">Sans cette case, un export Partiel écarte ceux déjà retenus dans un export précédent.</span>
+        <span class="font-medium">Inclure les voyageurs déjà déposés cette année</span>
+        <span class="block text-xs text-text-muted text-pretty">Sans cette case, un export Partiel écarte ceux déjà présents dans un fichier marqué comme déposé.</span>
       </span>
     </label>
 
@@ -128,6 +135,10 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
         @click="exporter.runControl(year)"
       >CSV de contrôle</button>
     </div>
+
+    <p data-test="dac7-export-deposit-help" class="text-xs text-text-muted text-pretty">
+      Un fichier généré n’est pas considéré comme déposé tant que vous ne le marquez pas.
+    </p>
 
     <p v-if="exporter.unavailable.value" data-test="dac7-unavailable" class="text-sm text-text-muted">{{ DAC7_UNAVAILABLE }}</p>
     <p
@@ -176,6 +187,27 @@ const suggestPartial = computed(() => exporter.blockedMode.value === 'FULL' && p
       >Le serveur n’a pas indiqué si le fichier est chiffré : vérifiez-le avant tout dépôt.</p>
       <p v-if="excludedLabel" data-test="dac7-export-excluded" class="text-sm text-text-muted text-pretty">{{ excludedLabel }}</p>
       <p v-if="warningsLabel" data-test="dac7-export-warnings" class="text-sm text-warning text-pretty">{{ warningsLabel }}</p>
+      <p
+        v-if="exporter.result.value.deposited" data-test="dac7-export-deposited"
+        class="self-start rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success"
+      >Marqué comme déposé</p>
+      <div v-else-if="exporter.result.value.runId" class="flex flex-col items-start gap-2">
+        <button
+          type="button" data-test="dac7-export-deposit" :disabled="exporter.depositBusy.value"
+          class="rounded-btn border border-border px-3 py-2 text-sm transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96] disabled:opacity-40"
+          @click="confirmingDeposit = true"
+        >J’ai déposé ce fichier sur Télé-TD</button>
+        <p
+          v-if="exporter.depositError.value" data-test="dac7-export-deposit-error" role="alert"
+          class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
+        >{{ exporter.depositError.value }}</p>
+      </div>
     </div>
+    <ConfirmActionDialog
+      :open="confirmingDeposit" title="Marquer le fichier comme déposé"
+      message="Les voyageurs de ce fichier seront exclus des prochains exports partiels."
+      confirm-label="Marquer comme déposé" confirm-tone="primary"
+      @confirm="onDeposit" @cancel="confirmingDeposit = false"
+    />
   </section>
 </template>

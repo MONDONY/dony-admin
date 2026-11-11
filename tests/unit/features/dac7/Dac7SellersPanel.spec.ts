@@ -148,11 +148,17 @@ describe('Dac7SellersPanel : tableau', () => {
     expect(w.find(`[data-test="dac7-identity-hint-${U2}"]`).exists()).toBe(false)
   })
 
-  it('pastille « Déjà exporté » seulement quand le serveur le dit', async () => {
+  it('identité illisible (INCOMPLETE + IDENTITY_SOURCE_UNREADABLE) : à compléter à la main', async () => {
+    svc.sellers.mockResolvedValue([{ userId: U1, displayName: 'Awa Diop', identityStatus: 'INCOMPLETE', identityReason: 'IDENTITY_SOURCE_UNREADABLE' }])
+    const w = await mountPanel()
+    expect(w.get(`[data-test="dac7-identity-hint-${U1}"]`).text()).toBe('La pièce d’identité vérifiée est illisible : à compléter à la main')
+  })
+
+  it('pastille « Déjà déposé » seulement quand le serveur le dit', async () => {
     svc.sellers.mockResolvedValue([{ ...S1, alreadyExported: true }, S2])
     const w = await mountPanel()
-    expect(w.get(`[data-test="dac7-seller-row-${U1}"]`).text()).toContain('Déjà exporté')
-    expect(w.get(`[data-test="dac7-seller-row-${U2}"]`).text()).not.toContain('Déjà exporté')
+    expect(w.get(`[data-test="dac7-seller-row-${U1}"]`).text()).toContain('Déjà déposé')
+    expect(w.get(`[data-test="dac7-seller-row-${U2}"]`).text()).not.toContain('Déjà déposé')
   })
 
   it('prévient le parent de la liste chargée (pour nommer les voyageurs d’un refus d’export)', async () => {

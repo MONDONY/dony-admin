@@ -62,10 +62,15 @@ export const dac7Service = {
       blob: res._data as Blob,
       filename: named ?? `dac7-${year}-${mode === 'FULL' ? 'complet' : 'partiel'}`,
       filenameFallback: named === null,
+      runId: res.headers.get('x-dac7-run-id')?.trim() || null,
       excluded: headerInt(res.headers, 'x-dac7-excluded'),
       warnings: headerInt(res.headers, 'x-dac7-warnings'),
       encrypted: headerBool(res.headers, 'x-dac7-encrypted'),
     }
+  },
+  /** Marque un fichier comme déposé sur Télé-TD : ses voyageurs sortent des prochains exports partiels. Idempotent. */
+  markDeposited(runId: string): Promise<void> {
+    return useApi()<void>(`${BASE}/exports/${encodeURIComponent(runId)}/deposited`, { method: 'POST' })
   },
   async controlCsv(year: number): Promise<{ blob: Blob; filename: string }> {
     const res = await useApi().raw<Blob>(`${BASE}/exports/control.csv`, { query: { year }, responseType: 'blob' })

@@ -13,6 +13,7 @@ describe('auditActionLabel', () => {
   it('CSV de contrôle et purge du numéro fiscal', () => {
     expect(auditActionLabel('DAC7_CONTROL_CSV_GENERATED')).toBe('CSV de contrôle DAC7 généré')
     expect(auditActionLabel('DAC7_TAX_INFO_PURGED')).toBe('Numéro fiscal purgé')
+    expect(auditActionLabel('DAC7_EXPORT_MARKED_DEPOSITED')).toBe('Export DAC7 marqué comme déposé')
   })
 
   it('une autre action DAC7 reste lisible, sans inventer son sens', () => {

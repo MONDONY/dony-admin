@@ -53,6 +53,8 @@ describe('Dac7StatementsPanel', () => {
     const r = w.get('[data-test="dac7-statements-result"]').text()
     expect(r).toContain('3 envoyés')
     expect(r).toContain('1 ignoré')
+    expect(r).toContain('0 sans e-mail')
+    expect(w.find('[data-test="dac7-statements-no-email"]').exists()).toBe(false)
   })
 
   it('résultat sans champs (ancien back) : zéro, jamais « undefined »', async () => {
@@ -170,5 +172,43 @@ describe('Dac7StatementsPanel', () => {
     await w.get('[data-test="confirm"]').trigger('click')
     await flushPromises()
     expect(w.get('[data-test="dac7-statements-error"]').text()).toContain('La collecte est éteinte')
+  })
+
+  const sendAll = async (w: ReturnType<typeof mountIt>) => {
+    await w.get('[data-test="dac7-statements-send"]').trigger('click')
+    await w.get('[data-test="confirmation-input"]').setValue('ENVOYER')
+    await w.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+  }
+
+  it('affiche les quatre éléments du résultat, avec les noms des voyageurs sans e-mail', async () => {
+    svc.sendStatements.mockResolvedValue({ sent: 5, skipped: 2, skippedNoEmail: 2, skippedNoEmailTravelerIds: ['u-1', 'u-2'] })
+    const w = mount(Dac7StatementsPanel, { props: { year: CLOSED, names: { 'u-1': 'Awa Diop' } } })
+    await sendAll(w)
+    const r = w.get('[data-test="dac7-statements-result"]').text()
+    expect(r).toContain('5 envoyés')
+    expect(r).toContain('2 ignorés')
+    expect(r).toContain('2 sans e-mail')
+    expect(w.get('[data-test="dac7-statements-no-email"]').text())
+      .toContain('2 voyageurs n’ont pas d’e-mail : ils ne peuvent pas recevoir leur récapitulatif pour l’instant.')
+    const names = w.get('[data-test="dac7-statements-no-email-names"]').text()
+    expect(names).toContain('Awa Diop')
+    expect(names).toContain('u-2')
+    expect(names).not.toContain('u-1')
+  })
+
+  it('un seul voyageur sans e-mail : singulier', async () => {
+    svc.sendStatements.mockResolvedValue({ sent: 1, skipped: 0, skippedNoEmail: 1, skippedNoEmailTravelerIds: ['u-9'] })
+    const w = mountIt()
+    await sendAll(w)
+    expect(w.get('[data-test="dac7-statements-no-email"]').text()).toContain('1 voyageur n’a pas d’e-mail : il ne peut pas recevoir son récapitulatif pour l’instant.')
+  })
+
+  it('compteur sans liste d’identifiants : le message s’affiche quand même', async () => {
+    svc.sendStatements.mockResolvedValue({ sent: 0, skipped: 0, skippedNoEmail: 3 })
+    const w = mountIt()
+    await sendAll(w)
+    expect(w.get('[data-test="dac7-statements-no-email"]').text()).toContain('3 voyageurs')
+    expect(w.find('[data-test="dac7-statements-no-email-names"]').exists()).toBe(false)
   })
 })

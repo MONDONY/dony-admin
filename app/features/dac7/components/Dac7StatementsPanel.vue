@@ -10,7 +10,11 @@ import { DAC7_UNAVAILABLE, closedYears, currentUtcYear } from '@/features/dac7/t
  * refuse une année qui n'est pas terminée (422 `dac7-year-not-closed`) : ce panneau a son propre
  * sélecteur, limité aux années terminées, et ne suit pas l'année de la page quand elle est en cours.
  */
-const props = defineProps<{ year: number }>()
+const props = defineProps<{
+  year: number
+  /** Noms des voyageurs déjà chargés dans le tableau, par identifiant (nomment les voyageurs sans e-mail). */
+  names?: Record<string, string>
+}>()
 const emit = defineEmits<{ busy: [value: boolean] }>()
 
 const CONFIRM_WORD = 'ENVOYER'
@@ -21,6 +25,12 @@ const utcYear = currentUtcYear()
 const years = closedYears(utcYear)
 /** L'année de la page quand elle est terminée, sinon la plus récente année terminée. */
 const sendYear = ref<number | null>(years.includes(props.year) ? props.year : (years[0] ?? null))
+const noEmail = computed(() => {
+  const r = statements.result.value
+  const ids = r?.skippedNoEmailTravelerIds ?? []
+  const count = r?.skippedNoEmail ?? ids.length
+  return { count, names: ids.map(id => props.names?.[id] || id) }
+})
 const pageYearOpen = computed(() => props.year >= utcYear)
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`
@@ -74,7 +84,16 @@ watch(() => statements.busy.value, v => emit('busy', v))
     <p
       v-if="statements.result.value" data-test="dac7-statements-result" role="status"
       class="rounded-btn border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
-    >{{ plural(statements.result.value.sent ?? 0, 'envoyé') }}, {{ plural(statements.result.value.skipped ?? 0, 'ignoré') }}.</p>
+    >{{ plural(statements.result.value.sent ?? 0, 'envoyé') }}, {{ plural(statements.result.value.skipped ?? 0, 'ignoré') }}, {{ noEmail.count }} sans e-mail.</p>
+    <div
+      v-if="noEmail.count > 0" data-test="dac7-statements-no-email" role="status"
+      class="rounded-btn border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-text"
+    >
+      <p class="text-pretty">
+        {{ plural(noEmail.count, 'voyageur n’a', 'voyageurs n’ont') }} pas d’e-mail : {{ noEmail.count > 1 ? 'ils ne peuvent' : 'il ne peut' }} pas recevoir {{ noEmail.count > 1 ? 'leur récapitulatif' : 'son récapitulatif' }} pour l’instant.
+      </p>
+      <p v-if="noEmail.names.length" data-test="dac7-statements-no-email-names" class="mt-1 text-xs text-text-muted text-pretty">{{ noEmail.names.join(', ') }}</p>
+    </div>
 
     <ConfirmActionDialog
       :open="confirming" title="Envoyer les récapitulatifs"

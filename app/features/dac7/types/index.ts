@@ -67,8 +67,10 @@ export interface Dac7Seller {
   commissionEur?: number
   eurComplete?: boolean
   commissionComplete?: boolean
-  /** Déjà retenu dans un export de l'année (déclarables seulement). */
+  /** Présent dans un fichier marqué comme déposé cette année (déclarables seulement). */
   alreadyExported?: boolean
+  /** Raison de l'état d'identité, quand le serveur la donne (ex. IDENTITY_SOURCE_UNREADABLE). */
+  identityReason?: string | null
 }
 
 export interface Dac7DiligenceEntry {
@@ -105,7 +107,14 @@ export interface Dac7AnomalyRow {
   day?: string | null
 }
 
-export interface Dac7StatementsResult { sent?: number; skipped?: number }
+export interface Dac7StatementsResult {
+  sent?: number
+  skipped?: number
+  /** Voyageurs sans adresse e-mail : rien n'est parti ni réservé, un envoi ultérieur reste possible. */
+  skippedNoEmail?: number
+  /** Identifiants seulement : l'écran résout les noms depuis la liste des voyageurs. */
+  skippedNoEmailTravelerIds?: string[]
+}
 
 /** Fichier rendu par l'export, avec ce que les en-têtes de réponse en disent. */
 export interface Dac7FileResult {
@@ -113,6 +122,8 @@ export interface Dac7FileResult {
   filename: string
   /** Vrai quand le serveur n'a pas donné de nom : `filename` est alors un nom de repli sans extension. */
   filenameFallback: boolean
+  /** `X-Dac7-Run-Id` : identifiant du fichier généré, pour le marquer comme déposé ; null si absent. */
+  runId: string | null
   /** Voyageurs laissés de côté (mode Partiel) ; null si l'en-tête est absent. */
   excluded: number | null
   /** `X-Dac7-Warnings` : remboursements à réconcilier + anomalies ; null si l'en-tête est absent. */
@@ -225,8 +236,10 @@ const IDENTITY: Record<string, Meta> = {
   UNAVAILABLE: { label: 'Indisponible', tone: 'warning' },
 }
 /** Phrase d'aide sous le badge d'identité, quand il y en a une. */
-export function identityHint(s: string | null | undefined): string | null {
-  return s === 'UNAVAILABLE' ? 'Lecture d’identité indisponible, réessayez plus tard' : null
+export function identityHint(s: string | null | undefined, reason?: string | null): string | null {
+  if (s === 'UNAVAILABLE') return 'Lecture d’identité indisponible, réessayez plus tard'
+  if (reason === 'IDENTITY_SOURCE_UNREADABLE') return 'La pièce d’identité vérifiée est illisible : à compléter à la main'
+  return null
 }
 export function identityMeta(s: string | null | undefined): Meta {
   if (!s) return { label: 'Inconnue', tone: 'neutral' }
@@ -303,6 +316,8 @@ const CODE_MESSAGES: Record<string, string> = {
   'dac7-note-sensitive': 'La note semble contenir un numéro : retirez-le.',
   'dac7-reminders-exhausted': 'Demande et deux rappels déjà envoyés.',
   'dac7-collection-disabled': 'La collecte est éteinte : aucun message ne peut être envoyé.',
+  'dac7-sequence-used': 'Ce numéro d’ordre a déjà servi pour cette année : laissez le champ vide pour utiliser le suivant.',
+  'dac7-export-run-not-found': 'Export introuvable.',
 }
 export function dac7CodeMessage(code: string | null | undefined): string | null {
   return code ? CODE_MESSAGES[code] ?? null : null

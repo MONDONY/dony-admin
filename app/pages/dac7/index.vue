@@ -83,7 +83,7 @@ watch(year, () => { names.value = {}; void reload() })
         <!-- Monté dès l'arrivée et seulement masqué : un fichier non chiffré déjà téléchargé reste signalé en changeant d'onglet. -->
         <div v-show="section === 'export'" class="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <Dac7ExportPanel :year="year" :blockers-count="summary.overview.value?.blockers?.length ?? 0" :names="names" @busy="exportBusy = $event" />
-          <Dac7StatementsPanel :year="year" @busy="statementsBusy = $event" />
+          <Dac7StatementsPanel :year="year" :names="names" @busy="statementsBusy = $event" />
         </div>
       </template>
     </template>

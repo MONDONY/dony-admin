@@ -7,6 +7,7 @@ const LABELS: Record<string, string> = {
   DAC7_STATEMENTS_SENT: 'Récapitulatifs DAC7 envoyés aux voyageurs',
   DAC7_TEAM_DECISION: 'Décision de l’équipe sur un voyageur DAC7',
   DAC7_CONTROL_CSV_GENERATED: 'CSV de contrôle DAC7 généré',
+  DAC7_EXPORT_MARKED_DEPOSITED: 'Export DAC7 marqué comme déposé',
   DAC7_TAX_INFO_PURGED: 'Numéro fiscal purgé',
 }
 

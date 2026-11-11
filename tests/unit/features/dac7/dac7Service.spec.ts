@@ -76,11 +76,11 @@ describe('dac7Service : fichiers', () => {
     const blob = new Blob(['x'])
     api.raw.mockResolvedValue({
       _data: blob,
-      headers: headers({ 'content-disposition': 'attachment; filename="FR_DAC7_2026.xml.gz.pgp"', 'x-dac7-excluded': '4', 'x-dac7-warnings': '7', 'x-dac7-encrypted': 'true' }),
+      headers: headers({ 'content-disposition': 'attachment; filename="FR_DAC7_2026.xml.gz.pgp"', 'x-dac7-excluded': '4', 'x-dac7-warnings': '7', 'x-dac7-run-id': 'run-1', 'x-dac7-encrypted': 'true' }),
     })
     const res = await dac7Service.exportFile(2026, 'PARTIAL')
     expect(api.raw).toHaveBeenCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL' }, responseType: 'blob' })
-    expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, excluded: 4, warnings: 7, encrypted: true })
+    expect(res).toEqual({ blob, filename: 'FR_DAC7_2026.xml.gz.pgp', filenameFallback: false, runId: 'run-1', excluded: 4, warnings: 7, encrypted: true })
   })
 
   it('exportFile : les options partent seulement renseignées (numéro d’ordre > 0, voyageurs déjà exportés)', async () => {
@@ -89,7 +89,9 @@ describe('dac7Service : fichiers', () => {
     expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'PARTIAL', sequence: 2, includeAlreadyExported: true }, responseType: 'blob' })
     await dac7Service.exportFile(2026, 'FULL', { sequence: 0, includeAlreadyExported: false })
     expect(api.raw).toHaveBeenLastCalledWith('/admin/dac7/exports', { method: 'POST', body: { year: 2026, mode: 'FULL' }, responseType: 'blob' })
-    expect((await dac7Service.exportFile(2026, 'FULL')).warnings).toBeNull()
+    const bare = await dac7Service.exportFile(2026, 'FULL')
+    expect(bare.warnings).toBeNull()
+    expect(bare.runId).toBeNull()
   })
 
   it('exportFile : non chiffré, sans exclus ni nom (repli sur un nom neutre)', async () => {
@@ -107,6 +109,12 @@ describe('dac7Service : fichiers', () => {
     expect(res.encrypted).toBeNull()
     expect(res.excluded).toBeNull()
     expect(res.filename).toBe('dac7-2026-partiel')
+  })
+
+  it('markDeposited : POST sur le run, identifiant encodé', async () => {
+    api.mockResolvedValue(undefined)
+    await dac7Service.markDeposited('a/b')
+    expect(api).toHaveBeenCalledWith('/admin/dac7/exports/a%2Fb/deposited', { method: 'POST' })
   })
 
   it('controlCsv : GET en Blob, nom de l’en-tête ou repli', async () => {
