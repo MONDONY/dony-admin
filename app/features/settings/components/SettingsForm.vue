@@ -58,7 +58,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
     label: 'Tours de remplissage par l’IA (trajet et colis) par utilisateur et par jour',
     unit: 'tours',
   },
-  individual_trips_alert_threshold: { label: 'Trajets avec colis avant alerte (voyageur Particulier)', unit: 'trajets' },
+  individual_trips_alert_threshold: { label: 'Trajets publiés par mois avant alerte (voyageur Particulier)', unit: 'trajets' },
   remote_config_fetch_minutes: {
     label: 'Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)',
     unit: 'minutes',
@@ -140,8 +140,8 @@ const SMS_OPEN_PHRASE = 'OUVRIR SMS'
  */
 const SETTING_HELP: Record<string, string> = {
   individual_trips_alert_threshold:
-    'Nombre de trajets avec colis sur 30 jours au-delà duquel un voyageur Particulier est signalé à l’équipe. '
-    + 'Aucun blocage automatique.',
+    'Un particulier qui publie plus de ce nombre de trajets dans le mois civil est signalé à l’équipe '
+    + '(aucun blocage, aucune sanction).',
   sms_otp_registered_numbers_only:
     'Activé : un code SMS ne part que vers un numéro déjà inscrit, ou vers le numéro qu’un compte '
     + 'connecté ajoute à son profil ; les nouveaux s’inscrivent par email, Google ou Apple. '

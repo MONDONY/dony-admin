@@ -8,8 +8,8 @@ vi.mock('@/features/individual-frequency/services/individualFrequencyService', (
 import IndividualFrequencyQueue from '@/features/individual-frequency/components/IndividualFrequencyQueue.vue'
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
-const F1 = { flagId: 'f1', userId: '7a2e4b1c-0000-4a00-8000-0000000000a1', displayName: 'Awa Diop', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: day(2) }
-const F2 = { flagId: 'f2', userId: '7a2e4b1c-0000-4a00-8000-0000000000a2', displayName: null, tripsCount: 9, windowDays: 30, threshold: 4, detectedAt: day(6) }
+const F1 = { flagId: 'f1', userId: '7a2e4b1c-0000-4a00-8000-0000000000a1', displayName: 'Awa Diop', tripsCount: 5, threshold: 4, detectedAt: day(2) }
+const F2 = { flagId: 'f2', userId: '7a2e4b1c-0000-4a00-8000-0000000000a2', displayName: null, tripsCount: 9, threshold: 4, detectedAt: day(6) }
 
 async function mountQueue(role: 'ADMIN' | 'SUPPORT' = 'ADMIN', overrides: Record<string, boolean> = {}) {
   seedAuth(role, overrides)
@@ -35,14 +35,14 @@ describe('IndividualFrequencyQueue', () => {
     expect(rows.map((r) => r.attributes('data-test'))).toEqual(['individual-frequency-row-f2', 'individual-frequency-row-f1'])
     const first = w.get('[data-test="individual-frequency-row-f1"]').text()
     expect(first).toContain('Awa Diop')
-    expect(first).toContain('5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier.')
+    expect(first).toContain('5 trajets publiés ce mois-ci (seuil : 4). Statut déclaré : Particulier.')
     expect(w.get('[data-test="individual-frequency-row-f2"]').text()).toContain('Nom non renseigné')
     expect(w.get(`[data-test="individual-frequency-open-${F1.userId}"]`).attributes('data-to')).toBe(`/users/${F1.userId}`)
   })
 
-  it('dit clairement qu’aucune sanction n’est automatique', async () => {
+  it('dit clairement qu’il n’y a ni blocage ni sanction', async () => {
     const w = await mountQueue()
-    expect(w.get('[data-test="individual-frequency-queue"]').text()).toContain('Aucun blocage automatique')
+    expect(w.get('[data-test="individual-frequency-queue"]').text()).toContain('Aucun blocage, aucune sanction')
   })
 
   it('liste vide : état vide, pas d’erreur', async () => {
@@ -108,7 +108,7 @@ describe('IndividualFrequencyQueue', () => {
     const w = await mountQueue()
     const t = w.get('[data-test="individual-frequency-row-f1"]').text()
     expect(t).toContain('A demandé GP Pro, fréquence : chaque semaine. Statut déclaré : Particulier.')
-    expect(t).not.toContain('trajets avec colis')
+    expect(t).not.toContain('trajets publiés')
   })
 
   it('alerte déjà close ailleurs (404 au POST) : la liste est relue, aucune erreur', async () => {

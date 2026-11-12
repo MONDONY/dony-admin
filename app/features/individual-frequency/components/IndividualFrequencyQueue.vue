@@ -13,7 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 
 /**
  * File « Particuliers à confirmer », posée sous le poste GP Pro (mêmes droits : GP_PRO_REVIEW).
- * Un voyageur déclaré Particulier au-delà du seuil de trajets avec colis est signalé à l'équipe,
+ * Un voyageur déclaré Particulier au-delà du seuil de trajets publiés dans le mois civil est signalé à l'équipe,
  * qui l'écarte quand rien ne la justifie. Une alerte ne bloque ni ne sanctionne jamais. Un ancien
  * back sans l'endpoint : la section disparaît, sans erreur.
  */
@@ -64,8 +64,8 @@ onMounted(() => { void flags.load() })
         <span class="text-sm tabular-nums text-text-muted" data-test="individual-frequency-count">{{ rows.length }}</span>
       </h2>
       <p class="text-sm text-text-muted text-pretty">
-        Voyageurs déclarés Particulier qui dépassent le seuil de trajets avec colis. Aucun blocage automatique :
-        l’alerte invite le voyageur à confirmer son statut, et vous l’écartez quand elle ne justifie rien.
+        Voyageurs déclarés Particulier qui dépassent le seuil de trajets publiés dans le mois civil. Aucun blocage, aucune sanction :
+        l’alerte sert à vérifier son statut, et vous l’écartez quand elle ne justifie rien.
       </p>
     </header>
 
@@ -106,7 +106,7 @@ onMounted(() => { void flags.load() })
 
     <ConfirmActionDialog
       :open="pending !== null" title="Écarter l’alerte"
-      :message="`${pending ? applicantName(pending) : ''} ne sera plus signalé tant que son nombre de trajets reste au-dessus du seuil. Aucun statut n’est modifié.`"
+      :message="`${pending ? applicantName(pending) : ''} ne sera plus signalé tant que son nombre de trajets du mois reste au-dessus du seuil. Aucun statut n’est modifié.`"
       confirm-label="Écarter" confirm-tone="primary"
       @confirm="onConfirm" @cancel="pending = null"
     />
