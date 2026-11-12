@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth'
 
 /**
  * Bandeau de la fiche utilisateur : ce voyageur déclaré Particulier dépasse le seuil de trajets
- * avec colis. Absent sans alerte (et avec un ancien back, qui n'envoie pas le champ). L'alerte ne
+ * publiés dans le mois civil. Absent sans alerte (et avec un ancien back, qui n'envoie pas le champ). L'alerte ne
  * bloque rien ; « Écarter » (GP_PRO_REVIEW) la ferme, puis le parent relit la fiche (`changed`).
  */
 const props = defineProps<{ alert?: IndividualFrequencyAlert | null }>()

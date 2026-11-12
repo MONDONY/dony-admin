@@ -7,7 +7,7 @@ vi.mock('@/features/individual-frequency/services/individualFrequencyService', (
 
 import UserIndividualFrequencyBanner from '@/features/individual-frequency/components/UserIndividualFrequencyBanner.vue'
 
-const ALERT = { flagId: 'f1', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }
+const ALERT = { flagId: 'f1', tripsCount: 5, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }
 
 function mountBanner(alert: unknown, role: 'ADMIN' | 'SUPPORT' = 'ADMIN', overrides: Record<string, boolean> = {}) {
   seedAuth(role, overrides)
@@ -21,7 +21,7 @@ describe('UserIndividualFrequencyBanner', () => {
     const w = mountBanner(ALERT)
     const b = w.get('[data-test="user-individual-frequency"]')
     expect(b.attributes('role')).toBe('status')
-    expect(b.text()).toContain('5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier.')
+    expect(b.text()).toContain('5 trajets publiés ce mois-ci (seuil : 4). Statut déclaré : Particulier.')
     expect(b.text()).toContain('Aucun blocage automatique')
   })
 
@@ -95,7 +95,7 @@ describe('UserIndividualFrequencyBanner', () => {
   it('demande hebdomadaire au-dessus du seuil : les deux phrases', () => {
     const w = mountBanner({ ...ALERT, weeklyApplication: true })
     expect(w.get('[data-test="user-individual-frequency-text"]').text())
-      .toBe('5 trajets avec colis sur 30 jours (seuil : 4). A demandé GP Pro, fréquence : chaque semaine. Statut déclaré : Particulier.')
+      .toBe('5 trajets publiés ce mois-ci (seuil : 4). A demandé GP Pro, fréquence : chaque semaine. Statut déclaré : Particulier.')
   })
 
   it('sans GP_PRO_REVIEW : le bandeau se lit, sans bouton', () => {

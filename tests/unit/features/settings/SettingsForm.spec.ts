@@ -793,12 +793,12 @@ describe('SettingsForm', () => {
     it('porte un libellé lisible, son unité, ses bornes 1 à 100 et son aide', () => {
       const w = mountForm({ settings: [threshold] })
       const row = w.find('[data-test="setting-row-individual_trips_alert_threshold"]')
-      expect(row.text()).toContain('Trajets avec colis avant alerte (voyageur Particulier)')
+      expect(row.text()).toContain('Trajets publiés par mois avant alerte (voyageur Particulier)')
       expect(row.text()).not.toContain('individual_trips_alert_threshold')
       expect(w.find('[data-test="setting-unit-individual_trips_alert_threshold"]').text()).toBe('trajets')
       expect(w.find('[data-test="setting-hint-individual_trips_alert_threshold"]').text()).toBe('Entre 1 et 100')
       expect(w.find('[data-test="setting-help-individual_trips_alert_threshold"]').text()).toBe(
-        'Nombre de trajets avec colis sur 30 jours au-delà duquel un voyageur Particulier est signalé à l’équipe. Aucun blocage automatique.',
+        'Un particulier qui publie plus de ce nombre de trajets dans le mois civil est signalé à l’équipe (aucun blocage, aucune sanction).',
       )
     })
 

@@ -1,6 +1,7 @@
 /**
  * Alerte « particulier à confirmer » : un voyageur déclaré Particulier dont le nombre de trajets
- * avec colis sur 30 jours dépasse le seuil de la plateforme (réglage `individual_trips_alert_threshold`).
+ * publiés dans le mois civil dépasse le seuil de la plateforme (réglage `individual_trips_alert_threshold`,
+ * strictement supérieur).
  * C'est un signal pour l'équipe, jamais un blocage ni un changement de statut automatique.
  *
  * Contrat : `GET /admin/individual-frequency-flags`, `POST .../{flagId}/dismiss` et le champ
@@ -15,7 +16,8 @@ export interface IndividualFrequencyFlagRow {
   userId: string
   displayName?: string | null
   tripsCount?: number
-  windowDays?: number
+  /** Libellé de période renvoyé par le back (ex. « en novembre »). Absent : « ce mois-ci ». */
+  periodLabel?: string | null
   threshold?: number
   detectedAt?: string | null
   /** Vrai : le voyageur a demandé GP Pro avec la fréquence « chaque semaine ». Absent = faux. */
@@ -26,37 +28,38 @@ export interface IndividualFrequencyFlagRow {
 export interface IndividualFrequencyAlert {
   flagId: string
   tripsCount?: number
-  windowDays?: number
+  /** Libellé de période renvoyé par le back (ex. « en novembre »). Absent : « ce mois-ci ». */
+  periodLabel?: string | null
   threshold?: number
   detectedAt?: string | null
   /** Vrai : le voyageur a demandé GP Pro avec la fréquence « chaque semaine ». Absent = faux. */
   weeklyApplication?: boolean
 }
 
-export const INDIVIDUAL_FREQUENCY_DEFAULT_WINDOW_DAYS = 30
+export const INDIVIDUAL_FREQUENCY_DEFAULT_PERIOD_LABEL = 'ce mois-ci'
 
 export const INDIVIDUAL_FREQUENCY_UNAVAILABLE = 'Particuliers à confirmer indisponible tant que le serveur n’est pas mis à jour.'
 
 export const WEEKLY_APPLICATION_TEXT = 'A demandé GP Pro, fréquence : chaque semaine.'
 
 /**
- * « 5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier. »
+ * « 5 trajets publiés ce mois-ci (seuil : 4). Statut déclaré : Particulier. »
  * Avec `weeklyApplication`, le nombre de trajets peut être sous le seuil : la phrase des trajets
  * n'est alors gardée que s'il le dépasse, et « A demandé GP Pro, fréquence : chaque semaine. »
  * s'y ajoute (ou la remplace).
  */
 export function frequencySummary(
-  a: Pick<IndividualFrequencyAlert, 'tripsCount' | 'windowDays' | 'threshold' | 'weeklyApplication'>,
+  a: Pick<IndividualFrequencyAlert, 'tripsCount' | 'periodLabel' | 'threshold' | 'weeklyApplication'>,
 ): string {
-  const days = a.windowDays ?? INDIVIDUAL_FREQUENCY_DEFAULT_WINDOW_DAYS
+  const period = a.periodLabel?.trim() || INDIVIDUAL_FREQUENCY_DEFAULT_PERIOD_LABEL
   const overThreshold = typeof a.tripsCount === 'number' && typeof a.threshold === 'number' && a.tripsCount > a.threshold
   const parts: string[] = []
   if (!a.weeklyApplication || overThreshold) {
     const head = typeof a.tripsCount === 'number'
-      ? `${a.tripsCount} trajet${a.tripsCount > 1 ? 's' : ''} avec colis`
-      : 'Trajets avec colis'
+      ? `${a.tripsCount} trajet${a.tripsCount > 1 ? 's' : ''} publié${a.tripsCount > 1 ? 's' : ''}`
+      : 'Trajets publiés'
     const threshold = typeof a.threshold === 'number' ? ` (seuil : ${a.threshold})` : ''
-    parts.push(`${head} sur ${days} jours${threshold}.`)
+    parts.push(`${head} ${period}${threshold}.`)
   }
   if (a.weeklyApplication) parts.push(WEEKLY_APPLICATION_TEXT)
   parts.push('Statut déclaré : Particulier.')

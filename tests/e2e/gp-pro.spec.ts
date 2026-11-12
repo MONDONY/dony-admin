@@ -21,7 +21,7 @@ const problem = (status: number, code: string | null, detail: string) => ({
   body: JSON.stringify({ type: 'about:blank', title: 'Erreur', status, detail, ...(code ? { code } : {}) }),
 })
 
-const F9 = { flagId: 'f9', userId: '7a2e4b1c-0000-4a00-8000-0000000000c1', displayName: 'Ibrahima Sy', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: daysAgo(3) }
+const F9 = { flagId: 'f9', userId: '7a2e4b1c-0000-4a00-8000-0000000000c1', displayName: 'Ibrahima Sy', tripsCount: 5, threshold: 4, detectedAt: daysAgo(3) }
 
 interface State { posts: { path: string; body: unknown }[]; decided: Set<string>; dismissed: Set<string> }
 
@@ -166,7 +166,7 @@ test('SUPPORT n’a pas le droit GP_PRO_REVIEW : accès refusé', async ({ page 
 test('particuliers à confirmer : la file se lit sous le poste et « Écarter » demande confirmation', async ({ page }) => {
   const state = await mockBackend(page, { individualFlags: true })
   await page.goto('/gp-pro')
-  await expect(page.locator('[data-test="individual-frequency-row-f9"]')).toContainText('5 trajets avec colis sur 30 jours (seuil : 4)')
+  await expect(page.locator('[data-test="individual-frequency-row-f9"]')).toContainText('5 trajets publiés ce mois-ci (seuil : 4)')
   await page.locator('[data-test="individual-frequency-dismiss-f9"]').click()
   await page.locator('[data-test="confirm"]').click()
   await expect(page.locator('[data-test="individual-frequency-row-f9"]')).toHaveCount(0)

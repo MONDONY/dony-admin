@@ -415,13 +415,13 @@ describe('users/[id].vue', () => {
   })
 
   describe('bandeaux d’en-tête', () => {
-    const ALERT = { flagId: 'f1', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }
+    const ALERT = { flagId: 'f1', tripsCount: 5, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }
 
     it('alerte « particulier à confirmer » : bandeau avec la phrase du contrat', async () => {
       getMock.mockResolvedValue({ ...USER, travelerStatus: 'INDIVIDUAL', individualFrequencyAlert: ALERT })
       const w = await mountPage()
       expect(w.get('[data-test="user-individual-frequency-text"]').text())
-        .toBe('5 trajets avec colis sur 30 jours (seuil : 4). Statut déclaré : Particulier.')
+        .toBe('5 trajets publiés ce mois-ci (seuil : 4). Statut déclaré : Particulier.')
     })
 
     it('sans individualFrequencyAlert (ancien back ou aucun drapeau) : aucun bandeau', async () => {

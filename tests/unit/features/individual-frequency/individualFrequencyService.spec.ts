@@ -9,7 +9,7 @@ describe('individualFrequencyService', () => {
   beforeEach(() => { apiMock.mockReset() })
 
   it('list() lit GET /admin/individual-frequency-flags (tableau du contrat)', async () => {
-    const rows = [{ flagId: 'f1', userId: 'u1', displayName: 'Awa', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }]
+    const rows = [{ flagId: 'f1', userId: 'u1', displayName: 'Awa', tripsCount: 5, threshold: 4, detectedAt: '2026-11-10T04:30:00Z' }]
     apiMock.mockResolvedValue(rows)
     expect(await individualFrequencyService.list()).toEqual(rows)
     expect(apiMock).toHaveBeenCalledWith('/admin/individual-frequency-flags')

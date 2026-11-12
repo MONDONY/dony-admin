@@ -349,7 +349,7 @@ describe('/gp-pro', () => {
   })
 
   describe('Particuliers à confirmer', () => {
-    const FLAG = { flagId: 'f9', userId: '7a2e4b1c-0000-4a00-8000-0000000000c1', displayName: 'Ibrahima Sy', tripsCount: 5, windowDays: 30, threshold: 4, detectedAt: day(3) }
+    const FLAG = { flagId: 'f9', userId: '7a2e4b1c-0000-4a00-8000-0000000000c1', displayName: 'Ibrahima Sy', tripsCount: 5, threshold: 4, detectedAt: day(3) }
 
     it('la file se lit au même endroit que la revue GP Pro, sous le poste', async () => {
       freq.list.mockResolvedValue([FLAG])
