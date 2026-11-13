@@ -44,6 +44,8 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   sms_otp_max_sends_per_day_global: { label: 'Plafond de SMS de code par 24 h (toute l’app)', unit: 'SMS' },
   sms_blocked_country_codes: { label: 'Pays sans SMS (indicatifs bloqués)', unit: '' },
   pro_enabled: { label: 'Offre PRO ouverte (visible dans l’application)', unit: '' },
+  transport_road_enabled: { label: 'Mode Route proposé dans l’application (voiture, car)', unit: '' },
+  transport_boat_enabled: { label: 'Mode Bateau proposé dans l’application (groupage maritime)', unit: '' },
   critical_sms_fallback_enabled: {
     label: 'SMS de repli (notifications critiques sans accusé de réception, facturé par envoi)',
     unit: '',
@@ -130,6 +132,8 @@ function toWire(key: string, raw: string): string {
 const SMS_DISABLE_PHRASE = 'DESACTIVER SMS'
 // Même mécanisme pour l'activation de la purge des photos : elle supprime définitivement des fichiers.
 const PURGE_ENABLE_PHRASE = 'ACTIVER PURGE'
+// Ouvrir le bateau expose un parcours entier (m³, paiement au dépôt) : phrase à recopier.
+const BOAT_ENABLE_PHRASE = 'OUVRIR LE BATEAU'
 // Et pour la désactivation de `sms_otp_registered_numbers_only` : elle rouvre l'envoi de codes
 // SMS facturés vers n'importe quel numéro, la porte du pompage de SMS du 08/11/2026.
 const SMS_OPEN_PHRASE = 'OUVRIR SMS'
@@ -362,6 +366,41 @@ function requestSave(key: string) {
         : 'L’application masquera toute entrée PRO et les quotas des comptes standard ne seront plus '
           + 'appliqués : tout le monde bénéficie des plafonds PRO tant que l’offre reste fermée. '
           + 'Effet au prochain démarrage de l’application chez chaque utilisateur.',
+      confirmLabel: opening ? 'Ouvrir' : 'Fermer',
+    }
+    return
+  }
+
+  if (key === 'transport_road_enabled') {
+    // Fermer ne retire aucun trajet existant : confirmation simple dans les deux sens.
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: false,
+      title: opening ? 'Ouvrir le mode Route' : 'Fermer le mode Route',
+      message: opening
+        ? 'L’application proposera Route dans la publication de trajet, la demande de colis et la recherche. '
+          + 'Effet au prochain démarrage de l’application.'
+        : 'Plus aucun nouveau trajet Route ne pourra être publié ; les trajets existants restent en ligne.',
+      confirmLabel: opening ? 'Ouvrir' : 'Fermer',
+    }
+    return
+  }
+
+  if (key === 'transport_boat_enabled') {
+    // Ouvrir : double confirmation par phrase, avec les prérequis. Fermer : confirmation simple.
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: opening,
+      phrase: BOAT_ENABLE_PHRASE,
+      title: opening ? 'Ouvrir le mode Bateau' : 'Fermer le mode Bateau',
+      message: opening
+        ? 'À n’ouvrir qu’une fois le lot bateau déployé, les CGU bateau en ligne et la version minimale de '
+          + 'l’application à jour. L’application proposera Bateau partout. Effet au prochain démarrage.'
+        : 'Plus aucun nouveau trajet Bateau ne pourra être publié ; les trajets existants restent en ligne.',
       confirmLabel: opening ? 'Ouvrir' : 'Fermer',
     }
     return

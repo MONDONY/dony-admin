@@ -46,6 +46,15 @@ const pro: PlatformSetting = {
   updatedAt: null, updatedByEmail: null,
 }
 
+const road: PlatformSetting = {
+  key: 'transport_road_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
+const boat: PlatformSetting = {
+  key: 'transport_boat_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
+
 const retention: PlatformSetting = {
   key: 'photo_retention_days_after_delivery', value: '7', type: 'INTEGER',
   updatedAt: null, updatedByEmail: null,
@@ -549,6 +558,65 @@ describe('SettingsForm', () => {
     expect(w.text()).toContain('repasse à blanc')
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('update')![0]).toEqual(['photo_purge_enabled', 'false'])
+  })
+
+  it('les interrupteurs Route et Bateau ont un libellé lisible, pas leur clé brute', () => {
+    const w = mountForm({ settings: [road, boat] })
+    expect(w.find('[data-test="setting-row-transport_road_enabled"]').text()).toContain('Mode Route proposé dans l’application (voiture, car)')
+    expect(w.find('[data-test="setting-row-transport_boat_enabled"]').text()).toContain('Mode Bateau proposé dans l’application (groupage maritime)')
+    expect(w.text()).not.toContain('transport_road_enabled')
+    expect(w.text()).not.toContain('transport_boat_enabled')
+  })
+
+  it('allumer la route demande une confirmation simple', async () => {
+    const w = mountForm({ settings: [road] })
+    await w.find('[data-test="setting-value-transport_road_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-transport_road_enabled"]').trigger('click')
+    expect(w.text()).toContain('Ouvrir le mode Route')
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['transport_road_enabled', 'true'])
+  })
+
+  it('éteindre la route : confirmation simple, trajets existants gardés', async () => {
+    const w = mountForm({ settings: [{ ...road, value: 'true' }] })
+    await w.find('[data-test="setting-value-transport_road_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-transport_road_enabled"]').trigger('click')
+    expect(w.text()).toContain('Fermer le mode Route')
+    expect(w.text()).toContain('restent en ligne')
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['transport_road_enabled', 'false'])
+  })
+
+  it('allumer le bateau exige la phrase et rappelle les prérequis', async () => {
+    const w = mountForm({ settings: [boat] })
+    await w.find('[data-test="setting-value-transport_boat_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-transport_boat_enabled"]').trigger('click')
+    expect(w.text()).toContain('Ouvrir le mode Bateau')
+    expect(w.text()).toContain('CGU')
+    expect(w.text()).toContain('version minimale')
+    expect(w.text()).toContain('OUVRIR LE BATEAU')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    await w.find('[data-test="confirmation-input"]').setValue('OUVRIR')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.emitted('update')).toBeUndefined()
+
+    await w.find('[data-test="confirmation-input"]').setValue('OUVRIR LE BATEAU')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['transport_boat_enabled', 'true'])
+  })
+
+  it('éteindre le bateau : confirmation simple, trajets existants gardés', async () => {
+    const w = mountForm({ settings: [{ ...boat, value: 'true' }] })
+    await w.find('[data-test="setting-value-transport_boat_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-transport_boat_enabled"]').trigger('click')
+    expect(w.text()).toContain('Fermer le mode Bateau')
+    expect(w.text()).toContain('restent en ligne')
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['transport_boat_enabled', 'false'])
   })
 
   it('le délai prévient qu’il s’applique aussi au chat', async () => {
