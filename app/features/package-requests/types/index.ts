@@ -1,3 +1,5 @@
+import type { TransportModeFilter } from '@/lib/transportModes'
+
 /**
  * Demandes d'envoi (package requests) vues par la modération. Contrat de
  * `GET /admin/package-requests` et `GET /admin/package-requests/{id}` (yadony-back
@@ -21,7 +23,8 @@ export interface AdminPackageRequestListItem {
   desiredDate: string | null
   weightKg: number | null
   parcelSize: string | null
-  transportMode: string | null
+  /** Null = « peu importe ». Absent (ancien back) : cellule vide. */
+  transportMode?: string | null
   status: string
   currency: string | null
   /** Budget net de l'expéditeur, en unités principales de `currency` ; null = à négocier. */
@@ -95,6 +98,8 @@ export interface PackageRequestFilters {
   status: PackageRequestStatusFilter
   query: string
   reportedOnly: boolean
+  /** Mode de transport : ALL = tous, CAR couvre aussi BUS, ANY = demandes « peu importe ». */
+  transportMode: TransportModeFilter
   /** Bornes de la période de création, `YYYY-MM-DD` ; null = pas de borne. */
   from: string | null
   to: string | null

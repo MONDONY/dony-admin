@@ -6,6 +6,7 @@ function buildQuery(f: PackageRequestFilters, page: number, size: number): Recor
   if (f.status !== 'ALL') q.status = f.status
   if (f.query.trim()) q.query = f.query.trim()
   if (f.reportedOnly) q.reportedOnly = true
+  if (f.transportMode && f.transportMode !== 'ALL') q.transportMode = f.transportMode
   if (f.from) q.from = f.from
   if (f.to) q.to = f.to
   return q

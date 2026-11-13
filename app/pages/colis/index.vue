@@ -407,9 +407,14 @@ watch(() => [route.query?.tab, route.query?.open, route.query?.announcement] as 
           :filters="pr.filters"
           @update:status="pr.setStatus"
           @update:query="pr.setQuery"
+          @update:transport-mode="pr.setTransportMode"
           @update:reported-only="pr.setReportedOnly"
           @update:date-range="(from, to) => pr.setDateRange(from, to)"
         />
+        <p
+          v-if="pr.filterIgnored.value" data-test="pr-mode-filter-ignored" role="status"
+          class="mb-3 rounded-btn border border-border bg-surface-elevated px-3 py-2 text-sm text-text-muted"
+        >Le serveur n’applique pas encore ce filtre.</p>
         <p
           v-if="pr.error.value" data-test="pr-error" role="alert"
           class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"

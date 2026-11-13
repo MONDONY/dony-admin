@@ -3,6 +3,7 @@ import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import { packageRequestStatusMeta } from '@/features/package-requests/labels'
+import { requestTransportLabel, transportModeIcon } from '@/lib/transportModes'
 import type { AdminPackageRequestListItem } from '@/features/package-requests/types/index'
 
 defineProps<{ requests: AdminPackageRequestListItem[]; loading: boolean }>()
@@ -21,6 +22,7 @@ function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` 
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
         <tr>
           <th class="px-4 py-2 font-medium">Trajet</th>
+          <th class="px-4 py-2 font-medium">Mode</th>
           <th class="px-4 py-2 font-medium">Expéditeur</th>
           <th class="px-4 py-2 font-medium">Date souhaitée</th>
           <th class="px-4 py-2 font-medium">Poids</th>
@@ -39,6 +41,11 @@ function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` 
           <td class="px-4 py-3 text-sm">
             <div class="font-medium">{{ r.departureCity }} → {{ r.arrivalCity }}</div>
             <div class="text-xs text-text-muted tabular-nums">Créée le {{ fmtDate(r.createdAt) }}</div>
+          </td>
+          <td class="px-4 py-3 text-sm text-text-muted" :data-test="`pr-mode-${r.id}`">
+            <span v-if="requestTransportLabel(r.transportMode)" class="inline-flex items-center gap-1.5">
+              <component :is="transportModeIcon(r.transportMode)" :size="16" aria-hidden="true" class="shrink-0" />{{ requestTransportLabel(r.transportMode) }}
+            </span>
           </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ r.senderName ?? 'Expéditeur inconnu' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ r.desiredDate ? fmtDate(r.desiredDate) : 'Date flexible' }}</td>

@@ -73,4 +73,16 @@ describe('PackageRequestsTable', () => {
     const empty = mount(PackageRequestsTable, { props: { requests: [], loading: false } })
     expect(empty.text()).toContain('Aucune demande d’envoi')
   })
+
+  it('colonne Mode : libellé, Peu importe pour une demande sans mode, vide si le champ manque', () => {
+    const noKey = item('p3'); delete (noKey as Record<string, unknown>).transportMode
+    const w = mount(PackageRequestsTable, {
+      props: { requests: [item('p1', { transportMode: 'BOAT' }), item('p2', { transportMode: null }), noKey, item('p4', { transportMode: 'BUS' })], loading: false },
+    })
+    expect(w.get('[data-test="pr-mode-p1"]').text()).toBe('Bateau')
+    expect(w.get('[data-test="pr-mode-p2"]').text()).toBe('Peu importe')
+    expect(w.get('[data-test="pr-mode-p3"]').text()).toBe('')
+    expect(w.find('[data-test="pr-mode-p3"] svg').exists()).toBe(false)
+    expect(w.get('[data-test="pr-mode-p4"]').text()).toBe('Route')
+  })
 })
