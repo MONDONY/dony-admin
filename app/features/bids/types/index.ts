@@ -100,7 +100,16 @@ export interface BidTimelineEntry {
 export interface AdminBidTimeline { bidId: string; entries: BidTimelineEntry[] }
 export interface AdminAnnouncementListItem {
   id: string; status: AnnouncementStatus; travelerName: string | null
-  corridor: string; departureDate: string; availableKg: number; pricePerKg: number
+  corridor: string; departureDate: string
+  /** Null pour un trajet bateau au m³ (capacité et prix au volume à la place). */
+  availableKg: number | null; pricePerKg: number | null
+  /** Mode du trajet (PLANE, CAR, BUS, TRAIN, BOAT, OTHER). Absent (ancien back) : cellule vide, jamais l'avion par défaut. */
+  transportMode?: string | null
+  /** Trajet bateau au m³ : volume total, volume disponible, prix au m³ et date d'arrivée au plus tard. Absents (ancien back) ou null hors bateau. */
+  volumeCapacityM3?: number | null
+  availableVolumeM3?: number | null
+  pricePerM3?: number | null
+  arrivalDateMax?: string | null
   /** Devise du prix au kilo (code ISO). */
   currency: string | null
   /** Voyage à plusieurs étapes (FLUTTER-4D) : identifiant commun aux étapes. Absent (ancien back) ou null hors voyage. */
