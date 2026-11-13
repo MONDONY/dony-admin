@@ -23,6 +23,11 @@ export interface AdminPackageRequestListItem {
   desiredDate: string | null
   weightKg: number | null
   parcelSize: string | null
+  /** Dimensions (cm) et volume (m³) du colis, pour un envoi au volume. Absents (ancien back) ou nuls : masqués. */
+  lengthCm?: number | null
+  widthCm?: number | null
+  heightCm?: number | null
+  volumeM3?: number | null
   /** Null = « peu importe ». Absent (ancien back) : cellule vide. */
   transportMode?: string | null
   status: string

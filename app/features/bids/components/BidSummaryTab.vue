@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
+import { capacityText, formatM3, priceUnit, pricePerUnit } from '@/lib/capacity'
 import type { AdminBidDetail } from '@/features/bids/types/index'
 import {
   announcementStatusMeta, formatDateTime, formatDay, formatKg, formatTime, placeLabel, transportModeLabel,
@@ -40,10 +41,15 @@ const arrival = computed(() => (trip.value ? when(trip.value.arrivalDate, trip.v
 const capacity = computed(() => {
   const t = trip.value
   if (!t) return null
-  const total = formatKg(t.totalKg)
-  const left = formatKg(t.availableKg)
-  if (left && total) return `${left} restants sur ${total}`
-  return left ? `${left} restants` : total
+  return capacityText(t)
+})
+/** Prix du trajet : au kilo, ou au m³ pour un trajet bateau au volume. */
+const tripPrice = computed(() => {
+  const t = trip.value
+  if (!t) return null
+  const unit = priceUnit(t)
+  const value = pricePerUnit(t)
+  return unit && value != null ? { label: unit === 'kg' ? 'Prix au kilo' : 'Prix au m³', value } : null
 })
 const annStatus = computed(() => announcementStatusMeta(trip.value?.status))
 </script>
@@ -67,7 +73,7 @@ const annStatus = computed(() => announcementStatusMeta(trip.value?.status))
           <div><dt class="text-text-muted">Annonce</dt><dd><StatusBadge v-bind="annStatus" data-test="trip-status" /></dd></div>
           <div><dt class="text-text-muted">Capacité</dt><dd class="tabular-nums" data-test="trip-capacity">{{ capacity ?? '—' }}</dd></div>
           <div v-if="transportModeLabel(trip.transportMode)"><dt class="text-text-muted">Transport</dt><dd>{{ transportModeLabel(trip.transportMode) }}</dd></div>
-          <div v-if="trip.pricePerKg != null"><dt class="text-text-muted">Prix au kilo</dt><dd class="tabular-nums">{{ formatMajorAmount(trip.pricePerKg, bid.currency) }}</dd></div>
+          <div v-if="tripPrice"><dt class="text-text-muted">{{ tripPrice.label }}</dt><dd class="tabular-nums" data-test="trip-price">{{ formatMajorAmount(tripPrice.value, bid.currency) }}</dd></div>
           <div v-if="trip.handoverDeadline"><dt class="text-text-muted">Remise au plus tard</dt><dd class="tabular-nums">{{ formatDateTime(trip.handoverDeadline) }}</dd></div>
           <div v-if="trip.tripLegIndex"><dt class="text-text-muted">Voyage à étapes</dt><dd class="tabular-nums">Étape {{ trip.tripLegIndex }}</dd></div>
         </dl>
@@ -92,6 +98,7 @@ const annStatus = computed(() => announcementStatusMeta(trip.value?.status))
       <h3 id="bid-parcel-title" class="mb-2 text-sm font-semibold">Colis</h3>
       <dl class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div><dt class="text-text-muted">Poids</dt><dd class="tabular-nums" data-test="parcel-weight">{{ formatKg(bid.weightKg) ?? '—' }}</dd></div>
+        <div v-if="formatM3(bid.volumeM3)"><dt class="text-text-muted">Volume</dt><dd class="tabular-nums" data-test="parcel-volume">{{ formatM3(bid.volumeM3) }}</dd></div>
         <div><dt class="text-text-muted">Contenu</dt><dd>{{ bid.contentCategory ?? '—' }}</dd></div>
         <div v-if="bid.description" class="sm:col-span-2"><dt class="text-text-muted">Description</dt><dd class="text-pretty break-words" data-test="parcel-description">{{ bid.description }}</dd></div>
         <div v-if="bid.confirmationCodePresent !== undefined && bid.confirmationCodePresent !== null" data-test="parcel-code">

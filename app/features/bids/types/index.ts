@@ -31,6 +31,8 @@ export interface AdminBidTrip {
   transportMode: string | null
   totalKg: number | null; availableKg: number | null; reservedKg: number | null; capacityUnit: string | null
   pricePerKg: number | null
+  /** Trajet bateau au m³ (optionnels : ancien back toléré). */
+  volumeCapacityM3?: number | null; availableVolumeM3?: number | null; pricePerM3?: number | null
   tripGroupId: string | null; tripLegIndex: number | null
   handoverDeadline: string | null
   otherBidsCount: number
@@ -67,6 +69,8 @@ export interface AdminBidDetail extends AdminBidListItem {
   contentCategory: string | null; recipientName: string | null
   trackingNumber: string | null; commissionRate: number | null; refusalReason: string | null
   description?: string | null
+  /** Volume du colis (m³), pour un trajet au volume. Absent (ancien back) : ligne masquée. */
+  volumeM3?: number | null
   trip?: AdminBidTrip | null
   sender?: AdminBidParty | null
   traveler?: AdminBidParty | null

@@ -85,4 +85,20 @@ describe('PackageRequestsTable', () => {
     expect(w.find('[data-test="pr-mode-p3"] svg').exists()).toBe(false)
     expect(w.get('[data-test="pr-mode-p4"]').text()).toBe('Route')
   })
+
+  it('poids tolérant et dimensions ou volume quand le back les envoie', () => {
+    const w = mount(PackageRequestsTable, {
+      props: { requests: [
+        item('p1', { weightKg: null, lengthCm: 120, widthCm: 80, heightCm: 60, volumeM3: 0.576 }),
+        item('p2', { volumeM3: 12.5 }),
+        item('p3'),
+      ], loading: false },
+    })
+    expect(w.get('[data-test="pr-weight-p1"]').text()).toContain('Non renseigné')
+    expect(w.get('[data-test="pr-size-p1"]').text()).toBe('120 × 80 × 60 cm · 0,576 m³')
+    expect(w.get('[data-test="pr-size-p2"]').text()).toBe('12,5 m³')
+    expect(w.get('[data-test="pr-weight-p2"]').text()).toContain('4 kg')
+    expect(w.find('[data-test="pr-size-p3"]').exists()).toBe(false)
+    expect(w.get('[data-test="pr-weight-p3"]').text()).not.toContain('null')
+  })
 })
