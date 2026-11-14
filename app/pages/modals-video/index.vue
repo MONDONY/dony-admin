@@ -47,7 +47,7 @@ onMounted(async () => {
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <p class="max-w-2xl text-sm text-text-muted text-pretty">
         Une campagne = un modal (vidéo ou information), avec son moment, son ciblage, sa fréquence et ses versions. Plusieurs peuvent être actives ;
-        l’app n’en ouvre qu’un par ouverture et au plus un par jour et par personne, la priorité la plus haute d’abord, puis la version publiée le plus récemment.
+        l’app n’en ouvre qu’un par ouverture, la priorité la plus haute d’abord, puis la version publiée le plus récemment.
       </p>
       <NuxtLink
         to="/modals-video/nouveau" data-test="vm-new"

@@ -110,7 +110,6 @@ const optClass = (f: ModalFrequency) =>
         </div>
         <p data-test="vm-ends-help" class="text-xs text-text-muted text-pretty">Laisse la date de fin vide pour une campagne sans fin.</p>
         <p v-if="isInfo" class="text-xs text-text-muted text-pretty">Pour une promotion, des dates de début et de fin sont conseillées.</p>
-        <p class="text-xs text-text-muted text-pretty">Réglage global : au maximum <b>1 modal par jour</b> et par personne, tous types confondus.</p>
       </div>
     </div>
   </fieldset>

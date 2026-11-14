@@ -171,7 +171,6 @@ function repetition(input: VideoModalInput): ConditionRow[] {
     detail: input.allowDontShowAgain ? 'Cochée par la personne : plus jamais affiché, quelle que soit la fréquence.' : 'Pas de case : la personne ne peut pas le couper elle-même.',
     verdict: input.allowDontShowAgain ? 'check' : 'ok',
   })
-  rows.push({ id: 'daily', group, label: 'Plafond quotidien', detail: 'Au maximum 1 modal par jour et par personne, tous types confondus.', verdict: 'check' })
   const screenTriggers = input.triggers.filter(t => !isMomentTrigger(t) && !NO_DELAY_TRIGGERS.includes(t))
   if (screenTriggers.length > 0) {
     rows.push({ id: 'delay', group, label: 'Délai d’ouverture', detail: `Ouvert ${OPEN_DELAY_SECONDS} secondes après l’arrivée sur l’écran ; si la personne est partie, rien.`, verdict: 'check' })

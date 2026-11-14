@@ -83,7 +83,7 @@ describe('conditions d’affichage', () => {
     expect(row(validInput({ allowDontShowAgain: true }), 'dont-show')?.verdict).toBe('check')
     expect(row(validInput({ triggers: ['SEARCH_TAB'] }), 'delay')?.detail).toContain('2 secondes')
     expect(row(validInput({ triggers: ['PUBLISH_TRIP'] }), 'delay')).toBeUndefined()
-    expect(row(validInput(), 'daily')?.detail).toContain('1 modal par jour')
+    expect(row(validInput(), 'daily')).toBeUndefined()
   })
 
   it('règles communes et panneau affiché', () => {

@@ -94,7 +94,7 @@ describe('FrequencySection', () => {
     await w.get('[data-test="vm-ends"]').setValue('2026-11-30T10:00')
     expect(state.startsAt).toBe('2026-11-10T10:00')
     expect(state.endsAt).toBe('2026-11-30T10:00')
-    expect(w.text()).toContain('1 modal par jour')
+    expect(w.text()).not.toContain('1 modal par jour')
     expect(w.text()).toContain('Plus le chiffre est haut')
     expect(w.text()).toContain('dates de début et de fin sont conseillées')
     expect(mountSection(false).w.text()).not.toContain('conseillées')
