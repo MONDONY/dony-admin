@@ -6,6 +6,7 @@ import { useAudienceRule } from '@/features/broadcast/composables/useAudienceRul
 import { useBroadcast } from '@/features/broadcast/composables/useBroadcast'
 import ActionEditor from '@/features/video-modals/components/ActionEditor.vue'
 import ActiveSwitch from '@/features/video-modals/components/ActiveSwitch.vue'
+import DisplayConditionsPanel from '@/features/video-modals/components/DisplayConditionsPanel.vue'
 import CorridorSection from '@/features/video-modals/components/CorridorSection.vue'
 import AudienceSection from '@/features/video-modals/components/AudienceSection.vue'
 import FrequencySection from '@/features/video-modals/components/FrequencySection.vue'
@@ -416,6 +417,8 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           :errors="{ frequency: shown('frequency'), frequencyDays: shown('frequencyDays'), maxDisplays: shown('maxDisplays'), priority: shown('priority'), period: shown('period') }"
         />
       </section>
+
+      <DisplayConditionsPanel :input="input" :active="active" :errors="errors" />
 
       <TargetingSummary
         :parts="summary" :priority="state.priority" :sample-percent="state.samplePercent"

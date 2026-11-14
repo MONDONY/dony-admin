@@ -7,6 +7,7 @@ import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useExchangeRates } from '@/features/exchange-rates/composables/useExchangeRates'
 import PhotoStorageCard from '@/features/photo-storage/components/PhotoStorageCard.vue'
 import MaintenanceCard from '@/features/maintenance/components/MaintenanceCard.vue'
+import AppUpdateCard from '@/features/app-update/components/AppUpdateCard.vue'
 import { useAuthStore } from '@/stores/auth'
 import { commissionGridService } from '@/features/commission-grid/services/commissionGridService'
 
@@ -54,6 +55,7 @@ onMounted(() => {
 <template>
   <div class="space-y-8">
     <MaintenanceCard />
+    <AppUpdateCard />
 
     <div>
       <p

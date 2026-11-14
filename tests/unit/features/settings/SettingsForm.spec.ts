@@ -97,6 +97,15 @@ const remoteConfigFetch: PlatformSetting = {
   updatedAt: null, updatedByEmail: null,
 }
 
+const dac7Collection: PlatformSetting = {
+  key: 'dac7_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
+const dac7Reminders: PlatformSetting = {
+  key: 'dac7_reminders_enabled', value: 'false', type: 'BOOLEAN',
+  updatedAt: null, updatedByEmail: null,
+}
+
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a :href="to"><slot /></a>', props: ['to'] }
 
 function mountForm(props: Partial<InstanceType<typeof SettingsForm>['$props']> = {}) {
@@ -617,6 +626,81 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
     await w.find('[data-test="confirm"]').trigger('click')
     expect(w.emitted('update')![0]).toEqual(['transport_boat_enabled', 'false'])
+  })
+
+  it('les réglages DAC7 portent un libellé lisible et une aide, jamais la clé brute', () => {
+    const w = mountForm({ settings: [dac7Collection, dac7Reminders] })
+    const collection = w.find('[data-test="setting-row-dac7_enabled"]')
+    const reminders = w.find('[data-test="setting-row-dac7_reminders_enabled"]')
+    expect(collection.text()).toContain('Collecte DAC7')
+    expect(collection.text()).not.toContain('dac7_enabled')
+    expect(reminders.text()).toContain('Messages DAC7')
+    expect(reminders.text()).not.toContain('dac7_reminders_enabled')
+    expect(w.find('[data-test="setting-help-dac7_enabled"]').text()).toContain('Union européenne')
+    expect(w.find('[data-test="setting-help-dac7_reminders_enabled"]').text()).toContain('14 et 30 jours')
+  })
+
+  it('ouvrir la collecte DAC7 exige la phrase OUVRIR DAC7 et rappelle le préavis de 30 jours', async () => {
+    const w = mountForm({ settings: [dac7Collection] })
+    await w.find('[data-test="setting-value-dac7_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-dac7_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(true)
+    expect(w.text()).toContain('OUVRIR DAC7')
+    expect(w.text()).toContain('préavis de 30 jours')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    await w.find('[data-test="confirmation-input"]').setValue('ACTIVER PURGE')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.emitted('update')).toBeUndefined()
+
+    await w.find('[data-test="confirmation-input"]').setValue('OUVRIR DAC7')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['dac7_enabled', 'true'])
+  })
+
+  it('fermer la collecte DAC7 : confirmation simple, qui dit que les messages s’arrêtent aussi', async () => {
+    const open: PlatformSetting = { ...dac7Collection, value: 'true' }
+    const w = mountForm({ settings: [open] })
+    await w.find('[data-test="setting-value-dac7_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-dac7_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.text()).toContain('Fermer la collecte DAC7')
+    expect(w.text()).toMatch(/messages DAC7 s’arrêteront/)
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['dac7_enabled', 'false'])
+  })
+
+  it('envoyer les messages DAC7 exige la phrase ENVOYER DAC7 et prévient que ce sont de vrais utilisateurs', async () => {
+    const w = mountForm({ settings: [dac7Reminders] })
+    await w.find('[data-test="setting-value-dac7_reminders_enabled"]').setValue('true')
+    await w.find('[data-test="setting-save-dac7_reminders_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(true)
+    expect(w.text()).toContain('ENVOYER DAC7')
+    expect(w.text()).toContain('avocat')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    await w.find('[data-test="confirmation-input"]').setValue('OUVRIR DAC7')
+    expect((w.find('[data-test="confirm"]').element as HTMLButtonElement).disabled).toBe(true)
+
+    await w.find('[data-test="confirmation-input"]').setValue('ENVOYER DAC7')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['dac7_reminders_enabled', 'true'])
+  })
+
+  it('couper les messages DAC7 : confirmation simple, rien n’est supprimé', async () => {
+    const on: PlatformSetting = { ...dac7Reminders, value: 'true' }
+    const w = mountForm({ settings: [on] })
+    await w.find('[data-test="setting-value-dac7_reminders_enabled"]').setValue('false')
+    await w.find('[data-test="setting-save-dac7_reminders_enabled"]').trigger('click')
+
+    expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+    expect(w.text()).toContain('Couper les messages DAC7')
+    expect(w.text()).toContain('Rien n’est supprimé')
+    await w.find('[data-test="confirm"]').trigger('click')
+    expect(w.emitted('update')![0]).toEqual(['dac7_reminders_enabled', 'false'])
   })
 
   it('le délai prévient qu’il s’applique aussi au chat', async () => {

@@ -117,13 +117,13 @@ describe('TriggerPicker : moments', () => {
     expect(mountPicker({ triggers: ['SEND_PARCEL'] }).text()).toContain('sans délai, avant le formulaire')
   })
 
-  it('notes différentes pour une vidéo et une information, plafond d’un modal par jour', () => {
+  it('notes différentes pour une vidéo et une information', () => {
     const video = mountPicker()
     expect(video.text()).toContain('« Commencer » ou la fin de la vidéo')
-    expect(video.text()).toContain('au plus un par jour et par personne')
+    expect(video.text()).toContain('jamais deux en même temps')
     const info = mountPicker({ isInfo: true })
     expect(info.text()).toContain('sans rejouer un modal')
-    expect(info.text()).toContain('au plus un par jour et par personne')
+    expect(info.text()).toContain('jamais deux en même temps')
   })
 
   it('erreur de déclencheur affichée', () => {

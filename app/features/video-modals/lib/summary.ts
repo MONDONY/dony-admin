@@ -213,6 +213,7 @@ function frequencyParts(input: SummaryInput): SummaryPart[] {
   if (freq === 'ONCE' || (freq === 'UP_TO_N' && input.maxDisplays === 1)) parts.push(strong('une seule fois'))
   else if (freq === 'UP_TO_N') parts.push(strong(`jusqu’à ${isNum(input.maxDisplays) ? input.maxDisplays : '…'} fois`))
   else if (freq === 'EVERY_OPEN') parts.push(strong('à chaque ouverture de l’app'))
+  else if (freq === 'EVERY_TIME') parts.push(strong('à chaque fois que l’action se produit'))
   else {
     const n = input.frequencyDays
     parts.push(strong(n === 1 ? 'au plus une fois par jour' : `au plus une fois tous les ${isNum(n) ? n : '…'} jours`))

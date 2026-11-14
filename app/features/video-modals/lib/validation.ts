@@ -1,7 +1,7 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
 import { httpsUrlError } from '@/features/video-modals/lib/url'
 import {
-  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, MAX_HIGHLIGHTS,
+  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, isMomentTrigger, MAX_HIGHLIGHTS,
   MODAL_FREQUENCIES, MODAL_ICONS, MODAL_LAYOUTS, MODAL_PLATFORMS, SAMPLE_MAX, SAMPLE_MIN, SITUATIONS, SIZE_MAX, SIZE_MIN, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN, VIDEO_MODAL_TRIGGERS,
   type VideoModalAction, type VideoModalInput,
 } from '@/features/video-modals/types/index'
@@ -140,6 +140,9 @@ function validateFrequency(input: VideoModalInput, errors: VideoModalErrors) {
     if (typeof d !== 'number' || !Number.isInteger(d) || d < FREQUENCY_DAYS_MIN || d > FREQUENCY_DAYS_MAX) {
       errors.frequencyDays = `Nombre de jours entier, de ${FREQUENCY_DAYS_MIN} à ${FREQUENCY_DAYS_MAX}.`
     }
+  }
+  if (input.frequency === 'EVERY_TIME' && (input.triggers ?? []).some(t => !isMomentTrigger(t))) {
+    errors.frequency = 'Cette fréquence ne s’applique qu’aux moments d’action : retire les déclencheurs d’écran ou de bouton.'
   }
   if (input.priority !== undefined && !Number.isInteger(input.priority)) errors.priority = 'Priorité : nombre entier.'
 }

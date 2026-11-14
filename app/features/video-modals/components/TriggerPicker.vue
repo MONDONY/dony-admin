@@ -136,11 +136,11 @@ const errClass = 'mt-1 text-xs text-danger'
     </div>
 
     <p v-if="isInfo" class="mt-3 text-xs text-text-muted text-pretty">
-      L’app n’ouvre qu’un seul modal par ouverture, et au plus un par jour et par personne, tous modals confondus. Si le bouton ouvre un formulaire, il s’ouvre directement, sans rejouer un modal.
+      L’app n’ouvre qu’un seul modal par ouverture, jamais deux en même temps. Si le bouton ouvre un formulaire, il s’ouvre directement, sans rejouer un modal.
     </p>
     <p v-else class="mt-3 text-xs text-text-muted text-pretty">
       Sur « Publier un trajet » ou « Envoyer un colis », le modal s’ouvre avant le formulaire ; « Commencer » ou la fin de la vidéo mènent ensuite au formulaire.
-      L’app n’ouvre qu’un seul modal par ouverture, et au plus un par jour et par personne, tous modals confondus.
+      L’app n’ouvre qu’un seul modal par ouverture, jamais deux en même temps.
     </p>
     <p v-if="error" data-test="vm-triggers-error" class="mt-1 text-xs text-danger">{{ error }}</p>
   </fieldset>

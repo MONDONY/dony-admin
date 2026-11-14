@@ -55,6 +55,11 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
   tracking_photos_max_per_bid: { label: 'Photos de suivi par colis (sur 24 h)', unit: 'photos' },
   photo_purge_enabled: { label: 'Suppression des photos activée (sinon à blanc)', unit: '' },
   flights_enabled: { label: 'Billets d’avion (onglet Billets visible dans l’application)', unit: '' },
+  dac7_enabled: { label: 'Collecte DAC7 ouverte (numéro fiscal des voyageurs de l’Union européenne)', unit: '' },
+  dac7_reminders_enabled: {
+    label: 'Messages DAC7 (invite à l’acceptation d’une réservation, rappels à 14 et 30 jours)',
+    unit: '',
+  },
   assistant_daily_quota: { label: 'Questions à l’assistant d’aide par utilisateur et par jour', unit: 'questions' },
   assistant_form_draft_daily_quota: {
     label: 'Tours de remplissage par l’IA (trajet et colis) par utilisateur et par jour',
@@ -137,12 +142,23 @@ const BOAT_ENABLE_PHRASE = 'OUVRIR LE BATEAU'
 // Et pour la désactivation de `sms_otp_registered_numbers_only` : elle rouvre l'envoi de codes
 // SMS facturés vers n'importe quel numéro, la porte du pompage de SMS du 08/11/2026.
 const SMS_OPEN_PHRASE = 'OUVRIR SMS'
+// Ouvrir la collecte DAC7 (numéro fiscal) puis ses messages : geste juridique, pas un simple affichage.
+const DAC7_OPEN_PHRASE = 'OUVRIR DAC7'
+const DAC7_MESSAGES_PHRASE = 'ENVOYER DAC7'
 
 /**
  * Ce que fait le réglage, affiché sous sa ligne : « Activé / Désactivé » seul ne dit pas qui
  * peut encore recevoir un code, ni par où passent les nouveaux inscrits.
  */
 const SETTING_HELP: Record<string, string> = {
+  dac7_enabled:
+    'Ouvre l’écran « Informations fiscales » de l’application, les pages DAC7 de cette console et l’export du '
+    + 'fichier. Ne concerne que les voyageurs qui habitent dans l’Union européenne. Rien n’est envoyé aux '
+    + 'voyageurs tant que les messages ci-dessous restent éteints. Fermer la collecte coupe aussi les messages.',
+  dac7_reminders_enabled:
+    'Active l’invite à la première acceptation d’une réservation, puis les rappels à 14 et 30 jours (jamais de '
+    + 'troisième) pour les voyageurs de l’Union déjà payés et sans numéro fiscal. Exige que la collecte soit '
+    + 'ouverte. Jamais bloquant pour le voyageur.',
   individual_trips_alert_threshold:
     'Un particulier qui publie plus de ce nombre de trajets dans le mois civil est signalé à l’équipe '
     + '(aucun blocage, aucune sanction).',
@@ -402,6 +418,52 @@ function requestSave(key: string) {
           + 'l’application à jour. L’application proposera Bateau partout. Effet au prochain démarrage.'
         : 'Plus aucun nouveau trajet Bateau ne pourra être publié ; les trajets existants restent en ligne.',
       confirmLabel: opening ? 'Ouvrir' : 'Fermer',
+    }
+    return
+  }
+
+  if (key === 'dac7_enabled') {
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: opening,
+      phrase: DAC7_OPEN_PHRASE,
+      title: opening ? 'Ouvrir la collecte DAC7' : 'Fermer la collecte DAC7',
+      message: opening
+        ? 'L’écran « Informations fiscales » devient accessible aux voyageurs de l’Union européenne, et les '
+          + 'pages DAC7 et l’export de cette console s’ouvrent. Aucun message n’est envoyé tant que les '
+          + 'messages DAC7 restent éteints.'
+        : 'L’écran « Informations fiscales » répondra « indisponible », les pages DAC7 se fermeront et les '
+          + 'messages DAC7 s’arrêteront aussi. Rien n’est supprimé : les numéros déjà saisis sont conservés.',
+      alert: opening
+        ? 'À n’ouvrir en production qu’après la mise à jour de la politique de confidentialité et des CGU '
+          + '(préavis de 30 jours) et la validation des textes par l’avocat.'
+        : undefined,
+      confirmLabel: opening ? 'Ouvrir' : 'Fermer',
+    }
+    return
+  }
+
+  if (key === 'dac7_reminders_enabled') {
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: opening,
+      phrase: DAC7_MESSAGES_PHRASE,
+      title: opening ? 'Envoyer les messages DAC7' : 'Couper les messages DAC7',
+      message: opening
+        ? 'Chaque voyageur de l’Union européenne concerné recevra une invite à compléter ses informations '
+          + 'fiscales à sa prochaine acceptation de réservation, puis des rappels à 14 et 30 jours s’il est déjà '
+          + 'payé et sans numéro fiscal. Jamais de troisième message, un seul message par jour au plus.'
+        : 'Plus aucune invite ni aucun rappel DAC7 ne partira. Rien n’est supprimé : les demandes déjà faites '
+          + 'restent au registre et reprendront à leur échéance si vous rallumez.',
+      alert: opening
+        ? 'Les messages partent à de vrais utilisateurs : vérifiez que les textes ont été validés par l’avocat. '
+          + 'La collecte doit être ouverte, sinon l’enregistrement est refusé.'
+        : undefined,
+      confirmLabel: opening ? 'Envoyer' : 'Couper',
     }
     return
   }

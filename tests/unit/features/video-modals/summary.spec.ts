@@ -138,6 +138,10 @@ describe('phrase « En clair » : fréquence', () => {
     expect(text({ frequency: 'UP_TO_N', maxDisplays: Number.NaN })).toContain('jusqu’à … fois')
   })
 
+  it('à chaque fois que l’action se produit', () => {
+    expect(text({ frequency: 'EVERY_TIME' })).toContain('à chaque fois que l’action se produit')
+  })
+
   it('à chaque ouverture', () => {
     expect(text({ frequency: 'EVERY_OPEN' })).toContain('à chaque ouverture de l’app')
   })
