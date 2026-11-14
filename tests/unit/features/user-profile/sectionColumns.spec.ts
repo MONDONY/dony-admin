@@ -45,12 +45,25 @@ describe('sectionColumns', () => {
   it('trajets : jour de départ en UTC, prix, étapes', () => {
     const r = { id: 't', status: 'ACTIVE', corridor: 'A → B', departureDate: '2026-10-25', availableKg: 12, pricePerKg: 8.5, currency: 'EUR', tripLegIndex: 0, tripLegCount: 2 }
     expect(txt(tripColumns, 'departureDate', r)).toBe('25/10/2026')
-    expect(txt(tripColumns, 'availableKg', r)).toBe('12 kg')
-    expect(txt(tripColumns, 'pricePerKg', r)).toBe('8,5 EUR')
-    expect(txt(tripColumns, 'pricePerKg', { ...r, currency: null })).toBe('8,5')
+    expect(col(tripColumns, 'capacity').label).toBe('Capacité')
+    expect(col(tripColumns, 'price').label).toBe('Prix')
+    expect(txt(tripColumns, 'capacity', r)).toBe('12 kg')
+    expect(txt(tripColumns, 'price', r)).toBe('8,5 EUR/kg')
+    expect(txt(tripColumns, 'price', { ...r, currency: null })).toBe('8,5/kg')
     expect(txt(tripColumns, 'tripLegIndex', r)).toBe('1 sur 2')
     expect(txt(tripColumns, 'tripLegIndex', { ...r, tripLegCount: null })).toBe('—')
     expect(txt(tripColumns, 'status', r)).toBeTruthy()
+  })
+
+  it('trajet bateau au m³ : volume et prix au m³ ; sans donnée « — », jamais « null kg »', () => {
+    const boat = { id: 't', status: 'ACTIVE', corridor: 'A → B', departureDate: '2026-10-25', availableKg: null, pricePerKg: null, availableVolumeM3: 12.5, pricePerM3: 90, currency: 'EUR' }
+    expect(txt(tripColumns, 'capacity', boat)).toBe('12,5 m³')
+    expect(txt(tripColumns, 'price', boat)).toBe('90 EUR/m³')
+    const none = { ...boat, availableVolumeM3: undefined, pricePerM3: undefined }
+    expect(txt(tripColumns, 'capacity', none)).toBe('—')
+    expect(txt(tripColumns, 'price', none)).toBe('—')
+    const oldBack = { id: 't', status: 'ACTIVE', corridor: 'A → B', departureDate: '2026-10-25' }
+    expect(txt(tripColumns, 'capacity', oldBack)).toBe('—')
   })
 
   it('demandes : date souhaitée = jour UTC, poids absent = tiret, statut inconnu humanisé', () => {

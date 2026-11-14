@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue'
 import { packageRequestsService } from '@/features/package-requests/services/packageRequestsService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { isEndpointMissing } from '@/lib/endpointMissing'
+import { modeFilterIgnored, type TransportModeFilter } from '@/lib/transportModes'
 import type {
   AdminPackageRequestDetail, AdminPackageRequestListItem, PackageRequestFilters, PackageRequestStatusFilter,
 } from '@/features/package-requests/types/index'
@@ -18,10 +19,12 @@ export function usePackageRequests() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const unavailable = ref(false)
+  /** Vrai quand le serveur n'a pas appliqué le filtre de mode (ancien back). */
+  const filterIgnored = ref(false)
   const currentPage = ref(0)
   const totalPages = ref(0)
   const totalElements = ref(0)
-  const filters = reactive<PackageRequestFilters>({ status: 'ALL', query: '', reportedOnly: false, from: null, to: null })
+  const filters = reactive<PackageRequestFilters>({ status: 'ALL', query: '', reportedOnly: false, transportMode: 'ALL', from: null, to: null })
 
   /** La page courante ne change qu'une fois la nouvelle page reçue : un échec laisse l'ancienne affichée. */
   async function load(page = currentPage.value) {
@@ -34,6 +37,7 @@ export function usePackageRequests() {
       totalElements.value = res.totalElements
       currentPage.value = page
       unavailable.value = false
+      filterIgnored.value = modeFilterIgnored(res.content, filters.transportMode)
     } catch (e) {
       if (isEndpointMissing(e)) unavailable.value = true
       else error.value = extractProblemMessage(e, 'Impossible de charger les demandes d’envoi')
@@ -45,6 +49,7 @@ export function usePackageRequests() {
   const goToPage = (page: number) => load(page)
   async function setStatus(s: PackageRequestStatusFilter) { filters.status = s; await load(0) }
   async function setReportedOnly(v: boolean) { filters.reportedOnly = v; await load(0) }
+  async function setTransportMode(m: TransportModeFilter) { filters.transportMode = m; await load(0) }
   async function setDateRange(from: string | null, to: string | null) { filters.from = from; filters.to = to; await load(0) }
   async function setQuery(q: string) {
     const next = q.trim()
@@ -65,7 +70,7 @@ export function usePackageRequests() {
   }
 
   return {
-    requests, isLoading, error, unavailable, currentPage, totalPages, totalElements, filters,
-    load, goToPage, setStatus, setReportedOnly, setDateRange, setQuery, replace,
+    requests, isLoading, error, unavailable, filterIgnored, currentPage, totalPages, totalElements, filters,
+    load, goToPage, setStatus, setReportedOnly, setTransportMode, setDateRange, setQuery, replace,
   }
 }

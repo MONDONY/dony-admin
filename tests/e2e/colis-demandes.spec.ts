@@ -56,6 +56,24 @@ async function mockRequests(page: Page, opts: { removeStatus?: number; removeBod
 
 test.beforeEach(async ({ page }) => { await mockBase(page) })
 
+test('filtre de mode : « Route » envoie transportMode=CAR, la colonne Mode lit le trajet', async ({ page }) => {
+  const queries: string[] = []
+  await page.route('**/api/v1/admin/package-requests?**', (route) => {
+    const url = new URL(route.request().url())
+    queries.push(url.search)
+    return route.fulfill({ json: { content: [{ ...ROW, transportMode: url.searchParams.get('transportMode') === 'CAR' ? 'BUS' : 'PLANE' }],
+      totalElements: 1, totalPages: 1, number: 0, size: 20 } })
+  })
+  await page.goto('/colis?tab=demandes')
+  const row = page.locator('[data-test="pr-row-0b5e2c3a-1111-4222-8333-444455556666"]')
+  await expect(row).toBeVisible()
+  await expect(page.locator('[data-test="pr-mode-0b5e2c3a-1111-4222-8333-444455556666"]')).toHaveText('Avion')
+  await page.locator('[data-test="mode-filter-CAR"]').click()
+  await expect(page.locator('[data-test="pr-mode-0b5e2c3a-1111-4222-8333-444455556666"]')).toHaveText('Route')
+  expect(queries.some((q) => q.includes('transportMode=CAR'))).toBe(true)
+  await expect(page.locator('[data-test="pr-mode-filter-ignored"]')).toHaveCount(0)
+})
+
 test('liste des demandes, fiche puis retrait avec motif public et note interne', async ({ page }) => {
   const state = await mockRequests(page)
   await page.goto('/colis')

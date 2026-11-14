@@ -11,7 +11,7 @@ describe('libellés GP Pro', () => {
     expect(sourceLabel('ADMIN')).toBe('Attribution directe')
     expect(sourceLabel('API')).toBe('API')
     expect(sourceLabel(undefined)).toBe('Inconnue')
-    expect(documentTypeLabel('TRAVEL_PROOF')).toBe('Billet ou carte d’embarquement')
+    expect(documentTypeLabel('TRAVEL_PROOF')).toBe('Titre de transport')
     expect(documentTypeLabel('SCAN')).toBe('SCAN')
     expect(documentTypeLabel(null)).toBe('Document')
     expect(reviewReasonLabel('INACTIVE')).toBe('Aucun trajet depuis 8 semaines')

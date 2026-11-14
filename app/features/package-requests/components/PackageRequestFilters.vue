@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import TransportModeFilterChips from '@/components/ui/TransportModeFilter.vue'
+import { REQUEST_MODE_FILTERS, type TransportModeFilter } from '@/lib/transportModes'
 import type { PackageRequestFilters, PackageRequestStatusFilter } from '@/features/package-requests/types/index'
 
 const props = defineProps<{ filters: PackageRequestFilters }>()
 const emit = defineEmits<{
   'update:status': [PackageRequestStatusFilter]
+  'update:transportMode': [TransportModeFilter]
   'update:query': [string]
   'update:reportedOnly': [boolean]
   'update:dateRange': [string | null, string | null]
@@ -52,6 +55,14 @@ function clearDates() {
           @click="emit('update:status', c.value)"
         >{{ c.label }}</button>
       </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-xs text-text-muted font-medium w-16 shrink-0">Mode</span>
+      <TransportModeFilterChips
+        :options="REQUEST_MODE_FILTERS" :model-value="filters.transportMode"
+        @update:model-value="emit('update:transportMode', $event)"
+      />
     </div>
 
     <div class="flex flex-wrap items-center gap-2">

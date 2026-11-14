@@ -63,6 +63,13 @@ describe('bidsAdminService', () => {
     await bidsAdminService.listAnnouncements(0, 20, 'an1')
     expect(apiMock).toHaveBeenCalledWith('/admin/announcements', { query: { page: 0, size: 20, id: 'an1' } })
   })
+  it('listAnnouncements envoie transportMode sauf pour Tous', async () => {
+    apiMock.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 })
+    await bidsAdminService.listAnnouncements(0, 20, null, 'CAR')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/announcements', { query: { page: 0, size: 20, transportMode: 'CAR' } })
+    await bidsAdminService.listAnnouncements(0, 20, null, 'ALL')
+    expect(apiMock.mock.calls.at(-1)![1].query).not.toHaveProperty('transportMode')
+  })
   it('removeAnnouncement POSTs le motif catalogué ET la note interne, séparément', async () => {
     apiMock.mockResolvedValue({ id: 'a1', status: 'REMOVED_BY_ADMIN' })
     const r = await bidsAdminService.removeAnnouncement('a1', 'SUSPECTED_FRAUD', 'ticket #4821')

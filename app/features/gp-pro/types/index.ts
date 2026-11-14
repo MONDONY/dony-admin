@@ -112,7 +112,7 @@ export function sourceLabel(s: string | null | undefined): string {
 
 const DOC_LABELS: Record<GpProDocumentType, string> = {
   BUSINESS_REGISTRATION: 'Registre d’entreprise',
-  TRAVEL_PROOF: 'Billet ou carte d’embarquement',
+  TRAVEL_PROOF: 'Titre de transport',
   SOCIAL_PROFILE: 'Profil de réseau social',
   OTHER: 'Autre document',
 }

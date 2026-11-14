@@ -1,5 +1,6 @@
 import { useApi } from '@/composables/useApi'
 import { isUuid } from '@/lib/safeInput'
+import type { TransportModeFilter } from '@/lib/transportModes'
 import type { AdminBidCancelReason, AdminBidCancelResult, AdminDisputeReason, AdminOpenDisputeResult, DisputeParty } from '@/features/bids/lib/bidActions'
 import type { AdminBidCounts, AdminBidDetail, AdminBidPage, AdminBidPhotos, AdminBidSuggest, AdminBidTimeline, AdminAnnouncementPage, AdminAnnouncementListItem, BidsFilterState } from '@/features/bids/types/index'
 
@@ -67,10 +68,11 @@ export const bidsAdminService = {
     if (!isUuid(id)) return Promise.reject(new Error('Identifiant de colis invalide'))
     return useApi()<AdminOpenDisputeResult>(`/admin/bids/${id}/disputes`, { method: 'POST', body: { openedOnBehalfOf, reason, description } })
   },
-  /** `id` : l'annonce d'un colis seule (un ancien back l'ignore et renvoie la page entière). */
-  listAnnouncements(page: number, size: number, id?: string | null): Promise<AdminAnnouncementPage> {
+  /** `id` : l'annonce d'un colis seule (un ancien back l'ignore et renvoie la page entière). `transportMode` : CAR couvre aussi BUS ; un ancien back l'ignore. */
+  listAnnouncements(page: number, size: number, id?: string | null, transportMode?: TransportModeFilter): Promise<AdminAnnouncementPage> {
     const query: Record<string, string | number> = { page, size }
     if (id) query.id = id
+    if (transportMode && transportMode !== 'ALL') query.transportMode = transportMode
     return useApi()<AdminAnnouncementPage>('/admin/announcements', { query })
   },
   removeAnnouncement(id: string, publicReason: string, internalNote: string): Promise<AdminAnnouncementListItem> {
