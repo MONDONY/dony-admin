@@ -909,4 +909,65 @@ describe('SettingsForm', () => {
       expect(w.emitted('update')![0]).toEqual(['individual_trips_alert_threshold', '6'])
     })
   })
+  describe('numéro WhatsApp du support (support_whatsapp_number, type PHONE_E164)', () => {
+    const phone = (value: string): PlatformSetting => ({
+      key: 'support_whatsapp_number', value, type: 'PHONE_E164', updatedAt: null, updatedByEmail: null,
+    })
+    const input = (w: ReturnType<typeof mountForm>) => w.find('[data-test="setting-value-support_whatsapp_number"]')
+    const save = (w: ReturnType<typeof mountForm>) =>
+      w.find('[data-test="setting-save-support_whatsapp_number"]').element as HTMLButtonElement
+
+    it('affiche un champ téléphone avec son libellé et son aide, sans erreur au départ', () => {
+      const w = mountForm({ settings: [phone('')] })
+      expect(input(w).attributes('type')).toBe('tel')
+      expect(w.text()).toContain('Numéro WhatsApp de l’équipe')
+      expect(w.find('[data-test="setting-help-support_whatsapp_number"]').text()).toContain('Vide : la carte n’apparaît pas')
+      expect(w.find('[data-test="setting-error-support_whatsapp_number"]').exists()).toBe(false)
+      expect(save(w).disabled).toBe(true)
+    })
+
+    it('refuse un numéro sans indicatif ou avec des lettres, sans appel réseau', async () => {
+      const w = mountForm({ settings: [phone('')] })
+      for (const bad of ['0612345678', '+33abc12345', '+3361']) {
+        await input(w).setValue(bad)
+        expect(save(w).disabled).toBe(true)
+        expect(w.find('[data-test="setting-error-support_whatsapp_number"]').text()).toContain('format international')
+      }
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it('enregistre le numéro normalisé après confirmation', async () => {
+      const w = mountForm({ settings: [phone('')] })
+      await input(w).setValue(' +33 6 12.34-56 78 ')
+      expect(save(w).disabled).toBe(false)
+      await w.find('[data-test="setting-save-support_whatsapp_number"]').trigger('click')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['support_whatsapp_number', '+33612345678'])
+    })
+
+    it('accepte le préfixe 00', async () => {
+      const w = mountForm({ settings: [phone('')] })
+      await input(w).setValue('0033612345678')
+      await w.find('[data-test="setting-save-support_whatsapp_number"]').trigger('click')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['support_whatsapp_number', '+33612345678'])
+    })
+
+    it('vider le champ retire la carte, après confirmation', async () => {
+      const w = mountForm({ settings: [phone('+33612345678')] })
+      await input(w).setValue('')
+      expect(save(w).disabled).toBe(false)
+      await w.find('[data-test="setting-save-support_whatsapp_number"]').trigger('click')
+      expect(w.text()).toContain('ne sera plus affichée')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['support_whatsapp_number', ''])
+    })
+
+    it('le bouton reste grisé tant que le numéro n’a pas changé', async () => {
+      const w = mountForm({ settings: [phone('+33612345678')] })
+      expect(save(w).disabled).toBe(true)
+      await input(w).setValue('+33 6 12 34 56 78')
+      expect(save(w).disabled).toBe(true)
+    })
+  })
 })
