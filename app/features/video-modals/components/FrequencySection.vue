@@ -6,9 +6,9 @@ import {
 import { MAX_DISPLAYS_MAX, MAX_DISPLAYS_MIN } from '@/features/video-modals/lib/validation'
 
 /**
- * « À quelle fréquence ? » : une fois, jusqu'à N fois, à chaque ouverture ou tous les N jours, avec les
+ * « À quelle fréquence ? » : une fois, jusqu'à N fois, à chaque ouverture, tous les N jours ou à chaque fois que l'action se produit, avec les
  * règles de réponse (arrêt après un bouton touché, case « Ne plus afficher »), la priorité et la période.
- * Les quatre fréquences sont proposées pour une vidéo comme pour une information (le back les accepte pour les deux types).
+ * Les cinq fréquences sont proposées pour une vidéo comme pour une information (le back les accepte pour les deux types).
  */
 defineProps<{
   isInfo: boolean
@@ -52,6 +52,10 @@ const optClass = (f: ModalFrequency) =>
             <span class="w-full text-xs text-text-muted">Fermé d’un geste sans toucher un bouton, il revient au déclencheur suivant, jusqu’à ce plafond par version.</span>
           </span>
           <span v-else-if="f === 'EVERY_OPEN'"><b>À chaque ouverture de l’app</b><span class="block text-xs text-text-muted">Un seul modal par ouverture.</span></span>
+          <span v-else-if="f === 'EVERY_TIME'">
+            <b>À chaque fois que l’action se produit</b>
+            <span class="block text-xs text-text-muted">Sans limite, à chaque occurrence, tant que la campagne est active. Réservé aux moments d’action (recherche sans résultat, paiement, publication…).</span>
+          </span>
           <span v-else class="flex flex-wrap items-center gap-1.5">
             <b>Au plus une fois tous les</b>
             <input
@@ -104,6 +108,7 @@ const optClass = (f: ModalFrequency) =>
             <span v-if="errors.period" :class="errClass">{{ errors.period }}</span>
           </label>
         </div>
+        <p data-test="vm-ends-help" class="text-xs text-text-muted text-pretty">Laisse la date de fin vide pour une campagne sans fin.</p>
         <p v-if="isInfo" class="text-xs text-text-muted text-pretty">Pour une promotion, des dates de début et de fin sont conseillées.</p>
         <p class="text-xs text-text-muted text-pretty">Réglage global : au maximum <b>1 modal par jour</b> et par personne, tous types confondus.</p>
       </div>

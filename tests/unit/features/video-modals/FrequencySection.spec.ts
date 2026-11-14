@@ -26,10 +26,19 @@ function mountSection(isInfo: boolean, over: Record<string, unknown> = {}, error
 }
 
 describe('FrequencySection', () => {
-  it('information et vidéo : les quatre fréquences', () => {
+  it('« à chaque fois » : libellé, précision, sans champ numérique, et fin facultative expliquée', () => {
+    const { w } = mountSection(false, { frequency: 'EVERY_TIME' })
+    const opt = w.get('[data-test="vm-frequency-EVERY_TIME"]')
+    expect(opt.text()).toContain('À chaque fois que l’action se produit')
+    expect(opt.text()).toContain('Sans limite, à chaque occurrence, tant que la campagne est active. Réservé aux moments d’action (recherche sans résultat, paiement, publication…).')
+    expect(opt.find('input[type="number"]').exists()).toBe(false)
+    expect(w.get('[data-test="vm-ends-help"]').text()).toBe('Laisse la date de fin vide pour une campagne sans fin.')
+  })
+
+  it('information et vidéo : les cinq fréquences', () => {
     for (const isInfo of [true, false]) {
       const w = mountSection(isInfo).w
-      for (const f of ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS']) expect(w.find(`[data-test="vm-frequency-${f}"]`).exists(), `${isInfo} ${f}`).toBe(true)
+      for (const f of ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS', 'EVERY_TIME']) expect(w.find(`[data-test="vm-frequency-${f}"]`).exists(), `${isInfo} ${f}`).toBe(true)
     }
   })
 

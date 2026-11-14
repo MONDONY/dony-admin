@@ -240,7 +240,7 @@ export interface ModalSituation {
 }
 
 /** Fréquence d'affichage (étape 1 du ciblage). */
-export const MODAL_FREQUENCIES = ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS'] as const
+export const MODAL_FREQUENCIES = ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS', 'EVERY_TIME'] as const
 export type ModalFrequency = typeof MODAL_FREQUENCIES[number]
 
 export const FREQUENCY_SHORT_LABELS: Record<ModalFrequency, string> = {
@@ -248,6 +248,7 @@ export const FREQUENCY_SHORT_LABELS: Record<ModalFrequency, string> = {
   UP_TO_N: 'Jusqu’à N fois',
   EVERY_OPEN: 'À chaque ouverture',
   EVERY_N_DAYS: 'Tous les N jours',
+  EVERY_TIME: 'À chaque fois',
 }
 
 export const FREQUENCY_DAYS_MIN = 1

@@ -33,6 +33,21 @@ describe.each(both)('validation du ciblage : %s', (_label, make) => {
     }
   })
 
+  it('« à chaque fois » : permise seulement avec des moments d’action', () => {
+    const ok = validateVideoModal(make({ frequency: 'EVERY_TIME', frequencyDays: null, triggers: ['SEARCH_NO_TRIP_RESULTS', 'PAYMENT_SUCCEEDED'] }))
+    expect(ok.frequency).toBeUndefined()
+    for (const screen of ['APP_OPEN', 'SEARCH_TAB', 'ACTIVITIES_TAB', 'TRACKING_TAB', 'MESSAGES_TAB', 'PROFILE_TAB', 'PUBLISH_TRIP', 'SEND_PARCEL']) {
+      const e = validateVideoModal(make({ frequency: 'EVERY_TIME', frequencyDays: null, triggers: ['PAYMENT_SUCCEEDED', screen as never] }))
+      expect(e.frequency, screen).toBe('Cette fréquence ne s’applique qu’aux moments d’action : retire les déclencheurs d’écran ou de bouton.')
+    }
+    expect(validateVideoModal(make({ frequency: 'EVERY_OPEN', triggers: ['APP_OPEN'] })).frequency).toBeUndefined()
+  })
+
+  it('« à chaque fois » : la date de fin reste facultative', () => {
+    const e = validateVideoModal(make({ frequency: 'EVERY_TIME', frequencyDays: null, triggers: ['PAYMENT_FAILED'], endsAt: null }))
+    expect(e).toEqual({})
+  })
+
   it('les jours ne comptent que pour « tous les N jours »', () => {
     expect(validateVideoModal(make({ frequency: 'EVERY_OPEN', frequencyDays: null })).frequencyDays).toBeUndefined()
     expect(validateVideoModal(make({ frequency: 'ONCE', frequencyDays: 999 })).frequencyDays).toBeUndefined()
