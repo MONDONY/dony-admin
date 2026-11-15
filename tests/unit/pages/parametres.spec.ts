@@ -65,6 +65,26 @@ describe('/parametres', () => {
     expect(photos.status).toHaveBeenCalledTimes(1)
   })
 
+  it('un refus sur une borne de prix bateau s’affiche sous sa carte, pas dans le bandeau', async () => {
+    const REF = { key: 'boat_price_per_m3_reference_eur', value: '240', type: 'DECIMAL', updatedAt: null, updatedByEmail: null }
+    settings.list.mockResolvedValue([REF])
+    settings.update.mockRejectedValue(Object.assign(new Error('422'), {
+      data: { detail: 'Les prix au m³ du bateau doivent rester dans l’ordre', code: 'platform-setting-invalid' },
+    }))
+    const w = await mountPage()
+    await save(w, 'boat_price_per_m3_reference_eur', '250')
+    expect(w.find('[data-test="settings-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="setting-server-error-boat_price_per_m3_reference_eur"]').text())
+      .toContain('doivent rester dans l’ordre')
+  })
+
+  it('un refus sur un autre réglage reste dans le bandeau', async () => {
+    settings.update.mockRejectedValue(Object.assign(new Error('422'), { data: { detail: 'Valeur refusée' } }))
+    const w = await mountPage()
+    await save(w, 'photo_upload_daily_quota', '70')
+    expect(w.find('[data-test="settings-error"]').text()).toBe('Valeur refusée')
+  })
+
   it('un autre réglage ne recharge pas la carte', async () => {
     settings.update.mockResolvedValue({ ...QUOTA, value: '70' })
     const w = await mountPage()
