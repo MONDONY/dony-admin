@@ -2,8 +2,10 @@
  * `CALLING_CODES` : liste d'indicatifs téléphoniques séparés par des virgules (`"225,221"`, vide =
  * aucun), ex. `sms_blocked_country_codes`. Un type inconnu du front retombe sur le champ numérique,
  * sans planter la page.
+ *
+ * `PHONE_E164` : numéro international (`"+33612345678"`, vide permis), ex. `support_whatsapp_number`.
  */
-export type PlatformSettingType = 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'CALLING_CODES'
+export type PlatformSettingType = 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'CALLING_CODES' | 'PHONE_E164'
 
 /**
  * Réglage plateforme, forme générique clé/valeur : le back sérialise chaque valeur en

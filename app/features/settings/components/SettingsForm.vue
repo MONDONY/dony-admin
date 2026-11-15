@@ -8,6 +8,7 @@ import {
   diffCallingCodes,
   normalizeCallingCodes,
 } from '@/features/settings/lib/callingCodes'
+import { normalizeSupportPhone, supportPhoneError } from '@/features/settings/lib/supportPhone'
 import type { PlatformSetting } from '@/features/settings/types/index'
 
 /**
@@ -64,6 +65,7 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
     unit: 'tours',
   },
   individual_trips_alert_threshold: { label: 'Trajets publiés par mois avant alerte (voyageur Particulier)', unit: 'trajets' },
+  support_whatsapp_number: { label: 'Numéro WhatsApp de l’équipe (écran Support de l’application)', unit: '' },
   remote_config_fetch_minutes: {
     label: 'Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)',
     unit: 'minutes',
@@ -177,6 +179,11 @@ const SETTING_HELP: Record<string, string> = {
     'Aucun SMS (codes de connexion et notifications) ne part vers ces indicatifs : l’application '
     + 'invite les utilisateurs concernés à se connecter par email, Google ou Apple. Liste vide : aucun '
     + 'pays bloqué. Ces SMS sont facturés mais n’arrivaient pas (faux accusés « Delivered » de Twilio, 08/11/2026).',
+  support_whatsapp_number:
+    'Numéro affiché dans la carte « Écrire sur WhatsApp » en tête de l’écran Support et du Centre d’aide. '
+    + 'Sans WhatsApp sur le téléphone, l’application propose d’appeler, d’envoyer un SMS ou de copier ce numéro. '
+    + 'Format international avec l’indicatif (+33…). Vide : la carte n’apparaît pas. Effet à la prochaine '
+    + 'ouverture de l’écran.',
   remote_config_fetch_minutes:
     'Intervalle minimal entre deux lectures de Firebase par l’app. 60 = une heure. Plus c’est court, plus la '
     + 'mise à jour d’un réglage est rapide, mais plus il y a de lectures (offre gratuite : 100 000 par jour). '
@@ -229,6 +236,7 @@ function fmt(d: string) {
 function errorFor(key: string, raw: string | undefined): string | null {
   if (raw === undefined) return null
   if (typeOf(key) === 'CALLING_CODES') return callingCodesError(raw)
+  if (typeOf(key) === 'PHONE_E164') return supportPhoneError(raw)
   const str = String(raw)
   const n = Number(raw)
   if (key === 'commission_rate') {
@@ -261,8 +269,9 @@ interface PendingChange {
 }
 const pending = ref<PendingChange | null>(null)
 
-/** Liste d'indicatifs : rien à enregistrer tant que le brouillon normalisé égale la valeur en place. */
+/** Liste d'indicatifs ou numéro : rien à enregistrer tant que le brouillon normalisé égale la valeur en place. */
 function isUnchanged(s: PlatformSetting): boolean {
+  if (s.type === 'PHONE_E164') return normalizeSupportPhone(drafts[s.key]) === normalizeSupportPhone(s.value)
   return s.type === 'CALLING_CODES' && normalizeCallingCodes(drafts[s.key]) === normalizeCallingCodes(s.value)
 }
 
@@ -316,6 +325,22 @@ function requestSave(key: string) {
     const normalized = normalizeCallingCodes(wire)
     if (normalized === normalizeCallingCodes(currentValue(key))) return
     pending.value = callingCodesPending(key, normalized)
+    return
+  }
+
+  if (typeOf(key) === 'PHONE_E164') {
+    const phone = normalizeSupportPhone(wire)
+    if (phone === normalizeSupportPhone(currentValue(key))) return
+    pending.value = {
+      key,
+      value: phone,
+      doubleConfirm: false,
+      title: phone === '' ? 'Retirer le numéro WhatsApp' : 'Modifier le numéro WhatsApp',
+      message: phone === ''
+        ? 'La carte « Écrire sur WhatsApp » ne sera plus affichée dans l’application.'
+        : `Les utilisateurs écriront à ${phone} depuis l’écran Support et le Centre d’aide de l’application.`,
+      confirmLabel: phone === '' ? 'Retirer' : 'Enregistrer',
+    }
     return
   }
 
@@ -530,6 +555,20 @@ function cancelPending() {
           :model-value="drafts[s.key] ?? ''" :setting-key="s.key" :disabled="busy" class="min-w-0 flex-1"
           @update:model-value="drafts[s.key] = $event"
         />
+        <button
+          type="button" :data-test="`setting-save-${s.key}`"
+          :disabled="busy || !!errorFor(s.key, drafts[s.key]) || isUnchanged(s)"
+          class="ml-auto rounded-btn px-4 py-2 text-sm bg-primary text-white disabled:opacity-40 hover:bg-primary/90"
+          @click="requestSave(s.key)"
+        >Enregistrer</button>
+      </div>
+      <div v-else-if="s.type === 'PHONE_E164'" class="flex flex-wrap items-center gap-2">
+        <input
+          :value="drafts[s.key]" :data-test="`setting-value-${s.key}`" type="tel" inputmode="tel"
+          autocomplete="off" placeholder="+33 6 12 34 56 78" :disabled="busy" :aria-label="metaFor(s.key).label"
+          class="min-w-0 w-64 max-w-full rounded-btn border border-border bg-bg p-2 text-sm tabular-nums disabled:opacity-40"
+          @input="onNumberInput(s.key, $event)"
+        >
         <button
           type="button" :data-test="`setting-save-${s.key}`"
           :disabled="busy || !!errorFor(s.key, drafts[s.key]) || isUnchanged(s)"
