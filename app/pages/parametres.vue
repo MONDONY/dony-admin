@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import SettingsForm from '@/features/settings/components/SettingsForm.vue'
 import { usePlatformSettings } from '@/features/settings/composables/usePlatformSettings'
+import { isBoatPriceKey } from '@/features/settings/lib/boatPriceBounds'
 import ExchangeRatesTable from '@/features/exchange-rates/components/ExchangeRatesTable.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { useExchangeRates } from '@/features/exchange-rates/composables/useExchangeRates'
@@ -18,7 +19,12 @@ definePageMeta({
   pageSubtitle: 'Réglages globaux de la marketplace',
 })
 
-const { settings, isLoading, busy, error, load, update } = usePlatformSettings()
+const { settings, isLoading, busy, error, errorKey, errorCode, load, update } = usePlatformSettings()
+// Un refus sur une borne de prix bateau s'affiche sous sa carte, avec l'ordre de modification,
+// plutôt que dans le bandeau général.
+const boatServerError = computed(() => (error.value && isBoatPriceKey(errorKey.value)
+  ? { key: errorKey.value!, code: errorCode.value, message: error.value }
+  : null))
 const {
   rates, isLoading: ratesLoading, busy: ratesBusy, error: ratesError,
   load: loadRates, update: updateRate,
@@ -59,12 +65,15 @@ onMounted(() => {
 
     <div>
       <p
-        v-if="error" data-test="settings-error"
+        v-if="error && !boatServerError" data-test="settings-error"
         class="mb-3 rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
       >{{ error }}</p>
 
       <p v-if="isLoading" class="text-sm text-text-muted">Chargement…</p>
-      <SettingsForm v-else :settings="settings" :busy="busy" :commission-grid-active="commissionGridActive" @update="onUpdate" />
+      <SettingsForm
+        v-else :settings="settings" :busy="busy" :commission-grid-active="commissionGridActive"
+        :server-error="boatServerError" @update="onUpdate"
+      />
       <PhotoStorageCard ref="photoCard" class="mt-6" />
     </div>
 

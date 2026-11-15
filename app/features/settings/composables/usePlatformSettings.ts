@@ -18,6 +18,9 @@ export function usePlatformSettings() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const busy = ref(false)
+  /** Réglage et slug (`code` ProblemDetail) du dernier refus de mise à jour : le formulaire l'affiche sous la carte. */
+  const errorKey = ref<string | null>(null)
+  const errorCode = ref<string | null>(null)
 
   async function load() {
     isLoading.value = true
@@ -39,17 +42,22 @@ export function usePlatformSettings() {
   /** Vrai si le back a accepté la valeur (la page s'en sert pour recharger ce qui en dépend). */
   async function update(key: string, value: string): Promise<boolean> {
     error.value = null
+    errorKey.value = null
+    errorCode.value = null
     busy.value = true
     try {
       replace(await settingsService.update(key, value))
       return true
     } catch (e) {
       error.value = extractProblemMessage(e, 'Mise à jour impossible')
+      errorKey.value = key
+      const code = (e as { data?: { code?: unknown } } | undefined)?.data?.code
+      errorCode.value = typeof code === 'string' ? code : null
       return false
     } finally {
       busy.value = false
     }
   }
 
-  return { settings, isLoading, error, busy, load, update }
+  return { settings, isLoading, error, errorKey, errorCode, busy, load, update }
 }

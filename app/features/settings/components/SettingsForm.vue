@@ -9,6 +9,14 @@ import {
   normalizeCallingCodes,
 } from '@/features/settings/lib/callingCodes'
 import { normalizeSupportPhone, supportPhoneError } from '@/features/settings/lib/supportPhone'
+import {
+  BOAT_PRICE_KEYS,
+  BOAT_PRICE_ORDER_ADVICE,
+  boatPriceError,
+  boatPriceHint,
+  hardBoundTighteningNotice,
+  isBoatPriceKey,
+} from '@/features/settings/lib/boatPriceBounds'
 import type { PlatformSetting } from '@/features/settings/types/index'
 
 /**
@@ -18,7 +26,16 @@ import type { PlatformSetting } from '@/features/settings/types/index'
  * reste, avec le lien. `null` : statut encore inconnu, la carte attend sans montrer de champ
  * éditable qui disparaîtrait une fraction de seconde plus tard.
  */
-const props = defineProps<{ settings: PlatformSetting[]; busy?: boolean; commissionGridActive?: boolean | null }>()
+/**
+ * `serverError` : dernier refus du back sur un réglage. Pour les bornes de prix bateau, il
+ * s'affiche sous la carte concernée (la page n'affiche alors pas son bandeau général).
+ */
+const props = defineProps<{
+  settings: PlatformSetting[]
+  busy?: boolean
+  commissionGridActive?: boolean | null
+  serverError?: { key: string; code: string | null; message: string } | null
+}>()
 const isManagedByGrid = (key: string) => key === 'commission_rate' && props.commissionGridActive === true
 const isGridStatusPending = (key: string) => key === 'commission_rate' && props.commissionGridActive === null
 /** La carte n'offre ni champ, ni indication, ni erreur : renvoi vers l'onglet, ou attente du statut. */
@@ -70,19 +87,38 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
     label: 'Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)',
     unit: 'minutes',
   },
+  boat_price_per_m3_hard_min_eur: { label: 'Bateau : prix minimal au m³ (refus en dessous)', unit: '€/m³' },
+  boat_price_per_m3_advised_min_eur: { label: 'Bateau : début de la zone de prix conseillée', unit: '€/m³' },
+  boat_price_per_m3_reference_eur: { label: 'Bateau : prix indicatif au m³', unit: '€/m³' },
+  boat_price_per_m3_advised_max_eur: { label: 'Bateau : fin de la zone de prix conseillée', unit: '€/m³' },
+  boat_price_per_m3_hard_max_eur: { label: 'Bateau : prix maximal au m³ (refus au-dessus)', unit: '€/m³' },
 }
 function metaFor(key: string) {
   return SETTING_META[key] ?? { label: key, unit: '' }
 }
 
 /**
- * Les cartes suivent l'ordre servi par le back (ordre de son enum). Seule exception :
+ * Les cartes suivent l'ordre servi par le back (ordre de son enum). Deux exceptions :
  * `sms_blocked_country_codes` est ramené juste après le dernier réglage `sms_*`, pour rester avec
- * les autres réglages SMS quel que soit l'endroit où le back l'a déclaré.
+ * les autres réglages SMS quel que soit l'endroit où le back l'a déclaré ; les bornes de prix
+ * bateau sont regroupées, à la place de la première, dans l'ordre croissant qu'elles doivent
+ * respecter (prix minimal → prix maximal).
  */
 const SMS_GROUPED_KEY = 'sms_blocked_country_codes'
+function groupBoatPrices(list: PlatformSetting[]): PlatformSetting[] {
+  const boat = BOAT_PRICE_KEYS
+    .map((k) => list.find((s) => s.key === k))
+    .filter((s): s is PlatformSetting => !!s)
+  if (boat.length === 0) return list
+  const out: PlatformSetting[] = []
+  for (const s of list) {
+    if (!isBoatPriceKey(s.key)) out.push(s)
+    else if (s.key === list.find((x) => isBoatPriceKey(x.key))!.key) out.push(...boat)
+  }
+  return out
+}
 const orderedSettings = computed(() => {
-  const list = props.settings
+  const list = groupBoatPrices(props.settings)
   const idx = list.findIndex((s) => s.key === SMS_GROUPED_KEY)
   if (idx === -1) return list
   const rest = list.filter((_, i) => i !== idx)
@@ -91,6 +127,8 @@ const orderedSettings = computed(() => {
   if (lastSms === -1) return list
   return [...rest.slice(0, lastSms + 1), list[idx]!, ...rest.slice(lastSms + 1)]
 })
+/** Première carte du groupe bateau, précédée de son intitulé. */
+const firstBoatKey = computed(() => orderedSettings.value.find((s) => isBoatPriceKey(s.key))?.key ?? null)
 
 /** Type de chaque réglage, pour valider et confirmer un brouillon dont on ne connaît que la clé. */
 function typeOf(key: string) {
@@ -100,6 +138,8 @@ function typeOf(key: string) {
 function currentValue(key: string) {
   return props.settings.find((s) => s.key === key)?.value ?? ''
 }
+/** Valeurs en place par clé, pour la contrainte croisée des bornes bateau (clé absente : non servie). */
+const servedValues = computed<Record<string, string>>(() => Object.fromEntries(props.settings.map((s) => [s.key, s.value])))
 
 /**
  * `commission_rate` est stocké et servi comme un **taux** (`0.05`), mais se lit et s'édite
@@ -188,6 +228,21 @@ const SETTING_HELP: Record<string, string> = {
     'Intervalle minimal entre deux lectures de Firebase par l’app. 60 = une heure. Plus c’est court, plus la '
     + 'mise à jour d’un réglage est rapide, mais plus il y a de lectures (offre gratuite : 100 000 par jour). '
     + 'S’applique aux utilisateurs au prochain démarrage de l’app.',
+  boat_price_per_m3_hard_min_eur:
+    'Un trajet bateau vendu au m³ sous ce prix est refusé à la publication comme à la modification. '
+    + 'Les trajets déjà publiés ne sont pas touchés tant que leur prix ne change pas.',
+  boat_price_per_m3_advised_min_eur:
+    'En dessous, l’application affiche un avertissement au voyageur, sans bloquer la publication. '
+    + 'Trajets bateau au m³ seulement.',
+  boat_price_per_m3_reference_eur:
+    'Prix proposé à titre indicatif quand le voyageur crée un trajet bateau au m³. Il doit rester dans la '
+    + 'zone conseillée.',
+  boat_price_per_m3_advised_max_eur:
+    'Au-dessus, l’application affiche un avertissement au voyageur, sans bloquer la publication. '
+    + 'Trajets bateau au m³ seulement.',
+  boat_price_per_m3_hard_max_eur:
+    'Un trajet bateau vendu au m³ au-dessus de ce prix est refusé à la publication comme à la modification. '
+    + 'Les trajets déjà publiés ne sont pas touchés tant que leur prix ne change pas.',
 }
 
 /** Bornes entières [min, max] des réglages photos et des quotas de l'assistant, alignées sur le backend (qui reste l'autorité). */
@@ -204,6 +259,7 @@ const INT_BOUNDS: Record<string, [number, number]> = {
   individual_trips_alert_threshold: [1, 100],
 }
 function hintFor(key: string): string | null {
+  if (isBoatPriceKey(key)) return boatPriceHint()
   const b = INT_BOUNDS[key]
   return b ? `Entre ${b[0]} et ${b[1]}` : null
 }
@@ -237,6 +293,7 @@ function errorFor(key: string, raw: string | undefined): string | null {
   if (raw === undefined) return null
   if (typeOf(key) === 'CALLING_CODES') return callingCodesError(raw)
   if (typeOf(key) === 'PHONE_E164') return supportPhoneError(raw)
+  if (isBoatPriceKey(key)) return boatPriceError(key, String(raw), servedValues.value)
   const str = String(raw)
   const n = Number(raw)
   if (key === 'commission_rate') {
@@ -510,14 +567,23 @@ function requestSave(key: string) {
     return
   }
 
+  // Borne dure resserrée : la confirmation rappelle que les nouveaux trajets hors bornes seront refusés.
+  const notice = hardBoundTighteningNotice(key, wire, servedValues.value[key])
   pending.value = {
     key,
     value: wire,
     doubleConfirm: false,
     title: 'Confirmer la modification',
-    message: `Confirmez la modification de « ${metaFor(key).label} ».`,
+    message: `Confirmez la modification de « ${metaFor(key).label} ».${notice ? ` ${notice}` : ''}`,
     confirmLabel: 'Confirmer',
   }
+}
+
+/** Refus du back affiché sous la carte bateau concernée, avec l'ordre de modification si l'ordre est en cause. */
+function serverErrorFor(key: string): string | null {
+  const e = props.serverError
+  if (!e || e.key !== key || !isBoatPriceKey(key)) return null
+  return e.code === 'platform-setting-invalid' ? `${e.message} ${BOAT_PRICE_ORDER_ADVICE}` : e.message
 }
 
 function confirmPending() {
@@ -532,8 +598,14 @@ function cancelPending() {
 
 <template>
   <div class="space-y-4">
+    <template v-for="s in orderedSettings" :key="s.key">
+    <div v-if="s.key === firstBoatKey" class="pt-2" data-test="setting-group-boat-prices">
+      <h3 class="text-sm font-semibold">Prix au m³ des trajets bateau</h3>
+      <p class="text-xs text-text-muted text-pretty">
+        Ordre à respecter : prix minimal ≤ début de la zone conseillée ≤ prix indicatif ≤ fin de la zone conseillée ≤ prix maximal.
+      </p>
+    </div>
     <div
-      v-for="s in orderedSettings" :key="s.key"
       class="rounded-card border border-border bg-surface p-4 space-y-3" :data-test="`setting-row-${s.key}`"
     >
       <div class="flex items-center justify-between gap-3">
@@ -588,7 +660,8 @@ function cancelPending() {
         <template v-else>
           <input
             :value="drafts[s.key]" :data-test="`setting-value-${s.key}`" type="number"
-            :step="s.type === 'DECIMAL' ? '0.1' : '1'" :disabled="busy"
+            :step="isBoatPriceKey(s.key) ? '0.01' : s.type === 'DECIMAL' ? '0.1' : '1'" :disabled="busy"
+            :aria-label="metaFor(s.key).label"
             class="w-32 rounded-btn border border-border bg-bg p-2 text-sm tabular-nums disabled:opacity-40"
             @input="onNumberInput(s.key, $event)"
           >
@@ -616,7 +689,11 @@ function cancelPending() {
       <p v-if="!hidesField(s.key) && errorFor(s.key, drafts[s.key])" class="text-xs text-danger" :data-test="`setting-error-${s.key}`">
         {{ errorFor(s.key, drafts[s.key]) }}
       </p>
+      <p v-if="serverErrorFor(s.key)" role="alert" class="text-xs text-danger text-pretty" :data-test="`setting-server-error-${s.key}`">
+        {{ serverErrorFor(s.key) }}
+      </p>
     </div>
+    </template>
 
     <ConfirmActionDialog
       :open="pending !== null"

@@ -99,6 +99,27 @@ describe('usePlatformSettings', () => {
     expect(p.settings.value).toEqual([s1])
   })
 
+  it('retient le réglage et le code du refus, puis les efface à la tentative suivante', async () => {
+    svc.list.mockResolvedValue([s1])
+    svc.update.mockRejectedValueOnce(Object.assign(new Error('422'), {
+      data: { detail: 'Les prix au m³ du bateau doivent rester dans l’ordre', code: 'platform-setting-invalid' },
+    }))
+    const p = usePlatformSettings()
+    await p.load()
+    await p.update('boat_price_per_m3_reference_eur', '450')
+    expect(p.errorKey.value).toBe('boat_price_per_m3_reference_eur')
+    expect(p.errorCode.value).toBe('platform-setting-invalid')
+
+    svc.update.mockRejectedValueOnce(new Error('network down'))
+    await p.update('commission_rate', '12')
+    expect(p.errorKey.value).toBe('commission_rate')
+    expect(p.errorCode.value).toBeNull()
+
+    svc.update.mockResolvedValue({ ...s1, value: '15' })
+    await p.update('commission_rate', '15')
+    expect(p.errorKey.value).toBeNull()
+  })
+
   it('retombe sur un message générique quand la réponse n’a pas de detail', async () => {
     svc.list.mockResolvedValue([s1])
     svc.update.mockRejectedValue(new Error('network down'))

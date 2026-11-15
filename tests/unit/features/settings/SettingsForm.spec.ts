@@ -970,4 +970,145 @@ describe('SettingsForm', () => {
       expect(save(w).disabled).toBe(true)
     })
   })
+
+  describe('bornes du prix au m³ des trajets bateau', () => {
+    const boat = (key: string, value: string): PlatformSetting => ({
+      key: `boat_price_per_m3_${key}_eur`, value, type: 'DECIMAL', updatedAt: null, updatedByEmail: null,
+    })
+    // Ordre de l'enum back : hard_min, hard_max, advised_min, advised_max, reference.
+    const defaults = () => [
+      boat('hard_min', '100'), boat('hard_max', '600'), boat('advised_min', '150'),
+      boat('advised_max', '400'), boat('reference', '240'),
+    ]
+    const k = (key: string) => `boat_price_per_m3_${key}_eur`
+    const input = (w: ReturnType<typeof mountForm>, key: string) => w.find(`[data-test="setting-value-${k(key)}"]`)
+    const save = (w: ReturnType<typeof mountForm>, key: string) =>
+      w.find(`[data-test="setting-save-${k(key)}"]`).element as HTMLButtonElement
+    const error = (w: ReturnType<typeof mountForm>, key: string) => w.find(`[data-test="setting-error-${k(key)}"]`)
+
+    it('regroupe les cinq cartes dans l’ordre croissant, sous un intitulé, avec libellés et unité lisibles', () => {
+      const w = mountForm({ settings: [urgency, ...defaults(), cap] })
+      const rows = w.findAll('[data-test^="setting-row-"]').map((r) => r.attributes('data-test'))
+      expect(rows).toEqual([
+        'setting-row-urgency_threshold_days',
+        `setting-row-${k('hard_min')}`, `setting-row-${k('advised_min')}`, `setting-row-${k('reference')}`,
+        `setting-row-${k('advised_max')}`, `setting-row-${k('hard_max')}`,
+        'setting-row-reimbursement_cap_eur',
+      ])
+      expect(w.find('[data-test="setting-group-boat-prices"]').text()).toContain('Prix au m³ des trajets bateau')
+      expect(w.text()).toContain('Bateau : prix indicatif au m³')
+      expect(w.find(`[data-test="setting-unit-${k('hard_max')}"]`).text()).toBe('€/m³')
+      // Jamais la clé brute à l'écran.
+      expect(w.text()).not.toContain('boat_price_per_m3')
+    })
+
+    it('explique chaque borne : refus, avertissement, prix indicatif', () => {
+      const w = mountForm({ settings: defaults() })
+      const help = (key: string) => w.find(`[data-test="setting-help-${k(key)}"]`).text()
+      expect(help('hard_min')).toContain('refusé')
+      expect(help('hard_min')).toContain('déjà publiés ne sont pas touchés')
+      expect(help('hard_max')).toContain('refusé')
+      expect(help('advised_min')).toContain('avertissement')
+      expect(help('advised_max')).toContain('Trajets bateau au m³ seulement')
+      expect(help('reference')).toContain('indicatif')
+      expect(w.find(`[data-test="setting-hint-${k('reference')}"]`).text()).toContain('Entre 1 et 100 000 €/m³')
+      expect(input(w, 'reference').attributes('step')).toBe('0.01')
+    })
+
+    it('refuse une saisie hors 1 à 100 000, non numérique ou à plus de 2 décimales, sans appel réseau', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'hard_max').setValue('100001')
+      expect(save(w, 'hard_max').disabled).toBe(true)
+      expect(error(w, 'hard_max').text()).toContain('Entre 1 et 100 000')
+      await input(w, 'hard_min').setValue('0.5')
+      expect(error(w, 'hard_min').text()).toContain('Entre 1 et 100 000')
+      await input(w, 'reference').setValue('239.505')
+      expect(error(w, 'reference').text()).toContain('Au plus 2 décimales')
+      await input(w, 'reference').setValue('')
+      expect(error(w, 'reference').text()).toContain('Saisissez un prix')
+      await w.find(`[data-test="setting-save-${k('reference')}"]`).trigger('click')
+      expect(w.emitted('update')).toBeUndefined()
+    })
+
+    it('accepte un prix au centime', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'reference').setValue('239.5')
+      expect(error(w, 'reference').exists()).toBe(false)
+      await w.find(`[data-test="setting-save-${k('reference')}"]`).trigger('click')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual([k('reference'), '239.5'])
+    })
+
+    it('élargir : une borne conseillée sous le prix minimal dit de baisser d’abord la borne extérieure', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'advised_min').setValue('90')
+      expect(save(w, 'advised_min').disabled).toBe(true)
+      const msg = error(w, 'advised_min').text()
+      expect(msg).toContain('ne peut pas descendre sous le prix minimal (100 €/m³)')
+      expect(msg).toContain('Modifiez d’abord le prix minimal')
+      expect(msg).toContain('bornes extérieures')
+    })
+
+    it('resserrer : un prix maximal sous la zone conseillée dit de baisser d’abord les bornes intérieures, du centre vers l’extérieur', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'hard_max').setValue('200')
+      const msg = error(w, 'hard_max').text()
+      expect(msg).toContain('ne peut pas descendre sous la fin de la zone conseillée (400 €/m³)')
+      expect(msg).toContain('Modifiez d’abord le prix indicatif, puis la fin de la zone conseillée')
+      expect(msg).toContain('bornes intérieures')
+    })
+
+    it('le prix indicatif hors de la zone conseillée est signalé', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'reference').setValue('450')
+      expect(error(w, 'reference').text()).toContain('ne peut pas dépasser la fin de la zone conseillée (400 €/m³)')
+    })
+
+    it('une valeur égale à une borne voisine est permise', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'advised_min').setValue('240')
+      expect(error(w, 'advised_min').exists()).toBe(false)
+      expect(save(w, 'advised_min').disabled).toBe(false)
+    })
+
+    it('resserrer la borne dure rappelle dans la confirmation que les nouveaux trajets hors bornes seront refusés', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'hard_min').setValue('120')
+      await w.find(`[data-test="setting-save-${k('hard_min')}"]`).trigger('click')
+      expect(w.text()).toContain('Les nouveaux trajets bateau au m³ sous 120 €/m³ seront refusés')
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual([k('hard_min'), '120'])
+
+      await input(w, 'hard_max').setValue('500')
+      await w.find(`[data-test="setting-save-${k('hard_max')}"]`).trigger('click')
+      expect(w.text()).toContain('au-dessus de 500 €/m³ seront refusés')
+    })
+
+    it('élargir la borne dure garde la confirmation générique', async () => {
+      const w = mountForm({ settings: defaults() })
+      await input(w, 'hard_max').setValue('800')
+      await w.find(`[data-test="setting-save-${k('hard_max')}"]`).trigger('click')
+      expect(w.text()).toContain('Confirmez la modification de « Bateau : prix maximal au m³ (refus au-dessus) »')
+      expect(w.text()).not.toContain('seront refusés')
+    })
+
+    it('affiche le refus serveur de l’ordre sous la carte concernée, avec l’ordre de modification', () => {
+      const w = mountForm({
+        settings: defaults(),
+        serverError: { key: k('advised_max'), code: 'platform-setting-invalid', message: 'Les prix au m³ du bateau doivent rester dans l’ordre.' },
+      })
+      const msg = w.find(`[data-test="setting-server-error-${k('advised_max')}"]`).text()
+      expect(msg).toContain('doivent rester dans l’ordre')
+      expect(msg).toContain('modifiez d’abord les bornes extérieures')
+      expect(w.find(`[data-test="setting-server-error-${k('reference')}"]`).exists()).toBe(false)
+    })
+
+    it('un autre refus serveur s’affiche tel quel, sans conseil d’ordre', () => {
+      const w = mountForm({
+        settings: defaults(),
+        serverError: { key: k('advised_max'), code: null, message: 'Mise à jour impossible' },
+      })
+      expect(w.find(`[data-test="setting-server-error-${k('advised_max')}"]`).text()).toBe('Mise à jour impossible')
+    })
+  })
 })
