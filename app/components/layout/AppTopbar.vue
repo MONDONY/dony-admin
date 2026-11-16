@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, ChevronRight, LogOut } from 'lucide-vue-next'
+import { ArrowLeft, ChevronRight, CircleHelp, LogOut } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
@@ -67,6 +67,10 @@ async function logout() {
     </div>
     <div class="flex items-center gap-2">
       <ClientOnly><GlobalSearch /></ClientOnly>
+      <NuxtLink
+        to="/aide" data-test="topbar-help" aria-label="Centre d’aide" title="Centre d’aide"
+        class="flex h-10 w-10 items-center justify-center rounded-btn text-text-muted transition-colors hover:bg-surface-elevated hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      ><CircleHelp class="h-4 w-4" aria-hidden="true" /></NuxtLink>
       <ThemeToggle />
       <NotificationBell />
       <Button variant="ghost" size="icon" aria-label="Se déconnecter" @click="logout"><LogOut class="w-4 h-4" /></Button>
