@@ -48,4 +48,4 @@ Documentation de la console pour une personne non technique, ouverte à tous les
 - fiches par rubrique et recherche dans la doc (sans IA) ;
 - bulle « Assistant » en bas à droite de chaque page : répond à partir des fiches, avec des boutons vers les pages et les fiches citées.
 
-Les fiches sont des fichiers Markdown du back (`dony-back/src/main/resources/assistant/admin-help/`), validés au démarrage : pour corriger ou ajouter une fiche, c'est là qu'il faut écrire. Les liens vers une page que le rôle ne peut pas ouvrir sont masqués.
+Les fiches sont des fichiers Markdown du back (`dony-back/src/main/resources/assistant/admin-help/`), validés au démarrage : pour corriger ou ajouter une fiche, c'est là qu'il faut écrire. Les liens vers une page que le rôle ne peut pas ouvrir sont masqués. L'assistant se coupe et son quota par admin se règle dans **Paramètres** (« Assistant de la console »).
