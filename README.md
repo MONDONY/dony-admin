@@ -42,3 +42,10 @@ Toute URL interne (`/colis?open=…`, `/transactions?…`, `/users/<id>?tab=…`
 - **Permission = existence** : un lien passe par `gate(auth.can, '<PERMISSION_DE_LA_DESTINATION>', route)` ; sans la permission (ou sans identifiant valide, le constructeur renvoie alors `null`), pas de `<a>` mais du texte simple. Jamais de lien mort ni de « undefined » dans une URL.
 - **Ajouter un lien** : réutiliser un constructeur existant, ou en ajouter un dans `makeRoutes` (identifiant contrôlé, paramètres que la page cible lit déjà) avec son test dans `tests/unit/lib/adminLinks.spec.ts` ; le rendre avec `NuxtLink :to="route"` (vrai `<a href>`, Ctrl/Cmd-clic, même onglet).
 - **Garde-fous** (`tests/unit/lib/adminLinksGuard.spec.ts`) : aucune chaîne `'/colis?…'` ni `'/transactions?…'` écrite hors du registre ; `unchecked` (constructeurs sans contrôle d'UUID, `@deprecated`) reste limité aux fichiers déjà migrés.
+
+## Centre d'aide (`/aide`)
+Documentation de la console pour une personne non technique, ouverte à tous les rôles :
+- fiches par rubrique et recherche dans la doc (sans IA) ;
+- bulle « Assistant » en bas à droite de chaque page : répond à partir des fiches, avec des boutons vers les pages et les fiches citées.
+
+Les fiches sont des fichiers Markdown du back (`dony-back/src/main/resources/assistant/admin-help/`), validés au démarrage : pour corriger ou ajouter une fiche, c'est là qu'il faut écrire. Les liens vers une page que le rôle ne peut pas ouvrir sont masqués. L'assistant se coupe et son quota par admin se règle dans **Paramètres** (« Assistant de la console »).

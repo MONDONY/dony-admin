@@ -684,6 +684,42 @@ describe('SettingsForm', () => {
     expect(w.find('[data-test="setting-error-assistant_form_draft_daily_quota"]').exists()).toBe(false)
   })
 
+  describe('assistant de la console', () => {
+    const enabled: PlatformSetting = { key: 'admin_help_assistant_enabled', value: 'true', type: 'BOOLEAN', updatedAt: null, updatedByEmail: null }
+    const daily: PlatformSetting = { key: 'admin_help_daily_quota', value: '60', type: 'INTEGER', updatedAt: null, updatedByEmail: null }
+
+    it('libellés lisibles et explications', () => {
+      const w = mountForm({ settings: [enabled, daily] })
+      expect(w.find('[data-test="setting-row-admin_help_assistant_enabled"]').text()).toContain('Assistant de la console')
+      expect(w.find('[data-test="setting-help-admin_help_assistant_enabled"]').text()).toContain('centre d’aide')
+      expect(w.find('[data-test="setting-row-admin_help_daily_quota"]').text()).toContain('par administrateur et par jour')
+    })
+
+    it('désactiver puis réactiver : confirmation simple qui dit ce qui reste disponible', async () => {
+      const w = mountForm({ settings: [enabled] })
+      await w.find('[data-test="setting-value-admin_help_assistant_enabled"]').setValue('false')
+      await w.find('[data-test="setting-save-admin_help_assistant_enabled"]').trigger('click')
+      expect(w.find('[data-test="confirmation-input"]').exists()).toBe(false)
+      expect(w.text()).toContain('Désactiver l’assistant de la console')
+      expect(w.text()).toMatch(/recherche restent disponibles/)
+      await w.find('[data-test="confirm"]').trigger('click')
+      expect(w.emitted('update')![0]).toEqual(['admin_help_assistant_enabled', 'false'])
+
+      const off = mountForm({ settings: [{ ...enabled, value: 'false' }] })
+      await off.find('[data-test="setting-value-admin_help_assistant_enabled"]').setValue('true')
+      await off.find('[data-test="setting-save-admin_help_assistant_enabled"]').trigger('click')
+      expect(off.text()).toContain('Activer l’assistant de la console')
+    })
+
+    it('quota borné entre 1 et 1000', async () => {
+      const w = mountForm({ settings: [daily] })
+      await w.find('[data-test="setting-value-admin_help_daily_quota"]').setValue('0')
+      expect(w.find('[data-test="setting-error-admin_help_daily_quota"]').exists()).toBe(true)
+      await w.find('[data-test="setting-value-admin_help_daily_quota"]').setValue('1000')
+      expect(w.find('[data-test="setting-error-admin_help_daily_quota"]').exists()).toBe(false)
+    })
+  })
+
   describe('fréquence de lecture de Remote Config', () => {
     const k = 'remote_config_fetch_minutes'
 

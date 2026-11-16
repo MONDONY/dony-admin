@@ -65,6 +65,8 @@ const SETTING_META: Record<string, { label: string; unit: string }> = {
     unit: 'tours',
   },
   individual_trips_alert_threshold: { label: 'Trajets publiés par mois avant alerte (voyageur Particulier)', unit: 'trajets' },
+  admin_help_assistant_enabled: { label: 'Assistant de la console (bulle « Assistant » du centre d’aide)', unit: '' },
+  admin_help_daily_quota: { label: 'Questions à l’assistant de la console par administrateur et par jour', unit: 'questions' },
   support_whatsapp_number: { label: 'Numéro WhatsApp de l’équipe (écran Support de l’application)', unit: '' },
   remote_config_fetch_minutes: {
     label: 'Fréquence de mise à jour de la configuration de l’app (bandeau de mise à jour, centre d’aide)',
@@ -179,6 +181,13 @@ const SETTING_HELP: Record<string, string> = {
     'Aucun SMS (codes de connexion et notifications) ne part vers ces indicatifs : l’application '
     + 'invite les utilisateurs concernés à se connecter par email, Google ou Apple. Liste vide : aucun '
     + 'pays bloqué. Ces SMS sont facturés mais n’arrivaient pas (faux accusés « Delivered » de Twilio, 08/11/2026).',
+  admin_help_assistant_enabled:
+    'Activé : chaque page de cette console a une bulle « Assistant » qui répond aux questions à partir du centre '
+    + 'd’aide, avec les fournisseurs de la page Assistant IA. Désactivé : la bulle répond que l’assistant est '
+    + 'coupé ; le centre d’aide et sa recherche restent disponibles.',
+  admin_help_daily_quota:
+    'Nombre de questions qu’un administrateur peut poser à l’assistant de la console par jour. La recherche '
+    + 'dans le centre d’aide n’est jamais limitée.',
   support_whatsapp_number:
     'Numéro affiché dans la carte « Écrire sur WhatsApp » en tête de l’écran Support et du Centre d’aide. '
     + 'Sans WhatsApp sur le téléphone, l’application propose d’appeler, d’envoyer un SMS ou de copier ce numéro. '
@@ -202,6 +211,7 @@ const INT_BOUNDS: Record<string, [number, number]> = {
   sms_otp_max_sends_per_day_global: [1, 10000],
   remote_config_fetch_minutes: [5, 1440],
   individual_trips_alert_threshold: [1, 100],
+  admin_help_daily_quota: [1, 1000],
 }
 function hintFor(key: string): string | null {
   const b = INT_BOUNDS[key]
@@ -450,6 +460,22 @@ function requestSave(key: string) {
           + 'La collecte doit être ouverte, sinon l’enregistrement est refusé.'
         : undefined,
       confirmLabel: opening ? 'Envoyer' : 'Couper',
+    }
+    return
+  }
+
+  if (key === 'admin_help_assistant_enabled') {
+    const opening = raw === 'true'
+    pending.value = {
+      key,
+      value: wire,
+      doubleConfirm: false,
+      title: opening ? 'Activer l’assistant de la console' : 'Désactiver l’assistant de la console',
+      message: opening
+        ? 'Les administrateurs pourront poser leurs questions à la bulle « Assistant ». Chaque question utilise '
+          + 'les fournisseurs de la page Assistant IA.'
+        : 'La bulle « Assistant » répondra qu’elle est coupée. Le centre d’aide et sa recherche restent disponibles.',
+      confirmLabel: opening ? 'Activer' : 'Désactiver',
     }
     return
   }
