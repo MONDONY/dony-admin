@@ -19,23 +19,29 @@ export function usePromoCodes() {
   const codes = computed(() =>
     filtered.value.slice(currentPage.value * PAGE_SIZE, (currentPage.value + 1) * PAGE_SIZE))
 
+  // Seule la dernière requête a le droit d'écrire (clics rapides sur le filtre d'origine).
+  let latestRequest = 0
+
   async function fetchCodes() {
+    const request = ++latestRequest
     isLoading.value = true
     error.value = null
     try {
       const result = await promoService.list(filters.origin)
+      if (request !== latestRequest) return
       // Garde-fou : tolère une réponse inattendue (mock périmé, erreur proxy).
       allCodes.value = Array.isArray(result) ? result : []
     } catch (e) {
+      if (request !== latestRequest) return
       error.value = extractProblemMessage(e, 'Impossible de charger les codes promo')
     } finally {
-      isLoading.value = false
+      if (request === latestRequest) isLoading.value = false
     }
   }
 
   function goToPage(p: number) { currentPage.value = p }
-  function setStatusFilter(v: PromoStatus | null) { filters.status = v; currentPage.value = 0 }
-  async function setOriginFilter(v: PromoOriginFilter) { filters.origin = v; currentPage.value = 0; await fetchCodes() }
+  function setStatusFilter(v: PromoStatus | null) { filters.status = v; currentPage.value = 0; actionError.value = null }
+  async function setOriginFilter(v: PromoOriginFilter) { filters.origin = v; currentPage.value = 0; actionError.value = null; await fetchCodes() }
   function clearActionError() { actionError.value = null }
   function isConflict(e: unknown): boolean {
     const x = e as { status?: number; statusCode?: number; response?: { status?: number } } | undefined
@@ -46,6 +52,7 @@ export function usePromoCodes() {
     actionError.value = null
     try {
       await run()
+      actionError.value = null
       await fetchCodes()
     } catch (e) {
       actionError.value = isConflict(e) ? conflictMessage : extractProblemMessage(e, fallback)
@@ -57,7 +64,11 @@ export function usePromoCodes() {
       'Ce code vient du parrainage : il ne peut pas être modifié. Seul son statut peut changer.',
       'Impossible de modifier le code promo')
   }
-  async function setStatus(id: string, status: PromoStatus) { await promoService.setStatus(id, status); await fetchCodes() }
+  function setStatus(id: string, status: PromoStatus) {
+    return guarded(() => promoService.setStatus(id, status),
+      'Ce code ne peut pas changer de statut.',
+      'Impossible de changer le statut du code promo')
+  }
   function remove(id: string) {
     return guarded(() => promoService.remove(id),
       'Ce code vient du parrainage : il ne peut pas être supprimé. Désactivez-le si besoin.',

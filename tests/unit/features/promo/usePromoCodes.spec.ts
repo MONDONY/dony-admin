@@ -141,4 +141,93 @@ describe('usePromoCodes', () => {
     await p.update('p1', INPUT)
     expect(p.actionError.value).toBe('Refusé')
   })
+
+  it('ignore une réponse périmée arrivée après la plus récente (liste et isLoading)', async () => {
+    let resolveFirst!: (v: unknown[]) => void
+    let resolveSecond!: (v: unknown[]) => void
+    svc.list
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r }))
+    const p = usePromoCodes()
+    const first = p.setOriginFilter('ADMIN')
+    const second = p.setOriginFilter('REFERRAL')
+    resolveSecond([makeCode('ref')])
+    await second
+    expect(p.codes.value.map((c) => c.id)).toEqual(['ref'])
+    expect(p.isLoading.value).toBe(false)
+    resolveFirst([makeCode('adm')])
+    await first
+    expect(p.codes.value.map((c) => c.id)).toEqual(['ref'])
+    expect(p.isLoading.value).toBe(false)
+  })
+
+  it('isLoading reste vrai tant que la dernière requête n\'est pas revenue', async () => {
+    let resolveFirst!: (v: unknown[]) => void
+    let resolveSecond!: (v: unknown[]) => void
+    svc.list
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r }))
+    const p = usePromoCodes()
+    const first = p.setOriginFilter('ADMIN')
+    const second = p.setOriginFilter('REFERRAL')
+    resolveFirst([makeCode('adm')])
+    await first
+    expect(p.isLoading.value).toBe(true)
+    expect(p.codes.value).toHaveLength(0)
+    resolveSecond([makeCode('ref')])
+    await second
+    expect(p.isLoading.value).toBe(false)
+  })
+
+  it('une erreur périmée n\'écrase pas la liste de la dernière requête', async () => {
+    let rejectFirst!: (e: Error) => void
+    let resolveSecond!: (v: unknown[]) => void
+    svc.list
+      .mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r }))
+    const p = usePromoCodes()
+    const first = p.setOriginFilter('ADMIN')
+    const second = p.setOriginFilter('REFERRAL')
+    resolveSecond([makeCode('ref')])
+    await second
+    rejectFirst(new Error('périmée'))
+    await first
+    expect(p.error.value).toBeNull()
+    expect(p.codes.value).toHaveLength(1)
+  })
+
+  it('un basculement de statut refusé affiche actionError sans exception', async () => {
+    svc.setStatus.mockRejectedValue(Object.assign(new Error('x'), { data: { detail: 'Basculement refusé' } }))
+    const p = usePromoCodes()
+    await expect(p.setStatus('p1', 'DISABLED')).resolves.toBeUndefined()
+    expect(p.actionError.value).toBe('Basculement refusé')
+  })
+
+  it('un basculement refusé sans détail utilise le message de repli', async () => {
+    svc.setStatus.mockRejectedValue(Object.assign(new Error('[PUT] "u": 500'), {}))
+    const p = usePromoCodes()
+    await p.setStatus('p1', 'DISABLED')
+    expect(p.actionError.value).toBe('Impossible de changer le statut du code promo')
+  })
+
+  it('actionError est effacée par un changement de filtre et après une action réussie', async () => {
+    svc.remove.mockRejectedValueOnce(Object.assign(new Error('409'), { statusCode: 409 }))
+    const p = usePromoCodes()
+    await p.remove('p1')
+    expect(p.actionError.value).not.toBeNull()
+    p.setStatusFilter('ACTIVE')
+    expect(p.actionError.value).toBeNull()
+
+    svc.remove.mockRejectedValueOnce(Object.assign(new Error('409'), { statusCode: 409 }))
+    await p.remove('p1')
+    expect(p.actionError.value).not.toBeNull()
+    await p.setOriginFilter('ADMIN')
+    expect(p.actionError.value).toBeNull()
+
+    svc.update.mockRejectedValueOnce(Object.assign(new Error('409'), { statusCode: 409 }))
+    await p.update('p1', INPUT)
+    expect(p.actionError.value).not.toBeNull()
+    await p.setStatus('p1', 'DISABLED')
+    expect(p.actionError.value).toBeNull()
+  })
 })
