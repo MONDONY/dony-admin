@@ -85,4 +85,60 @@ describe('usePromoCodes', () => {
     await p.fetchCodes()
     expect(p.error.value).toBe('Détail lisible du back')
   })
+
+  it('setOriginFilter relance la liste avec origin et remet la page à 0', async () => {
+    const p = usePromoCodes()
+    await p.fetchCodes()
+    expect(svc.list).toHaveBeenLastCalledWith('ALL')
+    p.goToPage(2)
+    await p.setOriginFilter('REFERRAL')
+    expect(p.filters.origin).toBe('REFERRAL')
+    expect(p.currentPage.value).toBe(0)
+    expect(svc.list).toHaveBeenLastCalledWith('REFERRAL')
+    await p.setOriginFilter('ADMIN')
+    expect(svc.list).toHaveBeenLastCalledWith('ADMIN')
+    await p.setOriginFilter('ALL')
+    expect(svc.list).toHaveBeenLastCalledWith('ALL')
+  })
+
+  it('le filtre d\'origine se combine avec le filtre de statut', async () => {
+    svc.list.mockResolvedValue([makeCode('p1', 'ACTIVE'), makeCode('p2', 'DISABLED')])
+    const p = usePromoCodes()
+    await p.setOriginFilter('REFERRAL')
+    p.setStatusFilter('DISABLED')
+    expect(p.codes.value.map((c) => c.id)).toEqual(['p2'])
+    await p.fetchCodes()
+    expect(svc.list).toHaveBeenLastCalledWith('REFERRAL')
+    expect(p.codes.value.map((c) => c.id)).toEqual(['p2'])
+  })
+
+  it('un refetch après une action garde l\'origine choisie', async () => {
+    const p = usePromoCodes()
+    await p.setOriginFilter('REFERRAL')
+    await p.setStatus('p1', 'DISABLED')
+    expect(svc.list).toHaveBeenLastCalledWith('REFERRAL')
+  })
+
+  it('409 sur update : message clair, pas d\'exception, pas de refetch', async () => {
+    svc.update.mockRejectedValue(Object.assign(new Error('409'), { status: 409, statusCode: 409 }))
+    const p = usePromoCodes()
+    await expect(p.update('p1', INPUT)).resolves.toBeUndefined()
+    expect(p.actionError.value).toMatch(/parrainage.*ne peut pas être modifié/i)
+    p.clearActionError()
+    expect(p.actionError.value).toBeNull()
+  })
+
+  it('409 sur remove : message clair', async () => {
+    svc.remove.mockRejectedValue(Object.assign(new Error('409'), { response: { status: 409 } }))
+    const p = usePromoCodes()
+    await p.remove('p1')
+    expect(p.actionError.value).toMatch(/parrainage.*ne peut pas être supprimé/i)
+  })
+
+  it('autre erreur sur update : message du back', async () => {
+    svc.update.mockRejectedValue(Object.assign(new Error('x'), { data: { detail: 'Refusé' } }))
+    const p = usePromoCodes()
+    await p.update('p1', INPUT)
+    expect(p.actionError.value).toBe('Refusé')
+  })
 })
