@@ -79,13 +79,7 @@ export function parcelSizeLabel(size: string | null): string {
   return PARCEL_SIZE[size] ?? size
 }
 
-const TRANSPORT: Record<string, string> = {
-  PLANE: 'Avion', CAR: 'Voiture', TRAIN: 'Train', BUS: 'Car', BOAT: 'Bateau', OTHER: 'Autre',
-}
-export function transportModeLabel(mode: string | null): string {
-  if (!mode) return 'Indifférent'
-  return TRANSPORT[mode] ?? mode
-}
+export { requestTransportLabel as transportModeLabel } from '@/lib/transportModes'
 
 const EXTRA_PAYMENT: Record<string, string> = { CASH: 'Espèces', WALLET: 'Portefeuille' }
 export function paymentMethodsLabel(methods: string[] | null | undefined): string {

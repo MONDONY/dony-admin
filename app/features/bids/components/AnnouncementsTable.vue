@@ -8,6 +8,7 @@ import { formatMajorAmount } from '@/features/finance/types/index'
 import { useAuthStore } from '@/stores/auth'
 import { REMOVAL_REASONS } from '@/features/bids/removalReasons'
 import { gate, paymentsOfTripRoute, toHref } from '@/lib/adminLinks'
+import { transportModeIcon, tripTransportLabel } from '@/lib/transportModes'
 
 defineProps<{ announcements: AdminAnnouncementListItem[]; loading: boolean; error?: string | null; busy?: boolean }>()
 const emit = defineEmits<{ remove: [id: string, publicReason: string, internalNote: string]; restore: [id: string] }>()
@@ -30,6 +31,19 @@ function paymentsHref(id: string): string | null {
 
 function fmt(d: string) {
   return new Date(d).toLocaleDateString('fr-FR')
+}
+
+/** Capacité restante : kg, ou m³ pour un trajet bateau au volume ; « — » sans donnée (jamais « undefined kg »). */
+function capacity(a: AdminAnnouncementListItem): string {
+  if (a.availableKg != null) return `${a.availableKg} kg`
+  if (a.availableVolumeM3 != null) return `${a.availableVolumeM3} m³`
+  return '—'
+}
+/** Prix : au kilo, ou au m³ pour un trajet bateau au volume. */
+function price(a: AdminAnnouncementListItem): string {
+  if (a.pricePerKg != null) return `${formatMajorAmount(a.pricePerKg, a.currency)}/kg`
+  if (a.pricePerM3 != null) return `${formatMajorAmount(a.pricePerM3, a.currency)}/m³`
+  return '—'
 }
 
 // Retrait est la seule action de cette table qui passe par une confirmation
@@ -62,10 +76,11 @@ function confirmRemove(internalNote: string, publicReason?: string) {
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
         <tr>
           <th class="px-4 py-2 font-medium">Trajet</th>
+          <th class="px-4 py-2 font-medium">Mode</th>
           <th class="px-4 py-2 font-medium">Voyageur</th>
           <th class="px-4 py-2 font-medium">Départ</th>
           <th class="px-4 py-2 font-medium">Capacité</th>
-          <th class="px-4 py-2 font-medium">Prix/kg</th>
+          <th class="px-4 py-2 font-medium">Prix</th>
           <th class="px-4 py-2 font-medium">Statut</th>
           <th v-if="auth.can('CONTENT_REMOVE')" class="px-4 py-2 font-medium" data-test="col-actions" />
         </tr>
@@ -90,10 +105,15 @@ function confirmRemove(internalNote: string, publicReason?: string) {
               class="-ml-2 mt-0.5 flex min-h-10 w-fit items-center rounded-btn px-2 text-xs font-medium text-primary transition-[background-color,transform] hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.96] motion-reduce:active:scale-100"
             >Paiements de ce trajet</NuxtLink>
           </td>
+          <td class="px-4 py-3 text-sm text-text-muted" :data-test="`ann-mode-${a.id}`">
+            <span v-if="tripTransportLabel(a.transportMode)" class="inline-flex items-center gap-1.5">
+              <component :is="transportModeIcon(a.transportMode)" :size="16" aria-hidden="true" class="shrink-0" />{{ tripTransportLabel(a.transportMode) }}
+            </span>
+          </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ a.travelerName ?? '—' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ fmt(a.departureDate) }}</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ a.availableKg }} kg</td>
-          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`ann-price-${a.id}`">{{ formatMajorAmount(a.pricePerKg, a.currency) }}/kg</td>
+          <td class="px-4 py-3 text-sm tabular-nums">{{ capacity(a) }}</td>
+          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`ann-price-${a.id}`">{{ price(a) }}</td>
           <td class="px-4 py-3"><StatusBadge :label="a.status" :tone="annTone[a.status]" /></td>
           <td v-if="auth.can('CONTENT_REMOVE')" class="px-4 py-3 text-right">
             <button

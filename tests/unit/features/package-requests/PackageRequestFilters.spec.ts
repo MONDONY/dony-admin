@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PackageRequestFilters from '@/features/package-requests/components/PackageRequestFilters.vue'
 
-const filters = { status: 'ALL', query: '', reportedOnly: false, from: null, to: null }
+const filters = { status: 'ALL', query: '', reportedOnly: false, transportMode: 'ALL', from: null, to: null }
 
 describe('PackageRequestFilters', () => {
   it('puce de statut active et émission du statut choisi', async () => {
@@ -49,5 +49,13 @@ describe('PackageRequestFilters', () => {
     await w.find('[data-test="pr-dates-clear"]').trigger('click')
     expect(w.emitted('update:dateRange')![2]).toEqual([null, null])
     expect((w.find('[data-test="pr-date-from"]').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('PackageRequestFilters émet update:transportMode', async () => {
+    const w = mount(PackageRequestFilters, { props: { filters: { ...filters, transportMode: 'CAR' } } })
+    expect(w.find('[data-test="mode-filter-CAR"]').attributes('aria-checked')).toBe('true')
+    expect(w.find('[data-test="mode-filter-ANY"]').text()).toBe('Peu importe')
+    await w.find('[data-test="mode-filter-BOAT"]').trigger('click')
+    expect(w.emitted('update:transportMode')![0]).toEqual(['BOAT'])
   })
 })

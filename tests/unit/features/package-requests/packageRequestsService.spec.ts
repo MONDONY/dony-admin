@@ -5,7 +5,7 @@ import { packageRequestsService } from '@/features/package-requests/services/pac
 import type { PackageRequestFilters } from '@/features/package-requests/types/index'
 
 const EMPTY_PAGE = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
-const noFilter: PackageRequestFilters = { status: 'ALL', query: '', reportedOnly: false, from: null, to: null }
+const noFilter: PackageRequestFilters = { status: 'ALL', query: '', reportedOnly: false, transportMode: 'ALL', from: null, to: null }
 
 describe('packageRequestsService', () => {
   beforeEach(() => apiMock.mockReset())
@@ -19,7 +19,7 @@ describe('packageRequestsService', () => {
   it('list transmet statut, recherche nettoyée, signalées seulement et période', async () => {
     apiMock.mockResolvedValue(EMPTY_PAGE)
     await packageRequestsService.list(
-      { status: 'REMOVED_BY_ADMIN', query: '  Dakar ', reportedOnly: true, from: '2026-09-01', to: '2026-09-30' }, 2, 20,
+      { status: 'REMOVED_BY_ADMIN', query: '  Dakar ', reportedOnly: true, transportMode: 'ALL', from: '2026-09-01', to: '2026-09-30' }, 2, 20,
     )
     expect(apiMock).toHaveBeenCalledWith('/admin/package-requests', {
       query: { page: 2, size: 20, status: 'REMOVED_BY_ADMIN', query: 'Dakar', reportedOnly: true, from: '2026-09-01', to: '2026-09-30' },
@@ -52,5 +52,15 @@ describe('packageRequestsService', () => {
     const r = await packageRequestsService.restore('pr1')
     expect(apiMock).toHaveBeenCalledWith('/admin/package-requests/pr1/restore', { method: 'POST' })
     expect(r.status).toBe('OPEN')
+  })
+
+  it('buildQuery : ANY part tel quel, ALL n’envoie rien', async () => {
+    apiMock.mockResolvedValue(EMPTY_PAGE)
+    await packageRequestsService.list({ ...noFilter, transportMode: 'ANY' }, 0, 20)
+    expect(apiMock.mock.calls.at(-1)![1].query).toMatchObject({ transportMode: 'ANY' })
+    await packageRequestsService.list({ ...noFilter, transportMode: 'CAR' }, 0, 20)
+    expect(apiMock.mock.calls.at(-1)![1].query).toMatchObject({ transportMode: 'CAR' })
+    await packageRequestsService.list({ ...noFilter, transportMode: 'ALL' }, 0, 20)
+    expect(apiMock.mock.calls.at(-1)![1].query).not.toHaveProperty('transportMode')
   })
 })

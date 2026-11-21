@@ -75,8 +75,13 @@ export interface UserTripRow {
   travelerName?: string | null
   corridor: string
   departureDate: string
-  availableKg: number
-  pricePerKg: number
+  /** Null pour un trajet bateau au m³ (volume et prix au m³ à la place). */
+  availableKg?: number | null
+  pricePerKg?: number | null
+  transportMode?: string | null
+  availableVolumeM3?: number | null
+  volumeCapacityM3?: number | null
+  pricePerM3?: number | null
   currency?: string | null
   tripGroupId?: string | null
   tripLegIndex?: number | null

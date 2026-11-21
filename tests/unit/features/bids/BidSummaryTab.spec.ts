@@ -44,4 +44,29 @@ describe('BidSummaryTab', () => {
     const gone = mount(BidSummaryTab, { props: { bid: { ...bid, trip: null }, identifiers, copied: null, legacy: false } })
     expect(gone.find('[data-test="trip-unavailable"]').text()).toBe('L’annonce de ce colis n’existe plus.')
   })
+
+  it('trajet bateau au m³ : capacité et prix au m³, volume du colis, jamais « null kg »', () => {
+    const boat = {
+      ...bid, volumeM3: 0.576,
+      trip: { ...bid.trip!, transportMode: 'BOAT', totalKg: null, availableKg: null, pricePerKg: null, volumeCapacityM3: 40, availableVolumeM3: 12.5, pricePerM3: 90 },
+    } as AdminBidDetail
+    const w = mount(BidSummaryTab, { props: { bid: boat, identifiers, copied: null, legacy: false } })
+    expect(w.get('[data-test="trip-capacity"]').text()).toBe('12,5 m³ restants sur 40 m³')
+    expect(w.get('[data-test="section-trip"]').text()).toContain('Prix au m³')
+    expect(w.get('[data-test="trip-price"]').text()).toContain('90')
+    expect(w.get('[data-test="parcel-volume"]').text()).toBe('0,576 m³')
+    expect(w.text()).not.toContain('null')
+    expect(w.text()).not.toContain('undefined')
+  })
+
+  it('trajet au kilo : prix au kilo, pas de ligne Volume sans volumeM3 ; sans capacité « — »', () => {
+    const kg = { ...bid, trip: { ...bid.trip!, pricePerKg: 8 } } as AdminBidDetail
+    const w = mount(BidSummaryTab, { props: { bid: kg, identifiers, copied: null, legacy: false } })
+    expect(w.get('[data-test="section-trip"]').text()).toContain('Prix au kilo')
+    expect(w.find('[data-test="parcel-volume"]').exists()).toBe(false)
+    const empty = { ...bid, trip: { ...bid.trip!, totalKg: null, availableKg: null } } as AdminBidDetail
+    const w2 = mount(BidSummaryTab, { props: { bid: empty, identifiers, copied: null, legacy: false } })
+    expect(w2.get('[data-test="trip-capacity"]').text()).toBe('—')
+    expect(w2.get('[data-test="section-trip"]').text()).not.toContain('Prix au')
+  })
 })

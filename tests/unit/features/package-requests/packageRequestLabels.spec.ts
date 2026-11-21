@@ -76,7 +76,7 @@ describe('libellés de fiche', () => {
     expect(parcelSizeLabel(null)).toBe('Non renseignée')
     expect(transportModeLabel('PLANE')).toBe('Avion')
     expect(transportModeLabel('ROCKET')).toBe('ROCKET')
-    expect(transportModeLabel(null)).toBe('Indifférent')
+    expect(transportModeLabel(null)).toBe('Peu importe')
     expect(paymentMethodsLabel(['STRIPE', 'CASH', 'PAWAPAY'])).toBe('Carte, Espèces, Mobile money')
     expect(paymentMethodsLabel([])).toBe('Non renseignés')
     expect(paymentMethodsLabel(undefined)).toBe('Non renseignés')

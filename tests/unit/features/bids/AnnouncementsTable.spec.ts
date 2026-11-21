@@ -339,4 +339,32 @@ describe('AnnouncementsTable : « Paiements de ce trajet »', () => {
     const w = mount(AnnouncementsTable, { props: { announcements: [anns[0]], loading: false }, global: { stubs: { NuxtLink: Link } } })
     expect(w.find('[data-test="ann-payments-a1"]').exists()).toBe(false)
   })
+
+  it('colonne Mode : icône et libellé, vide sans champ', () => {
+    const wrapper = mount(AnnouncementsTable, {
+      props: { announcements: [{ ...anns[0], transportMode: 'BOAT' }, { ...anns[1] }, { ...anns[2], transportMode: 'BUS' }], loading: false },
+    })
+    expect(wrapper.get('[data-test="ann-mode-a1"]').text()).toBe('Bateau')
+    expect(wrapper.get('[data-test="ann-mode-a1"] svg').exists()).toBe(true)
+    expect(wrapper.get('[data-test="ann-mode-a2"]').text()).toBe('')
+    expect(wrapper.find('[data-test="ann-mode-a2"] svg').exists()).toBe(false)
+    expect(wrapper.get('[data-test="ann-mode-a3"]').text()).toBe('Route')
+  })
+
+  it('trajet bateau au m³ : volume et prix au m³, jamais « null kg »', () => {
+    const boat = { ...anns[0], transportMode: 'BOAT', availableKg: null, pricePerKg: null, availableVolumeM3: 12.5, pricePerM3: 90 }
+    const wrapper = mount(AnnouncementsTable, { props: { announcements: [boat], loading: false } })
+    const row = wrapper.get('[data-test="ann-row-a1"]').text()
+    expect(row).toContain('12.5 m³')
+    expect(wrapper.get('[data-test="ann-price-a1"]').text()).toBe(`${formatMajorAmount(90, 'EUR')}/m³`)
+    expect(row).not.toContain('null')
+    expect(row).not.toContain('undefined')
+  })
+
+  it('sans capacité ni prix : repli « — »', () => {
+    const none = { ...anns[0], availableKg: null, pricePerKg: null }
+    const wrapper = mount(AnnouncementsTable, { props: { announcements: [none], loading: false } })
+    expect(wrapper.get('[data-test="ann-price-a1"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="ann-row-a1"]').text()).not.toContain('kg')
+  })
 })

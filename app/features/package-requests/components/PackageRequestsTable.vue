@@ -3,6 +3,8 @@ import StateBlock from '@/components/ui/StateBlock.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { formatMajorAmount } from '@/features/finance/types/index'
 import { packageRequestStatusMeta } from '@/features/package-requests/labels'
+import { requestTransportLabel, transportModeIcon } from '@/lib/transportModes'
+import { formatDimensionsCm, formatM3 } from '@/lib/capacity'
 import type { AdminPackageRequestListItem } from '@/features/package-requests/types/index'
 
 defineProps<{ requests: AdminPackageRequestListItem[]; loading: boolean }>()
@@ -11,6 +13,14 @@ const emit = defineEmits<{ select: [id: string] }>()
 function fmtDate(d: string) { return new Date(d).toLocaleDateString('fr-FR') }
 function price(r: AdminPackageRequestListItem) {
   return r.targetPrice === null || r.targetPrice === undefined ? 'À négocier' : formatMajorAmount(r.targetPrice, r.currency)
+}
+/** Poids tolérant (« Non renseigné » si absent ou nul), précédé du kilo seul quand le colis se mesure au volume. */
+function weight(r: AdminPackageRequestListItem) {
+  return r.weightKg !== null && r.weightKg !== undefined ? `${r.weightKg} kg` : 'Non renseigné'
+}
+/** Dimensions et/ou volume quand le back les envoie ; vide sinon. */
+function size(r: AdminPackageRequestListItem) {
+  return [formatDimensionsCm(r.lengthCm, r.widthCm, r.heightCm), formatM3(r.volumeM3)].filter(Boolean).join(' · ')
 }
 function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` }
 </script>
@@ -21,9 +31,10 @@ function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` 
       <thead class="bg-surface-elevated text-left text-xs uppercase text-text-muted">
         <tr>
           <th class="px-4 py-2 font-medium">Trajet</th>
+          <th class="px-4 py-2 font-medium">Mode</th>
           <th class="px-4 py-2 font-medium">Expéditeur</th>
           <th class="px-4 py-2 font-medium">Date souhaitée</th>
-          <th class="px-4 py-2 font-medium">Poids</th>
+          <th class="px-4 py-2 font-medium">Poids et volume</th>
           <th class="px-4 py-2 font-medium" title="Montant reçu par le voyageur ; le prix affiché dans l'app est le prix brut">Budget net</th>
           <th class="px-4 py-2 font-medium">Négos</th>
           <th class="px-4 py-2 font-medium">Statut</th>
@@ -40,9 +51,17 @@ function reportsLabel(n: number) { return `${n} signalement${n > 1 ? 's' : ''}` 
             <div class="font-medium">{{ r.departureCity }} → {{ r.arrivalCity }}</div>
             <div class="text-xs text-text-muted tabular-nums">Créée le {{ fmtDate(r.createdAt) }}</div>
           </td>
+          <td class="px-4 py-3 text-sm text-text-muted" :data-test="`pr-mode-${r.id}`">
+            <span v-if="requestTransportLabel(r.transportMode)" class="inline-flex items-center gap-1.5">
+              <component :is="transportModeIcon(r.transportMode)" :size="16" aria-hidden="true" class="shrink-0" />{{ requestTransportLabel(r.transportMode) }}
+            </span>
+          </td>
           <td class="px-4 py-3 text-sm text-text-muted">{{ r.senderName ?? 'Expéditeur inconnu' }}</td>
           <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ r.desiredDate ? fmtDate(r.desiredDate) : 'Date flexible' }}</td>
-          <td class="px-4 py-3 text-sm tabular-nums">{{ r.weightKg !== null && r.weightKg !== undefined ? `${r.weightKg} kg` : 'Non renseigné' }}</td>
+          <td class="px-4 py-3 text-sm tabular-nums" :data-test="`pr-weight-${r.id}`">
+            {{ weight(r) }}
+            <div v-if="size(r)" :data-test="`pr-size-${r.id}`" class="text-xs text-text-muted">{{ size(r) }}</div>
+          </td>
           <td class="px-4 py-3 text-sm tabular-nums">{{ price(r) }}</td>
           <td class="px-4 py-3 text-sm tabular-nums text-text-muted">{{ r.openNegotiationCount }}</td>
           <td class="px-4 py-3">
