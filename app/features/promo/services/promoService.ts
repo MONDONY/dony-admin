@@ -1,10 +1,12 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminPromoCode, PromoCodeInput, PromoStatus } from '@/features/promo/types/index'
+import type { AdminPromoCode, PromoCodeInput, PromoOriginFilter, PromoStatus } from '@/features/promo/types/index'
 
 /** Le back renvoie la liste complète (non paginée) ; filtres/pagination côté client. */
 export const promoService = {
-  list(): Promise<AdminPromoCode[]> {
-    return useApi()<AdminPromoCode[]>('/admin/promo-codes')
+  /** `origin` est filtré par le back ; ALL (ou absent) n'envoie pas le paramètre. */
+  list(origin: PromoOriginFilter = 'ALL'): Promise<AdminPromoCode[]> {
+    if (origin === 'ALL') return useApi()<AdminPromoCode[]>('/admin/promo-codes')
+    return useApi()<AdminPromoCode[]>('/admin/promo-codes', { query: { origin } })
   },
   create(input: PromoCodeInput): Promise<AdminPromoCode> {
     return useApi()<AdminPromoCode>('/admin/promo-codes', { method: 'POST', body: input })

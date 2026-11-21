@@ -5,11 +5,11 @@ import PromoForm from '@/features/promo/components/PromoForm.vue'
 import PaginationControls from '@/components/ui/PaginationControls.vue'
 import ConfirmActionDialog from '@/components/ui/ConfirmActionDialog.vue'
 import { usePromoCodes } from '@/features/promo/composables/usePromoCodes'
-import type { AdminPromoCode, PromoCodeInput, PromoStatus } from '@/features/promo/types/index'
+import { PROMO_ORIGIN_FILTERS, type AdminPromoCode, type PromoCodeInput, type PromoStatus } from '@/features/promo/types/index'
 
 definePageMeta({ middleware: 'admin-only', permission: 'PROMO_MANAGE', pageTitle: 'Codes promo', pageSubtitle: 'Gestion des codes de réduction' })
 
-const { codes, isLoading, totalPages, currentPage, filters, fetchCodes, goToPage, setStatusFilter, create, update, setStatus, remove } = usePromoCodes()
+const { codes, isLoading, totalPages, currentPage, filters, actionError, fetchCodes, goToPage, setStatusFilter, setOriginFilter, clearActionError, create, update, setStatus, remove } = usePromoCodes()
 
 const tabs: { value: PromoStatus | null; label: string }[] = [
   { value: null, label: 'Tous' },
@@ -30,8 +30,11 @@ function openEdit(id: string) {
   showForm.value = true
 }
 async function onSubmit(input: PromoCodeInput) {
+  clearActionError()
   if (editing.value) await update(editing.value.id, input)
   else await create(input)
+  // Un refus (409) laisse le formulaire ouvert, le message s'affiche au-dessus du tableau.
+  if (actionError.value) return
   showForm.value = false
   editing.value = null
 }
@@ -51,13 +54,24 @@ onMounted(fetchCodes)
 <template>
   <div>
     <div class="flex items-center justify-between mb-4">
-      <div class="flex gap-1">
-        <button
-          v-for="t in tabs" :key="String(t.value)" type="button" :data-test="`promo-tab-${t.value}`"
-          :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
-            filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
-          @click="setStatusFilter(t.value)"
-        >{{ t.label }}</button>
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div class="flex gap-1" role="group" aria-label="Statut">
+          <button
+            v-for="t in tabs" :key="String(t.value)" type="button" :data-test="`promo-tab-${t.value}`"
+            :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
+              filters.status === t.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+            @click="setStatusFilter(t.value)"
+          >{{ t.label }}</button>
+        </div>
+        <div class="flex items-center gap-1" role="group" aria-label="Origine">
+          <span class="mr-1 text-xs uppercase text-text-muted">Origine</span>
+          <button
+            v-for="o in PROMO_ORIGIN_FILTERS" :key="o.value" type="button" :data-test="`promo-origin-${o.value}`"
+            :class="['rounded-full px-3 py-1.5 text-sm transition-colors',
+              filters.origin === o.value ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+            @click="setOriginFilter(o.value)"
+          >{{ o.label }}</button>
+        </div>
       </div>
       <button
         type="button" data-test="new-promo"
@@ -65,6 +79,11 @@ onMounted(fetchCodes)
         @click="openCreate"
       >Nouveau code</button>
     </div>
+
+    <p
+      v-if="actionError" data-test="promo-action-error" role="alert"
+      class="mb-4 rounded-card bg-danger/15 px-4 py-2 text-sm text-danger"
+    >{{ actionError }}</p>
 
     <PromoTable
       :codes="codes" :loading="isLoading"

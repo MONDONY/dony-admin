@@ -41,4 +41,18 @@ describe('promoService', () => {
     await promoService.remove('p1')
     expect(apiMock).toHaveBeenCalledWith('/admin/promo-codes/p1', { method: 'DELETE' })
   })
+
+  it('list sans filtre n\'envoie pas origin', async () => {
+    apiMock.mockResolvedValue([])
+    await promoService.list('ALL')
+    expect(apiMock).toHaveBeenCalledWith('/admin/promo-codes')
+  })
+
+  it('list envoie origin=REFERRAL et origin=ADMIN', async () => {
+    apiMock.mockResolvedValue([])
+    await promoService.list('REFERRAL')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/promo-codes', { query: { origin: 'REFERRAL' } })
+    await promoService.list('ADMIN')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/promo-codes', { query: { origin: 'ADMIN' } })
+  })
 })
