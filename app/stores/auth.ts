@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT'
 
-/** Miroir exact de com.yadony.api.admin.account.AdminPermission (40 permissions). */
+/** Miroir exact de com.yadony.api.admin.account.AdminPermission (41 permissions). */
 export type AdminPermission =
   | 'ADMIN_MANAGE'
   | 'METRICS_VIEW'
@@ -14,6 +14,7 @@ export type AdminPermission =
   | 'USER_DELETE'
   | 'USER_COMMISSION'
   | 'USER_PRO_GRANT'
+  | 'USER_PHONE_VERIFY'
   | 'PAYMENT_VIEW'
   | 'PAYMENT_RELEASE'
   | 'PAYMENT_REFUND'
@@ -58,6 +59,9 @@ export const ALL_PERMISSIONS: readonly AdminPermission[] = [
   // Offrir ou révoquer un accès PRO gratuit : même portée commerciale que
   // USER_COMMISSION côté backend, donc accordée aux mêmes rôles.
   'USER_PRO_GRANT',
+  // Valider à la main un numéro déclaré sans SMS (badge « Vérifié par Yadony ») : engage la
+  // plateforme sur un numéro. Jamais accordée au rôle SUPPORT.
+  'USER_PHONE_VERIFY',
   'PAYMENT_VIEW',
   'PAYMENT_RELEASE',
   'PAYMENT_REFUND',

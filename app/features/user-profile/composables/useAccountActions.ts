@@ -96,8 +96,13 @@ export function useAccountActions({ getId, onUpdate }: Options) {
     cancelDeletionReasonError.value = null
   }
 
+  /** Fiche renvoyée par un geste géré ailleurs (numéro déclaré) : mêmes garde-fous qu'un geste du menu. */
+  function applyDetail(detail: AdminUserDetail) {
+    if (getId() === detail.id) onUpdate(detail)
+  }
+
   return {
-    busy, error, cancelDeletionUnavailable, cancelDeletionReasonError, reset,
+    applyDetail, busy, error, cancelDeletionUnavailable, cancelDeletionReasonError, reset,
     suspend, ban, unsuspend, suspendPublishing, liftPublishing, muteMessaging, unmuteMessaging,
     setCommissionRate, setMonthlyTripLimit, grantPro, revokePro, cancelDeletion,
   }

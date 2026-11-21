@@ -100,6 +100,13 @@ export interface AdminUserDetail extends AdminUserListItem {
   /** Trajets publiés ce mois-ci ; absent d'un back antérieur au lot 2b : le bloc de limite reste masqué. */
   monthlyTripsUsed?: number
   /**
+   * Numéro déclaré par l'utilisateur SANS SMS (jamais utilisé pour se connecter ni payer). Absent d'un
+   * back antérieur ou sans numéro déclaré : aucun bloc, aucun bouton.
+   */
+  declaredPhone?: string | null
+  /** `DECLARED` = non vérifié ; `YADONY_VERIFIED` = un admin a appelé le numéro. Absent = aucune pastille. */
+  declaredPhoneLevel?: 'DECLARED' | 'YADONY_VERIFIED' | null
+  /**
    * Alerte « particulier à confirmer » ouverte (trajets publiés dans le mois civil au-dessus du seuil). Absente
    * sans alerte (le back omet les nuls) et d'un back antérieur au lot 4 : aucun bandeau.
    */

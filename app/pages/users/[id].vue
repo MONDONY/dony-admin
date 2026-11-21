@@ -14,6 +14,7 @@ import UserKpiGrid from '@/features/user-profile/components/UserKpiGrid.vue'
 import UserActionsMenu from '@/features/user-profile/components/UserActionsMenu.vue'
 import UserAccountBanners from '@/features/user-profile/components/UserAccountBanners.vue'
 import UserIndividualFrequencyBanner from '@/features/individual-frequency/components/UserIndividualFrequencyBanner.vue'
+import UserDeclaredPhone from '@/features/user-profile/components/UserDeclaredPhone.vue'
 import UserManageTab from '@/features/user-profile/components/UserManageTab.vue'
 import { useAccountActions } from '@/features/user-profile/composables/useAccountActions'
 import { useUserOverview } from '@/features/user-profile/composables/useUserOverview'
@@ -164,6 +165,7 @@ onBeforeUnmount(() => { unmounted = true; crumb.clear() })
           />
         </template>
       </UserProfileHeader>
+      <UserDeclaredPhone :key="`declared-phone-${user.id}`" :user="user" @updated="actions.applyDetail" />
       <p
         v-if="actions.error.value && tab !== 'manage'" data-test="account-action-error" role="alert"
         class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty"
