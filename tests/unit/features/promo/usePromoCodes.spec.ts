@@ -143,8 +143,8 @@ describe('usePromoCodes', () => {
   })
 
   it('ignore une réponse périmée arrivée après la plus récente (liste et isLoading)', async () => {
-    let resolveFirst!: (v: unknown[]) => void
-    let resolveSecond!: (v: unknown[]) => void
+    let resolveFirst!: (_v: unknown[]) => void
+    let resolveSecond!: (_v: unknown[]) => void
     svc.list
       .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r }))
       .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r }))
@@ -162,8 +162,8 @@ describe('usePromoCodes', () => {
   })
 
   it('isLoading reste vrai tant que la dernière requête n\'est pas revenue', async () => {
-    let resolveFirst!: (v: unknown[]) => void
-    let resolveSecond!: (v: unknown[]) => void
+    let resolveFirst!: (_v: unknown[]) => void
+    let resolveSecond!: (_v: unknown[]) => void
     svc.list
       .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r }))
       .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r }))
@@ -180,8 +180,8 @@ describe('usePromoCodes', () => {
   })
 
   it('une erreur périmée n\'écrase pas la liste de la dernière requête', async () => {
-    let rejectFirst!: (e: Error) => void
-    let resolveSecond!: (v: unknown[]) => void
+    let rejectFirst!: (_e: Error) => void
+    let resolveSecond!: (_v: unknown[]) => void
     svc.list
       .mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej }))
       .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r }))
