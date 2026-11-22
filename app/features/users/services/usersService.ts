@@ -75,6 +75,13 @@ export const usersService = {
   cancelDeletion(id: string, reason: string): Promise<AdminUserDetail> {
     return useApi()<AdminUserDetail>(`/admin/users/${encodeURIComponent(id)}/cancel-deletion`, { method: 'POST', body: { reason } })
   },
+  /**
+   * Valide à la main le numéro déclaré (USER_PHONE_VERIFY). Le numéro affiché à l'admin est renvoyé
+   * dans le corps : le back refuse (409 `declared-phone-changed`) si l'utilisateur l'a changé depuis.
+   */
+  verifyDeclaredPhone(id: string, declaredPhone: string): Promise<AdminUserDetail> {
+    return useApi()<AdminUserDetail>(`/admin/users/${encodeURIComponent(id)}/declared-phone/verify`, { method: 'POST', body: { declaredPhone } })
+  },
   getKyc(id: string): Promise<AdminKycDetail> {
     return useApi()<AdminKycDetail>(`/admin/users/${encodeURIComponent(id)}/kyc`)
   },

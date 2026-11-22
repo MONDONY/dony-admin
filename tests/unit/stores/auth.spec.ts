@@ -154,8 +154,9 @@ describe('useAuthStore (admin)', () => {
   // 38 avec ASSISTANT_MANAGE (clés d'API des fournisseurs de l'assistant IA, yadony-back #547).
   // 39 avec GP_PRO_REVIEW (demandes et retrait du badge GP Pro, yadony-back #560).
   // 40 avec DAC7_REPORT (préparation et export de la déclaration DAC7, yadony-back lot 3b).
-  it('exposes 40 permissions, mirroring the backend enum', () => {
-    expect(ALL_PERMISSIONS).toHaveLength(40)
+  // 41 avec USER_PHONE_VERIFY (valider un numéro déclaré sans SMS).
+  it('exposes 41 permissions, mirroring the backend enum', () => {
+    expect(ALL_PERMISSIONS).toHaveLength(41)
   })
 
   it('DAC7_REPORT : ADMIN et SUPER_ADMIN, pas SUPPORT (déclaration fiscale de la plateforme)', () => {
