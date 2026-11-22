@@ -30,6 +30,8 @@ const MESSAGES: Record<string, string> = {
   'declared-phone-changed': 'Le numéro a changé depuis l’ouverture de la fiche. Rechargez la page.',
   'declared-phone-conflict': 'Ce numéro appartient déjà à un autre compte. Il ne peut pas être validé.',
   'declared-phone-missing': 'Aucun numéro déclaré à valider.',
+  'declared-phone-held-by-unregistered-account': 'Ce numéro est déjà associé à un compte non finalisé. Il ne peut pas être validé pour l’instant. Contactez l’équipe technique.',
+  'declared-phone-unavailable': 'Service indisponible pour le moment. Réessayez dans quelques minutes.',
   'phone-already-set': 'Ce compte a déjà un numéro vérifié par SMS.',
 }
 const FALLBACK = 'Impossible de valider ce numéro.'

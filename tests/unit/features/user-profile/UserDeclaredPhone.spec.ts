@@ -70,8 +70,10 @@ describe('UserDeclaredPhone', () => {
     ['declared-phone-conflict', 'Ce numéro appartient déjà à un autre compte. Il ne peut pas être validé.'],
     ['declared-phone-missing', 'Aucun numéro déclaré à valider.'],
     ['phone-already-set', 'Ce compte a déjà un numéro vérifié par SMS.'],
+    ['declared-phone-held-by-unregistered-account', 'Ce numéro est déjà associé à un compte non finalisé. Il ne peut pas être validé pour l’instant. Contactez l’équipe technique.'],
+    ['declared-phone-unavailable', 'Service indisponible pour le moment. Réessayez dans quelques minutes.'],
     ['autre-code', 'Impossible de valider ce numéro.'],
-  ])('409 %s : message français, niveau inchangé', async (code, message) => {
+  ])('refus %s : message français, niveau inchangé', async (code, message) => {
     verifyDeclaredPhone.mockRejectedValue({ status: 409, data: { code, detail: 'detail technique' } })
     const w = mountP()
     await w.get(BUTTON).trigger('click')
