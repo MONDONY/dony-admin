@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import { seedAuth } from '~/tests/helpers/auth'
+import { stubCancellationFee } from '~/tests/helpers/noCancellationFee'
+
+stubCancellationFee()
 
 /** Les gestes vivent dans le menu « Actions » du tiroir : on l'ouvre avant de les chercher. */
 async function openActions(w: ReturnType<typeof mount>) {

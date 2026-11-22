@@ -1,5 +1,5 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminPaymentDetail, AdminPaymentPage, AdminChargebackPage, ChargebackCounts, ChargebackListParams, PaymentSuggest, PaymentViewCounts, PaymentsFilterState, PaymentTimelineEntry, PaymentTotals, PayoutOverride, StripeResyncResult } from '@/features/payments/types/index'
+import type { AdminCancellationFee, AdminPaymentDetail, AdminPaymentPage, AdminChargebackPage, ChargebackCounts, ChargebackListParams, PaymentSuggest, PaymentViewCounts, PaymentsFilterState, PaymentTimelineEntry, PaymentTotals, PayoutOverride, StripeResyncResult } from '@/features/payments/types/index'
 
 function payoutOptions(override?: PayoutOverride): { method: 'POST'; body?: PayoutOverride } {
   return override ? { method: 'POST', body: override } : { method: 'POST' }
@@ -50,7 +50,33 @@ function listChargebacks(p: ChargebackListParams): Promise<AdminChargebackPage> 
   return useApi()<AdminChargebackPage>('/admin/chargebacks', { query })
 }
 
+function httpStatus(e: unknown): number | undefined {
+  const err = e as { statusCode?: number; status?: number; response?: { status?: number } } | undefined
+  return err?.statusCode ?? err?.status ?? err?.response?.status
+}
+
 export const paymentsService = {
+  /**
+   * Retenue d'annulation du colis. 404 = pas de retenue (cas normal, `null`) ; un back qui n'a
+   * pas encore l'endpoint répond aussi 404 : même résultat, pas de carte.
+   */
+  async getCancellationFee(bidId: string): Promise<AdminCancellationFee | null> {
+    try {
+      return await useApi()<AdminCancellationFee>(`/admin/cancellation-fees/bids/${bidId}`)
+    } catch (e) {
+      if (httpStatus(e) === 404) return null
+      throw e
+    }
+  },
+  /** Renonce à la retenue (DUE seulement) : le prochain remboursement sera intégral. Ne rembourse pas seul. */
+  waiveCancellationFee(bidId: string, reason: string): Promise<AdminCancellationFee> {
+    return useApi()<AdminCancellationFee>(`/admin/cancellation-fees/bids/${bidId}/waive`, { method: 'POST', body: { reason } })
+  },
+  /** Réarme les essais de versement au voyageur et en tente un tout de suite (PAYOUT_PENDING seulement). */
+  retryCancellationFeePayout(feeId: string, reason: string): Promise<AdminCancellationFee> {
+    return useApi()<AdminCancellationFee>(`/admin/cancellation-fees/${feeId}/retry-payout`, { method: 'POST', body: { reason } })
+  },
+
   list(f: PaymentsFilterState, page: number, size: number): Promise<AdminPaymentPage> {
     return useApi()<AdminPaymentPage>('/admin/payments', { query: { ...listQuery(f), page, size } })
   },

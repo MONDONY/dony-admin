@@ -8,6 +8,9 @@ import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
 import PaymentsTable from '@/features/payments/components/PaymentsTable.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import { seedAuth } from '~/tests/helpers/auth'
+import { stubCancellationFee } from '~/tests/helpers/noCancellationFee'
+
+stubCancellationFee()
 
 const NuxtLinkStub = { name: 'NuxtLink', template: '<a :href="typeof to === \'string\' ? to : JSON.stringify(to)"><slot /></a>', props: ['to'] }
 const global = { stubs: { NuxtLink: NuxtLinkStub } }
