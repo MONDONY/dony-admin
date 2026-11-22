@@ -26,6 +26,8 @@ export function useCancellationFee() {
     loadError.value = null
     notice.value = null
     actionError.value = null
+    // Un geste encore en vol appartient à l'ancienne carte : celle-ci repart libre.
+    busy.value = false
     if (!bidId) return
     try {
       const result = await paymentsService.getCancellationFee(bidId)
@@ -54,15 +56,22 @@ export function useCancellationFee() {
     const mine = generation
     try {
       const result = await call()
-      if (mine === generation) fee.value = result
-      notice.value = success
-      await refresh()
+      if (mine === generation) {
+        fee.value = result
+        notice.value = success
+        await refresh()
+      }
       return true
     } catch (e) {
-      actionError.value = extractProblemMessage(e, 'Action échouée')
+      // Une erreur tardive d'une autre carte ne s'affiche pas ici ; la nôtre, si, puis on relit :
+      // un 409/404 dit souvent que la retenue a changé et que le bouton proposé est périmé.
+      if (mine === generation) {
+        actionError.value = extractProblemMessage(e, 'Action échouée')
+        await refresh()
+      }
       return false
     } finally {
-      busy.value = false
+      if (mine === generation) busy.value = false
     }
   }
 

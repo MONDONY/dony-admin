@@ -13,8 +13,8 @@ export interface PaymentAction {
   override: boolean
 }
 
-const FORBIDDEN_RELEASE = 'Permission manquante : réservé aux admins qui peuvent débloquer les paiements.'
-const FORBIDDEN_REFUND = 'Permission manquante : réservé aux admins qui peuvent rembourser.'
+export const FORBIDDEN_RELEASE = 'Permission manquante : réservé aux admins qui peuvent débloquer les paiements.'
+export const FORBIDDEN_REFUND = 'Permission manquante : réservé aux admins qui peuvent rembourser.'
 const NOT_ESCROW_RELEASE = 'Seul un paiement en séquestre peut être débloqué.'
 const NOT_ESCROW_REFUND = 'Seul un paiement en séquestre peut être remboursé depuis l’admin.'
 const NOT_MOBILE_MONEY = 'Réservé aux paiements mobile money.'

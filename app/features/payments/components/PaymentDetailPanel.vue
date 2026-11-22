@@ -188,7 +188,7 @@ async function copy(key: string, value: string) {
         <p v-if="error" data-test="payment-error" role="alert" class="rounded-btn border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger text-pretty">{{ error }}</p>
         <PaymentAlertBanner :payment="payment" :actions="actions" @act="onAct" />
         <!-- Retenue d'annulation du colis : la carte n'existe que s'il y en a une. -->
-        <CancellationFeeCard :bid-id="payment.bidId" />
+        <CancellationFeeCard :bid-id="payment.insight?.bidId ?? payment.bidId" />
 
         <div>
           <TabBar

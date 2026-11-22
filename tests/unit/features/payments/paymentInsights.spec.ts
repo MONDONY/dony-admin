@@ -20,6 +20,9 @@ import PaymentFilters from '@/features/payments/components/PaymentFilters.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import PaymentTimeline from '@/features/payments/components/PaymentTimeline.vue'
 import { bidStatusLabel, paymentKindLabel, routeLabel, shortId, timelineActionLabel } from '@/features/payments/lib/paymentLabels'
+import { stubCancellationFee } from '~/tests/helpers/noCancellationFee'
+
+stubCancellationFee()
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="JSON.stringify(to)"><slot /></a>' }
 const SENDER = '11111111-2222-3333-4444-555555555555'

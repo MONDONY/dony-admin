@@ -1,4 +1,5 @@
 import type { CanFn } from '@/lib/adminLinks'
+import { FORBIDDEN_REFUND, FORBIDDEN_RELEASE } from './paymentActions'
 import type { AdminCancellationFee, CancellationFeeReason, CancellationFeeStatus } from '../types/index'
 
 export const FEE_STATUS_LABEL: Record<CancellationFeeStatus, string> = {
@@ -31,7 +32,8 @@ export const feeReasonLabel = (r: string): string => FEE_REASON_LABEL[r as Cance
 const ZERO_DECIMAL = new Set(['XOF', 'XAF'])
 
 /** Montant de la retenue, en UNITÉS de sa devise (« 6 600 XOF », « 12,50 EUR »). */
-export function formatFeeAmount(amount: number, currency: string): string {
+export function formatFeeAmount(amount: number | null | undefined, currency: string): string {
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return '-'
   const digits = ZERO_DECIMAL.has(currency) ? 0 : 2
   const text = amount.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
   return `${text} ${currency}`
@@ -45,8 +47,6 @@ export function formatFeeRate(rate: number): string {
 export type FeeGestureId = 'waive' | 'retry-payout'
 export interface FeeGesture { id: FeeGestureId; label: string; enabled: boolean; reason?: string }
 
-const FORBIDDEN_REFUND = 'Permission manquante : réservé aux admins qui peuvent rembourser.'
-const FORBIDDEN_RELEASE = 'Permission manquante : réservé aux admins qui peuvent débloquer les paiements.'
 
 /**
  * Gestes de la carte. Un geste n'existe que si le back le dit possible (`waivable`,

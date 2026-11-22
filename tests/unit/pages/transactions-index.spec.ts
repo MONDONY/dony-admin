@@ -24,7 +24,7 @@ const cbListMock = vi.fn()
 const cbCountsMock = vi.fn()
 vi.mock('@/features/payments/services/paymentsService', () => ({
   paymentsService: {
-    list: (...a: unknown[]) => listMock(...a),
+    list: (...a: unknown[]) => listMock(...a), getCancellationFee: vi.fn().mockResolvedValue(null),
     get: (...a: unknown[]) => getMock(...a), forceRelease: vi.fn(), refund: vi.fn(), retryMobileMoneyPayout: vi.fn(), retryMobileMoneyRefund: vi.fn(),
     listChargebacks: (...a: unknown[]) => cbListMock(...a), chargebackCounts: (...a: unknown[]) => cbCountsMock(...a),
     summary: (...a: unknown[]) => summaryMock(...a), exportCsv: (...a: unknown[]) => exportMock(...a),

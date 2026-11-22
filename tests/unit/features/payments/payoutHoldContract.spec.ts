@@ -13,6 +13,9 @@ import { usePayments } from '@/features/payments/composables/usePayments'
 import PayoutOverrideDialog from '@/features/payments/components/PayoutOverrideDialog.vue'
 import PaymentDetailPanel from '@/features/payments/components/PaymentDetailPanel.vue'
 import { seedAuth } from '~/tests/helpers/auth'
+import { stubCancellationFee } from '~/tests/helpers/noCancellationFee'
+
+stubCancellationFee()
 
 const EMPTY_PAGE = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 }
 const OVERRIDE = { overrideHold: true as const, overrideReason: 'Colis livré, contrôlé' }
