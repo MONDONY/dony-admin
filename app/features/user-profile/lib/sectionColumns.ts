@@ -8,6 +8,7 @@ import { reportStatusMeta } from '@/features/signalements/components/reportStatu
 import { auditActionLabel } from '@/features/user-profile/lib/auditActionLabels'
 import { formatDayUtc } from '@/features/user-profile/lib/formatDayUtc'
 import { formatInstant } from '@/features/user-profile/lib/formatInstant'
+import { availableCapacityShort, priceUnit, pricePerUnit } from '@/lib/capacity'
 import { unchecked, toHref, type AdminRoute } from '@/lib/adminLinks'
 import type { BidStatus } from '@/features/bids/types/index'
 import type { PaymentStatus } from '@/features/payments/types/index'
@@ -156,11 +157,15 @@ export const tripColumns: SectionColumn[] = [
   { key: 'corridor', label: 'Trajet' },
   { key: 'departureDate', label: 'Départ', format: (r: UserTripRow) => formatDayUtc(r.departureDate) },
   statusCol('status', tripMeta),
-  { key: 'availableKg', label: 'Kilos disponibles', format: (r: UserTripRow) => `${r.availableKg} kg` },
+  { key: 'capacity', label: 'Capacité', format: (r: UserTripRow) => availableCapacityShort(r) ?? '—' },
   {
-    key: 'pricePerKg', label: 'Prix au kilo',
-    // Prix par kilo en unités principales (pas en centimes) : pas de formatAmount ici.
-    format: (r: UserTripRow) => (r.pricePerKg == null ? '—' : `${r.pricePerKg.toLocaleString('fr-FR')} ${r.currency ?? ''}`.trim()),
+    key: 'price', label: 'Prix',
+    // Prix unitaire (au kilo ou au m³) en unités principales (pas en centimes) : pas de formatAmount ici.
+    format: (r: UserTripRow) => {
+      const unit = priceUnit(r)
+      const value = pricePerUnit(r)
+      return unit && value != null ? `${value.toLocaleString('fr-FR')} ${r.currency ?? ''}`.trim() + `/${unit}` : '—'
+    },
   },
   {
     key: 'tripLegIndex', label: 'Étape',

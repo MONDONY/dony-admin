@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
 import { extractProblemMessage } from '@/lib/problemDetail'
+import { modeFilterIgnored, type TransportModeFilter } from '@/lib/transportModes'
 import type { AdminAnnouncementListItem } from '@/features/bids/types/index'
 
 /**
@@ -20,6 +21,10 @@ export function useAdminAnnouncements() {
   const pageSize = 20
   /** Annonce d'un colis (« Voir l'annonce » de la fiche) : la liste se réduit à elle. */
   const focusId = ref<string | null>(null)
+  /** Filtre de mode (ignoré quand une annonce est ciblée). */
+  const modeFilter = ref<TransportModeFilter>('ALL')
+  /** Vrai quand le serveur n'a pas appliqué le filtre de mode (ancien back) : bandeau au lieu de lignes trompeuses. */
+  const filterIgnored = ref(false)
 
   /** La page courante ne change qu'une fois la nouvelle page reçue : un échec laisse l'ancienne affichée. */
   async function load(page = currentPage.value) {
@@ -27,12 +32,16 @@ export function useAdminAnnouncements() {
     error.value = null
     try {
       const id = focusId.value
+      const mode = modeFilter.value
       const res = id
         ? await bidsAdminService.listAnnouncements(0, pageSize, id)
-        : await bidsAdminService.listAnnouncements(page, pageSize)
+        : mode === 'ALL'
+          ? await bidsAdminService.listAnnouncements(page, pageSize)
+          : await bidsAdminService.listAnnouncements(page, pageSize, null, mode)
       // Ancien back : `id` ignoré, la page entière revient ; on ne garde que l'annonce visée.
       announcements.value = id ? res.content.filter((a) => a.id === id) : res.content
       totalPages.value = id ? 1 : res.totalPages
+      filterIgnored.value = !id && modeFilterIgnored(announcements.value, mode)
       currentPage.value = page
     } catch (e) {
       error.value = extractProblemMessage(e, 'Impossible de charger les annonces')
@@ -41,6 +50,10 @@ export function useAdminAnnouncements() {
     }
   }
   const goToPage = (page: number) => load(page)
+  async function setModeFilter(f: TransportModeFilter) {
+    modeFilter.value = f
+    await load(0)
+  }
   async function focus(id: string | null) {
     focusId.value = id
     await load(0)
@@ -67,5 +80,5 @@ export function useAdminAnnouncements() {
     run(() => bidsAdminService.removeAnnouncement(id, publicReason, internalNote))
   const restore = (id: string) => run(() => bidsAdminService.restoreAnnouncement(id))
 
-  return { announcements, isLoading, error, busy, currentPage, totalPages, focusId, load, goToPage, focus, remove, restore }
+  return { announcements, isLoading, error, busy, currentPage, totalPages, focusId, modeFilter, filterIgnored, load, goToPage, setModeFilter, focus, remove, restore }
 }

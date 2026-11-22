@@ -105,11 +105,7 @@ export function announcementStatusMeta(s: string | null | undefined): Meta {
   return ANNOUNCEMENT[s] ?? { label: humanize(s), tone: 'neutral' }
 }
 
-const TRANSPORT: Record<string, string> = { PLANE: 'Avion', CAR: 'Voiture', BUS: 'Bus', BOAT: 'Bateau', TRAIN: 'Train', OTHER: 'Autre' }
-export function transportModeLabel(m: string | null | undefined): string | null {
-  if (!m) return null
-  return TRANSPORT[m] ?? humanize(m)
-}
+export { tripTransportLabel as transportModeLabel } from '@/lib/transportModes'
 
 /** Moyen de paiement du colis (valeurs `bids.payment_method`). */
 const BID_PAYMENT: Record<string, string> = {

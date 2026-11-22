@@ -20,7 +20,7 @@ describe('usePackageRequests', () => {
     svc.list.mockResolvedValue(page([item('p1')], 3))
     const s = usePackageRequests()
     await s.load()
-    expect(svc.list).toHaveBeenCalledWith({ status: 'ALL', query: '', reportedOnly: false, from: null, to: null }, 0, 20)
+    expect(svc.list).toHaveBeenCalledWith({ status: 'ALL', query: '', reportedOnly: false, transportMode: 'ALL', from: null, to: null }, 0, 20)
     expect(s.requests.value.map((r) => r.id)).toEqual(['p1'])
     expect(s.totalPages.value).toBe(3)
     expect(s.isLoading.value).toBe(false)
@@ -105,5 +105,23 @@ describe('usePackageRequests', () => {
     s.replace(item('absent') as never)
     expect(s.requests.value).toHaveLength(2)
     expect(svc.list).toHaveBeenCalledTimes(1)
+  })
+
+  it('setTransportMode recharge la page 0 avec le filtre', async () => {
+    svc.list.mockResolvedValue(page([item('p1', { transportMode: 'BUS' })]))
+    const s = usePackageRequests()
+    await s.setTransportMode('CAR')
+    expect(svc.list).toHaveBeenLastCalledWith(expect.objectContaining({ transportMode: 'CAR' }), 0, 20)
+    expect(s.filterIgnored.value).toBe(false)
+  })
+
+  it('filtre de mode ignoré par un ancien back : signalé', async () => {
+    svc.list.mockResolvedValue(page([item('p1', { transportMode: 'PLANE' })]))
+    const s = usePackageRequests()
+    await s.setTransportMode('BOAT')
+    expect(s.filterIgnored.value).toBe(true)
+    svc.list.mockResolvedValue(page([item('p2', { transportMode: null })]))
+    await s.setTransportMode('ANY')
+    expect(s.filterIgnored.value).toBe(false)
   })
 })
