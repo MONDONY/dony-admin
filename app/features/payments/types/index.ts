@@ -280,3 +280,23 @@ export function heldPaymentsReminder(n: number): string {
     ? `Ce voyageur a ${n} paiements retenus : ils ne repartiront pas tout seuls, débloquez-les un par un depuis Transactions.`
     : `Ce voyageur a ${n} paiement retenu : il ne repartira pas tout seul, débloquez-le depuis Transactions.`
 }
+
+/** Statut de la retenue d'annulation d'un colis (`GET /admin/cancellation-fees/bids/{bidId}`). */
+export type CancellationFeeStatus = 'DUE' | 'RETAINED' | 'PAYOUT_PENDING' | 'PAID_OUT' | 'NOT_APPLICABLE'
+export type CancellationFeeReason = 'SENDER_CANCEL' | 'SENDER_NO_SHOW' | 'SENDER_CANCEL_AFTER_HANDOVER'
+
+/**
+ * Retenue d'annulation vue par l'administration. Les montants sont des nombres en UNITÉS de la
+ * devise `currency` (pas en centimes, contrairement aux paiements). `rate` est une fraction
+ * (0.2 = 20 %). `waivable` et `payoutRetryable` sont calculés par le back : le front n'en
+ * recopie pas les règles.
+ */
+export interface AdminCancellationFee {
+  id: string; bidId: string
+  status: CancellationFeeStatus; reason: CancellationFeeReason
+  rate: number; grossFee: number; refundFees: number; commission: number; travelerNet: number
+  currency: string
+  payoutRef: string | null; payoutPendingReason: string | null
+  createdAt: string; updatedAt: string
+  waivable: boolean; payoutRetryable: boolean
+}
