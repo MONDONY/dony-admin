@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { AdminBidDetail } from '@/features/bids/types/index'
 import {
   BID_ACTION_FORBIDDEN, BID_ACTION_PERMISSION, BID_ACTION_UNAVAILABLE, cancelBlockedReason, disputeBlockedReason,
+  statusChangeBlockedReason,
 } from '@/features/bids/lib/bidActions'
 import { bidLinks } from '@/features/bids/lib/bidLinks'
 import { disputeStatusLabel } from '@/features/bids/lib/bidLabels'
@@ -22,8 +23,9 @@ const props = defineProps<{
   busy: boolean
   cancelUnavailable: boolean
   disputeUnavailable: boolean
+  statusUnavailable?: boolean
 }>()
-const emit = defineEmits<{ copy: [key: string, value: string]; 'open-dialog': [kind: 'cancel' | 'dispute'] }>()
+const emit = defineEmits<{ copy: [key: string, value: string]; 'open-dialog': [kind: 'cancel' | 'dispute' | 'status'] }>()
 const auth = useAuthStore()
 
 const routes = computed(() => bidLinks(props.bid, auth.can))
@@ -34,6 +36,8 @@ const cancelDisabledReason = computed(() => (!canAct.value ? BID_ACTION_FORBIDDE
 const disputeDisabledReason = computed(() => (!canAct.value ? BID_ACTION_FORBIDDEN : disputeBlockedReason(props.bid)))
 const cancelDisabled = computed(() => !!cancelDisabledReason.value || props.busy)
 const disputeDisabled = computed(() => !!disputeDisabledReason.value || props.busy)
+const statusDisabledReason = computed(() => (!canAct.value ? BID_ACTION_FORBIDDEN : statusChangeBlockedReason(props.bid)))
+const statusDisabled = computed(() => !!statusDisabledReason.value || props.busy)
 
 // ---- Ouverture, fermeture, clavier ----
 const open = ref(false)
@@ -97,8 +101,9 @@ watch(open, (isOpen) => {
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown))
 watch(() => props.bid.id, () => { open.value = false })
 
-function act(kind: 'cancel' | 'dispute') {
-  if (kind === 'cancel' ? cancelDisabled.value : disputeDisabled.value) return
+function act(kind: 'cancel' | 'dispute' | 'status') {
+  const disabled = kind === 'cancel' ? cancelDisabled.value : kind === 'dispute' ? disputeDisabled.value : statusDisabled.value
+  if (disabled) return
   hide()
   emit('open-dialog', kind)
 }
@@ -153,6 +158,14 @@ const note = 'px-3 pb-1.5 text-xs text-text-muted text-pretty'
         <div role="separator" class="my-1.5 border-t border-border" />
         <div role="none" data-test="actions-unavailable">
           <p role="none" class="px-3 pb-1 text-xs font-medium text-text-muted">Gestes super-admin</p>
+          <button
+            v-if="!statusUnavailable" type="button" role="menuitem" data-test="action-change-status"
+            :aria-disabled="statusDisabled ? 'true' : undefined"
+            :aria-describedby="statusDisabledReason ? 'bid-status-reason' : undefined"
+            :class="[item, 'font-medium']" @click="act('status')"
+          >Changer le statut</button>
+          <p v-if="statusUnavailable" role="none" :class="note" data-test="unavailable-status">Changer le statut : {{ BID_ACTION_UNAVAILABLE }}</p>
+          <p v-else-if="statusDisabledReason" id="bid-status-reason" role="none" :class="note" data-test="status-disabled-reason">Changer le statut : {{ statusDisabledReason }}</p>
           <button
             v-if="!cancelUnavailable" type="button" role="menuitem" data-test="action-cancel"
             :aria-disabled="cancelDisabled ? 'true' : undefined"

@@ -24,9 +24,16 @@ describe('bidsAdminService — gestes super-admin', () => {
     })
   })
 
+  it('changeBidStatus POSTe le statut et le motif', async () => {
+    apiMock.mockResolvedValue({ bidId: ID })
+    await bidsAdminService.changeBidStatus(ID, 'COMPLETED', 'Message WhatsApp du 24/11')
+    expect(apiMock).toHaveBeenCalledWith(`/admin/bids/${ID}/status`, { method: 'POST', body: { status: 'COMPLETED', reason: 'Message WhatsApp du 24/11' } })
+  })
+
   it('identifiant non UUID : refusé sans appel réseau', async () => {
     await expect(bidsAdminService.cancelBid('../../admin/x', 'OTHER', 'x')).rejects.toThrow('Identifiant de colis invalide')
     await expect(bidsAdminService.openDispute('b1', 'SENDER', 'OTHER', 'x')).rejects.toThrow('Identifiant de colis invalide')
+    await expect(bidsAdminService.changeBidStatus('b1', 'COMPLETED', 'x')).rejects.toThrow('Identifiant de colis invalide')
     expect(apiMock).not.toHaveBeenCalled()
   })
 })
