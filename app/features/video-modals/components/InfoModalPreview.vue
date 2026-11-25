@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import ModalShell from '@/features/video-modals/components/ModalShell.vue'
 import PhoneFrame from '@/features/video-modals/components/PhoneFrame.vue'
 import { localized } from '@/features/video-modals/lib/form'
 import { MODAL_ICON_STYLES } from '@/features/video-modals/lib/icons'
-import type { ImageFit, ImageMode, ModalIcon, ModalLayout, VideoModalActionKind } from '@/features/video-modals/types/index'
+import { parcelRoleLabel, screenLabel } from '@/features/video-modals/lib/labels'
+import { withParcelExamples } from '@/features/video-modals/lib/parcelPreview'
+import { PARCEL_ROLES, PARCEL_SCREENS, type ImageFit, type ImageMode, type InfoScreen, type ModalIcon, type ModalLayout, type ParcelRole, type VideoModalActionKind } from '@/features/video-modals/types/index'
 
 /**
  * Aperçu du modal Information tel que l'app le montre : feuille du bas avec halo et icône, titre,
@@ -23,6 +25,11 @@ const props = defineProps<{
   primaryLabelFr: string
   primaryLabelEn: string
   primaryKind: VideoModalActionKind
+  /** Écran du bouton principal : un bouton du colis sans libellé montre le libellé de la liste admin. */
+  primaryScreen?: InfoScreen | null
+  secondaryScreen?: InfoScreen | null
+  /** Au moins une étape du colis est cochée : le sélecteur de rôle de l'aperçu apparaît. */
+  parcelSteps?: boolean
   secondaryEnabled: boolean
   secondaryLabelFr: string
   secondaryLabelEn: string
@@ -39,16 +46,21 @@ const props = defineProps<{
   allowDontShowAgain?: boolean
 }>()
 
-const t = (fr: string, en: string) => localized(fr, en, props.lang)
+// Rôle regardé dans l'aperçu : n'a d'effet que sur les exemples des variables.
+const role = ref<ParcelRole>('SENDER')
+const t = (fr: string, en: string) => withParcelExamples(localized(fr, en, props.lang), role.value)
 const style = computed(() => MODAL_ICON_STYLES[props.icon] ?? MODAL_ICON_STYLES.INFO)
 const title = computed(() => t(props.titleFr, props.titleEn).trim() || (props.lang === 'en' ? 'Modal title' : 'Titre du modal'))
 const subtitle = computed(() => t(props.subtitleFr, props.subtitleEn).trim())
 const body = computed(() => t(props.bodyFr, props.bodyEn).trim() || (props.lang === 'en' ? 'Modal text.' : 'Texte du modal.'))
-function label(fr: string, en: string, kind: VideoModalActionKind) {
-  return t(fr, en).trim() || (kind === 'CLOSE' ? 'OK' : '')
+function label(fr: string, en: string, kind: VideoModalActionKind, screen?: InfoScreen | null) {
+  const own = t(fr, en).trim()
+  if (own) return own
+  if (kind === 'CLOSE') return 'OK'
+  return kind === 'SCREEN' && screen && PARCEL_SCREENS.includes(screen) ? screenLabel(screen) : ''
 }
-const primary = computed(() => label(props.primaryLabelFr, props.primaryLabelEn, props.primaryKind))
-const secondary = computed(() => label(props.secondaryLabelFr, props.secondaryLabelEn, props.secondaryKind))
+const primary = computed(() => label(props.primaryLabelFr, props.primaryLabelEn, props.primaryKind, props.primaryScreen))
+const secondary = computed(() => label(props.secondaryLabelFr, props.secondaryLabelEn, props.secondaryKind, props.secondaryScreen))
 const mode = computed(() => props.imageMode ?? 'NONE')
 const imageClass = computed(() => (props.imageFit === 'CONTAIN' ? 'object-contain' : 'object-cover'))
 // Texte alternatif : repli sur le titre, comme l'app.
@@ -57,6 +69,14 @@ const placeholder = 'Image'
 </script>
 
 <template>
+  <div v-if="parcelSteps" data-test="vm-preview-roles" class="mb-3 flex flex-wrap justify-center gap-1" role="group" aria-label="Rôle de l’aperçu">
+    <button
+      v-for="r in PARCEL_ROLES" :key="r" type="button" :data-test="`vm-preview-role-${r}`" :aria-pressed="role === r"
+      :class="['rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+               role === r ? 'bg-primary text-white' : 'bg-surface-elevated text-text-muted hover:text-text']"
+      @click="role = r"
+    >{{ parcelRoleLabel(r) }}</button>
+  </div>
   <PhoneFrame :lang="lang">
     <ModalShell :layout="layout" :size-percent="sizePercent" :close-label="lang === 'en' ? 'Close' : 'Fermer'">
       <!-- Affiche : l'image occupe tout le modal au-dessus des boutons, ni titre ni texte -->

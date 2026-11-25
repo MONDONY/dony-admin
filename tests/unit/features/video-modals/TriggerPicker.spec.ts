@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TriggerPicker from '@/features/video-modals/components/TriggerPicker.vue'
-import { MOMENT_GROUPS, MOMENT_TRIGGERS, isParcelStepTrigger, SCREEN_TRIGGERS, SITUATION_KINDS } from '@/features/video-modals/types/index'
+import { MOMENT_GROUPS, MOMENT_TRIGGERS, PARCEL_STEP_TRIGGERS, SCREEN_TRIGGERS, SITUATION_KINDS } from '@/features/video-modals/types/index'
 
 const mountPicker = (props: Record<string, unknown> = {}) =>
   mount(TriggerPicker, { props: { triggers: ['SEARCH_TAB'], situations: [], isInfo: false, ...props } })
@@ -18,17 +18,26 @@ describe('TriggerPicker : moments', () => {
     expect((w.get('[data-test="vm-trigger-TRACKING_TAB"] input').element as HTMLInputElement).checked).toBe(false)
   })
 
+  it('TriggerPicker_listsFiveParcelStepsUnderMoments : groupe visible, cinq pastilles, libellés', async () => {
+    const w = mountPicker()
+    const group = w.get('[data-test="vm-moments-parcel"]')
+    expect(w.text()).toContain('Étapes du colis')
+    const labels = ['Colis accepté', 'Colis remis', 'Colis en voyage', 'Colis arrivé', 'Colis livré']
+    expect(PARCEL_STEP_TRIGGERS.map(t => group.get(`[data-test="vm-trigger-${t}"]`).text())).toEqual(labels)
+    await group.get('[data-test="vm-trigger-PARCEL_ARRIVED"] input').trigger('change')
+    expect(w.emitted('toggle-trigger')![0]).toEqual(['PARCEL_ARRIVED'])
+  })
+
   it('cocher ou décocher émet le déclencheur', async () => {
     const w = mountPicker()
     await w.get('[data-test="vm-trigger-TRACKING_TAB"] input').trigger('change')
     expect(w.emitted('toggle-trigger')![0]).toEqual(['TRACKING_TAB'])
   })
 
-  it('moments de l’étape 2 : les treize sont des pastilles cochables, plus aucun « Bientôt »', async () => {
+  it('moments : les dix-huit sont des pastilles cochables, plus aucun « Bientôt »', async () => {
     const w = mountPicker()
-    // Les cinq étapes du colis ont leurs pastilles dans la tâche des composants ; ici les treize moments d'avant.
-    const moments = MOMENT_TRIGGERS.filter(t => !isParcelStepTrigger(t))
-    expect(moments).toHaveLength(13)
+    const moments = MOMENT_TRIGGERS
+    expect(moments).toHaveLength(18)
     expect(w.text()).not.toContain('Bientôt')
     expect(w.find('[aria-disabled="true"]').exists()).toBe(false)
     for (const t of moments) {

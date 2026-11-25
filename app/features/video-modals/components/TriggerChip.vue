@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { TRIGGER_CHIP_LABELS, type VideoModalTrigger } from '@/features/video-modals/types/index'
+import { triggerChipLabel } from '@/features/video-modals/lib/labels'
+import type { VideoModalTrigger } from '@/features/video-modals/types/index'
 
 /** Une pastille de moment (bleue) : écran, bouton ou moment d'action. Cochée, elle passe en bleu plein. */
 defineProps<{ trigger: VideoModalTrigger; checked: boolean }>()
@@ -13,6 +14,6 @@ const emit = defineEmits<{ toggle: [] }>()
              checked ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-surface-elevated']"
   >
     <input type="checkbox" class="sr-only" :checked="checked" @change="emit('toggle')">
-    {{ TRIGGER_CHIP_LABELS[trigger] }}
+    {{ triggerChipLabel(trigger) }}
   </label>
 </template>

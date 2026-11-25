@@ -71,6 +71,11 @@ const errClass = 'mt-1 text-xs text-danger'
       <TriggerChip v-for="t in MOMENT_GROUPS.ACTION" :key="t" :trigger="t" :checked="triggers.includes(t)" @toggle="emit('toggle-trigger', t)" />
     </div>
 
+    <p :class="labelClass">Étapes du colis</p>
+    <div class="flex flex-wrap gap-2" data-test="vm-moments-parcel">
+      <TriggerChip v-for="t in MOMENT_GROUPS.PARCEL" :key="t" :trigger="t" :checked="triggers.includes(t)" @toggle="emit('toggle-trigger', t)" />
+    </div>
+
     <p :class="labelClass">Recherche et intérêt</p>
     <div class="flex flex-wrap gap-2" data-test="vm-moments-search">
       <TriggerChip v-for="t in MOMENT_GROUPS.SEARCH" :key="t" :trigger="t" :checked="triggers.includes(t)" @toggle="emit('toggle-trigger', t)" />

@@ -25,6 +25,20 @@ function mountSection(isInfo: boolean, over: Record<string, unknown> = {}, error
   return { w, state }
 }
 
+describe('FrequencySection : une fois par colis', () => {
+  it('FrequencySection_offersOncePerParcelOnlyWithParcelTriggers', () => {
+    const off = mountSection(true).w
+    const radioOff = off.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input')
+    expect((radioOff.element as HTMLInputElement).disabled).toBe(true)
+    expect(off.get('[data-test="vm-frequency-ONCE_PER_PARCEL"]').text()).toContain('Une fois par colis')
+    expect(off.get('[data-test="vm-once-per-parcel-reason"]').text()).toContain('étapes du colis')
+    const on = mount(FrequencySection, { props: { isInfo: true, errors: {}, parcelOnly: true, frequency: 'ONCE', maxDisplays: 3, frequencyDays: 7, stopAfterAnswer: true, allowDontShowAgain: false, priority: 0, startsAt: '', endsAt: '' } })
+    expect((on.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input').element as HTMLInputElement).disabled).toBe(false)
+    expect(on.find('[data-test="vm-once-per-parcel-reason"]').exists()).toBe(false)
+    expect(on.find('[data-test="vm-frequency-ONCE_PER_PARCEL"] input[type="number"]').exists()).toBe(false)
+  })
+})
+
 describe('FrequencySection', () => {
   it('« à chaque fois » : libellé, précision, sans champ numérique, et fin facultative expliquée', () => {
     const { w } = mountSection(false, { frequency: 'EVERY_TIME' })

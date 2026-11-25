@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import VideoModalForm from '@/features/video-modals/components/VideoModalForm.vue'
-import { INFO_SCREENS, INFO_SCREEN_LABELS, type VideoModalInput } from '@/features/video-modals/types/index'
+import { INFO_SCREENS, INFO_SCREEN_LABELS, PARCEL_SCREENS, type VideoModalInput } from '@/features/video-modals/types/index'
 import { infoModal } from './fixtures'
 
 const mountInfo = (props: Record<string, unknown> = {}) =>
@@ -56,8 +56,10 @@ describe('VideoModalForm : type Information, création', () => {
     const w = mountInfo()
     await w.get('[data-test="vm-primary-kind"]').setValue('SCREEN')
     const opts = w.findAll('[data-test="vm-primary-screen"] option').filter(o => o.attributes('value'))
-    expect(opts.map(o => o.attributes('value'))).toEqual([...INFO_SCREENS])
-    expect(opts.map(o => o.text())).toEqual(INFO_SCREENS.map(s => INFO_SCREEN_LABELS[s]))
+    // Sans étape du colis cochée, les quatre boutons du colis ne sont pas proposés.
+    const plain = INFO_SCREENS.filter(s => !PARCEL_SCREENS.includes(s))
+    expect(opts.map(o => o.attributes('value'))).toEqual([...plain])
+    expect(opts.map(o => o.text())).toEqual(plain.map(s => INFO_SCREEN_LABELS[s]))
     await fillBase(w)
     await w.get('[data-test="vm-primary-fr"]').setValue('Voir le suivi')
     expect((w.get('[data-test="vm-primary-screen"]').element as HTMLSelectElement).value).toBe('SEARCH')

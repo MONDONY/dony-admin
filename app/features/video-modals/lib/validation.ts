@@ -142,7 +142,7 @@ function validateFrequency(input: VideoModalInput, errors: VideoModalErrors) {
       errors.frequencyDays = `Nombre de jours entier, de ${FREQUENCY_DAYS_MIN} à ${FREQUENCY_DAYS_MAX}.`
     }
   }
-  if (input.frequency === 'ONCE_PER_PARCEL' && !(input.triggers.length > 0 && input.triggers.every(isParcelStepTrigger))) {
+  if (input.frequency === 'ONCE_PER_PARCEL' && !((input.triggers ?? []).length > 0 && (input.triggers ?? []).every(isParcelStepTrigger))) {
     errors.frequency = 'Cette fréquence ne s’applique qu’aux étapes du colis : retire les autres déclencheurs.'
   }
   if (input.frequency === 'EVERY_TIME' && (input.triggers ?? []).some(t => !isMomentTrigger(t))) {
@@ -210,7 +210,7 @@ function unknownVariable(text: string | null | undefined): string | null {
  * `PARCEL_*` seulement avec une étape du colis, et variables des titres et textes limitées à la liste permise.
  */
 function validateParcelSteps(input: VideoModalInput, errors: VideoModalErrors) {
-  const parcelStep = input.triggers.some(isParcelStepTrigger)
+  const parcelStep = (input.triggers ?? []).some(isParcelStepTrigger)
   const roles = input.parcelRoles ?? []
   if (roles.some(r => !(PARCEL_ROLES as readonly string[]).includes(r))) {
     errors.parcelRoles = 'Rôle inconnu : expéditeur, voyageur ou destinataire.'
@@ -223,7 +223,9 @@ function validateParcelSteps(input: VideoModalInput, errors: VideoModalErrors) {
   if (!parcelStep && opensParcel(input.primaryAction)) errors.primaryAction = errors.primaryAction ?? needStep
   if (!parcelStep && opensParcel(input.secondaryAction)) errors.secondaryAction = errors.secondaryAction ?? needStep
 
-  const fields = [['titleFr', input.titleFr], ['titleEn', input.titleEn], ['bodyFr', input.bodyFr], ['bodyEn', input.bodyEn]] as const
+  // Le back vide le texte d'une vidéo : les variables du corps ne se contrôlent que pour une information.
+  const fields = [['titleFr', input.titleFr], ['titleEn', input.titleEn],
+    ...(input.type === 'INFO' ? [['bodyFr', input.bodyFr], ['bodyEn', input.bodyEn]] as const : [])] as const
   for (const [field, text] of fields) {
     const bad = unknownVariable(text)
     if (bad && !errors[field]) {

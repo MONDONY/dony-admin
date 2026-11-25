@@ -10,8 +10,10 @@ import { MAX_DISPLAYS_MAX, MAX_DISPLAYS_MIN } from '@/features/video-modals/lib/
  * règles de réponse (arrêt après un bouton touché, case « Ne plus afficher »), la priorité et la période.
  * Les cinq fréquences sont proposées pour une vidéo comme pour une information (le back les accepte pour les deux types).
  */
-defineProps<{
+const props = defineProps<{
   isInfo: boolean
+  /** Vrai quand tous les déclencheurs cochés sont des étapes du colis : « Une fois par colis » devient permise. */
+  parcelOnly?: boolean
   errors: Partial<Record<'frequency' | 'frequencyDays' | 'maxDisplays' | 'priority' | 'period', string | undefined>>
 }>()
 
@@ -30,7 +32,8 @@ const options = MODAL_FREQUENCIES
 const inputClass = 'rounded-btn border border-border bg-bg p-2 text-center text-sm font-bold tabular-nums text-accent'
 const errClass = 'mt-1 text-xs text-danger'
 const optClass = (f: ModalFrequency) =>
-  ['flex cursor-pointer items-start gap-2.5 rounded-btn border-2 px-3.5 py-2.5 text-sm transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-primary',
+  [f === 'ONCE_PER_PARCEL' && !props.parcelOnly && frequency.value !== f ? 'opacity-60' : '',
+   'flex cursor-pointer items-start gap-2.5 rounded-btn border-2 px-3.5 py-2.5 text-sm transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-primary',
    frequency.value === f ? 'border-primary bg-primary/10' : 'border-border hover:bg-surface-elevated']
 </script>
 
@@ -40,7 +43,7 @@ const optClass = (f: ModalFrequency) =>
     <div class="grid gap-5 lg:grid-cols-2">
       <div role="radiogroup" aria-label="Fréquence" class="space-y-2">
         <label v-for="f in options" :key="f" :data-test="`vm-frequency-${f}`" :class="optClass(f)">
-          <input v-model="frequency" type="radio" name="vm-frequency" class="mt-1 accent-primary" :value="f">
+          <input v-model="frequency" type="radio" name="vm-frequency" class="mt-1 accent-primary" :value="f" :disabled="f === 'ONCE_PER_PARCEL' && !parcelOnly && frequency !== f">
           <span v-if="f === 'ONCE'"><b>Une seule fois</b><span class="block text-xs text-text-muted">Par version du modal.</span></span>
           <span v-else-if="f === 'UP_TO_N'" class="flex flex-wrap items-center gap-1.5">
             <b>Jusqu’à</b>
@@ -55,6 +58,11 @@ const optClass = (f: ModalFrequency) =>
           <span v-else-if="f === 'EVERY_TIME'">
             <b>À chaque fois que l’action se produit</b>
             <span class="block text-xs text-text-muted">Sans limite, à chaque occurrence, tant que la campagne est active. Réservé aux moments d’action (recherche sans résultat, paiement, publication…).</span>
+          </span>
+          <span v-else-if="f === 'ONCE_PER_PARCEL'">
+            <b>Une fois par colis</b>
+            <span class="block text-xs text-text-muted">Une fois pour chaque colis, à chaque étape choisie. Réservé aux étapes du colis.</span>
+            <span v-if="!parcelOnly" data-test="vm-once-per-parcel-reason" class="block text-xs text-warning">Disponible seulement si tous les déclencheurs sont des étapes du colis.</span>
           </span>
           <span v-else class="flex flex-wrap items-center gap-1.5">
             <b>Au plus une fois tous les</b>

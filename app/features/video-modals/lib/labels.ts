@@ -1,5 +1,5 @@
 import {
-  INFO_SCREEN_LABELS, PARCEL_ROLE_LABELS, TRIGGER_LABELS,
+  INFO_SCREEN_LABELS, PARCEL_ROLE_LABELS, TRIGGER_CHIP_LABELS, TRIGGER_LABELS, TRIGGER_SHORT_LABELS,
   type AdminVideoModal, type InfoScreen, type ParcelRole, type VideoModalTrigger,
 } from '@/features/video-modals/types/index'
 
@@ -7,6 +7,9 @@ import {
  * Libellés tolérants à un back plus récent : une valeur inconnue s'affiche telle quelle, sans lever d'erreur.
  */
 export const triggerLabel = (t: string): string => TRIGGER_LABELS[t as VideoModalTrigger] ?? t
+/** Pastille du formulaire et libellé court de la liste : même repli sur la valeur brute. */
+export const triggerChipLabel = (t: string): string => TRIGGER_CHIP_LABELS[t as VideoModalTrigger] ?? t
+export const triggerShortLabel = (t: string): string => TRIGGER_SHORT_LABELS[t as VideoModalTrigger] ?? t
 export const parcelRoleLabel = (r: string): string => PARCEL_ROLE_LABELS[r as ParcelRole] ?? r
 export const screenLabel = (s: string): string => INFO_SCREEN_LABELS[s as InfoScreen] ?? s
 
