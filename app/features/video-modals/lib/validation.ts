@@ -1,7 +1,7 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
 import { httpsUrlError } from '@/features/video-modals/lib/url'
 import {
-  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, isMomentTrigger, isParcelStepTrigger, MAX_HIGHLIGHTS, PARCEL_ROLES, PARCEL_SCREENS, PARCEL_VARIABLES,
+  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, isMomentTrigger, isParcelStepTrigger, MAX_HIGHLIGHTS, PARCEL_SCREENS, PARCEL_VARIABLES,
   MODAL_FREQUENCIES, MODAL_ICONS, MODAL_LAYOUTS, MODAL_PLATFORMS, SAMPLE_MAX, SAMPLE_MIN, SITUATIONS, SIZE_MAX, SIZE_MIN, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN, VIDEO_MODAL_TRIGGERS,
   type VideoModalAction, type VideoModalInput,
 } from '@/features/video-modals/types/index'
@@ -212,9 +212,8 @@ function unknownVariable(text: string | null | undefined): string | null {
 function validateParcelSteps(input: VideoModalInput, errors: VideoModalErrors) {
   const parcelStep = (input.triggers ?? []).some(isParcelStepTrigger)
   const roles = input.parcelRoles ?? []
-  if (roles.some(r => !(PARCEL_ROLES as readonly string[]).includes(r))) {
-    errors.parcelRoles = 'Rôle inconnu : expéditeur, voyageur ou destinataire.'
-  } else if (roles.length > 0 && !parcelStep) {
+  // Un rôle inconnu (back plus récent) passe : le back reste juge.
+  if (roles.length > 0 && !parcelStep) {
     errors.parcelRoles = 'Le rôle ne s’applique qu’avec au moins une étape du colis.'
   }
 

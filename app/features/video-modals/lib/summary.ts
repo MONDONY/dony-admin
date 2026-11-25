@@ -182,7 +182,9 @@ function parcelRoleParts(input: SummaryInput): SummaryPart[] {
   const roles = (input.parcelRoles ?? []) as string[]
   if (roles.length === 0) return [plain(', '), strong('quel que soit son rôle sur le colis')]
   const names = roles.map(r => ROLE_PHRASES[r as ParcelRole] ?? r)
-  return [plain(', '), strong(`pour ${joinOr(names)}`)]
+  // Avec d'autres déclencheurs, le rôle ne vaut que pour les étapes du colis : on le dit.
+  const mixed = input.triggers.some(t => !isParcelStepTrigger(t))
+  return [plain(', '), strong(`pour ${joinOr(names)}`), ...(mixed ? [plain(', '), strong('à l’ouverture du colis')] : [])]
 }
 
 /** « de Paris vers Abidjan », « au départ de Paris », « à l’arrivée à Abidjan ». */
@@ -219,7 +221,9 @@ function audienceParts(input: SummaryInput, fields: AudienceField[]): SummaryPar
   else if (min) parts.push(plain(', avec l’application '), strong(`${min} ou plus`))
   else if (max) parts.push(plain(', avec l’application '), strong(`${max} ou moins`))
   if (sample !== null) parts.push(plain(', pour '), strong(`${sample} %`), plain(' des personnes concernées'))
-  if (parts.length === 0 && !situations) parts.push(plain(', pour '), strong('tout le monde'), plain(', visiteurs sans compte compris'))
+  // Un modal d'étape suit un colis du compte : jamais ouvert à un visiteur, on ne le dit donc pas.
+  const parcelOnly = input.triggers.length > 0 && input.triggers.every(isParcelStepTrigger)
+  if (parts.length === 0 && !situations && !parcelOnly) parts.push(plain(', pour '), strong('tout le monde'), plain(', visiteurs sans compte compris'))
   return parts
 }
 
@@ -235,7 +239,8 @@ function frequencyParts(input: SummaryInput): SummaryPart[] {
     const n = input.frequencyDays
     parts.push(strong(n === 1 ? 'au plus une fois par jour' : `au plus une fois tous les ${isNum(n) ? n : '…'} jours`))
   }
-  if (freq !== 'ONCE') {
+  // « Une fois par colis » ignore ce réglage (back et app) : le modal revient pour chaque nouveau colis.
+  if (freq !== 'ONCE' && freq !== 'ONCE_PER_PARCEL') {
     parts.push(plain(input.stopAfterAnswer === false ? ', même après un bouton touché' : ', et ne revient plus après un bouton touché'))
   }
   const start = fmtDate(input.startsAt)

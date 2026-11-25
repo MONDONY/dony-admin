@@ -1,6 +1,6 @@
 import {
   CORRIDOR_TRIGGERS, NO_DELAY_TRIGGERS, OPEN_DELAY_SECONDS, PLATFORM_LABELS,
-  isMomentTrigger, type VideoModalInput,
+  isMomentTrigger, isParcelStepTrigger, PARCEL_ROLE_LABELS, type ParcelRole, type VideoModalInput,
 } from '@/features/video-modals/types/index'
 import type { VideoModalErrors } from '@/features/video-modals/lib/validation'
 
@@ -66,7 +66,7 @@ function statusAndPeriod(input: VideoModalInput, ctx: DisplayConditionsContext, 
 
 function usesRecentFeatures(input: VideoModalInput): string[] {
   const used: string[] = []
-  if (input.triggers.some(isMomentTrigger)) used.push('un moment d’action')
+  if (input.triggers.some(t => isMomentTrigger(t) && !isParcelStepTrigger(t))) used.push('un moment d’action')
   if ((input.layout ?? 'BOTTOM_SHEET') !== 'BOTTOM_SHEET' || (input.sizePercent ?? null) !== null) used.push('un format ou une taille')
   if ((input.imageMode ?? 'NONE') !== 'NONE') used.push('une image')
   const f = input.frequency ?? 'UP_TO_N'
@@ -87,6 +87,12 @@ function versionAndAudience(input: VideoModalInput): ConditionRow[] {
   }
   rows.push({ id: 'app-version', group, label: 'Version de l’app', detail, verdict: recent.length > 0 ? 'check' : 'ok' })
 
+  if (input.triggers.some(isParcelStepTrigger)) {
+    rows.push({
+      id: 'parcel-capability', group, label: 'App qui connaît les étapes du colis',
+      detail: 'Servie seulement aux apps qui annoncent les étapes du colis (capacité « parcel », pas encore en store) : les autres ne l’affichent jamais.', verdict: 'check',
+    })
+  }
   const min = input.minAppVersion?.trim()
   const max = input.maxAppVersion?.trim()
   if (min || max) {
@@ -132,6 +138,30 @@ function trigger(input: VideoModalInput): ConditionRow[] {
       detail: 'Réservée aux moments d’action : retire les déclencheurs d’écran ou de bouton, sinon l’enregistrement est refusé.', verdict: 'block',
     })
   }
+  if (input.frequency === 'ONCE_PER_PARCEL' && triggers.some(t => !isParcelStepTrigger(t))) {
+    rows.push({
+      id: 'once-per-parcel', group, label: 'Fréquence « Une fois par colis »',
+      detail: 'Réservée aux étapes du colis : retire les autres déclencheurs, sinon l’enregistrement est refusé.', verdict: 'block',
+    })
+  }
+  if (triggers.some(isParcelStepTrigger)) {
+    const roles = (input.parcelRoles ?? []) as string[]
+    rows.push({
+      id: 'parcel-roles', group, label: 'Rôles visés',
+      detail: roles.length > 0 ? `Seulement ${roles.map(r => PARCEL_ROLE_LABELS[r as ParcelRole] ?? r).join(', ')} sur le colis.` : 'Tous les rôles sur le colis.',
+      verdict: roles.length > 0 ? 'check' : 'ok',
+    })
+    rows.push({
+      id: 'parcel-visitors', group, label: 'Visiteurs sans compte',
+      detail: 'Jamais pour un visiteur : un modal d’étape suit un colis du compte.', verdict: 'check',
+    })
+    if (triggers.some(t => !isParcelStepTrigger(t))) {
+      rows.push({
+        id: 'parcel-mixed', group, label: 'Aussi ouvert hors d’un colis',
+        detail: 'Les autres déclencheurs l’ouvrent sans colis : le rôle n’y est pas vérifié, les variables y restent entre accolades et les boutons du colis y ferment le modal.', verdict: 'check',
+      })
+    }
+  }
   const corridors = (input.corridors ?? []).filter(c => c.from || c.to)
   if (corridors.length > 0 && triggers.some(t => CORRIDOR_TRIGGERS.includes(t))) {
     const list = corridors.map(c => `${c.from || 'n’importe où'} vers ${c.to || 'n’importe où'}`).join(', ')
@@ -156,15 +186,17 @@ function repetition(input: VideoModalInput): ConditionRow[] {
   else if (f === 'UP_TO_N') freq = `Au plus ${input.maxDisplays} affichages par version : le plafond atteint, plus rien.`
   else if (f === 'EVERY_OPEN') freq = 'Au plus une fois par ouverture de l’app.'
   else if (f === 'EVERY_N_DAYS') freq = `Au plus une fois tous les ${input.frequencyDays ?? '…'} jours.`
+  else if (f === 'ONCE_PER_PARCEL') freq = 'Une seule fois par colis et par version, à la première étape choisie qui s’ouvre ; un nouveau colis le remontre.'
   else {
     freq = 'Sans plafond : à chaque occurrence de l’action, tant que la campagne est active.'
     verdict = 'ok'
   }
   rows.push({ id: 'frequency', group, label: 'Fréquence', detail: freq, verdict })
+  const perParcel = f === 'ONCE_PER_PARCEL'
   rows.push({
     id: 'stop-after-answer', group, label: 'Après un bouton touché',
-    detail: input.stopAfterAnswer ? 'Plus affiché pour cette version dès qu’un bouton est touché.' : 'Continue d’être affiché même après un bouton touché.',
-    verdict: input.stopAfterAnswer ? 'check' : 'ok',
+    detail: perParcel ? 'Sans effet pour « Une fois par colis » : le modal revient pour chaque nouveau colis.' : input.stopAfterAnswer ? 'Plus affiché pour cette version dès qu’un bouton est touché.' : 'Continue d’être affiché même après un bouton touché.',
+    verdict: input.stopAfterAnswer && !perParcel ? 'check' : 'ok',
   })
   rows.push({
     id: 'dont-show', group, label: 'Case « Ne plus afficher »',
@@ -203,7 +235,7 @@ function commonRules(input: VideoModalInput): string[] {
   const everyTime = input.frequency === 'EVERY_TIME'
   return [
     'Jamais deux modals en même temps.',
-    `Un seul modal par lancement dans chaque case indépendante. Cette ${info ? 'information' : 'vidéo'} a sa propre case (${kind}, déclencheur d’écran ou d’action) : une ${other} ne la bloque pas.${everyTime ? ' Exception : la fréquence « À chaque fois » n’est pas limitée à un par lancement.' : ''}`,
+    `Un seul modal par lancement dans chaque case indépendante. Cette ${info ? 'information' : 'vidéo'} a sa propre case (${kind}, déclencheur d’écran ou d’action) : une ${other} ne la bloque pas.${everyTime ? ' Exception : la fréquence « À chaque fois » n’est pas limitée à un par lancement.' : ''}${input.frequency === 'ONCE_PER_PARCEL' ? ' Exception : « Une fois par colis » n’est pas limitée à un par lancement.' : ''}`,
     'Un modal d’action est abandonné s’il n’a pas pu s’ouvrir au bout de 2 minutes.',
     'Pas d’ouverture si la personne saisit du texte, si une autre page recouvre l’écran ou si l’app est en arrière-plan.',
     'Les campagnes sont rechargées au retour au premier plan après 15 minutes.',

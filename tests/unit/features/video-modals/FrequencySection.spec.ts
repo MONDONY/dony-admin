@@ -39,6 +39,18 @@ describe('FrequencySection : une fois par colis', () => {
   })
 })
 
+describe('FrequencySection : I3 et M6', () => {
+  it('libellé exact, raison en gris, interrupteur désactivé avec explication', () => {
+    const { w } = mountSection(true, { frequency: 'ONCE_PER_PARCEL' })
+    expect(w.get('[data-test="vm-frequency-ONCE_PER_PARCEL"]').text()).toContain('Une seule fois par colis, à la première étape choisie qui s’ouvre. Pour un rappel à chaque étape, une campagne par étape.')
+    expect((w.get('[data-test="vm-stop-after-answer"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.get('[data-test="vm-stop-after-answer-note"]').text()).toBe('Sans effet pour « Une fois par colis » : le modal revient pour chaque nouveau colis.')
+    const off = mountSection(true).w
+    expect(off.get('[data-test="vm-once-per-parcel-reason"]').classes()).toContain('text-text-muted')
+    expect((off.get('[data-test="vm-stop-after-answer"]').element as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
 describe('FrequencySection', () => {
   it('« à chaque fois » : libellé, précision, sans champ numérique, et fin facultative expliquée', () => {
     const { w } = mountSection(false, { frequency: 'EVERY_TIME' })

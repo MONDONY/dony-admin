@@ -52,7 +52,7 @@ describe('validation des étapes du colis', () => {
     expect(validateVideoModal(parcelInfo({ parcelRoles: ['SENDER', 'RECIPIENT'] })).parcelRoles).toBeUndefined()
     expect(validateVideoModal(parcelInfo({ triggers: ['SEARCH_TAB'], parcelRoles: [] })).parcelRoles).toBeUndefined()
     expect(validateVideoModal(parcelInfo({ triggers: ['SEARCH_TAB'] })).parcelRoles).toBeUndefined()
-    expect(validateVideoModal(parcelInfo({ parcelRoles: ['BOSS' as never] })).parcelRoles).toContain('inconnu')
+    expect(validateVideoModal(parcelInfo({ parcelRoles: ['BOSS' as never] })).parcelRoles).toBeUndefined()
   })
 
   it('validation_oncePerParcelRequiresOnlyParcelTriggers', () => {

@@ -61,8 +61,8 @@ const optClass = (f: ModalFrequency) =>
           </span>
           <span v-else-if="f === 'ONCE_PER_PARCEL'">
             <b>Une fois par colis</b>
-            <span class="block text-xs text-text-muted">Une fois pour chaque colis, à chaque étape choisie. Réservé aux étapes du colis.</span>
-            <span v-if="!parcelOnly" data-test="vm-once-per-parcel-reason" class="block text-xs text-warning">Disponible seulement si tous les déclencheurs sont des étapes du colis.</span>
+            <span class="block text-xs text-text-muted">Une seule fois par colis, à la première étape choisie qui s’ouvre. Pour un rappel à chaque étape, une campagne par étape.</span>
+            <span v-if="!parcelOnly" data-test="vm-once-per-parcel-reason" class="block text-xs text-text-muted">Disponible seulement si tous les déclencheurs sont des étapes du colis.</span>
           </span>
           <span v-else class="flex flex-wrap items-center gap-1.5">
             <b>Au plus une fois tous les</b>
@@ -84,8 +84,9 @@ const optClass = (f: ModalFrequency) =>
           <span class="text-sm">
             <b class="block font-semibold">Ne plus afficher après un bouton touché</b>
             <span class="text-xs text-text-muted">Arrêté pour cette version dès qu’un bouton est touché. Coupé : seuls la fréquence et le plafond comptent.</span>
+            <span v-if="frequency === 'ONCE_PER_PARCEL'" data-test="vm-stop-after-answer-note" class="block text-xs text-text-muted">Sans effet pour « Une fois par colis » : le modal revient pour chaque nouveau colis.</span>
           </span>
-          <ActiveSwitch v-model="stopAfterAnswer" data-test="vm-stop-after-answer" label="Ne plus afficher après un bouton touché" />
+          <ActiveSwitch v-model="stopAfterAnswer" data-test="vm-stop-after-answer" :disabled="frequency === 'ONCE_PER_PARCEL'" label="Ne plus afficher après un bouton touché" />
         </div>
         <div class="flex items-center justify-between gap-4 rounded-btn border border-border px-4 py-3">
           <span class="text-sm">

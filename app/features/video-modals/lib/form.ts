@@ -1,6 +1,6 @@
 import type { WireGroup } from '@/features/broadcast/composables/audienceRule'
 import {
-  isParcelStepTrigger, FEW_RESULTS_DEFAULT, FEW_RESULTS_MAX, FEW_RESULTS_MIN, SITUATIONS, TRIP_VIEWED_DEFAULT, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN,
+  isParcelStepTrigger, VIDEO_MODAL_TRIGGERS, FEW_RESULTS_DEFAULT, FEW_RESULTS_MAX, FEW_RESULTS_MIN, SITUATIONS, TRIP_VIEWED_DEFAULT, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN,
   type AdminVideoModal, type ModalCorridor, type TriggerOptions, type ImageFit, type ImageMode, type ModalFrequency, type ModalIcon, type ModalLayout, type ModalPlatform,
   type ModalSituation, type ParcelRole, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
@@ -245,6 +245,9 @@ function triggerOptionsBody(s: VideoModalFormState): TriggerOptions {
   }
 }
 
+/** Forme composée : un `{expéditeur}` saisi en NFD ne serait pas reconnu. */
+const nfc = (t: string) => t.trim().normalize('NFC')
+
 function corridorBody(c: CorridorDraft): ModalCorridor {
   return { from: c.from.trim() || null, to: c.to.trim() || null }
 }
@@ -254,7 +257,9 @@ function corridorBody(c: CorridorDraft): ModalCorridor {
  * cochée, les rôles n'ont pas de sens et le back les refuserait : le champ part alors vide.
  */
 function parcelRolesBody(s: VideoModalFormState): ParcelRole[] {
-  return s.triggers.some(isParcelStepTrigger) ? [...s.parcelRoles] : []
+  // Un déclencheur inconnu (back plus récent) peut être une étape : on garde les rôles plutôt que de les effacer.
+  const unknownTrigger = s.triggers.some(t => !(VIDEO_MODAL_TRIGGERS as readonly string[]).includes(t))
+  return s.triggers.some(isParcelStepTrigger) || unknownTrigger ? [...s.parcelRoles] : []
 }
 
 /** Fréquence, réponses, priorité, ciblage : mêmes champs pour une vidéo et une information. */
@@ -299,12 +304,12 @@ export function inputFromFormState(s: VideoModalFormState): VideoModalInput {
       name: s.name.trim(),
       youtubeUrl: null,
       durationSeconds: null,
-      titleFr: s.titleFr.trim(),
-      titleEn: s.titleEn.trim(),
-      subtitleFr: s.subtitleFr.trim(),
-      subtitleEn: s.subtitleEn.trim(),
-      bodyFr: s.bodyFr.trim(),
-      bodyEn: s.bodyEn.trim(),
+      titleFr: nfc(s.titleFr),
+      titleEn: nfc(s.titleEn),
+      subtitleFr: nfc(s.subtitleFr),
+      subtitleEn: nfc(s.subtitleEn),
+      bodyFr: nfc(s.bodyFr),
+      bodyEn: nfc(s.bodyEn),
       icon: s.icon,
       primaryLabelFr: s.primaryLabelFr.trim(),
       primaryLabelEn: s.primaryLabelEn.trim(),
@@ -331,10 +336,10 @@ export function inputFromFormState(s: VideoModalFormState): VideoModalInput {
     name: s.name.trim(),
     youtubeUrl: s.youtubeUrl.trim(),
     durationSeconds: toDuration(s.durationSeconds),
-    titleFr: s.titleFr.trim(),
-    titleEn: s.titleEn.trim(),
-    subtitleFr: s.subtitleFr.trim(),
-    subtitleEn: s.subtitleEn.trim(),
+    titleFr: nfc(s.titleFr),
+    titleEn: nfc(s.titleEn),
+    subtitleFr: nfc(s.subtitleFr),
+    subtitleEn: nfc(s.subtitleEn),
     primaryLabelFr: s.primaryLabelFr.trim(),
     primaryLabelEn: s.primaryLabelEn.trim(),
     secondaryLabelFr: s.secondaryLabelFr.trim(),

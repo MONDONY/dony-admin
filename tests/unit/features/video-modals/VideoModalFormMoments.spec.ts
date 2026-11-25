@@ -237,7 +237,7 @@ describe('VideoModalForm : étapes du colis', () => {
     expect((w.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input').element as HTMLInputElement).disabled).toBe(true)
   })
 
-  it('erreurs titleEn et parcelRoles affichées après soumission', async () => {
+  it('erreur titleEn affichée après soumission', async () => {
     const w = await ready({ type: 'INFO' })
     await w.get('[data-test="vm-name"]').setValue('X')
     await w.get('[data-test="vm-title-fr"]').setValue('Titre')
@@ -246,5 +246,42 @@ describe('VideoModalForm : étapes du colis', () => {
     await w.get('form').trigger('submit')
     expect(w.text()).toContain('Variable inconnue')
     expect(w.emitted('submit')).toBeUndefined()
+  })
+
+  it('I1 : étape du colis + écran par défaut : avertissement, retiré en décochant l’écran', async () => {
+    const w = await ready({ type: 'INFO' })
+    expect(w.find('[data-test="vm-parcel-mixed-warning"]').exists()).toBe(false)
+    await check(w, 'PARCEL_ARRIVED')
+    const warn = w.get('[data-test="vm-parcel-mixed-warning"]')
+    expect(warn.text()).toContain('Ce modal s’ouvre aussi hors d’un colis')
+    expect(warn.text()).toContain('Onglet Rechercher')
+    expect(warn.text()).toContain('Pour ne l’ouvrir qu’à l’étape du colis, décochez les autres déclencheurs.')
+    expect(w.get('[data-test="vm-dc-parcel-mixed"]').attributes('data-verdict')).toBe('check')
+    await check(w, 'SEARCH_TAB')
+    expect(w.find('[data-test="vm-parcel-mixed-warning"]').exists()).toBe(false)
+    expect(w.find('[data-test="vm-dc-parcel-mixed"]').exists()).toBe(false)
+  })
+
+  it('I2 : rôles visés dans l’aperçu, destinataire + bouton QR : « OK »', async () => {
+    const w = await ready({ type: 'INFO' })
+    await check(w, 'PARCEL_ARRIVED')
+    await check(w, 'SEARCH_TAB')
+    await w.get('[data-test="vm-parcel-role-RECIPIENT"] input').setValue(true)
+    expect(w.find('[data-test="vm-preview-role-SENDER"]').exists()).toBe(false)
+    expect(w.get('[data-test="vm-preview-roles"]').text()).toContain('Aperçu pour')
+    await w.get('[data-test="vm-primary-kind"]').setValue('SCREEN')
+    await w.get('[data-test="vm-primary-screen"]').setValue('PARCEL_QR')
+    expect(w.get('[data-test="vm-preview-primary"]').text()).toBe('OK')
+    expect(w.get('[data-test="vm-preview-warn-sender"]').exists()).toBe(true)
+  })
+
+  it('I3 : « ne plus afficher après un bouton » désactivé pour « Une fois par colis »', async () => {
+    const w = await ready({ type: 'INFO' })
+    await check(w, 'PARCEL_ARRIVED')
+    await check(w, 'SEARCH_TAB')
+    await w.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input').setValue(true)
+    expect((w.get('[data-test="vm-stop-after-answer"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.get('[data-test="vm-stop-after-answer-note"]').text()).toContain('Sans effet pour « Une fois par colis »')
+    expect(summaryOf(w)).not.toContain('ne revient plus après un bouton touché')
   })
 })

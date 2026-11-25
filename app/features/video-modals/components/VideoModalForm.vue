@@ -82,6 +82,7 @@ const conditionsComplete = computed(() => fields.value.length === 0 || rule.isCo
 
 const hasParcelStep = computed(() => state.triggers.some(isParcelStepTrigger))
 // « Une fois par colis » : seulement si tous les déclencheurs cochés sont des étapes du colis (comme le back).
+const otherTriggers = computed(() => (hasParcelStep.value ? state.triggers.filter(t => !isParcelStepTrigger(t)) : []))
 const parcelOnly = computed(() => state.triggers.length > 0 && state.triggers.every(isParcelStepTrigger))
 const input = computed(() => inputFromFormState(state))
 const errors = computed(() => validateVideoModal(input.value, { hasImage: hasImage.value, conditionsComplete: conditionsComplete.value }))
@@ -393,7 +394,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           @toggle-trigger="toggleTrigger" @toggle-situation="toggleSituation" @set-situation-value="setSituationValue"
           @set-trigger-option="setTriggerOption"
         />
-        <ParcelRolesSection v-model="state.parcelRoles" :visible="hasParcelStep" :error="shown('parcelRoles')" />
+        <ParcelRolesSection v-model="state.parcelRoles" :visible="hasParcelStep" :error="shown('parcelRoles')" :other-triggers="otherTriggers" />
         <div class="mt-5">
           <CorridorSection
             :corridors="state.corridors" :applies="corridorApplies" :error="shown('corridors')"
@@ -487,6 +488,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         :secondary-enabled="state.secondaryEnabled" :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
         :secondary-kind="state.secondaryAction.kind"
         :primary-screen="state.primaryAction.screen" :secondary-screen="state.secondaryAction.screen" :parcel-steps="hasParcelStep"
+        :parcel-roles="state.parcelRoles" :triggers="state.triggers"
         :layout="state.layout" :size-percent="state.sizePercent" :allow-dont-show-again="state.allowDontShowAgain"
         :image-mode="state.imageMode" :image-fit="state.imageFit" :image-url="previewImageUrl"
         :image-alt-fr="state.imageAltFr" :image-alt-en="state.imageAltEn"
