@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TriggerPicker from '@/features/video-modals/components/TriggerPicker.vue'
-import { MOMENT_GROUPS, MOMENT_TRIGGERS, SCREEN_TRIGGERS, SITUATION_KINDS } from '@/features/video-modals/types/index'
+import { MOMENT_GROUPS, MOMENT_TRIGGERS, isParcelStepTrigger, SCREEN_TRIGGERS, SITUATION_KINDS } from '@/features/video-modals/types/index'
 
 const mountPicker = (props: Record<string, unknown> = {}) =>
   mount(TriggerPicker, { props: { triggers: ['SEARCH_TAB'], situations: [], isInfo: false, ...props } })
@@ -26,10 +26,12 @@ describe('TriggerPicker : moments', () => {
 
   it('moments de l’étape 2 : les treize sont des pastilles cochables, plus aucun « Bientôt »', async () => {
     const w = mountPicker()
-    expect(MOMENT_TRIGGERS).toHaveLength(13)
+    // Les cinq étapes du colis ont leurs pastilles dans la tâche des composants ; ici les treize moments d'avant.
+    const moments = MOMENT_TRIGGERS.filter(t => !isParcelStepTrigger(t))
+    expect(moments).toHaveLength(13)
     expect(w.text()).not.toContain('Bientôt')
     expect(w.find('[aria-disabled="true"]').exists()).toBe(false)
-    for (const t of MOMENT_TRIGGERS) {
+    for (const t of moments) {
       const chip = w.get(`[data-test="vm-trigger-${t}"]`)
       expect(chip.find('input[type="checkbox"]').exists(), t).toBe(true)
       await chip.get('input').trigger('change')

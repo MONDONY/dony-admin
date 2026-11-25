@@ -1,8 +1,8 @@
 import type { WireGroup } from '@/features/broadcast/composables/audienceRule'
 import {
-  FEW_RESULTS_DEFAULT, FEW_RESULTS_MAX, FEW_RESULTS_MIN, SITUATIONS, TRIP_VIEWED_DEFAULT, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN,
+  isParcelStepTrigger, FEW_RESULTS_DEFAULT, FEW_RESULTS_MAX, FEW_RESULTS_MIN, SITUATIONS, TRIP_VIEWED_DEFAULT, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN,
   type AdminVideoModal, type ModalCorridor, type TriggerOptions, type ImageFit, type ImageMode, type ModalFrequency, type ModalIcon, type ModalLayout, type ModalPlatform,
-  type ModalSituation, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
+  type ModalSituation, type ParcelRole, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
 
 /** Situation en cours de saisie : la valeur peut être vide ou du texte tant qu'elle n'est pas validée. */
@@ -24,7 +24,7 @@ export interface TriggerOptionsDraft {
 }
 
 /** État du formulaire : comme le corps d'API, mais les dates au format d'un `<input type="datetime-local">`. */
-export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 'endsAt' | 'durationSeconds' | 'youtubeUrl' | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'secondaryAction' | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn' | 'frequency' | 'frequencyDays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'priority' | 'connectedOnly' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations' | 'triggerOptions' | 'corridors' | 'audience'> {
+export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 'endsAt' | 'durationSeconds' | 'youtubeUrl' | 'bodyFr' | 'bodyEn' | 'icon' | 'primaryAction' | 'secondaryAction' | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn' | 'frequency' | 'frequencyDays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'priority' | 'connectedOnly' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations' | 'triggerOptions' | 'corridors' | 'parcelRoles' | 'audience'> {
   youtubeUrl: string
   durationSeconds: number | string | null
   startsAt: string
@@ -62,6 +62,8 @@ export interface VideoModalFormState extends Omit<VideoModalInput, 'startsAt' | 
   /** Étape 2 : seuils des moments et corridors ciblés. */
   triggerOptions: TriggerOptionsDraft
   corridors: CorridorDraft[]
+  /** Rôles visés sur le colis (étapes du colis) ; vide = tous. */
+  parcelRoles: ParcelRole[]
 }
 
 export const closeAction = (): VideoModalAction => ({ kind: 'CLOSE', screen: null, url: null })
@@ -130,6 +132,7 @@ export function defaultFormState(triggers: VideoModalTrigger[] = ['SEARCH_TAB'],
     situations: [],
     triggerOptions: { fewResultsMax: FEW_RESULTS_DEFAULT, tripViewedTimes: TRIP_VIEWED_DEFAULT },
     corridors: [],
+    parcelRoles: [],
   }
 }
 
@@ -194,6 +197,8 @@ export function formStateFromModal(m: AdminVideoModal): VideoModalFormState {
       tripViewedTimes: m.triggerOptions?.tripViewedTimes ?? TRIP_VIEWED_DEFAULT,
     },
     corridors: (m.corridors ?? []).map(c => ({ from: c.from ?? '', to: c.to ?? '' })),
+    // Campagne d'avant les étapes du colis (champ absent ou null) : tous les rôles. Une valeur inconnue est gardée telle quelle.
+    parcelRoles: [...(m.parcelRoles ?? [])],
   }
 }
 
@@ -244,6 +249,14 @@ function corridorBody(c: CorridorDraft): ModalCorridor {
   return { from: c.from.trim() || null, to: c.to.trim() || null }
 }
 
+/**
+ * Rôles sur le colis : toujours envoyés (une mise à jour sans le champ efface les rôles côté back). Sans étape du colis
+ * cochée, les rôles n'ont pas de sens et le back les refuserait : le champ part alors vide.
+ */
+function parcelRolesBody(s: VideoModalFormState): ParcelRole[] {
+  return s.triggers.some(isParcelStepTrigger) ? [...s.parcelRoles] : []
+}
+
 /** Fréquence, réponses, priorité, ciblage : mêmes champs pour une vidéo et une information. */
 function targetingBody(s: VideoModalFormState): Partial<VideoModalInput> {
   return {
@@ -261,6 +274,7 @@ function targetingBody(s: VideoModalFormState): Partial<VideoModalInput> {
     situations: s.situations.map(situationBody),
     triggerOptions: triggerOptionsBody(s),
     corridors: s.corridors.map(corridorBody),
+    parcelRoles: parcelRolesBody(s),
   }
 }
 
