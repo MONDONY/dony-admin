@@ -15,9 +15,10 @@ import BidSummaryTab, { type BidIdentifierRow } from './BidSummaryTab.vue'
 import StartSupportConversationDialog from '@/features/support/components/StartSupportConversationDialog.vue'
 import BidCancelDialog from './BidCancelDialog.vue'
 import BidDisputeDialog from './BidDisputeDialog.vue'
+import BidStatusDialog from './BidStatusDialog.vue'
 import { useBidAdminActions } from '@/features/bids/composables/useBidAdminActions'
-import { cancelMoneyEffect, disputeMoneyEffect, parcelWithTraveler } from '@/features/bids/lib/bidActions'
-import type { AdminBidCancelReason, AdminDisputeReason, DisputeParty } from '@/features/bids/lib/bidActions'
+import { cancelMoneyEffect, disputeMoneyEffect, parcelWithTraveler, statusChangeMoneyEffect, statusChangeOptions } from '@/features/bids/lib/bidActions'
+import type { AdminBidCancelReason, AdminDisputeReason, AdminForcedBidStatus, DisputeParty } from '@/features/bids/lib/bidActions'
 import type { AdminBidDetail, AdminBidTimeline } from '@/features/bids/types/index'
 import { placeLabel } from '@/features/bids/lib/bidLabels'
 import { useAuthStore } from '@/stores/auth'
@@ -105,13 +106,16 @@ watch(supportRecipient, (now, before) => { if (before && !now) refocusActions() 
 
 // ---- Annuler le colis / Ouvrir un litige (super-admin) ----
 const actions = useBidAdminActions()
-const dialog = ref<'cancel' | 'dispute' | null>(null)
+const dialog = ref<'cancel' | 'dispute' | 'status' | null>(null)
 const actionsMenu = ref<{ focus: () => void } | null>(null)
 /** Modale fermée (annuler, litige, écrire) : le focus revient sur « Actions », jamais sur <body>. */
 function refocusActions() { void nextTick(() => actionsMenu.value?.focus()) }
 watch(dialog, (now, before) => { if (before && !now) refocusActions() })
 
-function openDialog(kind: 'cancel' | 'dispute') {
+const statusMoneyEffects = computed(() => Object.fromEntries(
+  (['', 'HANDED_OVER', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED'] as const).map(t => [t, statusChangeMoneyEffect(props.bid, t)])))
+
+function openDialog(kind: 'cancel' | 'dispute' | 'status') {
   actions.reset()
   dialog.value = kind
 }
@@ -120,6 +124,9 @@ function closeDialog() {
 }
 async function confirmCancel(reason: AdminBidCancelReason, note: string) {
   if (await actions.cancel(props.bid.id, reason, note)) { dialog.value = null; emit('changed') }
+}
+async function confirmStatus(status: AdminForcedBidStatus, reason: string) {
+  if (await actions.changeStatus(props.bid.id, status, reason)) { dialog.value = null; emit('changed') }
 }
 async function confirmDispute(party: DisputeParty, reason: AdminDisputeReason, description: string) {
   if (await actions.openDispute(props.bid.id, party, reason, description)) { dialog.value = null; emit('changed') }
@@ -158,7 +165,7 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
           <BidActionsMenu
             ref="actionsMenu"
             :bid="bid" :copied="copied" :identifiers-text="allIdentifiers" :busy="actions.busy.value"
-            :cancel-unavailable="actions.cancelUnavailable.value" :dispute-unavailable="actions.disputeUnavailable.value"
+            :cancel-unavailable="actions.cancelUnavailable.value" :dispute-unavailable="actions.disputeUnavailable.value" :status-unavailable="actions.statusUnavailable.value"
             @copy="copy" @open-dialog="openDialog"
           />
         </template>
@@ -216,6 +223,12 @@ const allIdentifiers = computed(() => identifiers.value.map(r => `${r.label} : $
         :open="dialog === 'cancel'" :money-effect="cancelMoneyEffect(bid)" :with-traveler="parcelWithTraveler(bid)"
         :busy="actions.busy.value" :error="actions.error.value"
         @confirm="confirmCancel" @cancel="closeDialog"
+      />
+      <BidStatusDialog
+        :open="dialog === 'status'" :options="statusChangeOptions(bid)"
+        :money-effects="statusMoneyEffects"
+        :busy="actions.busy.value" :error="actions.error.value"
+        @confirm="confirmStatus" @cancel="closeDialog"
       />
       <BidDisputeDialog
         :open="dialog === 'dispute'" :money-effect="disputeMoneyEffect(bid)"

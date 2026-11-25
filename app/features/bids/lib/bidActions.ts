@@ -1,6 +1,7 @@
 /**
- * Gestes admin de la fiche colis : « Annuler le colis » (POST /admin/bids/{id}/cancel) et
- * « Ouvrir un litige » (POST /admin/bids/{id}/disputes). Réservés aux super-administrateurs
+ * Gestes admin de la fiche colis : « Annuler le colis » (POST /admin/bids/{id}/cancel),
+ * « Ouvrir un litige » (POST /admin/bids/{id}/disputes) et « Changer le statut »
+ * (POST /admin/bids/{id}/status). Réservés aux super-administrateurs
  * (ADMIN_MANAGE, comme le back). Les règles d'éligibilité ci-dessous ne font qu'éviter un clic
  * voué au refus : le back reste la source de vérité et répond 409 avec un code, traduit ici.
  */
@@ -44,6 +45,20 @@ export const DISPUTE_REASONS: readonly { value: AdminDisputeReason; label: strin
 
 export type DisputeParty = 'SENDER' | 'TRAVELER'
 
+/** Statuts imposables par un super-admin : l'étape logistique seulement (annulation et refus ont leurs gestes). */
+export type AdminForcedBidStatus = 'HANDED_OVER' | 'IN_TRANSIT' | 'ARRIVED' | 'COMPLETED'
+
+export const FORCED_STATUSES: readonly { value: AdminForcedBidStatus; label: string }[] = [
+  { value: 'HANDED_OVER', label: 'Remis au voyageur' },
+  { value: 'IN_TRANSIT', label: 'En transit' },
+  { value: 'ARRIVED', label: 'Arrivé à destination' },
+  { value: 'COMPLETED', label: 'Livré au destinataire' },
+]
+
+/** Motif du changement de statut : 10 à 1 000 caractères (validation du back), journalisé. */
+export const STATUS_REASON_MIN = 10
+export const STATUS_REASON_MAX = 1000
+
 /** Note interne : obligatoire (10 caractères) avec le motif « Autre », 1 000 au plus. */
 export const CANCEL_NOTE_MIN = 10
 export const CANCEL_NOTE_MAX = 1000
@@ -56,6 +71,7 @@ export interface AdminBidCancelResult {
   refundRequested: boolean; paymentStatus: string | null; refundAmount: number; currency: string | null
   parcelWithTraveler: boolean
 }
+export interface AdminBidStatusResult { bidId: string; status: string; previousStatus: string; unchanged: boolean }
 export interface AdminOpenDisputeResult {
   disputeId: string; bidId: string; type: string; status: string; openedOnBehalfOf: DisputeParty
   payoutFrozen: boolean; paymentStatus: string | null
@@ -80,6 +96,34 @@ export function cancelBlockedReason(bid: AdminBidDetail): string | null {
   if (bid.money?.disputed) return 'Litige bancaire en cours sur ce paiement : attendez la décision de la banque.'
   if (hasOpenDispute(bid)) return 'Un litige est ouvert sur ce colis : résolvez-le d’abord dans Incidents.'
   return null
+}
+
+/** Statuts d'un colis en cours de transport : les seuls que le back accepte de modifier. */
+const STATUS_CHANGEABLE = ['ACCEPTED', 'HANDED_OVER', 'IN_TRANSIT', 'ARRIVED']
+
+/** Raison pour laquelle le changement de statut est impossible, ou null s'il l'est. */
+export function statusChangeBlockedReason(bid: AdminBidDetail): string | null {
+  const s = bid.status as string
+  if (s === 'COMPLETED') return 'Colis déjà livré : son statut ne peut plus être modifié.'
+  if (STATUS_CHANGEABLE.includes(s)) return null
+  return 'Seuls les colis acceptés ou en cours de transport peuvent changer de statut.'
+}
+
+/** Statuts proposés : tous sauf le statut actuel. */
+export function statusChangeOptions(bid: AdminBidDetail) {
+  return FORCED_STATUSES.filter(o => o.value !== (bid.status as string))
+}
+
+/** Ce que le nouveau statut fait de l'argent, à lire avant la confirmation. */
+export function statusChangeMoneyEffect(bid: AdminBidDetail, target: AdminForcedBidStatus | ''): string {
+  if (target !== 'COMPLETED') return 'Aucun effet sur l’argent : seul le statut du colis change.'
+  const m = bid.money
+  const tail = 'Le code de retrait est consommé, le destinataire et l’expéditeur sont prévenus, le trajet peut se terminer.'
+  if (bid.paymentMethod === 'CASH') return `Paiement en espèces : aucun versement en ligne. ${tail}`
+  if (m?.status === 'ESCROW') {
+    return `Le versement au voyageur (${formatMoney(Math.max(0, m.amountCents - m.commissionCents), m.currency ?? undefined)} net) est libéré, comme après une livraison confirmée par code. ${tail}`
+  }
+  return `Aucun argent en séquestre à libérer pour ce colis. ${tail}`
 }
 
 /** Raison pour laquelle l'ouverture d'un litige est impossible, ou null si elle l'est. */
@@ -142,6 +186,12 @@ const DISPUTE_ERRORS: Record<string, string> = {
   'traveler-not-found': 'Le trajet de ce colis n’existe plus : voyageur introuvable.',
 }
 
+const STATUS_ERRORS: Record<string, string> = {
+  'bid-not-found': 'Colis introuvable.',
+  'announcement-not-found': 'Le trajet de ce colis n’existe plus.',
+  'bid-status-not-changeable': 'Le statut de ce colis ne peut plus être modifié (annulé, refusé, expiré ou déjà livré).',
+}
+
 function statusOf(e: unknown): number | undefined {
   const err = e as { statusCode?: number; status?: number; response?: { status?: number } } | undefined
   return err?.statusCode ?? err?.status ?? err?.response?.status
@@ -163,6 +213,17 @@ export function cancelErrorMessage(e: unknown): string {
 
 export function disputeErrorMessage(e: unknown): string {
   return errorMessage(e, DISPUTE_ERRORS, 'Ouverture du litige impossible pour le moment.')
+}
+
+export function statusChangeErrorMessage(e: unknown): string {
+  return errorMessage(e, STATUS_ERRORS, 'Changement de statut impossible pour le moment.')
+}
+
+export function statusChangeSuccessMessage(r: AdminBidStatusResult, label: string): string {
+  if (r.unchanged) return `Ce colis était déjà « ${label} » : rien n’a été refait.`
+  return r.status === 'COMPLETED'
+    ? 'Colis passé à « Livré » : le versement au voyageur suit son cours et les deux parties sont prévenues.'
+    : `Statut du colis changé en « ${label} ».`
 }
 
 /** Message de succès, affiché sur la fiche rechargée. */

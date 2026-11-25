@@ -3,8 +3,9 @@ import { bidsAdminService } from '@/features/bids/services/bidsAdminService'
 import { isEndpointMissing } from '@/lib/endpointMissing'
 import {
   cancelErrorMessage, cancelSuccessMessage, disputeErrorMessage, disputeSuccessMessage,
+  FORCED_STATUSES, statusChangeErrorMessage, statusChangeSuccessMessage,
 } from '@/features/bids/lib/bidActions'
-import type { AdminBidCancelReason, AdminDisputeReason, DisputeParty } from '@/features/bids/lib/bidActions'
+import type { AdminBidCancelReason, AdminDisputeReason, AdminForcedBidStatus, DisputeParty } from '@/features/bids/lib/bidActions'
 
 /**
  * Endpoint absent (back pas encore déployé : 404/405 sans code métier) : retenu pour la
@@ -12,9 +13,12 @@ import type { AdminBidCancelReason, AdminDisputeReason, DisputeParty } from '@/f
  */
 const cancelUnavailable = ref(false)
 const disputeUnavailable = ref(false)
+const statusUnavailable = ref(false)
 
 /** Pour les tests : l'indisponibilité est partagée entre instances. */
-export function resetBidActionsAvailability() { cancelUnavailable.value = false; disputeUnavailable.value = false }
+export function resetBidActionsAvailability() {
+  cancelUnavailable.value = false; disputeUnavailable.value = false; statusUnavailable.value = false
+}
 
 export function useBidAdminActions() {
   const busy = ref(false)
@@ -54,7 +58,24 @@ export function useBidAdminActions() {
     }
   }
 
+  async function changeStatus(bidId: string, status: AdminForcedBidStatus, reason: string): Promise<boolean> {
+    if (busy.value) return false
+    busy.value = true; error.value = null; success.value = null
+    try {
+      const r = await bidsAdminService.changeBidStatus(bidId, status, reason.trim())
+      const label = FORCED_STATUSES.find(o => o.value === r.status)?.label ?? r.status
+      success.value = statusChangeSuccessMessage(r, label)
+      return true
+    } catch (e) {
+      if (isEndpointMissing(e)) statusUnavailable.value = true
+      error.value = statusChangeErrorMessage(e)
+      return false
+    } finally {
+      busy.value = false
+    }
+  }
+
   function reset() { error.value = null; success.value = null }
 
-  return { busy, error, success, cancelUnavailable, disputeUnavailable, cancel, openDispute, reset }
+  return { busy, error, success, cancelUnavailable, disputeUnavailable, statusUnavailable, cancel, openDispute, changeStatus, reset }
 }

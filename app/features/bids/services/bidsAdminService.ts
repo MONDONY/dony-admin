@@ -1,6 +1,6 @@
 import { useApi } from '@/composables/useApi'
 import { isUuid } from '@/lib/safeInput'
-import type { AdminBidCancelReason, AdminBidCancelResult, AdminDisputeReason, AdminOpenDisputeResult, DisputeParty } from '@/features/bids/lib/bidActions'
+import type { AdminBidCancelReason, AdminBidCancelResult, AdminBidStatusResult, AdminDisputeReason, AdminForcedBidStatus, AdminOpenDisputeResult, DisputeParty } from '@/features/bids/lib/bidActions'
 import type { AdminBidCounts, AdminBidDetail, AdminBidPage, AdminBidPhotos, AdminBidSuggest, AdminBidTimeline, AdminAnnouncementPage, AdminAnnouncementListItem, BidsFilterState } from '@/features/bids/types/index'
 
 /** Filtres communs à la liste et aux nombres (hors vue, statut et alerte). */
@@ -61,6 +61,11 @@ export const bidsAdminService = {
   cancelBid(id: string, reason: AdminBidCancelReason, note: string): Promise<AdminBidCancelResult> {
     if (!isUuid(id)) return Promise.reject(new Error('Identifiant de colis invalide'))
     return useApi()<AdminBidCancelResult>(`/admin/bids/${id}/cancel`, { method: 'POST', body: { reason, note: note || null } })
+  },
+  /** Changement de statut par un super-admin (livraison sans code, par exemple). Motif journalisé. */
+  changeBidStatus(id: string, status: AdminForcedBidStatus, reason: string): Promise<AdminBidStatusResult> {
+    if (!isUuid(id)) return Promise.reject(new Error('Identifiant de colis invalide'))
+    return useApi()<AdminBidStatusResult>(`/admin/bids/${id}/status`, { method: 'POST', body: { status, reason } })
   },
   /** Litige ouvert par un super-admin au nom de l'expéditeur ou du voyageur. */
   openDispute(id: string, openedOnBehalfOf: DisputeParty, reason: AdminDisputeReason, description: string): Promise<AdminOpenDisputeResult> {
