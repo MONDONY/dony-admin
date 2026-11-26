@@ -1,11 +1,12 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { mobileNotifyService } from '@/features/mobile/services/mobileNotifyService'
+import { mobileUsersService } from '@/features/mobile/services/mobileUsersService'
+import { useMobileUserSearch } from '@/features/mobile/composables/useMobileUserSearch'
 import {
-  accountInfo, canSendNotification, identityLine, isAmbiguousFailure, notifyErrorMessage,
+  accountInfo, canSendNotification, identityLine, isAmbiguousFailure, notifyErrorMessage, recipientName,
   NOTIFY_BODY_MAX, NOTIFY_NO_RECIPIENT, NOTIFY_RETRY_LOCK_MS, NOTIFY_TITLE_MAX, NOTIFY_UNREACHABLE,
 } from '@/features/mobile/lib/mobileNotify'
-import { isUuid, userDisplayName, useUserSearch } from '@/features/broadcast/composables/useUserSearch'
-import { usersService } from '@/features/users/services/usersService'
+import { isUuid } from '@/lib/safeInput'
 import { useAuthStore } from '@/stores/auth'
 import type { AdminUserListItem } from '@/features/users/types/index'
 
@@ -24,7 +25,7 @@ const SEARCH_DELAY_MS = 300
 export function useMobileNotifyOne() {
   const auth = useAuthStore()
   const canSearch = computed(() => auth.can('USER_VIEW'))
-  const picker = useUserSearch()
+  const picker = useMobileUserSearch()
 
   const step = ref<NotifyStep>('edit')
   const recipient = ref<NotifyRecipient | null>(null)
@@ -59,7 +60,7 @@ export function useMobileNotifyOne() {
   async function loadAccount(id: string, seq: number = pickSeq) {
     account.value = { state: 'loading', label: 'Vérification du compte…' }
     try {
-      const u = await usersService.get(id)
+      const u = await mobileUsersService.get(id)
       if (seq !== pickSeq || recipient.value?.id !== id) return
       const info = accountInfo(u.status)
       account.value = { state: info.blocked ? (u.status ? 'blocked' : 'unknown') : 'ok', label: info.label }
@@ -88,10 +89,10 @@ export function useMobileNotifyOne() {
   async function pickById(id: string) {
     const seq = ++pickSeq
     try {
-      const u = await usersService.get(id)
+      const u = await mobileUsersService.get(id)
       if (seq !== pickSeq || term.value.trim() !== id) return
       const info = accountInfo(u.status)
-      recipient.value = { id, name: userDisplayName(u), email: u.email ?? null }
+      recipient.value = { id, name: recipientName(u), email: u.email ?? null }
       account.value = { state: info.blocked ? 'blocked' : 'ok', label: info.label }
       term.value = ''
     } catch {
@@ -104,7 +105,7 @@ export function useMobileNotifyOne() {
     cancelTimer()
     picker.clear()
     const seq = ++pickSeq
-    recipient.value = { id: u.id, name: userDisplayName(u), email: u.email ?? null }
+    recipient.value = { id: u.id, name: recipientName(u), email: u.email ?? null }
     term.value = ''
     pickError.value = null
     void loadAccount(u.id, seq)

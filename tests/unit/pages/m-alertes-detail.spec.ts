@@ -6,17 +6,12 @@ const U = '3f2a9c1e-1111-4222-8333-444455556666'
 const routeState: { params: Record<string, unknown> } = { params: { id: U } }
 vi.stubGlobal('useRoute', () => routeState)
 
-const svc = vi.hoisted(() => ({
-  get: vi.fn(), list: vi.fn(), resolve: vi.fn(), resolveBatch: vi.fn(), reopen: vi.fn(), snooze: vi.fn(), unsnooze: vi.fn(), violations: vi.fn(), getContext: vi.fn(),
-}))
-vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc }))
-const mobile = vi.hoisted(() => ({ claimAlert: vi.fn(), releaseAlert: vi.fn() }))
-vi.mock('@/features/mobile/services/mobileService', () => ({ mobileService: mobile }))
+const svc = vi.hoisted(() => ({ get: vi.fn(), list: vi.fn(), claim: vi.fn(), release: vi.fn() }))
+vi.mock('@/features/mobile/services/mobileAlertsService', () => ({ mobileAlertsService: svc }))
 
 import Page from '@/pages/m/alertes/[id].vue'
 import { alertGuide } from '@/features/alerts/lib/alertCatalog'
 import { seedAuth } from '../../helpers/auth'
-import { ALLOW_API_PROMISE_RESOLVE, callRe, crawl, isMobileFile, violations, wordRe } from '../features/mobile/helpers/importGraph'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
 const base = {
@@ -33,7 +28,6 @@ const err = (status: number, code?: string) => Object.assign(new Error('x'), { s
 describe('m/alertes/[id] page', () => {
   beforeEach(() => {
     Object.values(svc).forEach(f => f.mockReset())
-    Object.values(mobile).forEach(f => f.mockReset())
     routeState.params = { id: U }
     seedAuth('ADMIN')
     svc.get.mockResolvedValue({ ...base })
@@ -56,13 +50,13 @@ describe('m/alertes/[id] page', () => {
   })
 
   it('claimButton_callsClaimAndShowsOwner', async () => {
-    mobile.claimAlert.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    svc.claim.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
     const w = await mountPage()
     const btn = w.find('[data-test="claim-button"]')
     expect(btn.text()).toBe('J’ai vu, je m’en occupe')
     await btn.trigger('click')
     await flushPromises()
-    expect(mobile.claimAlert).toHaveBeenCalledWith(U)
+    expect(svc.claim).toHaveBeenCalledWith(U)
     expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par admin@yadony.com')
     expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
     expect(w.find('[data-test="release-button"]').text()).toBe('Libérer')
@@ -76,7 +70,7 @@ describe('m/alertes/[id] page', () => {
   })
 
   it('claimButton_hidden_whenBackendReturns404', async () => {
-    mobile.claimAlert.mockRejectedValue(err(404))
+    svc.claim.mockRejectedValue(err(404))
     const w = await mountPage()
     await w.find('[data-test="claim-button"]').trigger('click')
     await flushPromises()
@@ -86,7 +80,7 @@ describe('m/alertes/[id] page', () => {
   })
 
   it('claim_409_showsAlreadyClaimedAndRefreshes', async () => {
-    mobile.claimAlert.mockRejectedValue(err(409, 'alert-already-claimed'))
+    svc.claim.mockRejectedValue(err(409, 'alert-already-claimed'))
     svc.get.mockResolvedValueOnce({ ...base })
       .mockResolvedValueOnce({ ...base, claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' })
     const w = await mountPage()
@@ -112,17 +106,17 @@ describe('m/alertes/[id] page', () => {
     seedAuth('SUPER_ADMIN')
     svc.get.mockResolvedValue(claimed)
     w = await mountPage()
-    mobile.releaseAlert.mockResolvedValue({ ...base })
+    svc.release.mockResolvedValue({ ...base })
     await w.find('[data-test="release-button"]').trigger('click')
     await flushPromises()
-    expect(mobile.releaseAlert).toHaveBeenCalledWith(U)
+    expect(svc.release).toHaveBeenCalledWith(U)
     expect(w.find('[data-test="release-button"]').exists()).toBe(false)
     expect(w.find('[data-test="claim-button"]').exists()).toBe(true)
   })
 
   it('release 403 alert-claim-not-yours shows the message and refreshes', async () => {
     svc.get.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
-    mobile.releaseAlert.mockRejectedValue(err(403, 'alert-claim-not-yours'))
+    svc.release.mockRejectedValue(err(403, 'alert-claim-not-yours'))
     const w = await mountPage()
     await w.find('[data-test="release-button"]').trigger('click')
     await flushPromises()
@@ -131,7 +125,7 @@ describe('m/alertes/[id] page', () => {
   })
 
   it('other claim errors show the problem message and keep the button', async () => {
-    mobile.claimAlert.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne' } }))
+    svc.claim.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne' } }))
     const w = await mountPage()
     await w.find('[data-test="claim-button"]').trigger('click')
     await flushPromises()
@@ -145,27 +139,20 @@ describe('m/alertes/[id] page', () => {
     expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
   })
 
-  it('noButtonCallsResolveSnoozeOrReopen', async () => {
-    mobile.claimAlert.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
-    mobile.releaseAlert.mockResolvedValue({ ...base })
+  it('noButtonCallsResolveSnoozeOrReopen: every button only reads, claims or releases', async () => {
+    svc.claim.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    svc.release.mockResolvedValue({ ...base })
     const w = await mountPage()
     for (const sel of ['[data-test="claim-button"]', '[data-test="release-button"]']) {
       await w.find(sel).trigger('click')
       await flushPromises()
     }
     for (const b of w.findAll('button')) { await b.trigger('click'); await flushPromises() }
-    for (const k of ['resolve', 'resolveBatch', 'snooze', 'unsnooze', 'reopen'] as const) expect(svc[k]).not.toHaveBeenCalled()
-
-    // Et le code lui-même (tout le graphe d'imports) n'en appelle aucune.
-    const g = crawl(['app/pages/m/alertes/[id].vue'])
-    expect(g.files).toContain('app/features/mobile/composables/useMobileAlertDetail.ts')
-    expect(g.files.length).toBeGreaterThanOrEqual(12)
-    // Entrée autorisée (fichier + texte exact) : `useApi.ts` / `Promise.resolve(`.
-    const names = ['resolve', 'resolveBatch', 'resolveMany', 'snooze', 'unsnooze', 'reopen']
-    expect(violations(g, callRe(names), [ALLOW_API_PROMISE_RESOLVE])).toEqual([])
-    expect(violations(g, wordRe(names), [], isMobileFile)).toEqual([])
-    expect(g.files.filter(f => /alerts\/composables\/useAlerts/.test(f))).toEqual([])
-    expect([...g.autoImports]).toEqual([])
+    // Le service mobile n'a que ces quatre appels (garde du graphe : mobileNetworkSurface.spec.ts).
+    expect(Object.keys(svc).sort()).toEqual(['claim', 'get', 'list', 'release'])
+    expect(svc.list).not.toHaveBeenCalled()
+    expect(svc.claim.mock.calls.every(c => c.length === 1 && c[0] === U)).toBe(true)
+    expect(svc.release).toHaveBeenCalledWith(U)
   })
 
   it('shows not found for an invalid or unknown id', async () => {

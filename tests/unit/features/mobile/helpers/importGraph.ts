@@ -109,17 +109,18 @@ export function crawl(entries: readonly string[], root: string = ROOT): Graph {
 /** Appels de méthode : `.nom(` (un appel, pas la définition `nom(` d'un objet). */
 export const callRe = (names: readonly string[]) => new RegExp(`\\.(?:${names.join('|')})\\s*\\(`)
 
-/** Exception étroite : ce fichier, et seulement les lignes qui contiennent exactement ce texte. */
 /** Filtre de fichiers. */
 // eslint-disable-next-line no-unused-vars
 export type Scope = (file: string) => boolean
 
-export interface Allow { file: string; text: string }
+/** Exception étroite : ce fichier, et seulement les lignes dont le texte (sans espaces aux bords) est EXACTEMENT `line`. */
+export interface Allow { file: string; line: string }
 
 /**
  * Retourne `fichier:ligne: motif` pour chaque ligne du graphe qui correspond au motif, sauf les lignes
- * couvertes par une entrée `allow` (même fichier ET texte exact). Simple recherche de sous-chaîne : un
- * commentaire qui contient le motif est donc signalé aussi. `scope` limite les fichiers examinés.
+ * couvertes par une entrée `allow` (même fichier ET ligne entière identique, espaces de bord retirés).
+ * Recherche sur le texte brut : un commentaire qui contient le motif est donc signalé aussi (voir
+ * `withoutComments` pour l'ignorer). `scope` limite les fichiers examinés.
  */
 export function violations(g: Graph, pattern: RegExp, allow: readonly Allow[] = [], scope: Scope = () => true): string[] {
   const out: string[] = []
@@ -128,7 +129,7 @@ export function violations(g: Graph, pattern: RegExp, allow: readonly Allow[] = 
     src.split('\n').forEach((line, i) => {
       const m = pattern.exec(line)
       if (!m) return
-      if (allow.some(a => a.file === f && line.includes(a.text))) return
+      if (allow.some(a => a.file === f && line.trim() === a.line)) return
       out.push(`${f}:${i + 1}: ${m[0]}`)
     })
   }
@@ -139,9 +140,104 @@ export function violations(g: Graph, pattern: RegExp, allow: readonly Allow[] = 
 export const isMobileFile = (f: string) => f.startsWith('app/features/mobile/') || f.startsWith('app/pages/m/')
 
 /** `useApi.ts` : `Promise.resolve(...)` de la déconnexion, aucun lien avec une alerte ou un billet. */
-export const ALLOW_API_PROMISE_RESOLVE: Allow = { file: 'app/composables/useApi.ts', text: 'Promise.resolve(' }
+export const ALLOW_API_PROMISE_RESOLVE: Allow = {
+  file: 'app/composables/useApi.ts', line: 'await Promise.resolve(fbSignOut($firebaseAuth as Auth)).catch(() => {})',
+}
 /** `auth.ts` : `Set.delete` sur les permissions, aucune requête. */
-export const ALLOW_AUTH_SET_DELETE: Allow = { file: 'app/stores/auth.ts', text: 'set.delete(' }
+export const ALLOW_AUTH_SET_DELETE: Allow = { file: 'app/stores/auth.ts', line: 'else set.delete(name as AdminPermission)' }
 
 /** Mots interdits dans tout fichier mobile (même sans point : déstructuration, référence). */
 export const wordRe = (names: readonly string[]) => new RegExp(`\\b(?:${names.join('|')})\\b`)
+
+const blank = (m: string) => m.replace(/[^\n]/g, ' ')
+
+/**
+ * Retire les commentaires en gardant les numéros de ligne : `/* … *\/`, `<!-- … -->` et `// …` (sauf le
+ * `//` d'une URL `https://`, précédé de `:`). Sert aux gardes « surface d'appels » et « réseau ».
+ */
+export function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/<!--[\s\S]*?-->/g, blank)
+    .replace(/(^|[^:'"`\w])\/\/.*$/gm, '$1')
+}
+
+/** Le même graphe, sources sans commentaires. */
+export function withoutComments(g: Graph): Graph {
+  return { ...g, sources: new Map([...g.sources].map(([f, src]) => [f, stripComments(src)])) }
+}
+
+/** Tous les fichiers .ts et .vue sous `dir` (relatif à la racine), chemins relatifs à la racine. */
+export function listFiles(dir: string, root: string = ROOT): string[] {
+  const out: string[] = []
+  const walk = (abs: string) => {
+    for (const name of readdirSync(abs)) {
+      const full = join(abs, name)
+      if (statSync(full).isDirectory()) walk(full)
+      else if (/\.(ts|vue)$/.test(name)) out.push(relative(root, full))
+    }
+  }
+  walk(join(root, dir))
+  return out.sort()
+}
+
+const IMPORT_CLAUSE_RE = /\bimport\s+(?!type\b)([^'";]*?)\s+from\s*(['"])([^'"\n]+)\2/g
+/** Module dont les exports touchent au réseau ou à l'état partagé : services, stores, composables. */
+const TRACKED_MODULE = /\/(services|stores|composables)\//
+
+/** Noms locaux importés d'un service, d'un store ou d'un composable (hors `import type` et `type X`). */
+function trackedImports(src: string): Set<string> {
+  const names = new Set<string>()
+  for (const m of src.matchAll(IMPORT_CLAUSE_RE)) {
+    if (!TRACKED_MODULE.test(m[3]!)) continue
+    const clause = m[1]!
+    const braces = /\{([^}]*)\}/.exec(clause)?.[1] ?? ''
+    for (const part of braces.split(',')) {
+      const p = part.trim()
+      if (!p || p.startsWith('type ')) continue
+      names.add(p.split(/\s+as\s+/).pop()!.trim())
+    }
+    const def = clause.replace(/\{[^}]*\}/, '').replace(/,/g, ' ').trim()
+    if (def && /^[A-Za-z_$][\w$]*$/.test(def)) names.add(def)
+  }
+  return names
+}
+
+/**
+ * Surface d'appels d'un fichier (commentaires retirés), triée et sans doublon :
+ *  - `useX()` : tout appel d'un composable `use…(` (auto-import Nuxt compris), hors sa définition ;
+ *  - `nom()` : appel direct d'une fonction importée d'un service, d'un store ou d'un composable ;
+ *  - `x.m()` : appel d'un membre d'une liaison suivie (nom importé de ces modules, ou `const x = useY(…)`) ;
+ *  - `x.m` : lecture d'un membre d'un store ou d'un service (`…Service`, `const x = use…Store()`),
+ *    pour qu'une fonction passée par référence (`markRead: store.markRead`) ne s'échappe pas ;
+ *  - `useY().m` : membre déstructuré (`const { m } = useY(…)`) ou appelé en chaîne (`useY().m(`).
+ */
+export function callSurface(raw: string): string[] {
+  const src = stripComments(raw)
+  const out = new Set<string>()
+  const imported = trackedImports(src)
+  const bound = new Set<string>(imported)
+  const stores = new Set<string>([...imported].filter(n => /Service$/.test(n)))
+  for (const m of src.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(use[A-Z][\w$]*)\s*\(/g)) {
+    bound.add(m[1]!)
+    if (/Store$/.test(m[2]!)) stores.add(m[1]!)
+  }
+  for (const m of src.matchAll(/(?<!function\s+)(?<![.\w$])(use[A-Z][\w$]*)\s*\(/g)) out.add(`${m[1]}()`)
+  for (const m of src.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
+    const name = m[1]!
+    if (imported.has(name) && !name.startsWith('use')) out.add(`${name}()`)
+  }
+  for (const m of src.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\??\.\s*([A-Za-z_$][\w$]*)(\s*\()?/g)) {
+    const [, obj, member, call] = m
+    if (call && bound.has(obj!)) out.add(`${obj}.${member}()`)
+    else if (!call && stores.has(obj!) && member !== 'value') out.add(`${obj}.${member}`)
+  }
+  for (const m of src.matchAll(/(?<![.\w$])(use[A-Z][\w$]*)\s*\([^()]*\)\s*\??\.\s*([A-Za-z_$][\w$]*)/g)) out.add(`${m[1]}().${m[2]}`)
+  for (const m of src.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*(use[A-Z][\w$]*|[A-Za-z_$][\w$]*Service)\b/g)) {
+    for (const part of m[1]!.split(',')) {
+      const key = part.split(/[:=]/)[0]!.replace(/\.\.\./, '').trim()
+      if (key) out.add(`${m[2]}().${key}`)
+    }
+  }
+  return [...out].sort()
+}

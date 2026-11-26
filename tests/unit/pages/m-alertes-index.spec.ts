@@ -7,7 +7,7 @@ const routeState: { query: Record<string, unknown> } = { query: {} }
 vi.stubGlobal('useRoute', () => routeState)
 
 const svc = vi.hoisted(() => ({ list: vi.fn() }))
-vi.mock('@/features/alerts/services/alertsService', () => ({ alertsService: svc }))
+vi.mock('@/features/mobile/services/mobileAlertsService', () => ({ mobileAlertsService: svc }))
 const notif = vi.hoisted(() => ({ feed: vi.fn(), counters: vi.fn(), markSeen: vi.fn(), markRead: vi.fn() }))
 vi.mock('@/features/notifications/services/notificationsService', () => ({ notificationsService: notif }))
 
@@ -68,11 +68,11 @@ describe('m/alertes index page', () => {
   it('chips filter via the API params (open, snoozed, resolved)', async () => {
     const w = await mountPage()
     expect(w.findAll('[data-test="alert-chip"]').map(c => c.text())).toEqual(['À traiter', 'En attente', 'Traitées'])
-    expect(svc.list.mock.calls.at(-1)![0]).toMatchObject({ resolved: 'OPEN' })
+    expect(svc.list).toHaveBeenLastCalledWith('OPEN', 0, 100)
     await w.findAll('[data-test="alert-chip"]')[1]!.trigger('click'); await flushPromises()
-    expect(svc.list.mock.calls.at(-1)![0]).toMatchObject({ resolved: 'SNOOZED' })
+    expect(svc.list).toHaveBeenLastCalledWith('SNOOZED', 0, 100)
     await w.findAll('[data-test="alert-chip"]')[2]!.trigger('click'); await flushPromises()
-    expect(svc.list.mock.calls.at(-1)![0]).toMatchObject({ resolved: 'RESOLVED' })
+    expect(svc.list).toHaveBeenLastCalledWith('RESOLVED', 0, 100)
     expect(w.findAll('[data-test="alert-chip"]')[2]!.attributes('aria-selected')).toBe('true')
   })
 

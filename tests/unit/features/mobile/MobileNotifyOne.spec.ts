@@ -6,7 +6,7 @@ vi.stubGlobal('definePageMeta', vi.fn())
 const svc = vi.hoisted(() => ({ sendToOne: vi.fn() }))
 vi.mock('@/features/mobile/services/mobileNotifyService', () => ({ mobileNotifyService: svc }))
 const users = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn() }))
-vi.mock('@/features/users/services/usersService', () => ({ usersService: users }))
+vi.mock('@/features/mobile/services/mobileUsersService', () => ({ mobileUsersService: users }))
 
 import Page from '@/pages/m/diffuser.vue'
 import { seedAuth } from '../../../helpers/auth'

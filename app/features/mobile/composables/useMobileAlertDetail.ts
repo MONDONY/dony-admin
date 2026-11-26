@@ -1,8 +1,7 @@
 import { computed, ref, type Ref } from 'vue'
-import { alertsService } from '@/features/alerts/services/alertsService'
 import { alertFacts, alertGuide } from '@/features/alerts/lib/alertCatalog'
 import type { AdminAlert } from '@/features/alerts/types/index'
-import { mobileService } from '@/features/mobile/services/mobileService'
+import { mobileAlertsService } from '@/features/mobile/services/mobileAlertsService'
 import { useAuthStore } from '@/stores/auth'
 import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { httpStatus } from '@/lib/violations'
@@ -55,7 +54,7 @@ export function useMobileAlertDetail(rawId: Ref<unknown>) {
     }
     isLoading.value = true
     try {
-      const result = await alertsService.get(current)
+      const result = await mobileAlertsService.get(current)
       if (my === seq) alert.value = result
     } catch (e) {
       if (my !== seq) return
@@ -89,8 +88,8 @@ export function useMobileAlertDetail(rawId: Ref<unknown>) {
     }
   }
 
-  const claim = () => run(mobileService.claimAlert, { status: 409, code: 'alert-already-claimed', message: ALREADY_CLAIMED_MESSAGE })
-  const release = () => run(mobileService.releaseAlert, { status: 403, code: 'alert-claim-not-yours', message: NOT_YOURS_MESSAGE })
+  const claim = () => run(mobileAlertsService.claim, { status: 409, code: 'alert-already-claimed', message: ALREADY_CLAIMED_MESSAGE })
+  const release = () => run(mobileAlertsService.release, { status: 403, code: 'alert-claim-not-yours', message: NOT_YOURS_MESSAGE })
 
   return { alert, guide, facts, isLoading, error, notFound, claimAvailable, claimBusy, claimError, claimedBy, canClaim, canRelease, load, claim, release }
 }

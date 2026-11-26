@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { supportService } from '@/features/support/services/supportService'
+import { mobileSupportService } from '@/features/mobile/services/mobileSupportService'
 import { SUPPORT_PAGE_SIZE } from '@/features/support/lib/constants'
 import { filterForChip, sortNewestFirst, type SupportChip } from '@/features/mobile/lib/mobileSupport'
 import type { AdminSupportTicket } from '@/features/support/types/index'
@@ -21,7 +21,7 @@ export function useMobileSupportList() {
     isLoading.value = true
     error.value = null
     try {
-      const page = await supportService.list('all', wanted === 'RESOLVED' ? 'RESOLVED' : 'TOUS', 0, SUPPORT_PAGE_SIZE)
+      const page = await mobileSupportService.list(wanted === 'RESOLVED' ? 'RESOLVED' : 'TOUS', 0, SUPPORT_PAGE_SIZE)
       if (my === seq) tickets.value = page.content
     } catch (e) {
       if (my === seq) error.value = extractProblemMessage(e, 'Impossible de charger les conversations')

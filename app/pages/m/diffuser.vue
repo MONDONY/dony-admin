@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { userDisplayName } from '@/features/broadcast/composables/useUserSearch'
-import { identityLine } from '@/features/mobile/lib/mobileNotify'
+import { identityLine, recipientName } from '@/features/mobile/lib/mobileNotify'
 import { useMobileNotifyOne } from '@/features/mobile/composables/useMobileNotifyOne'
 
 definePageMeta({ layout: 'mobile', middleware: 'admin-only', permission: 'NOTIFICATION_SEND', pageTitle: 'Diffuser' })
@@ -75,7 +74,7 @@ const primary = 'min-h-[44px] w-full whitespace-nowrap rounded-xl bg-primary px-
                 type="button" data-test="notify-result"
                 class="min-h-[44px] w-full rounded-xl border border-border bg-bg px-3 py-2 text-left text-sm text-text"
                 @click="choose(u)"
-              ><span class="block font-semibold">{{ userDisplayName(u) }}</span><span data-test="notify-result-identity" class="block text-text-muted">{{ identityLine(u.id, u.email) }}</span></button>
+              ><span class="block font-semibold">{{ recipientName(u) }}</span><span data-test="notify-result-identity" class="block text-text-muted">{{ identityLine(u.id, u.email) }}</span></button>
             </li>
           </ul>
         </template>

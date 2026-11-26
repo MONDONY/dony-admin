@@ -1,5 +1,5 @@
 import { computed, ref, type Ref } from 'vue'
-import { supportService } from '@/features/support/services/supportService'
+import { mobileSupportService } from '@/features/mobile/services/mobileSupportService'
 import { checkReply } from '@/features/mobile/lib/mobileSupport'
 import type { AdminSupportTicket, SupportMessage } from '@/features/support/types/index'
 import { useAuthStore } from '@/stores/auth'
@@ -55,7 +55,7 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
     }
     isLoading.value = true
     try {
-      const result = await supportService.get(current)
+      const result = await mobileSupportService.get(current)
       if (my !== seq) return
       ticket.value = result
       messages.value = result.messages ?? []
@@ -77,7 +77,7 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
     assigning.value = true
     assignError.value = null
     try {
-      await supportService.assign(current)
+      await mobileSupportService.assign(current)
       await load()
     } catch (e) {
       const status = httpStatus(e)
@@ -110,7 +110,7 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
     messages.value = [...messages.value, pending]
     draft.value = ''
     try {
-      const created = await supportService.reply(current, checked.text)
+      const created = await mobileSupportService.reply(current, checked.text)
       messages.value = messages.value.map(m => (m.id === pending.id ? created : m))
     } catch (e) {
       messages.value = messages.value.filter(m => m.id !== pending.id)

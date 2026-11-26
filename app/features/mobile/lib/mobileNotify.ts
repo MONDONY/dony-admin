@@ -1,5 +1,5 @@
 import { isUuid } from '@/lib/safeInput'
-import type { UserStatus } from '@/features/users/types/index'
+import type { AdminUserListItem, UserStatus } from '@/features/users/types/index'
 
 /** Limites du back : titre 120, message 500. */
 export const NOTIFY_TITLE_MAX = 120
@@ -16,6 +16,14 @@ export function canSendNotification(d: NotifyDraft): boolean {
   return isUuid(d.userId)
     && title.length > 0 && title.length <= NOTIFY_TITLE_MAX
     && body.length > 0 && body.length <= NOTIFY_BODY_MAX
+}
+
+type Identity = Pick<AdminUserListItem, 'id' | 'firstName' | 'lastName' | 'email' | 'phoneNumber'>
+
+/** Nom affiché d'un destinataire : nom complet, sinon e-mail, téléphone, identifiant court. */
+export function recipientName(u: Identity): string {
+  const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
+  return name || u.email?.trim() || u.phoneNumber?.trim() || u.id.slice(0, 8)
 }
 
 /** `#ab12cd` : les 6 derniers caractères de l'identifiant, pour départager deux homonymes. */

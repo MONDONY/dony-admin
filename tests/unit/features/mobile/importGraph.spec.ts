@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { callRe, crawl, importsOf, violations } from './helpers/importGraph'
+import { callRe, callSurface, crawl, importsOf, resolveSpecifier, ROOT, stripComments, violations, withoutComments } from './helpers/importGraph'
 
 /** Contrôle négatif permanent du helper : des fixtures temporaires prouvent que le garde traverse vraiment le graphe. */
 let root = ''
@@ -52,11 +52,15 @@ describe('importGraph helper: negative controls on fixtures', () => {
     expect(violations(g, callRe(['deleteMessage']))).toEqual([expect.stringContaining('app/features/y/deep.ts')])
   })
 
-  it('an allow entry exempts only its file AND its exact text', () => {
+  it('an allow entry exempts only its file AND the whole line, trimmed, never a substring', () => {
     const g = crawl(['app/pages/m/entry.vue'], root)
-    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/y/deep.ts', text: 'moderationService.deleteMessage(' }])).toEqual([])
-    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/y/deep.ts', text: 'other text' }])).toHaveLength(1)
-    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/x/helper.ts', text: 'moderationService' }])).toHaveLength(1)
+    const line = "export const deep = () => moderationService.deleteMessage('c', 'm')"
+    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/y/deep.ts', line }])).toEqual([])
+    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/y/deep.ts', line: `  ${line}  `.trim() }])).toEqual([])
+    // Un morceau de la ligne n'exempte plus rien (ancienne recherche par `includes`).
+    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/y/deep.ts', line: 'moderationService.deleteMessage(' }])).toHaveLength(1)
+    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/y/deep.ts', line: 'other text' }])).toHaveLength(1)
+    expect(violations(g, DESTRUCTIVE, [{ file: 'app/features/x/helper.ts', line }])).toHaveLength(1)
     expect(violations(g, DESTRUCTIVE, [], f => f.startsWith('app/pages/'))).toEqual([])
   })
 
@@ -74,9 +78,10 @@ describe('importGraph helper: negative controls on fixtures', () => {
     ])
   })
 
-  it('a comment containing the pattern IS flagged (plain substring match, by design)', () => {
+  it('a comment containing the pattern IS flagged on the raw source, and ignored once comments are stripped', () => {
     const g = crawl(['app/pages/m/commented.vue'], root)
     expect(violations(g, DESTRUCTIVE)).toEqual(['app/features/c/commented.ts:1: moderationService'])
+    expect(violations(withoutComments(g), DESTRUCTIVE)).toEqual([])
   })
 
   it('a destructured call is flagged by the word check and by the plain pattern', () => {
@@ -101,5 +106,61 @@ describe('importGraph helper: negative controls on fixtures', () => {
 
   it('importsOf ignores type imports and reads multi-line imports', () => {
     expect(importsOf(`import type { A } from './a'\nimport {\n  b,\n} from "./b"`)).toEqual(['./b'])
+  })
+
+  it('resolveSpecifier handles aliases, relative paths, index files and packages (independent of the cwd)', () => {
+    const from = `${ROOT}/app/pages/m/ensemble.vue`
+    expect(resolveSpecifier('@/lib/safeInput', from)).toBe(`${ROOT}/app/lib/safeInput.ts`)
+    expect(resolveSpecifier('~/lib/safeInput', from)).toBe(`${ROOT}/app/lib/safeInput.ts`)
+    expect(resolveSpecifier('../../lib/safeInput', from)).toBe(`${ROOT}/app/lib/safeInput.ts`)
+    expect(resolveSpecifier('@/features/notifications/types', from)).toBe(`${ROOT}/app/features/notifications/types/index.ts`)
+    expect(resolveSpecifier('vue', from)).toBeNull()
+    expect(resolveSpecifier('@/nope/missing', from)).toBeNull()
+  })
+})
+
+describe('stripComments and callSurface: negative controls', () => {
+  it('stripComments removes block, HTML and line comments, keeps URLs and line numbers', () => {
+    const src = "a() /* x.y() */\n// z.w()\n<!-- q.r() -->\nconst u = 'https://h/x' // c.d()\n"
+    const out = stripComments(src)
+    expect(out.split('\n')).toHaveLength(src.split('\n').length)
+    expect(out).not.toMatch(/x\.y|z\.w|q\.r|c\.d/)
+    expect(out).toContain("'https://h/x'")
+  })
+
+  it('records composables, imported calls, member calls, store reads, destructuring and chains', () => {
+    const src = [
+      "import { useThing } from '@/features/x/composables/useThing'",
+      "import { fooService } from '@/features/x/services/fooService'",
+      "import { helper } from '@/features/x/lib/helper'",
+      "import { boot, type T } from '@/composables/boot'",
+      "import type { Z } from '@/stores/z'",
+      'export function useMine() {',
+      '  const store = useNotificationsStore()',
+      '  const t = useThing()',
+      '  const { a, b: renamed, c = 1 } = useOther()',
+      '  boot()',
+      '  helper()',
+      '  t.go(1)',
+      '  fooService.get(2)',
+      '  const ref = fooService.remove',
+      '  const r = { read: store.markRead }',
+      '  store.items.find(x => x)',
+      '  useApi()(\'/x\', { method: \'POST\' })',
+      '  useAuthStore().can(\'X\')',
+      '  // store.markAllSeen()',
+      '}',
+    ].join('\n')
+    expect(callSurface(src)).toEqual([
+      'boot()', 'fooService.get()', 'fooService.remove', 'store.items', 'store.markRead', 't.go()',
+      'useApi()', 'useAuthStore()', 'useAuthStore().can', 'useNotificationsStore()', 'useOther()', 'useOther().a',
+      'useOther().b', 'useOther().c', 'useThing()',
+    ])
+  })
+
+  it('a new forbidden call shows up in the surface (the guard fails until it is reviewed)', () => {
+    const before = callSurface("const n = useNotificationsStore()\nn.openPanel()")
+    const after = callSurface("const n = useNotificationsStore()\nn.openPanel()\nn.markAllSeen()")
+    expect(after.filter(x => !before.includes(x))).toEqual(['n.markAllSeen()'])
   })
 })

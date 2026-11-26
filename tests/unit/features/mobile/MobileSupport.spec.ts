@@ -8,17 +8,13 @@ const U = '3f2a9c1e-1111-4222-8333-444455556666'
 const routeState: { params: Record<string, unknown> } = { params: { id: U } }
 vi.stubGlobal('useRoute', () => routeState)
 
-const svc = vi.hoisted(() => ({
-  list: vi.fn(), get: vi.fn(), reply: vi.fn(), assign: vi.fn(), reassign: vi.fn(), resolve: vi.fn(),
-  uploadAttachment: vi.fn(), startTicket: vi.fn(), setPriority: vi.fn(), addNote: vi.fn(), getContext: vi.fn(),
-}))
-vi.mock('@/features/support/services/supportService', () => ({ supportService: svc }))
+const svc = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), reply: vi.fn(), assign: vi.fn() }))
+vi.mock('@/features/mobile/services/mobileSupportService', () => ({ mobileSupportService: svc }))
 
 import ListPage from '@/pages/m/support/index.vue'
 import DetailPage from '@/pages/m/support/[id].vue'
 import { feedItemRoute } from '@/features/mobile/lib/mobileAlerts'
 import { seedAuth } from '../../../helpers/auth'
-import { ALLOW_API_PROMISE_RESOLVE, callRe, crawl, isMobileFile, violations, wordRe } from './helpers/importGraph'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to" v-bind="$attrs"><slot /></a>' }
 const ticket = (id: string, over: Record<string, unknown> = {}) => ({
@@ -69,14 +65,14 @@ describe('m/support list', () => {
     expect(cards[0]!.find('[data-test="support-when"]').text()).not.toBe('')
     expect(cards[0]!.find('[data-test="support-marker"]').exists()).toBe(true)
     expect(cards[1]!.find('[data-test="support-marker"]').exists()).toBe(false)
-    expect(svc.list).toHaveBeenLastCalledWith('all', 'TOUS', 0, 100)
+    expect(svc.list).toHaveBeenLastCalledWith('TOUS', 0, 100)
   })
 
   it('chips Ouverts / Résolus: résolus asks the API for RESOLVED', async () => {
     const w = await mountList()
     expect(w.findAll('[data-test="support-chip"]').map(c => c.text())).toEqual(['Ouverts', 'Résolus'])
     await w.findAll('[data-test="support-chip"]')[1]!.trigger('click'); await flushPromises()
-    expect(svc.list).toHaveBeenLastCalledWith('all', 'RESOLVED', 0, 100)
+    expect(svc.list).toHaveBeenLastCalledWith('RESOLVED', 0, 100)
     expect(w.findAll('[data-test="support-chip"]')[1]!.attributes('aria-selected')).toBe('true')
   })
 
@@ -285,7 +281,7 @@ describe('m/support/[id] prise en charge', () => {
     expect(svc.get).toHaveBeenCalledTimes(2)
     expect(btn(w).exists()).toBe(false)
     expect(w.find('[data-test="reply-form"]').exists()).toBe(true)
-    for (const k of ['reassign', 'resolve', 'uploadAttachment']) expect(svc[k as keyof typeof svc]).not.toHaveBeenCalled()
+    expect(svc.reply).not.toHaveBeenCalled()
   })
 
   it('assign_409_refreshesWithColleagueMessage', async () => {
@@ -347,40 +343,9 @@ describe('m/support/[id] prise en charge', () => {
   })
 })
 
+// Garde statique (graphe d'imports, appels permis, réseau) : mobileNetworkSurface.spec.ts.
 describe('noResolveAssignOrUpload and the support route', () => {
   const root = resolvePath(__dirname, '../../../..')
-  const entries = ['app/pages/m/support/index.vue', 'app/pages/m/support/[id].vue']
-
-  it('noResolveAssignOrUpload: no module reached from the pages (whole app import graph) uses forbidden calls or desktop workflows', () => {
-    const g = crawl(entries)
-    expect(g.files.length).toBeGreaterThanOrEqual(16)
-    // Entrées autorisées (fichier + texte exact) : `useApi.ts` / `Promise.resolve(` ; et seulement l'appel
-    // `supportService.assign(` de useMobileSupportTicket.ts (prise en charge d'un billet).
-    const names = ['resolve', 'reassign', 'uploadAttachment', 'setPriority', 'startTicket']
-    expect(violations(g, callRe(names), [ALLOW_API_PROMISE_RESOLVE])).toEqual([])
-    // Mots seuls (déstructuration, référence) dans tout fichier mobile du graphe.
-    expect(violations(g, wordRe(names), [], isMobileFile)).toEqual([])
-    // `assign` (prise en charge, seule écriture permise) : l'appel du service dans le composable, et dans la page
-    // [id].vue uniquement la déstructuration, le bouton et son message d'erreur (une entrée par ligne).
-    const ticketPage = 'app/pages/m/support/[id].vue'
-    const assignAllow = [
-      // useMobileSupportTicket.ts : l'appel du service, la fonction, son export, et deux lignes de prose (« assigné »).
-      { file: 'app/features/mobile/composables/useMobileSupportTicket.ts', text: 'supportService.assign(' },
-      { file: 'app/features/mobile/composables/useMobileSupportTicket.ts', text: 'async function assign()' },
-      { file: 'app/features/mobile/composables/useMobileSupportTicket.ts', text: 'load, send, assign }' },
-      { file: 'app/features/mobile/composables/useMobileSupportTicket.ts', text: 'NOT_ASSIGNED_MESSAGE =' },
-      { file: 'app/features/mobile/composables/useMobileSupportTicket.ts', text: 'qui n\'est pas l\'assigné' },
-      { file: ticketPage, text: 'send, assign,' },
-      { file: ticketPage, text: '@click="assign"' },
-      { file: ticketPage, text: 'data-test="assign-button"' },
-      { file: ticketPage, text: 'data-test="assign-error"' },
-    ]
-    expect(violations(g, callRe(['assign']), assignAllow)).toEqual([])
-    expect(violations(g, wordRe(['assign']), assignAllow, isMobileFile)).toEqual([])
-    expect(violations(g, /SupportAttachmentUploader|StartSupportConversation|type="file"|useSupportTickets|support\/components\//)).toEqual([])
-    expect(g.files.filter(f => /features\/support\/components\//.test(f))).toEqual([])
-    expect([...g.autoImports]).toEqual([])
-  })
 
   it('noResolveAssignOrUpload at runtime: a full reply flow never touches them', async () => {
     seedAuth('ADMIN')
@@ -391,9 +356,9 @@ describe('noResolveAssignOrUpload and the support route', () => {
     const w = await mountDetail()
     await w.find('[data-test="reply-input"]').setValue('ok')
     await w.find('[data-test="reply-form"]').trigger('submit'); await flushPromises()
-    for (const k of ['assign', 'reassign', 'resolve', 'uploadAttachment', 'setPriority', 'startTicket']) {
-      expect(svc[k as keyof typeof svc], k).not.toHaveBeenCalled()
-    }
+    expect(Object.keys(svc).sort()).toEqual(['assign', 'get', 'list', 'reply'])
+    expect(svc.assign).not.toHaveBeenCalled()
+    expect(svc.list).not.toHaveBeenCalled()
     expect(w.text()).not.toMatch(/Résoudre|Assigner|Réassigner/)
   })
 

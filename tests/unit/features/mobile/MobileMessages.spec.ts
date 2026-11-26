@@ -12,7 +12,6 @@ vi.mock('@/features/mobile/services/mobileMessagesService', () => ({ mobileMessa
 import ListPage from '@/pages/m/messages/index.vue'
 import ThreadPage from '@/pages/m/messages/[id].vue'
 import { seedAuth } from '../../../helpers/auth'
-import { crawl, violations } from './helpers/importGraph'
 import {
   conversationSeverity, effectiveQuery, messageCountLabel, pairLabel, reportCountLabel, reportReasons, shortParticipant, threadRoute, toBubbles,
 } from '@/features/mobile/lib/mobileMessages'
@@ -369,24 +368,4 @@ describe('mobileMessages lib', () => {
   })
 })
 
-describe('modules_neverImportDestructiveMethods', () => {
-  const entries = ['app/pages/m/messages/index.vue', 'app/pages/m/messages/[id].vue']
-
-  it('no module reached from the pages (whole app import graph) can delete, restore, note or use desktop moderation code', () => {
-    const g = crawl(entries)
-    expect(g.files.length).toBeGreaterThanOrEqual(15)
-    expect(g.files).toContain('app/features/mobile/services/mobileMessagesService.ts')
-    expect(g.files).toContain('app/features/support/lib/supportWorkbench.ts')
-    expect(violations(g, /deleteMessage|restoreMessage|addNote|moderationService|features\/moderation\/components|features\/moderation\/services/)).toEqual([])
-    expect(g.files.filter(f => /features\/moderation\/(components|services)\//.test(f))).toEqual([])
-    const tags = [...g.tags.values()].flat()
-    expect(tags.filter(t => /^Moderation/.test(t))).toEqual([])
-    expect([...g.autoImports]).toEqual([])
-  })
-
-  it('the helper follows double-quoted, relative, dynamic, side-effect and export-from imports and skips type imports', async () => {
-    const { importsOf } = await import('./helpers/importGraph')
-    expect(importsOf(`import a from "../x"\nexport { b } from './y'\nimport type { T } from '@/t'\nexport type { U } from './u'\nimport './side'\nconst z = import("./dyn")\nimport {\n  c,\n} from '@/multi'`).sort())
-      .toEqual(['../x', './dyn', './side', './y', '@/multi'].sort())
-  })
-})
+// Garde statique (graphe d'imports, suppression, restauration, note, modération) : mobileNetworkSurface.spec.ts.
