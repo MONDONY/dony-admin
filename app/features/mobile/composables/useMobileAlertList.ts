@@ -1,16 +1,25 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, onMounted, ref, type Ref } from 'vue'
 import { mobileAlertsService } from '@/features/mobile/services/mobileAlertsService'
 import { ALERT_CHIPS, parseItemParam, sortAlerts } from '@/features/mobile/lib/mobileAlerts'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useAuthStore } from '@/stores/auth'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminAlert, ResolvedFilter } from '@/features/alerts/types/index'
 
 /** Une page large, comme le poste ordinateur : le mobile n'a pas de pagination. */
 export const MOBILE_ALERTS_PAGE_SIZE = 100
 
-/** Liste mobile : alertes triées par gravité, puces de statut, fil des autres nouveautés (lecture seule). */
+/**
+ * Liste mobile : alertes triées par gravité et puces de statut (ALERT_VIEW seulement), fil des autres
+ * nouveautés (lecture seule, ouvert à tout droit qui en reçoit).
+ */
 export function useMobileAlertList(rawItem: Ref<unknown>) {
+  const auth = useAuthStore()
   const notifications = useNotificationsStore()
+  /** Montée côté client : l'auth n'existe pas au rendu serveur, rien n'en dépend avant. */
+  const ready = ref(false)
+  onMounted(() => { ready.value = true })
+  const canViewAlerts = computed(() => auth.can('ALERT_VIEW'))
   const chip = ref<ResolvedFilter>('OPEN')
   const alerts = ref<AdminAlert[]>([])
   // Vrai dès le départ (rendu serveur, avant le montage) : jamais « Aucune … » avant la première réponse.
@@ -48,7 +57,7 @@ export function useMobileAlertList(rawItem: Ref<unknown>) {
   }
 
   async function load() {
-    await Promise.all([fetchAlerts(), notifications.openPanel()])
+    await Promise.all([canViewAlerts.value ? fetchAlerts() : null, notifications.openPanel()])
   }
 
   async function selectChip(key: ResolvedFilter) {
@@ -58,6 +67,7 @@ export function useMobileAlertList(rawItem: Ref<unknown>) {
 
   return {
     chips: ALERT_CHIPS, chip, sorted, isLoading, error,
-    feed, feedSettled, isUnread: notifications.isUnread, item, itemInvalid, itemNotification, load, selectChip,
+    ready, canViewAlerts, feed, feedSettled, feedError: computed(() => notifications.feedError),
+    isUnread: notifications.isUnread, item, itemInvalid, itemNotification, load, selectChip,
   }
 }

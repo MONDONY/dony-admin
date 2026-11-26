@@ -44,10 +44,11 @@ const SURFACE: Record<string, string[]> = {
   'app/features/mobile/composables/useMobileAlertDetail.ts': [
     'auth.can()', 'auth.user', 'mobileAlertsService.claim', 'mobileAlertsService.get()', 'mobileAlertsService.release', 'useAuthStore()',
   ],
-  // Le fil se lit (openPanel, items, isUnread) : jamais markRead, markAllSeen ni loadMore.
+  // Le fil se lit (openPanel, items, isUnread, état) : jamais markRead, markAllSeen ni loadMore. ALERT_VIEW décide
+  // seulement de la liste des alertes.
   'app/features/mobile/composables/useMobileAlertList.ts': [
-    'mobileAlertsService.list()', 'notifications.feedStatus', 'notifications.isUnread', 'notifications.items', 'notifications.openPanel()',
-    'notifications.unavailable', 'useNotificationsStore()',
+    'auth.can()', 'mobileAlertsService.list()', 'notifications.feedError', 'notifications.feedStatus', 'notifications.isUnread',
+    'notifications.items', 'notifications.openPanel()', 'notifications.unavailable', 'useAuthStore()', 'useNotificationsStore()',
   ],
   'app/features/mobile/composables/useMobileMessageList.ts': ['mobileMessagesService.listConversations()'],
   'app/features/mobile/composables/useMobileMessageThread.ts': ['mobileMessagesService.getContext()', 'mobileMessagesService.getMessages()'],
@@ -89,9 +90,10 @@ const SURFACE: Record<string, string[]> = {
     'useMobileAlertDetail().load', 'useMobileAlertDetail().notFound', 'useMobileAlertDetail().release', 'useRoute()',
   ],
   'app/pages/m/alertes/index.vue': [
-    'useMobileAlertList()', 'useMobileAlertList().chip', 'useMobileAlertList().chips', 'useMobileAlertList().error', 'useMobileAlertList().feed',
-    'useMobileAlertList().feedSettled', 'useMobileAlertList().isLoading', 'useMobileAlertList().isUnread', 'useMobileAlertList().item',
-    'useMobileAlertList().itemInvalid', 'useMobileAlertList().itemNotification', 'useMobileAlertList().load', 'useMobileAlertList().selectChip',
+    'useMobileAlertList()', 'useMobileAlertList().canViewAlerts', 'useMobileAlertList().chip', 'useMobileAlertList().chips',
+    'useMobileAlertList().error', 'useMobileAlertList().feed', 'useMobileAlertList().feedError', 'useMobileAlertList().feedSettled',
+    'useMobileAlertList().isLoading', 'useMobileAlertList().isUnread', 'useMobileAlertList().item', 'useMobileAlertList().itemInvalid',
+    'useMobileAlertList().itemNotification', 'useMobileAlertList().load', 'useMobileAlertList().ready', 'useMobileAlertList().selectChip',
     'useMobileAlertList().sorted', 'useRoute()',
   ],
   'app/pages/m/diffuser.vue': [
@@ -370,6 +372,7 @@ Object.defineProperty(navigator, 'serviceWorker', {
 
 import { seedAuth } from '../../../helpers/auth'
 import { useNotificationsStore } from '@/stores/notifications'
+import { ALERTS_FEED_PERMISSIONS } from '@/features/mobile/lib/mobileAlerts'
 import { notificationsService } from '@/features/notifications/services/notificationsService'
 import AlertsPage from '@/pages/m/alertes/index.vue'
 import AlertPage from '@/pages/m/alertes/[id].vue'
@@ -474,6 +477,12 @@ describe('mobile network surface: at runtime', () => {
     const calls = take()
     expect(calls).toEqual(['GET /admin/alerts', 'GET /admin/notifications/feed'])
     for (const s of spies) expect(s).not.toHaveBeenCalled()
+  })
+
+  it('alerts list without ALERT_VIEW (disputes only): the feed read alone', async () => {
+    seedAuth('ADMIN', { ...Object.fromEntries(ALERTS_FEED_PERMISSIONS.map(p => [p, false])), DISPUTE_VIEW: true })
+    await show(AlertsPage, { path: '/m/alertes', query: { item: `DISPUTE_OPENED:${U}` } })
+    expect(take()).toEqual(['GET /admin/notifications/feed'])
   })
 
   it('alert detail: read, claim (POST) and release (DELETE) only', async () => {

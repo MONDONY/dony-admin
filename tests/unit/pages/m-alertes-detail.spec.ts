@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
-vi.stubGlobal('definePageMeta', vi.fn())
+const metaSpy = vi.fn()
+vi.stubGlobal('definePageMeta', metaSpy)
 const U = '3f2a9c1e-1111-4222-8333-444455556666'
 const routeState: { params: Record<string, unknown> } = { params: { id: U } }
 vi.stubGlobal('useRoute', () => routeState)
@@ -31,6 +32,12 @@ describe('m/alertes/[id] page', () => {
     routeState.params = { id: U }
     seedAuth('ADMIN')
     svc.get.mockResolvedValue({ ...base })
+  })
+
+  it('page meta: the alert itself still requires ALERT_VIEW', async () => {
+    await mountPage()
+    expect(metaSpy).toHaveBeenCalledWith(expect.objectContaining({ middleware: 'admin-only', permission: 'ALERT_VIEW' }))
+    expect(metaSpy.mock.calls.at(-1)![0]).not.toHaveProperty('permissionAnyOf')
   })
 
   it('detail_showsFactsExplanationAndDesktopSteps', async () => {

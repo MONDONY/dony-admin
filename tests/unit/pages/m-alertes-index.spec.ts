@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises, renderToString } from '@vue/test-utils'
 
-vi.stubGlobal('definePageMeta', vi.fn())
+const metaSpy = vi.fn()
+vi.stubGlobal('definePageMeta', metaSpy)
 const U = '3f2a9c1e-1111-4222-8333-444455556666'
 const routeState: { query: Record<string, unknown> } = { query: {} }
 vi.stubGlobal('useRoute', () => routeState)
@@ -14,6 +15,10 @@ vi.mock('@/features/notifications/services/notificationsService', () => ({ notif
 import Page from '@/pages/m/alertes/index.vue'
 import { alertGuide } from '@/features/alerts/lib/alertCatalog'
 import { seedAuth } from '../../helpers/auth'
+import { ALERTS_FEED_PERMISSIONS } from '@/features/mobile/lib/mobileAlerts'
+
+/** Admin qui suit les litiges mais pas les alertes opérationnelles (pas d'ALERT_VIEW). */
+const disputesOnly = () => seedAuth('ADMIN', { ...Object.fromEntries(ALERTS_FEED_PERMISSIONS.map(p => [p, false])), DISPUTE_VIEW: true })
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to" v-bind="$attrs"><slot /></a>' }
 const a = (id: string, severity: string, createdAt: string, extra: Record<string, unknown> = {}) => ({
@@ -170,6 +175,50 @@ describe('m/alertes index page', () => {
     expect(html).toContain('Chargement')
     expect(html).not.toContain('Aucune alerte')
     expect(svc.list).not.toHaveBeenCalled()
+  })
+
+  it('page meta: the list opens with ANY feed permission (not only ALERT_VIEW)', () => {
+    expect(metaSpy).toHaveBeenCalledWith(expect.objectContaining({ middleware: 'admin-only', permissionAnyOf: ALERTS_FEED_PERMISSIONS }))
+    expect(metaSpy.mock.calls.at(-1)![0]).not.toHaveProperty('permission')
+  })
+
+  it('without ALERT_VIEW: no alerts list nor request, the feed alone, a push ?item= still opens its card', async () => {
+    disputesOnly()
+    notif.feed.mockResolvedValue({ items: [feedItem()], unreadCount: 0, lastSeenAt: null })
+    let w = await mountPage()
+    expect(svc.list).not.toHaveBeenCalled()
+    expect(w.find('[data-test="alert-chip"]').exists()).toBe(false)
+    expect(w.find('[data-test="alerts-empty"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Chargement')
+    expect(w.find('h2').text()).toBe('Nouveautés')
+    expect(w.find('[data-test="mobile-feed-item"]').attributes('href')).toBe(`/m/alertes?item=DISPUTE_OPENED:${U}`)
+    routeState.query = { item: `DISPUTE_OPENED:${U}` }
+    w = await mountPage()
+    expect(w.find('[data-test="item-detail"]').text()).toContain('Colis non reçu')
+  })
+
+  it('without ALERT_VIEW: empty and error wording speak of the feed, not of alerts', async () => {
+    disputesOnly()
+    let w = await mountPage()
+    expect(w.find('[data-test="feed-empty"]').text()).toBe('Aucune nouveauté dans votre fil pour le moment.')
+    expect(w.text()).not.toContain('Aucune alerte')
+    notif.feed.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne du fil' } }))
+    disputesOnly()
+    w = await mountPage()
+    expect(w.find('[data-test="feed-error"]').text()).toBe('Panne du fil')
+    // Avec ALERT_VIEW, la liste des alertes garde son propre état vide et le fil vide se tait.
+    seedAuth('ADMIN')
+    notif.feed.mockResolvedValue({ items: [], unreadCount: 0, lastSeenAt: null })
+    w = await mountPage()
+    expect(w.find('[data-test="alerts-empty"]').exists()).toBe(true)
+    expect(w.find('[data-test="feed-empty"]').exists()).toBe(false)
+  })
+
+  it('hydration: the server render does not depend on the permissions', async () => {
+    const withAlerts = await renderToString(Page, { global: { stubs: { NuxtLink } } })
+    disputesOnly()
+    const without = await renderToString(Page, { global: { stubs: { NuxtLink } } })
+    expect(without).toBe(withAlerts)
   })
 
   it('uses one-line labels without em dash', async () => {

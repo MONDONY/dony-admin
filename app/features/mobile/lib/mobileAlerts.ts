@@ -2,6 +2,16 @@ import type { AdminAlert, AlertSeverity, ResolvedFilter } from '@/features/alert
 import type { AdminNotification } from '@/features/notifications/types/index'
 import { parseServerDate } from '@/lib/serverDate'
 import { isUuid } from '@/lib/safeInput'
+import type { AdminPermission } from '@/stores/auth'
+
+/**
+ * Droits qui donnent des nouveautés au fil (le back le filtre selon eux) et donc des pushs vers
+ * `/m/alertes?item=` : un seul suffit pour ouvrir l'onglet et la liste. Les alertes opérationnelles
+ * (et leur fiche `/m/alertes/<id>`) restent réservées à ALERT_VIEW.
+ */
+export const ALERTS_FEED_PERMISSIONS: readonly AdminPermission[] = [
+  'ALERT_VIEW', 'DISPUTE_VIEW', 'USER_KYC', 'PAYMENT_VIEW', 'REPORT_VIEW', 'USER_GDPR_DELETE', 'SUPPORT_TICKET_VIEW',
+]
 
 const SEVERITY_RANK: Record<AlertSeverity, number> = { CRITICAL: 3, WARN: 2, INFO: 1 }
 
