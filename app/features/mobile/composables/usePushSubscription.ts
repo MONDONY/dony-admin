@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import { getMessaging, getToken, deleteToken } from 'firebase/messaging'
+import { getMessaging, getToken, deleteToken, type Messaging } from 'firebase/messaging'
 import type { FirebaseApp } from 'firebase/app'
 import { mobileService } from '@/features/mobile/services/mobileService'
 import { buildWebDeviceName } from '@/composables/useDeviceRegistration'
@@ -7,8 +7,28 @@ import { useAuthStore } from '@/stores/auth'
 import { resolveMessagingSenderId } from '@/lib/firebaseConfig'
 
 export type PushState = 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on'
+/** Cause d'un échec d'activation, affichée sous le bouton (`config` : clés ou projet Firebase). */
+export type PushError = 'config' | 'permission' | 'generic'
 
 const TOKEN_KEY = 'yadony-admin-push-token'
+/** Attente maximale de l'activation du service worker au premier abonnement. */
+export const SW_ACTIVATION_TIMEOUT_MS = 10_000
+
+/**
+ * Instances FCM qui connaissent la registration `/m/` (fournie à getToken dans ce document).
+ * Sur une page neuve, `deleteToken` du SDK enregistrerait son service worker par défaut à la
+ * racine du site (`/firebase-messaging-sw.js`, hors de `/siragbe/`) : il n'est appelé que sur
+ * ces instances, la désinscription passe sinon par la registration `/m/` elle-même.
+ */
+const boundMessaging = new WeakSet<object>()
+
+class PushSetupError extends Error {
+  readonly kind: PushError
+  constructor(kind: PushError, message: string) {
+    super(message)
+    this.kind = kind
+  }
+}
 
 /** Identité de l'admin connecté : un jeton stocké pour un autre admin est ignoré. */
 function currentUid(): string | null {
@@ -37,8 +57,26 @@ function httpStatus(e: unknown): number | undefined {
   return err?.statusCode ?? err?.status ?? err?.response?.status
 }
 
+const CONFIG_ERRORS = new Set([
+  'messaging/missing-app-config-values', 'messaging/invalid-vapid-key', 'messaging/token-subscribe-failed',
+  'messaging/invalid-sw-registration',
+])
+const PERMISSION_ERRORS = new Set(['messaging/permission-blocked', 'messaging/permission-default'])
+
+/** Range une erreur d'activation : configuration (clé, projet, clé d'API), autorisation, ou autre. */
+function classifyError(e: unknown): PushError {
+  if (e instanceof PushSetupError) return e.kind
+  const err = e as { code?: unknown, name?: unknown } | null
+  const code = typeof err?.code === 'string' ? err.code : ''
+  if (CONFIG_ERRORS.has(code)) return 'config'
+  if (PERMISSION_ERRORS.has(code) || err?.name === 'NotAllowedError') return 'permission'
+  return 'generic'
+}
+
 function isIos(): boolean {
-  return /iPhone|iPad|iPod/.test(navigator.userAgent)
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return true
+  // iPadOS en mode bureau se présente comme un Mac : seul l'écran tactile le trahit.
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1
 }
 function isStandalone(): boolean {
   const nav = navigator as Navigator & { standalone?: boolean }
@@ -46,8 +84,66 @@ function isStandalone(): boolean {
   try { return !!window.matchMedia?.('(display-mode: standalone)').matches } catch { return false }
 }
 
+function firebaseApp(): FirebaseApp | null {
+  return (useNuxtApp() as unknown as { $firebaseApp: FirebaseApp | null }).$firebaseApp
+}
+
+/**
+ * Attend que la registration ait un service worker actif. `register()` rend la main avant
+ * l'activation au premier abonnement, et getToken (avec une registration fournie) n'attend pas :
+ * `pushManager.subscribe` échouerait faute de service worker actif. Au-delà de `timeoutMs`, échec.
+ */
+export function waitForActivation(registration: ServiceWorkerRegistration, timeoutMs = SW_ACTIVATION_TIMEOUT_MS): Promise<void> {
+  if (registration.active) return Promise.resolve()
+  const timeoutError = () => new PushSetupError('generic', 'service worker not activated in time')
+  const incoming = registration.installing ?? registration.waiting
+  if (!incoming) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(timeoutError()), timeoutMs) })
+    return Promise.race([navigator.serviceWorker.ready.then(() => undefined), timeout]).finally(() => clearTimeout(timer))
+  }
+  return new Promise<void>((resolve, reject) => {
+    const finish = (settle: () => void) => {
+      clearTimeout(timer)
+      incoming.removeEventListener('statechange', onChange)
+      settle()
+    }
+    function onChange(): void {
+      if (incoming!.state === 'activated') finish(resolve)
+      else if (incoming!.state === 'redundant') finish(() => reject(new PushSetupError('generic', 'service worker redundant')))
+    }
+    const timer = setTimeout(() => finish(() => reject(timeoutError())), timeoutMs)
+    incoming.addEventListener('statechange', onChange)
+    onChange()
+  })
+}
+
+/**
+ * Désinscription locale de l'abonnement push de l'app mobile (meilleur effort, ne lève jamais) :
+ * `deleteToken` si ce document a obtenu le jeton, puis la souscription de la registration `/m/`.
+ */
+async function teardownLocalSubscription(base: string): Promise<void> {
+  try {
+    const app = firebaseApp()
+    if (app) {
+      const m = getMessaging(app)
+      if (boundMessaging.has(m)) await deleteToken(m)
+    }
+  } catch { /* meilleur effort */ }
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration(`${base}m/`)
+    const subscription = await registration?.pushManager?.getSubscription()
+    await subscription?.unsubscribe()
+  } catch { /* meilleur effort */ }
+}
+
+function baseOf(baseURL: string | undefined): string {
+  return (baseURL || '/').replace(/\/?$/, '/')
+}
+
 export function usePushSubscription(): {
   state: Ref<PushState>
+  error: Ref<PushError | null>
   enable: () => Promise<void>
   disable: () => Promise<void>
   refresh: () => Promise<void>
@@ -57,7 +153,7 @@ export function usePushSubscription(): {
   const vapidKey = typeof pub.firebaseVapidKey === 'string' ? pub.firebaseVapidKey.trim() : ''
   // FCM refuse une app Firebase sans messagingSenderId : pas de push sans lui (comme sans clé VAPID).
   const senderId = resolveMessagingSenderId(pub)
-  const base = config.app.baseURL.replace(/\/?$/, '/')
+  const base = baseOf(config.app.baseURL)
 
   function detect(): PushState {
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return 'unsupported'
@@ -71,10 +167,11 @@ export function usePushSubscription(): {
 
   // 'unsupported' des deux côtés (SSR et hydratation) : l'état réel est calculé par refresh() au montage.
   const state = ref<PushState>('unsupported')
+  const error = ref<PushError | null>(null)
 
-  function messaging() {
-    const app = (useNuxtApp() as unknown as { $firebaseApp: FirebaseApp | null }).$firebaseApp
-    if (!app) throw new Error('firebase app unavailable')
+  function messaging(): Messaging {
+    const app = firebaseApp()
+    if (!app) throw new PushSetupError('config', 'firebase app unavailable')
     return getMessaging(app)
   }
 
@@ -85,6 +182,7 @@ export function usePushSubscription(): {
   }
 
   async function enable(): Promise<void> {
+    error.value = null
     const detected = detect()
     if (detected === 'unsupported' || detected === 'needs-install') { state.value = detected; return }
     try {
@@ -93,9 +191,13 @@ export function usePushSubscription(): {
       if (permission === 'denied') { state.value = 'denied'; return }
       if (permission !== 'granted') { state.value = 'off'; return }
 
-      const registration = await navigator.serviceWorker.register(`${base}m/firebase-messaging-sw.js`, { scope: `${base}m/` })
-      const token = await getToken(messaging(), { vapidKey, serviceWorkerRegistration: registration })
-      if (!token) { state.value = 'off'; return }
+      // updateViaCache 'none' : le navigateur revalide toujours le script du service worker.
+      const registration = await navigator.serviceWorker.register(`${base}m/firebase-messaging-sw.js`, { scope: `${base}m/`, updateViaCache: 'none' })
+      await waitForActivation(registration)
+      const m = messaging()
+      const token = await getToken(m, { vapidKey, serviceWorkerRegistration: registration })
+      boundMessaging.add(m)
+      if (!token) throw new PushSetupError('generic', 'empty FCM token')
       await mobileService.registerDevice({
         fcmToken: token,
         deviceName: buildWebDeviceName(navigator.userAgent),
@@ -106,21 +208,24 @@ export function usePushSubscription(): {
     } catch (e) {
       const status = httpStatus(e)
       // Back-end pas encore déployé : fonction indisponible, pas une erreur.
-      state.value = status === 404 || status === 405 ? 'unsupported' : 'off'
+      if (status === 404 || status === 405) { state.value = 'unsupported'; return }
+      state.value = 'off'
+      error.value = classifyError(e)
     }
   }
 
   async function disable(): Promise<void> {
+    error.value = null
     const token = readToken()
     if (token) {
       try { await mobileService.unregisterDevice(token) } catch { /* on continue */ }
     }
-    try { await deleteToken(messaging()) } catch { /* on continue */ }
+    await teardownLocalSubscription(base)
     writeToken(null)
     state.value = detect() === 'denied' ? 'denied' : 'off'
   }
 
-  return { state, enable, disable, refresh }
+  return { state, error, enable, disable, refresh }
 }
 
 const LOGOUT_TEARDOWN_TIMEOUT_MS = 2000
@@ -136,10 +241,9 @@ export async function clearPushOnLogout(): Promise<void> {
   if (!token) return
   const teardown = (async () => {
     try { await mobileService.unregisterDevice(token) } catch { /* meilleur effort */ }
-    try {
-      const app = (useNuxtApp() as unknown as { $firebaseApp: FirebaseApp | null }).$firebaseApp
-      if (app) await deleteToken(getMessaging(app))
-    } catch { /* meilleur effort */ }
+    let base = '/'
+    try { base = baseOf(useRuntimeConfig().app.baseURL) } catch { /* racine par défaut */ }
+    await teardownLocalSubscription(base)
   })()
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, LOGOUT_TEARDOWN_TIMEOUT_MS) })

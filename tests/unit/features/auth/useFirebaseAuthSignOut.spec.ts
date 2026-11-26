@@ -8,6 +8,9 @@ const unregisterDevice = vi.fn()
 const deleteToken = vi.fn()
 const navigateToMock = vi.fn()
 const firebaseAuth = { currentUser: null }
+const getRegistration = vi.fn(async () => ({
+  pushManager: { getSubscription: async () => ({ unsubscribe: async () => { order.push('unsubscribe'); return true } }) },
+}))
 
 vi.stubGlobal('useNuxtApp', () => ({ $firebaseAuth: firebaseAuth, $firebaseApp: { name: 'app' } }))
 vi.stubGlobal('navigateTo', navigateToMock)
@@ -41,14 +44,15 @@ describe('useFirebaseAuth.signOut and push revocation', () => {
     localStorage.clear()
     useAuthStore().user = { id: 'admin-1', email: 'a@b.c', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {} }
     localStorage.setItem(KEY, JSON.stringify({ uid: 'admin-1', token: 'tok-1' }))
+    Object.defineProperty(navigator, 'serviceWorker', { value: { getRegistration }, configurable: true })
   })
 
-  it('revokes the push first, then signs out of Firebase', async () => {
+  it('revokes the push first (backend, then the /m/ push subscription), then signs out of Firebase', async () => {
     await useFirebaseAuth().signOut()
     expect(unregisterDevice).toHaveBeenCalledWith('tok-1')
-    expect(deleteToken).toHaveBeenCalled()
+    expect(getRegistration).toHaveBeenCalledWith('/siragbe/m/')
     expect(localStorage.getItem(KEY)).toBeNull()
-    expect(order).toEqual(['unregister', 'deleteToken', 'firebaseSignOut'])
+    expect(order).toEqual(['unregister', 'unsubscribe', 'firebaseSignOut'])
     expect(navigateToMock).toHaveBeenCalledWith('/login')
   })
 

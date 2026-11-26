@@ -7,7 +7,7 @@ vi.mock('@/features/mobile/services/mobileService', () => ({
 }))
 const getToken = vi.fn()
 const deleteToken = vi.fn()
-const getMessaging = vi.fn(() => ({ fake: 'messaging' }))
+const getMessaging = vi.fn()
 vi.mock('firebase/messaging', () => ({
   getMessaging: (...a: unknown[]) => getMessaging(...(a as [])),
   getToken: (...a: unknown[]) => getToken(...a),
@@ -16,18 +16,27 @@ vi.mock('firebase/messaging', () => ({
 
 const config = { app: { baseURL: '/siragbe/' }, public: { firebaseVapidKey: 'VAPID', firebaseAppId: '1:424242:web:abc', firebaseMessagingSenderId: '' } as Record<string, string> }
 
-import { usePushSubscription, clearPushOnLogout } from '@/features/mobile/composables/usePushSubscription'
+import { usePushSubscription, clearPushOnLogout, waitForActivation } from '@/features/mobile/composables/usePushSubscription'
 
 const KEY = 'yadony-admin-push-token'
 const stored = (token = 'tok-1', uid = 'admin-1') => JSON.stringify({ uid, token })
 const authStore = { user: { id: 'admin-1' } as { id: string } | null }
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
-const registration = { scope: '/siragbe/m/' }
+const subscription = { unsubscribe: vi.fn() }
+const pushManager = { getSubscription: vi.fn() }
+const registration: Record<string, unknown> = { scope: '/siragbe/m/', active: { state: 'activated' }, pushManager }
 const register = vi.fn()
+const getRegistration = vi.fn()
+
+/** Service worker en cours d'installation : passe à `activated` quand le test le décide. */
+function installingWorker() {
+  const sw = Object.assign(new EventTarget(), { state: 'installing' })
+  return { sw, activate: () => { sw.state = 'activated'; sw.dispatchEvent(new Event('statechange')) } }
+}
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36'
 const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1'
 
-function setup(opts: { ua?: string, permission?: string, request?: string, push?: boolean, standalone?: boolean } = {}) {
+function setup(opts: { ua?: string, permission?: string, request?: string, push?: boolean, standalone?: boolean, platform?: string, touch?: number } = {}) {
   vi.stubGlobal('useRuntimeConfig', () => config)
   vi.stubGlobal('useNuxtApp', () => ({ $firebaseApp: { name: 'app' } }))
   vi.stubGlobal('Notification', Object.assign(vi.fn(), {
@@ -38,7 +47,9 @@ function setup(opts: { ua?: string, permission?: string, request?: string, push?
   else vi.stubGlobal('PushManager', class {})
   Object.defineProperty(navigator, 'userAgent', { value: opts.ua ?? ANDROID, configurable: true })
   Object.defineProperty(navigator, 'standalone', { value: opts.standalone, configurable: true })
-  Object.defineProperty(navigator, 'serviceWorker', { value: { register }, configurable: true })
+  Object.defineProperty(navigator, 'platform', { value: opts.platform ?? 'Linux armv8l', configurable: true })
+  Object.defineProperty(navigator, 'maxTouchPoints', { value: opts.touch ?? 5, configurable: true })
+  Object.defineProperty(navigator, 'serviceWorker', { value: { register, getRegistration }, configurable: true })
   vi.stubGlobal('matchMedia', () => ({ matches: false }))
 }
 const delPush = () => { delete (window as unknown as Record<string, unknown>).PushManager }
@@ -50,6 +61,12 @@ describe('usePushSubscription', () => {
     config.public.firebaseAppId = '1:424242:web:abc'
     config.public.firebaseMessagingSenderId = ''
     register.mockResolvedValue(registration)
+    getRegistration.mockResolvedValue(registration)
+    pushManager.getSubscription.mockResolvedValue(subscription)
+    subscription.unsubscribe.mockResolvedValue(true)
+    registration.active = { state: 'activated' }
+    registration.installing = null
+    getMessaging.mockReturnValue({ fake: 'messaging' })
     getToken.mockResolvedValue('tok-1')
     registerDevice.mockResolvedValue(undefined)
     unregisterDevice.mockResolvedValue(undefined)
@@ -134,7 +151,7 @@ describe('usePushSubscription', () => {
     setup()
     const p = usePushSubscription()
     await p.enable()
-    expect(register).toHaveBeenCalledWith('/siragbe/m/firebase-messaging-sw.js', { scope: '/siragbe/m/' })
+    expect(register).toHaveBeenCalledWith('/siragbe/m/firebase-messaging-sw.js', { scope: '/siragbe/m/', updateViaCache: 'none' })
     expect(getToken).toHaveBeenCalledWith({ fake: 'messaging' }, { vapidKey: 'VAPID', serviceWorkerRegistration: registration })
     expect(registerDevice).toHaveBeenCalledWith({ fcmToken: 'tok-1', deviceName: 'Chrome sur Android', platform: 'web' })
     expect(Object.keys(registerDevice.mock.calls[0]![0]).sort()).toEqual(['deviceName', 'fcmToken', 'platform'])
@@ -196,7 +213,7 @@ describe('usePushSubscription', () => {
     vi.mocked(Storage.prototype.getItem).mockRestore()
   })
 
-  it('disable_unregistersAndDeletesToken', async () => {
+  it('disable_onAFreshPage_unregisters_andUnsubscribesThroughTheMobileRegistration', async () => {
     setup({ permission: 'granted' })
     localStorage.setItem(KEY, stored())
     const p = usePushSubscription()
@@ -204,8 +221,34 @@ describe('usePushSubscription', () => {
     expect(p.state.value).toBe('on')
     await p.disable()
     expect(unregisterDevice).toHaveBeenCalledWith('tok-1')
-    expect(deleteToken).toHaveBeenCalledWith({ fake: 'messaging' })
+    expect(getRegistration).toHaveBeenCalledWith('/siragbe/m/')
+    expect(subscription.unsubscribe).toHaveBeenCalledTimes(1)
+    // Sans getToken dans ce document, le SDK chercherait un service worker à la racine du site.
+    expect(deleteToken).not.toHaveBeenCalled()
     expect(localStorage.getItem(KEY)).toBeNull()
+    expect(p.state.value).toBe('off')
+  })
+
+  it('disable_afterEnableInTheSamePage_alsoDeletesTheFcmToken', async () => {
+    setup()
+    const p = usePushSubscription()
+    await p.enable()
+    await p.disable()
+    expect(deleteToken).toHaveBeenCalledWith({ fake: 'messaging' })
+    expect(subscription.unsubscribe).toHaveBeenCalled()
+  })
+
+  it('disable_withoutAnyRegistrationOrSubscription_isQuiet', async () => {
+    setup({ permission: 'granted' })
+    localStorage.setItem(KEY, stored())
+    getRegistration.mockResolvedValue(undefined)
+    const p = usePushSubscription()
+    await expect(p.disable()).resolves.toBeUndefined()
+    pushManager.getSubscription.mockResolvedValue(null)
+    getRegistration.mockResolvedValue(registration)
+    await expect(p.disable()).resolves.toBeUndefined()
+    getRegistration.mockRejectedValue(new Error('sw'))
+    await expect(p.disable()).resolves.toBeUndefined()
     expect(p.state.value).toBe('off')
   })
 
@@ -216,8 +259,107 @@ describe('usePushSubscription', () => {
     const p = usePushSubscription()
     await p.refresh()
     await p.disable()
-    expect(deleteToken).toHaveBeenCalled()
+    expect(subscription.unsubscribe).toHaveBeenCalled()
     expect(localStorage.getItem(KEY)).toBeNull()
+    expect(p.state.value).toBe('off')
+  })
+
+  // ── Premier abonnement : service worker pas encore actif (F3) ─────────────
+
+  it('enable_waitsForTheInstallingWorkerToActivate_beforeGetToken', async () => {
+    setup()
+    const { sw, activate } = installingWorker()
+    registration.active = null
+    registration.installing = sw
+    const p = usePushSubscription()
+    const pending = p.enable()
+    await vi.waitFor(() => expect(register).toHaveBeenCalled())
+    await Promise.resolve()
+    expect(getToken).not.toHaveBeenCalled()
+    activate()
+    await pending
+    expect(getToken).toHaveBeenCalledTimes(1)
+    expect(p.state.value).toBe('on')
+    expect(p.error.value).toBeNull()
+  })
+
+  it('enable_failsVisibly_whenTheWorkerNeverActivates (10 s)', async () => {
+    vi.useFakeTimers()
+    try {
+      setup()
+      const { sw } = installingWorker()
+      registration.active = null
+      registration.installing = sw
+      const p = usePushSubscription()
+      const pending = p.enable()
+      await vi.advanceTimersByTimeAsync(10_000)
+      await pending
+      expect(getToken).not.toHaveBeenCalled()
+      expect(p.state.value).toBe('off')
+      expect(p.error.value).toBe('generic')
+    } finally { vi.useRealTimers() }
+  })
+
+  it('waitForActivation: redundant worker rejects, no worker falls back to ready', async () => {
+    const { sw } = installingWorker()
+    const reg = { active: null, installing: sw, waiting: null } as unknown as ServiceWorkerRegistration
+    const p = waitForActivation(reg, 1000)
+    sw.state = 'redundant'; sw.dispatchEvent(new Event('statechange'))
+    await expect(p).rejects.toThrow()
+    Object.defineProperty(navigator, 'serviceWorker', { value: { ready: Promise.resolve({}) }, configurable: true })
+    await expect(waitForActivation({ active: null, installing: null, waiting: null } as unknown as ServiceWorkerRegistration, 1000)).resolves.toBeUndefined()
+  })
+
+  // ── Erreurs d'activation visibles (F7) ────────────────────────────────────
+
+  it.each([
+    [{ code: 'messaging/missing-app-config-values' }, 'config'],
+    [{ code: 'messaging/token-subscribe-failed' }, 'config'],
+    [{ code: 'messaging/permission-blocked' }, 'permission'],
+    [Object.assign(new Error('x'), { name: 'NotAllowedError' }), 'permission'],
+    [new Error('boom'), 'generic'],
+  ])('enable_exposesTheErrorKind %#', async (err, kind) => {
+    setup()
+    getToken.mockRejectedValue(err)
+    const p = usePushSubscription()
+    await p.enable()
+    expect(p.state.value).toBe('off')
+    expect(p.error.value).toBe(kind)
+  })
+
+  it('enable_firebaseAppMissing_isAConfigError', async () => {
+    setup()
+    vi.stubGlobal('useNuxtApp', () => ({ $firebaseApp: null }))
+    const p = usePushSubscription()
+    await p.enable()
+    expect(p.error.value).toBe('config')
+  })
+
+  it('enable_emptyToken_isAGenericError_andARetryClearsIt', async () => {
+    setup()
+    getToken.mockResolvedValueOnce('')
+    const p = usePushSubscription()
+    await p.enable()
+    expect(p.state.value).toBe('off')
+    expect(p.error.value).toBe('generic')
+    await p.enable()
+    expect(p.error.value).toBeNull()
+    expect(p.state.value).toBe('on')
+  })
+
+  // ── iPadOS en mode bureau (F11) ───────────────────────────────────────────
+
+  it('state_needsInstall_onIpadosDesktopMode (MacIntel + touch)', async () => {
+    setup({ ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15', platform: 'MacIntel', touch: 5, standalone: false })
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('needs-install')
+  })
+
+  it('state_off_onARealMac (MacIntel without touch)', async () => {
+    setup({ ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15', platform: 'MacIntel', touch: 0 })
+    const p = usePushSubscription()
+    await p.refresh()
     expect(p.state.value).toBe('off')
   })
 
@@ -256,6 +398,15 @@ describe('clearPushOnLogout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     config.public.firebaseVapidKey = 'VAPID'
+    register.mockResolvedValue(registration)
+    getRegistration.mockResolvedValue(registration)
+    pushManager.getSubscription.mockResolvedValue(subscription)
+    subscription.unsubscribe.mockResolvedValue(true)
+    registration.active = { state: 'activated' }
+    registration.installing = null
+    getMessaging.mockReturnValue({ fake: 'messaging' })
+    getToken.mockResolvedValue('tok-1')
+    registerDevice.mockResolvedValue(undefined)
     unregisterDevice.mockResolvedValue(undefined)
     deleteToken.mockResolvedValue(true)
     localStorage.clear()
@@ -264,12 +415,21 @@ describe('clearPushOnLogout', () => {
   })
   afterEach(() => { vi.unstubAllGlobals(); delPush() })
 
-  it('unregisters, deletes the FCM token and removes the key', async () => {
+  it('unregisters, unsubscribes through the /m/ registration and removes the key (fresh page)', async () => {
     localStorage.setItem(KEY, stored())
     await clearPushOnLogout()
     expect(unregisterDevice).toHaveBeenCalledWith('tok-1')
-    expect(deleteToken).toHaveBeenCalledWith({ fake: 'messaging' })
+    expect(getRegistration).toHaveBeenCalledWith('/siragbe/m/')
+    expect(subscription.unsubscribe).toHaveBeenCalledTimes(1)
+    expect(deleteToken).not.toHaveBeenCalled()
     expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('also deletes the FCM token when this page obtained it', async () => {
+    await usePushSubscription().enable()
+    await clearPushOnLogout()
+    expect(deleteToken).toHaveBeenCalledWith({ fake: 'messaging' })
+    expect(subscription.unsubscribe).toHaveBeenCalled()
   })
 
   it('never throws and still cleans up when the backend rejects', async () => {
