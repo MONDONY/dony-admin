@@ -38,8 +38,10 @@ const SURFACE: Record<string, string[]> = {
     'usePushSubscription()', 'usePushSubscription().disable', 'usePushSubscription().enable', 'usePushSubscription().error',
     'usePushSubscription().refresh', 'usePushSubscription().state',
   ],
+  // `useRuntimeConfig().public` : durée d'inactivité configurable, lecture de la configuration publique, aucun appel réseau.
   'app/features/mobile/composables/useIdleLock.ts': [
     'auth.clear()', 'auth.isAuthenticated', 'auth.user', 'useAuthStore()', 'useFirebaseAuth()', 'useFirebaseAuth().signOut', 'useRoute()',
+    'useRuntimeConfig()', 'useRuntimeConfig().public',
   ],
   'app/features/mobile/composables/useMobileAlertDetail.ts': [
     'auth.can()', 'auth.user', 'mobileAlertsService.claim', 'mobileAlertsService.get()', 'mobileAlertsService.release', 'useAuthStore()',
@@ -135,9 +137,10 @@ const SURFACE: Record<string, string[]> = {
     'useMobileSupportList()', 'useMobileSupportList().chip', 'useMobileSupportList().error', 'useMobileSupportList().isLoading',
     'useMobileSupportList().load', 'useMobileSupportList().selectChip', 'useMobileSupportList().sorted',
   ],
-  // Connexion de l'ordinateur (mot de passe puis TOTP), sans rien de plus.
+  // Connexion de l'ordinateur (mot de passe puis TOTP), sans rien de plus. `configuredIdleMinutes()` : durée
+  // d'inactivité configurable (texte du verrou), lecture de la configuration publique, aucun appel réseau.
   'app/pages/m/verrouille.vue': [
-    'useFirebaseAuth()', 'useFirebaseAuth().cancelTotpSignIn', 'useFirebaseAuth().completeTotpSignIn', 'useFirebaseAuth().signIn',
+    'configuredIdleMinutes()', 'useFirebaseAuth()', 'useFirebaseAuth().cancelTotpSignIn', 'useFirebaseAuth().completeTotpSignIn', 'useFirebaseAuth().signIn',
   ],
   // Pastilles (counts) et sondage des compteurs (subscribe) : jamais le fil ni les marquages « lu ».
   'app/layouts/mobile.vue': [
