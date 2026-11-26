@@ -26,26 +26,61 @@ export type LockReason = 'idle'
 export interface LockMarker { at: number, reason: LockReason | null }
 export interface LockContext { path: string | null, email: string | null }
 
+/** Avance d'horloge tolérée sur une activité enregistrée ; au-delà, elle compte comme périmée. */
+export const FUTURE_TOLERANCE_MS = 5 * 60 * 1000
+
 let memoryActivity = 0
 let memoryMarker: LockMarker | null = null
 let memoryContext: LockContext = { path: null, email: null }
 
-/** Vrai si une activité a été enregistrée et qu'elle date d'au moins `idleMs`. */
-export function isActivityStale(lastActivity: number, now: number, idleMs: number = DEFAULT_IDLE_MS): boolean {
-  return lastActivity > 0 && now - lastActivity >= idleMs
+/** Mémoire du module remise à zéro, comme dans un nouveau document (tests). */
+export function _resetLockStateMemory(): void {
+  memoryActivity = 0
+  memoryMarker = null
+  memoryContext = { path: null, email: null }
 }
 
-/** Dernière activité connue ; 0 si aucune. Stockage illisible : valeur gardée en mémoire. */
+/**
+ * Vrai si l'activité enregistrée date d'au moins `idleMs` (limite comprise). Une activité dans le
+ * futur au-delà de {@link FUTURE_TOLERANCE_MS} (horloge reculée, stockage modifié) compte aussi
+ * comme périmée : sinon la session ne fermerait jamais. 0, négatif ou non fini : aucune activité.
+ */
+export function isActivityStale(lastActivity: number, now: number, idleMs: number = DEFAULT_IDLE_MS): boolean {
+  if (!Number.isFinite(lastActivity) || lastActivity <= 0) return false
+  if (lastActivity > now + FUTURE_TOLERANCE_MS) return true
+  return now - lastActivity >= idleMs
+}
+
+/** Horodatage écrit par {@link writeLastActivity} : des chiffres seulement, sinon aucune activité. */
+function parseActivity(raw: string | null): number {
+  if (raw === null || !/^\d{1,15}$/.test(raw)) return 0
+  return Number(raw)
+}
+
+/**
+ * Dernière activité connue ; 0 si aucune. Le maximum du stockage (partagé entre onglets) et de la
+ * mémoire de cette page : si le stockage est plein, l'écriture échoue mais la lecture marche, et
+ * la valeur périmée restée dans le stockage ne doit pas l'emporter sur l'activité réelle (sinon
+ * connexion, puis verrouillage immédiat, en boucle). Stockage illisible : mémoire seule.
+ */
 export function readLastActivity(): number {
-  try {
-    const n = Number(localStorage.getItem(ACTIVITY_KEY))
-    return Number.isFinite(n) && n > 0 ? n : 0
-  } catch { return memoryActivity }
+  let stored: number
+  try { stored = parseActivity(localStorage.getItem(ACTIVITY_KEY)) } catch { return memoryActivity }
+  return Math.max(stored, memoryActivity)
 }
 
 export function writeLastActivity(at: number): void {
   memoryActivity = at
-  try { localStorage.setItem(ACTIVITY_KEY, String(at)) } catch { /* mémoire seule */ }
+  try {
+    localStorage.setItem(ACTIVITY_KEY, String(at))
+  } catch {
+    // Stockage plein : la valeur périmée ne doit pas survivre (au prochain démarrage elle fermerait
+    // une session active). On la retire, ce qui libère sa place, puis on retente une fois.
+    try {
+      localStorage.removeItem(ACTIVITY_KEY)
+      localStorage.setItem(ACTIVITY_KEY, String(at))
+    } catch { /* mémoire seule */ }
+  }
 }
 
 export function markLocked(reason: LockReason | null, at: number = Date.now()): void {
@@ -53,11 +88,7 @@ export function markLocked(reason: LockReason | null, at: number = Date.now()): 
   try { localStorage.setItem(LOCKED_KEY, JSON.stringify(memoryMarker)) } catch { /* mémoire seule */ }
 }
 
-/** Marqueur posé, ou null. Toute valeur non vide compte (« 1 » compris). */
-export function readLockMarker(): LockMarker | null {
-  let raw: string | null
-  try { raw = localStorage.getItem(LOCKED_KEY) } catch { return memoryMarker }
-  if (!raw) return null
+function parseMarker(raw: string): LockMarker {
   try {
     const p = JSON.parse(raw) as { at?: unknown, reason?: unknown } | null
     if (p && typeof p === 'object') {
@@ -67,9 +98,25 @@ export function readLockMarker(): LockMarker | null {
   return { at: 0, reason: null }
 }
 
+/**
+ * Marqueur posé, ou null. Toute valeur non vide compte (« 1 » compris). Le marqueur posé par cette
+ * page l'emporte (écriture refusée par un stockage plein) ; sinon celui du stockage.
+ */
+export function readLockMarker(): LockMarker | null {
+  let raw: string | null
+  try { raw = localStorage.getItem(LOCKED_KEY) } catch { return memoryMarker }
+  if (memoryMarker) return memoryMarker
+  return raw ? parseMarker(raw) : null
+}
+
 export function clearLockMarker(): void {
   memoryMarker = null
-  try { localStorage.removeItem(LOCKED_KEY) } catch { /* rien à faire */ }
+  try {
+    localStorage.removeItem(LOCKED_KEY)
+  } catch {
+    // Retrait refusé : une valeur vide compte comme « pas de marqueur », il ne survit pas à la connexion.
+    try { localStorage.setItem(LOCKED_KEY, '') } catch { /* rien à faire */ }
+  }
 }
 
 /** Connexion réussie : le verrou est levé et l'inactivité repart de maintenant. */

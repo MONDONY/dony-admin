@@ -17,6 +17,8 @@ import {
   useIdleLock, resolveIdleMs, LOCK_ROUTE, readLockContext, clearLockContext, isSafeReturnPath,
 } from '@/features/mobile/composables/useIdleLock'
 import { seedAuth } from '../../../helpers/auth'
+import { faultyStorage, restoreStorage } from '../../../helpers/storage'
+import { _resetLockStateMemory } from '@/features/mobile/lib/lockState'
 import { useAuthStore } from '@/stores/auth'
 
 const MIN = 60 * 1000
@@ -55,10 +57,16 @@ describe('useIdleLock', () => {
     routeState.query = {}
     localStorage.clear()
     sessionStorage.clear()
+    _resetLockStateMemory()
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
     seedAuth('ADMIN')
   })
-  afterEach(() => { mounted.splice(0).forEach(w => w.unmount()); vi.useRealTimers(); vi.restoreAllMocks() })
+  afterEach(() => {
+    mounted.splice(0).forEach(w => w.unmount())
+    restoreStorage()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it('locks_after30MinutesWithoutActivity', async () => {
     mount(Comp)
@@ -169,9 +177,9 @@ describe('useIdleLock', () => {
   })
 
   it('storageUnavailable_stillLocksInMemory', async () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+    const fake = faultyStorage({ get: true, set: true, remove: true })
     mount(Comp)
+    expect(fake.data.size).toBe(0)
     window.dispatchEvent(new Event('pointerdown'))
     await vi.advanceTimersByTimeAsync(31 * MIN)
     expect(signOutMock).toHaveBeenCalledTimes(1)

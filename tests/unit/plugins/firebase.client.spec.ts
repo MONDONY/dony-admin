@@ -48,7 +48,10 @@ vi.stubGlobal('useRuntimeConfig', () => config)
 
 import plugin from '@/plugins/firebase.client'
 import { useAuthStore } from '@/stores/auth'
-import { ACTIVITY_KEY, LOCKED_KEY, LOCK_ROUTE, clearLockContext, readLockContext, readLockMarker } from '@/features/mobile/lib/lockState'
+import {
+  ACTIVITY_KEY, LOCKED_KEY, LOCK_ROUTE, _resetLockStateMemory, clearLockContext, readLockContext, readLockMarker,
+} from '@/features/mobile/lib/lockState'
+import { faultyStorage, restoreStorage } from '../../helpers/storage'
 
 const MIN = 60 * 1000
 const run = plugin as unknown as () => Promise<{ provide: Record<string, unknown> }>
@@ -69,11 +72,13 @@ describe('firebase.client plugin, cold start', () => {
     config.public.firebaseAppId = '1:424242:web:abc'
     localStorage.clear()
     sessionStorage.clear()
+    // Chaque cas est un nouveau démarrage : rien en mémoire d'un cas précédent.
+    _resetLockStateMemory()
     clearLockContext()
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-26T10:00:00Z'))
   })
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); at('/') })
+  afterEach(() => { restoreStorage(); vi.useRealTimers(); vi.restoreAllMocks(); at('/') })
 
   it('restores the session on a desktop page (unchanged behaviour)', async () => {
     at('/siragbe/users')
@@ -149,7 +154,8 @@ describe('firebase.client plugin, cold start', () => {
 
   it('storage unavailable under /m: no crash, session restored (today\'s behaviour, the in-app timer still runs)', async () => {
     at('/siragbe/m/alertes')
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 120 * MIN))
+    faultyStorage({ get: true, set: true, remove: true })
     await expect(run()).resolves.toBeDefined()
     expect(useAuthStore().isAuthenticated).toBe(true)
   })
