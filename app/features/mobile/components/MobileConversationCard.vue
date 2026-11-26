@@ -5,6 +5,10 @@ import type { AdminConversation } from '@/features/moderation/types/index'
 import { formatRelativeFr } from '@/features/notifications/lib/format'
 import { serverDateIso } from '@/lib/serverDate'
 
+/**
+ * Carte de la liste Messages : participants, nombre de messages, date, signalements. Jamais l'aperçu du
+ * dernier message : le back ne l'efface pas quand la modération supprime ce message.
+ */
 const props = defineProps<{ conversation: AdminConversation }>()
 
 const NuxtLink = resolveComponent('NuxtLink')
@@ -24,7 +28,6 @@ const when = computed(() => (props.conversation.lastMessageAt ? formatRelativeFr
     <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" :class="dot" aria-hidden="true" />
     <span class="min-w-0 flex-1">
       <span class="block truncate text-sm font-semibold text-text">{{ names }}</span>
-      <span v-if="conversation.lastMessagePreview" data-test="conversation-preview" class="block truncate text-sm text-text-muted">« {{ conversation.lastMessagePreview }} »</span>
       <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
         <span v-if="tag" data-test="conversation-tag" class="whitespace-nowrap rounded-full bg-danger/10 px-2 py-0.5 font-semibold text-danger">{{ tag }}</span>
         <span class="whitespace-nowrap">{{ messageCountLabel(conversation.messageCount) }}</span>

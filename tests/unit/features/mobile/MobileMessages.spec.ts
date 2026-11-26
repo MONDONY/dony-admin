@@ -66,12 +66,25 @@ describe('m/messages list', () => {
     const card = w.find('[data-test="conversation-card"]')
     expect(card.text()).toContain('Aicha T. et Moussa D.')
     expect(card.text()).not.toContain('Traoré')
-    expect(card.text()).toContain('« Bonjour »')
+    // Aucun aperçu du dernier message : un message supprimé par la modération resterait lisible.
+    expect(card.text()).not.toContain('Bonjour')
+    expect(card.find('[data-test="conversation-preview"]').exists()).toBe(false)
     expect(card.find('[data-test="conversation-tag"]').text()).toBe('2 signalements')
     expect(card.text()).toContain('4 messages')
     expect(card.attributes('data-severity')).toBe('danger')
     expect(w.text()).toContain('Conversations entre utilisateurs')
     expect(w.find('[data-test="messages-search"]').attributes('placeholder')).toBe('Rechercher un nom')
+  })
+
+  it('list_neverShowsTheLastMessagePreview (privacy: moderation deletes are not blanked in the preview)', async () => {
+    svc.listConversations.mockResolvedValue(page([conv('c1', { lastMessagePreview: 'SECRET', flagged: true, openReportCount: 1 })]))
+    const w = await mountList()
+    const card = w.find('[data-test="conversation-card"]')
+    expect(w.html()).not.toContain('SECRET')
+    expect(card.text()).toContain('Aicha T. et Moussa D.')
+    expect(card.text()).toContain('4 messages')
+    expect(card.find('[data-test="conversation-tag"]').text()).toBe('1 signalement')
+    expect(card.find('[data-test="conversation-when"]').text()).not.toBe('')
   })
 
   it('chips_switchToAllRemovesFlag', async () => {
