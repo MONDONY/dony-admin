@@ -5,9 +5,21 @@
   function str(v) { return typeof v === 'string' ? v : '' }
   function obj(v) { return v && typeof v === 'object' && !Array.isArray(v) ? v : {} }
 
-  /** Une route d'app commence par un seul « / » : jamais d'URL absolue ni de « //hôte ». */
+  /**
+   * Route de l'app mobile seulement : `/m`, `/m/...` ou `/m?...`. Jamais une page de la console de
+   * bureau (hors de l'app installée), ni une URL absolue, `//hôte`, `\`, caractère de contrôle,
+   * `//`, `/` ou `\` encodés, ni un segment `.` ou `..` (même encodé) qui sortirait de `/m`.
+   * Sinon null : le clic ouvre alors l'accueil de l'app (`/m`).
+   */
   function safeRoute(v) {
-    return typeof v === 'string' && v.charAt(0) === '/' && v.charAt(1) !== '/' ? v : null
+    if (typeof v !== 'string' || !/^\/m(?:[/?]|$)/.test(v)) return null
+    if (/[\\\u0000-\u001f\u007f]/.test(v) || v.indexOf('//') !== -1 || /%2f|%5c/i.test(v)) return null
+    var segments = v.split('?')[0].split('/')
+    for (var i = 0; i < segments.length; i++) {
+      var s = segments[i].replace(/%2e/gi, '.')
+      if (s === '.' || s === '..') return null
+    }
+    return v
   }
 
   /** Lit un push FCM `{ notification, data }` ou plat `{ title, body, data }`. Ne lève jamais. */

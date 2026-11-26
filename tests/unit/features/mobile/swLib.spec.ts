@@ -46,6 +46,20 @@ describe('parsePush', () => {
     expect(parsePush({ data: { route: 'https://evil.test/' } }).route).toBeNull()
     expect(parsePush({ data: { route: '//evil.test/' } }).route).toBeNull()
   })
+
+  it.each(['/m', '/m/alertes/abc', '/m/support/42', '/m?item=REPORT:0b2f', '/m/alertes?item=A:B'])(
+    'keeps a route of the mobile app (%s)', (route) => {
+      expect(parsePush({ data: { route } }).route).toBe(route)
+    })
+
+  // Une notification ne doit jamais ouvrir la console de bureau (hors de l'app installée).
+  it.each([
+    '/', '/users', '/users/abc', '/login', '/mfa-setup', '/transactions?x=1', '/mx', '/messages', '/m#top',
+    '/m/../users', '/m/%2e%2e/users', '/m/%2E%2E/users', '/m/./x', '/m/\\..\\users', '/m//evil.test', '/m/%2F%2Fevil',
+    '/m/%5Cusers', '/m/\nx', 'm/alertes', '',
+  ])('drops a route outside the mobile app or that escapes it (%j)', (route) => {
+    expect(parsePush({ data: { route } }).route).toBeNull()
+  })
 })
 
 describe('targetUrl', () => {
@@ -59,6 +73,14 @@ describe('targetUrl', () => {
     expect(targetUrl(SCOPE, null)).toBe(SCOPE)
     expect(targetUrl(SCOPE, undefined)).toBe(SCOPE)
     expect(targetUrl(SCOPE, 'https://evil.test')).toBe(SCOPE)
+  })
+
+  it('a route to a desktop page falls back to the mobile app (/m), never the console', () => {
+    expect(targetUrl(SCOPE, '/users')).toBe(SCOPE)
+    expect(targetUrl(SCOPE, '/')).toBe(SCOPE)
+    expect(targetUrl(SCOPE, '/m/../users')).toBe(SCOPE)
+    // L'URL résolue par le navigateur reste sous /siragbe/m/.
+    expect(new URL(targetUrl(SCOPE, '/m/%2e%2e/users')).pathname).toBe('/siragbe/m/')
   })
 
   it('works with a scope without trailing m/', () => {

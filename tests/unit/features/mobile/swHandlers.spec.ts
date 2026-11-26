@@ -45,4 +45,15 @@ describe('firebase-messaging-sw.js wiring', () => {
     expect(close).toHaveBeenCalled()
     expect(self.clients.openWindow).toHaveBeenCalledWith('https://x.test/siragbe/m/alertes/1')
   })
+
+  it('notificationclick with a route to a desktop page opens the mobile app instead', async () => {
+    const { self, handlers } = loadSw()
+    const waits: Promise<unknown>[] = []
+    handlers.notificationclick!({
+      notification: { close: vi.fn(), data: { route: '/users/abc' } },
+      waitUntil: (p: Promise<unknown>) => waits.push(p),
+    })
+    await Promise.all(waits)
+    expect(self.clients.openWindow).toHaveBeenCalledWith('https://x.test/siragbe/m/')
+  })
 })
