@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   ACTIVITY_KEY, LOCKED_KEY, DEFAULT_IDLE_MS, FUTURE_TOLERANCE_MS, isActivityStale, readLastActivity, writeLastActivity,
   markLocked, readLockMarker, clearLockMarker, noteSignedIn, isMobileAppPath, appPathFromLocation,
-  _resetLockStateMemory, isSafeAppPath, loginRedirectTarget, idleLoginRoute, resolveIdleMinutes, resolveIdleMs, IDLE_MINUTES_DEFAULT, IDLE_MINUTES_MIN, IDLE_MINUTES_MAX,
+  _resetLockStateMemory, isSafeAppPath, loginRedirectTarget, idleLoginRoute, sessionEndRoute, readLockContext,
+  clearLockContext, LOCK_ROUTE, resolveIdleMinutes, resolveIdleMs, IDLE_MINUTES_DEFAULT, IDLE_MINUTES_MIN, IDLE_MINUTES_MAX,
 } from '@/features/mobile/lib/lockState'
 import { faultyStorage, restoreStorage } from '../../../helpers/storage'
 
@@ -229,5 +230,29 @@ describe('desktop return path after sign-in', () => {
     expect(idleLoginRoute('//evil.test')).toBe('/login')
     expect(idleLoginRoute('/login?redirect=%2Fx')).toBe('/login')
     expect(idleLoginRoute('/Login?x')).toBe('/login')
+  })
+})
+
+// Session disparue (déconnexion Firebase vue par un onglet) : où aller.
+describe('sessionEndRoute', () => {
+  beforeEach(() => { localStorage.clear(); sessionStorage.clear(); _resetLockStateMemory(); clearLockContext() })
+
+  it('desktop page, no idle lock (session ended elsewhere, 401): plain /login', () => {
+    expect(sessionEndRoute('/transactions?x=1')).toBe('/login')
+    localStorage.setItem(LOCKED_KEY, '1')
+    expect(sessionEndRoute('/transactions?x=1')).toBe('/login')
+  })
+
+  it('desktop page closed by an idle lock (this tab or another): /login remembering the page, like the lock', () => {
+    markLocked('idle')
+    expect(sessionEndRoute('/transactions?x=1')).toBe(idleLoginRoute('/transactions?x=1'))
+    expect(sessionEndRoute('/transactions?x=1')).toBe('/login?redirect=%2Ftransactions%3Fx%3D1')
+    expect(sessionEndRoute('//evil.test')).toBe('/login')
+  })
+
+  it('/m page: the lock page and the page remembered, idle lock or not', () => {
+    markLocked('idle')
+    expect(sessionEndRoute('/m/alertes/abc')).toBe(LOCK_ROUTE)
+    expect(readLockContext().path).toBe('/m/alertes/abc')
   })
 })

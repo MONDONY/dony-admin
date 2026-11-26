@@ -95,6 +95,8 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
     } else if (authStore.isAuthenticated && !hasE2ESeed) {
       authStore.clear()
       // Section mobile : page de verrouillage (jamais /login, hors de la portée de l'app installée).
+      // Bureau fermé pour inactivité (cet onglet ou un autre) : /login avec la page en redirect,
+      // la même adresse que celle du verrou.
       navigateTo(sessionEndRoute(appPathFromLocation(config.app?.baseURL)))
     }
   })

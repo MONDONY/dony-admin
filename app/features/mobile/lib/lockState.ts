@@ -250,10 +250,14 @@ export function rememberReturnPath(path: string): void {
 /**
  * Où envoyer un admin dont la session vient de disparaître : la page de verrouillage pour la
  * section mobile (jamais `/login`, hors de la portée de l'app installée), en retenant la page ;
- * `/login` pour la console de bureau.
+ * `/login` pour la console de bureau, avec la page en `redirect` quand la session a été fermée pour
+ * inactivité (marqueur `idle`) : même destination que le verrou, dans cet onglet (où la
+ * déconnexion est vue pendant `signOut`, avant la navigation du verrou) comme dans les autres.
  */
 export function sessionEndRoute(appPath: string): string {
-  if (!isMobileAppPath(appPath)) return LOGIN_ROUTE
+  if (!isMobileAppPath(appPath)) {
+    return readLockMarker()?.reason === 'idle' ? idleLoginRoute(appPath) : LOGIN_ROUTE
+  }
   rememberReturnPath(appPath)
   return LOCK_ROUTE
 }

@@ -298,6 +298,24 @@ describe('firebase.client plugin, cold start', () => {
     expect(useAuthStore().isAuthenticated).toBe(false)
   })
 
+  it('idle lock in another tab: this desktop tab goes to /login and remembers its own page', async () => {
+    at('/siragbe/transactions?x=1')
+    await run()
+    // L'autre onglet a posé le marqueur avant sa déconnexion ; Firebase prévient celui-ci.
+    localStorage.setItem(LOCKED_KEY, JSON.stringify({ at: Date.now(), reason: 'idle' }))
+    await h.listeners[1]!(null)
+    expect(navigateMock).toHaveBeenCalledWith('/login?redirect=%2Ftransactions%3Fx%3D1')
+    expect(navigateMock).not.toHaveBeenCalledWith('/login')
+  })
+
+  it('idle lock in another tab on an /m page: still the lock page', async () => {
+    at('/siragbe/m/alertes/abc')
+    await run()
+    localStorage.setItem(LOCKED_KEY, JSON.stringify({ at: Date.now(), reason: 'idle' }))
+    await h.listeners[1]!(null)
+    expect(navigateMock).toHaveBeenCalledWith(LOCK_ROUTE)
+  })
+
   it('session lost on a desktop page: still goes to /login', async () => {
     at('/siragbe/users')
     await run()

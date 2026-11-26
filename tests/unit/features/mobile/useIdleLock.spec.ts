@@ -21,7 +21,7 @@ import {
 } from '@/features/mobile/composables/useIdleLock'
 import { seedAuth } from '../../../helpers/auth'
 import { faultyStorage, restoreStorage } from '../../../helpers/storage'
-import { _resetLockStateMemory, noteSignedIn, readLockMarker } from '@/features/mobile/lib/lockState'
+import { _resetLockStateMemory, noteSignedIn, readLockMarker, sessionEndRoute } from '@/features/mobile/lib/lockState'
 import { useAuthStore } from '@/stores/auth'
 
 const MIN = 60 * 1000
@@ -451,6 +451,16 @@ describe('useIdleLock on the desktop console', () => {
     await api.lockNow()
     expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: '/login' })
     expect(navigateMock).toHaveBeenLastCalledWith('/login')
+  })
+
+  it('the locking tab ends on the redirect URL even when the sign-out listener navigates first', async () => {
+    // Écouteur onAuthStateChanged du plugin : il voit la déconnexion pendant fbSignOut, avant la
+    // navigation du verrou, et choisit sa page avec sessionEndRoute.
+    signOutMock.mockImplementation(async () => { navigateMock(sessionEndRoute(routeState.fullPath)) })
+    mount(Comp)
+    await api.lockNow()
+    const target = '/login?redirect=%2Ftransactions%3Fx%3D1'
+    expect(navigateMock.mock.calls.map(c => c[0])).toEqual([target, target])
   })
 
   it('does not remember a lock-page context for a desktop page', async () => {
