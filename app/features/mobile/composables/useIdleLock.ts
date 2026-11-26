@@ -2,8 +2,8 @@ import { onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import {
-  ACTIVITY_KEY, LOCK_ROUTE, idleLoginRoute, isActivityStale, isMobileAppPath, markLocked, readLastActivity,
-  rememberLockContext, resolveIdleMinutes, resolveIdleMs, writeLastActivity,
+  ACTIVITY_KEY, FUTURE_TOLERANCE_MS, LOCK_ROUTE, idleLoginRoute, isActivityStale, isMobileAppPath, markLocked,
+  readLastActivity, rememberLockContext, resolveIdleMinutes, resolveIdleMs, writeLastActivity,
 } from '@/features/mobile/lib/lockState'
 
 // API historique de ce module, gardée pour les écrans qui l'importent d'ici.
@@ -20,12 +20,20 @@ export const WARNING_LEAD_MS = 60 * 1000
 
 /**
  * Entrées de l'utilisateur, et elles seules : un envoi de fichier ou un export en cours ne compte
- * pas. Écoutées en phase de capture sur `window` : un `scroll` dans un conteneur (il ne remonte pas
- * jusqu'à `window` ; le contenu de la console défile dans `<main>`) et une touche qu'un composant
- * arrête (`stopPropagation`) comptent aussi.
+ * pas. Écoutées en phase de capture sur `window`, donc avant la page : un `scroll` dans un
+ * conteneur (il ne remonte pas jusqu'à `window` ; le contenu de la console défile dans `<main>`) et
+ * une touche qu'un composant arrête (`stopPropagation`) comptent aussi, et une entrée arrivée après
+ * l'échéance peut être arrêtée avant d'atteindre la page.
+ *
+ * Écoute passive là où le défilement se joue (jamais de `preventDefault`) ; clavier et pointeur
+ * annulables, pour qu'une entrée sur une session expirée ne déclenche rien (Entrée qui soumet).
  */
-const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll', 'input'] as const
-const LISTEN = { passive: true, capture: true } as const
+const PASSIVE_EVENTS = ['touchstart', 'wheel', 'scroll', 'input'] as const
+const CANCELABLE_EVENTS = ['pointerdown', 'keydown'] as const
+/** Actions nées d'une entrée : arrêtées seulement une fois la session close. */
+const GUARD_EVENTS = ['click', 'submit'] as const
+const PASSIVE = { passive: true, capture: true } as const
+const CAPTURE = { capture: true } as const
 
 /** Chemin relatif à l'appli (un seul `/` initial), valable à mémoriser. */
 function isAppRelative(path: unknown): path is string {
@@ -88,6 +96,8 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   let lastWrite = 0
   let locking = false
   let mounted = false
+  /** Session close (fermée ou en cours de fermeture) : plus aucune entrée n'atteint la page. */
+  let sealed = false
 
   const active = (): boolean => mounted && auth.isAuthenticated
   const inMobileApp = (): boolean => isMobileAppPath(route.path ?? '')
@@ -99,6 +109,24 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
 
   function isExpired(): boolean {
     return isActivityStale(lastKnownActivity(), Date.now(), idleMs)
+  }
+
+  /**
+   * L'échéance est-elle déjà passée au moment d'une entrée ? Le minuteur peut ne pas avoir tourné :
+   * veille de l'ordinateur (les minuteurs suivent une horloge qui s'arrête pendant la veille), page
+   * gelée, longue tâche, entrée traitée avant le minuteur. Pré-filtre en mémoire (dernier geste de
+   * cet onglet) ; l'activité partagée (un autre onglet a pu travailler) n'est lue que si besoin.
+   */
+  function expiredOnInput(now: number): boolean {
+    const own = lastActivityAt.value
+    if (now - own < idleMs && own <= now + FUTURE_TOLERANCE_MS) return false
+    return isExpired()
+  }
+
+  /** Entrée arrêtée avant la page (et annulée si l'écoute le permet). */
+  function block(e: Event, cancelable: boolean): void {
+    e.stopImmediatePropagation()
+    if (cancelable && e.cancelable) e.preventDefault()
   }
 
   /** Temps restant avant l'échéance, borné à [0, idleMs]. */
@@ -123,6 +151,7 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   async function lockNow(): Promise<void> {
     if (locking || !auth.isAuthenticated || route.path === LOCK_ROUTE) return
     locking = true
+    sealed = true
     clearTimers()
     warning.value = false
     try {
@@ -191,18 +220,35 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
     else schedule()
   }
 
-  function onActivity(): void {
+  function onInput(e: Event, cancelable: boolean): void {
+    if (sealed) return block(e, cancelable)
     if (!active()) return
     const now = Date.now()
+    // Échéance passée sans que le minuteur ait tourné : l'entrée ferme la session au lieu de la
+    // prolonger, n'est pas horodatée, et n'atteint pas la page (rien ne part avec l'ancienne session).
+    if (expiredOnInput(now)) {
+      block(e, cancelable)
+      void lockNow()
+      return
+    }
     lastActivityAt.value = now
     persist(now)
     // Les minuteurs relisent la dernière activité à leur échéance ; seul le bandeau est à fermer.
     if (warning.value) schedule()
   }
 
+  const onPassiveInput = (e: Event): void => onInput(e, false)
+  const onCancelableInput = (e: Event): void => onInput(e, true)
+  const onGuard = (e: Event): void => { if (sealed) block(e, true) }
+
   function stayConnected(): void {
-    if (!active()) return
+    if (sealed || !active()) return
     const now = Date.now()
+    // Bandeau resté affiché pendant une veille : « Rester connecté » ne rouvre pas la session.
+    if (expiredOnInput(now)) {
+      void lockNow()
+      return
+    }
     lastActivityAt.value = now
     persist(now, true)
     schedule()
@@ -247,7 +293,10 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   // maintenant. Déconnexion : plus de minuteur ni de bandeau.
   watch(() => auth.isAuthenticated, (signedIn) => {
     if (!mounted) return
-    if (signedIn) resume()
+    if (signedIn) {
+      sealed = false
+      resume()
+    }
     else {
       clearTimers()
       warning.value = false
@@ -256,7 +305,9 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
 
   onMounted(() => {
     mounted = true
-    for (const evt of ACTIVITY_EVENTS) window.addEventListener(evt, onActivity, LISTEN)
+    for (const evt of PASSIVE_EVENTS) window.addEventListener(evt, onPassiveInput, PASSIVE)
+    for (const evt of CANCELABLE_EVENTS) window.addEventListener(evt, onCancelableInput, CAPTURE)
+    for (const evt of GUARD_EVENTS) window.addEventListener(evt, onGuard, CAPTURE)
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pageshow', onPageShow)
     window.addEventListener('storage', onStorage)
@@ -265,7 +316,9 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
 
   onBeforeUnmount(() => {
     mounted = false
-    for (const evt of ACTIVITY_EVENTS) window.removeEventListener(evt, onActivity, LISTEN)
+    for (const evt of PASSIVE_EVENTS) window.removeEventListener(evt, onPassiveInput, PASSIVE)
+    for (const evt of CANCELABLE_EVENTS) window.removeEventListener(evt, onCancelableInput, CAPTURE)
+    for (const evt of GUARD_EVENTS) window.removeEventListener(evt, onGuard, CAPTURE)
     document.removeEventListener('visibilitychange', onVisibility)
     window.removeEventListener('pageshow', onPageShow)
     window.removeEventListener('storage', onStorage)

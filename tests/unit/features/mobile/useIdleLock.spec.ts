@@ -147,6 +147,14 @@ describe('useIdleLock', () => {
     expect(signOutMock).toHaveBeenCalledTimes(1)
   })
 
+  it('/m: an input after the deadline (app resumed, timer late) goes to the lock page instead of extending', async () => {
+    mount(Comp)
+    vi.setSystemTime(Date.now() + 3 * 60 * MIN)
+    window.dispatchEvent(new Event('touchstart'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: LOCK_ROUTE })
+  })
+
   it('lockNow_signsOutFirebase_withRevokePushFalse', async () => {
     mount(Comp)
     await api.lockNow()
@@ -559,6 +567,115 @@ describe('useIdleLock on the desktop console', () => {
     await vi.advanceTimersByTimeAsync(29 * MIN)
     expect(signOutMock).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Entrée après l'échéance (veille, page gelée, minuteur en retard) ──────
+
+  it('an input after the deadline (sleep: clock +5 h, timer not run yet) closes the session instead of extending it', async () => {
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(10 * MIN)
+    const stamped = localStorage.getItem(STORAGE_KEY)
+    const before = api.lastActivityAt.value
+    vi.setSystemTime(Date.now() + 5 * 60 * MIN)
+    window.dispatchEvent(new Event('pointerdown'))
+    // Pas d'horodatage : la session n'est pas prolongée, ni ici ni pour les autres onglets.
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(stamped)
+    expect(api.lastActivityAt.value).toBe(before)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: '/login?redirect=%2Ftransactions%3Fx%3D1' })
+    // Le minuteur en retard qui finit par tourner ne refait rien.
+    await vi.advanceTimersByTimeAsync(30 * MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('warning shown before the sleep: "Rester connecté" on wake closes the session instead of extending it', async () => {
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(29 * MIN + 10 * 1000)
+    expect(api.warning.value).toBe(true)
+    const stamped = localStorage.getItem(STORAGE_KEY)
+    vi.setSystemTime(Date.now() + 5 * 60 * MIN)
+    api.stayConnected()
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(stamped)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+    expect(api.warning.value).toBe(false)
+  })
+
+  it('the click that wakes an expired session never reaches the page (no action on the old session)', async () => {
+    const action = vi.fn()
+    const button = document.createElement('button')
+    button.addEventListener('pointerdown', action)
+    button.addEventListener('click', action)
+    document.body.appendChild(button)
+    mount(Comp)
+    vi.setSystemTime(Date.now() + 5 * 60 * MIN)
+    button.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    button.dispatchEvent(click)
+    expect(action).not.toHaveBeenCalled()
+    expect(click.defaultPrevented).toBe(true)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('Enter pressed on wake is cancelled (no form submission with the old session)', () => {
+    const field = document.createElement('input')
+    const onKey = vi.fn()
+    field.addEventListener('keydown', onKey)
+    document.body.appendChild(field)
+    mount(Comp)
+    vi.setSystemTime(Date.now() + 5 * 60 * MIN)
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    field.dispatchEvent(enter)
+    expect(enter.defaultPrevented).toBe(true)
+    expect(onKey).not.toHaveBeenCalled()
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('normal activity just before the deadline still extends the session (and reaches the page)', async () => {
+    const action = vi.fn()
+    const button = document.createElement('button')
+    button.addEventListener('click', action)
+    document.body.appendChild(button)
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(30 * MIN - 1000)
+    window.dispatchEvent(new Event('pointerdown'))
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(Number(localStorage.getItem(STORAGE_KEY))).toBe(Date.now())
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it('old in-memory activity but fresh shared activity (another tab was active): the input does not lock', async () => {
+    mount(Comp)
+    const t0 = Date.now()
+    vi.setSystemTime(t0 + 40 * MIN)
+    // Un autre onglet a travaillé 20 minutes après le dernier geste de celui-ci.
+    localStorage.setItem(STORAGE_KEY, String(t0 + 20 * MIN))
+    window.dispatchEvent(new Event('pointerdown'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).not.toHaveBeenCalled()
+    expect(Number(localStorage.getItem(STORAGE_KEY))).toBe(t0 + 40 * MIN)
+  })
+
+  it('in-memory and shared activity both expired: the input locks', async () => {
+    mount(Comp)
+    const t0 = Date.now()
+    vi.setSystemTime(t0 + 40 * MIN)
+    localStorage.setItem(STORAGE_KEY, String(t0 + 2 * MIN))
+    window.dispatchEvent(new Event('pointerdown'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 2 * MIN))
+  })
+
+  it('the clock set back while running: the next input closes the session', async () => {
+    mount(Comp)
+    vi.setSystemTime(Date.now() - 60 * MIN)
+    window.dispatchEvent(new Event('keydown'))
+    await vi.advanceTimersByTimeAsync(0)
     expect(signOutMock).toHaveBeenCalledTimes(1)
   })
 
