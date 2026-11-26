@@ -23,6 +23,28 @@ describe('mobile import guards (alerts list, overview)', () => {
     expect([...g.autoImports]).toEqual([])
   })
 
+  it('diffuser page: cannot reach a group send, an audience builder, recipients or a CSV export', () => {
+    const g = crawl(['app/pages/m/diffuser.vue'])
+    expect(g.files).toContain('app/features/mobile/services/mobileNotifyService.ts')
+    expect(g.files).toContain('app/features/broadcast/composables/useUserSearch.ts')
+    const forbidden = [
+      'app/features/broadcast/services/broadcastService.ts',
+      'app/features/broadcast/components/BroadcastComposer.vue',
+      'app/features/broadcast/composables/useBroadcast.ts',
+      'app/features/broadcast/composables/audienceRule.ts',
+      'app/features/broadcast/composables/useAudienceRule.ts',
+      'app/features/broadcast/composables/useBroadcastSegments.ts',
+    ]
+    for (const f of forbidden) expect(g.files).not.toContain(f)
+    expect(g.files.filter(f => /recipientsCsv|downloadBlob|BroadcastRecipients|BroadcastSegments|AudienceRule/i.test(f))).toEqual([])
+    expect(violations(g, /downloadRecipientsCsv|recipients\.csv|broadcast\/(preview|recipients)|serializeRule|segmentId/)).toEqual([])
+    // Entrées autorisées : app/stores/auth.ts (`Set.delete`) ; usersService.ts définit les écritures du poste
+    // utilisateurs, mais la recherche partagée (useUserSearch) n'appelle que `usersService.list` et `usersService.get`.
+    expect(violations(g, /\.(put|patch|delete)\s*\(|method:\s*['"](PUT|PATCH|DELETE)/i, ['app/stores/auth.ts', 'app/features/users/services/usersService.ts'])).toEqual([])
+    expect([...(g.sources.get('app/features/broadcast/composables/useUserSearch.ts') ?? '').matchAll(/usersService\.(\w+)/g)].map(m => m[1]).sort()).toEqual(['get', 'list'])
+    expect([...g.autoImports]).toEqual([])
+  })
+
   it('resolveSpecifier handles aliases, relative paths, index files and packages', () => {
     const from = `${process.cwd()}/app/pages/m/ensemble.vue`
     expect(resolveSpecifier('@/lib/safeInput', from)).toMatch(/app\/lib\/safeInput\.ts$/)
