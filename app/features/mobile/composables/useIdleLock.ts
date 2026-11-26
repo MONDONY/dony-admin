@@ -22,8 +22,8 @@ const STORAGE_THROTTLE_MS = 5000
 export const WARNING_LEAD_MS = 60 * 1000
 
 /**
- * Entrées de l'utilisateur, et elles seules : un envoi de fichier ou un export en cours ne compte
- * pas. Écoutées en phase de capture sur `window`, donc avant la page : un `scroll` dans un
+ * Entrées de l'utilisateur, et elles seules (un fichier glissé depuis le système compte : `dragover`,
+ * `drop`) : un envoi de fichier ou un export en cours ne compte pas. Écoutées en phase de capture sur `window`, donc avant la page : un `scroll` dans un
  * conteneur (il ne remonte pas jusqu'à `window` ; le contenu de la console défile dans `<main>`) et
  * une touche qu'un composant arrête (`stopPropagation`) comptent aussi, et une entrée arrivée après
  * l'échéance peut être arrêtée avant d'atteindre la page.
@@ -31,7 +31,7 @@ export const WARNING_LEAD_MS = 60 * 1000
  * Écoute passive là où le défilement se joue (jamais de `preventDefault`) ; clavier et pointeur
  * annulables, pour qu'une entrée sur une session expirée ne déclenche rien (Entrée qui soumet).
  */
-const PASSIVE_EVENTS = ['touchstart', 'wheel', 'scroll', 'input'] as const
+const PASSIVE_EVENTS = ['touchstart', 'wheel', 'scroll', 'input', 'dragover', 'drop'] as const
 const CANCELABLE_EVENTS = ['pointerdown', 'keydown'] as const
 /** Actions nées d'une entrée : arrêtées seulement une fois la session close. */
 const GUARD_EVENTS = ['click', 'submit'] as const

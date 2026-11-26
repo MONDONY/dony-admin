@@ -493,7 +493,7 @@ describe('useIdleLock on the desktop console', () => {
     expect(signOutMock).not.toHaveBeenCalled()
   })
 
-  it.each(['input', 'wheel'])('%s counts as activity (paste, mouse wheel)', async (evt) => {
+  it.each(['input', 'wheel', 'dragover', 'drop'])('%s counts as activity (paste, mouse wheel, file dragged from the system)', async (evt) => {
     const field = document.createElement('textarea')
     document.body.appendChild(field)
     mount(Comp)
@@ -501,6 +501,15 @@ describe('useIdleLock on the desktop console', () => {
     field.dispatchEvent(new Event(evt, { bubbles: true }))
     await vi.advanceTimersByTimeAsync(29 * MIN)
     expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it('wheel, dragover and drop are listened to in capture, passively (scrolling and drops stay smooth)', () => {
+    const add = vi.spyOn(window, 'addEventListener')
+    mount(Comp)
+    for (const evt of ['wheel', 'dragover', 'drop', 'scroll', 'touchstart']) {
+      const call = add.mock.calls.find(c => c[0] === evt)
+      expect(call?.[2]).toEqual({ passive: true, capture: true })
+    }
   })
 
   it('a hidden desktop tab is closed when the delay passes (no wait for its return)', async () => {
