@@ -163,6 +163,25 @@ describe('firebase.client plugin, cold start', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  // ── F2 : configuration Firebase complète pour FCM ─────────────────────────
+
+  it('passes messagingSenderId from NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', async () => {
+    config.public.firebaseMessagingSenderId = '777'
+    await run()
+    expect(h.initializeApp).toHaveBeenCalledWith(expect.objectContaining({ messagingSenderId: '777', projectId: 'proj', apiKey: 'key', appId: '1:424242:web:abc' }))
+  })
+
+  it('falls back to the project number inside the appId', async () => {
+    await run()
+    expect(h.initializeApp.mock.calls[0]![0]).toMatchObject({ messagingSenderId: '424242' })
+  })
+
+  it('omits messagingSenderId when neither value is available', async () => {
+    config.public.firebaseAppId = 'not-a-firebase-app-id'
+    await run()
+    expect(h.initializeApp.mock.calls[0]![0].messagingSenderId).toBeUndefined()
+  })
+
   // ── F5 : la session disparaît pendant l'utilisation ───────────────────────
 
   it('session lost on an /m page: goes to the lock page (never /login) and remembers the page', async () => {

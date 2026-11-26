@@ -4,6 +4,7 @@ import type { FirebaseApp } from 'firebase/app'
 import { mobileService } from '@/features/mobile/services/mobileService'
 import { buildWebDeviceName } from '@/composables/useDeviceRegistration'
 import { useAuthStore } from '@/stores/auth'
+import { resolveMessagingSenderId } from '@/lib/firebaseConfig'
 
 export type PushState = 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on'
 
@@ -52,7 +53,10 @@ export function usePushSubscription(): {
   refresh: () => Promise<void>
 } {
   const config = useRuntimeConfig()
-  const vapidKey = ((config.public as Record<string, string>).firebaseVapidKey ?? '').trim()
+  const pub = config.public as Record<string, unknown>
+  const vapidKey = typeof pub.firebaseVapidKey === 'string' ? pub.firebaseVapidKey.trim() : ''
+  // FCM refuse une app Firebase sans messagingSenderId : pas de push sans lui (comme sans clé VAPID).
+  const senderId = resolveMessagingSenderId(pub)
   const base = config.app.baseURL.replace(/\/?$/, '/')
 
   function detect(): PushState {
@@ -60,7 +64,7 @@ export function usePushSubscription(): {
     // iOS n'expose les API push qu'une fois l'app installée : l'indice d'installation passe avant.
     if (isIos() && !isStandalone()) return 'needs-install'
     if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || typeof PushManager === 'undefined') return 'unsupported'
-    if (!vapidKey) return 'unsupported'
+    if (!vapidKey || !senderId) return 'unsupported'
     if (Notification.permission === 'denied') return 'denied'
     return 'off'
   }

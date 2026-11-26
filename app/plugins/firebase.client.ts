@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
 import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
+import { buildFirebaseConfig } from '@/lib/firebaseConfig'
 import { hasTotpFactor } from '@/features/auth/composables/useFirebaseAuth'
 import {
   appPathFromLocation, isActivityStale, isMobileAppPath, markLocked, readLastActivity, readLockMarker,
@@ -34,12 +35,8 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
     return { provide: { firebaseApp: null, firebaseAuth: null } }
   }
 
-  const firebaseConfig = {
-    apiKey: pub.firebaseApiKey,
-    authDomain: pub.firebaseAuthDomain,
-    projectId: pub.firebaseProjectId,
-    appId: pub.firebaseAppId,
-  }
+  // messagingSenderId compris : sans lui, getMessaging() lève messaging/missing-app-config-values.
+  const firebaseConfig = buildFirebaseConfig(pub)
 
   const app: FirebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig)
   const auth: Auth = getAuth(app)

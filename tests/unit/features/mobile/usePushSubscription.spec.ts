@@ -14,7 +14,7 @@ vi.mock('firebase/messaging', () => ({
   deleteToken: (...a: unknown[]) => deleteToken(...a),
 }))
 
-const config = { app: { baseURL: '/siragbe/' }, public: { firebaseVapidKey: 'VAPID' } as Record<string, string> }
+const config = { app: { baseURL: '/siragbe/' }, public: { firebaseVapidKey: 'VAPID', firebaseAppId: '1:424242:web:abc', firebaseMessagingSenderId: '' } as Record<string, string> }
 
 import { usePushSubscription, clearPushOnLogout } from '@/features/mobile/composables/usePushSubscription'
 
@@ -47,6 +47,8 @@ describe('usePushSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     config.public.firebaseVapidKey = 'VAPID'
+    config.public.firebaseAppId = '1:424242:web:abc'
+    config.public.firebaseMessagingSenderId = ''
     register.mockResolvedValue(registration)
     getToken.mockResolvedValue('tok-1')
     registerDevice.mockResolvedValue(undefined)
@@ -99,6 +101,26 @@ describe('usePushSubscription', () => {
     const p = usePushSubscription()
     await p.refresh()
     expect(p.state.value).toBe('unsupported')
+  })
+
+  it('state_unsupported_withoutMessagingSenderId (neither the variable nor an appId with the project number)', async () => {
+    setup()
+    config.public.firebaseAppId = 'not-a-firebase-app-id'
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('unsupported')
+    await p.enable()
+    expect(p.state.value).toBe('unsupported')
+    expect(getToken).not.toHaveBeenCalled()
+  })
+
+  it('state_off_withExplicitMessagingSenderId_evenWithoutAppIdNumber', async () => {
+    setup()
+    config.public.firebaseAppId = 'not-a-firebase-app-id'
+    config.public.firebaseMessagingSenderId = '777'
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('off')
   })
 
   it('state_denied_whenPermissionAlreadyDenied', async () => {

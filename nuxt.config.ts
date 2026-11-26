@@ -31,6 +31,7 @@ export default defineNuxtConfig({
       firebaseProjectId: '',
       firebaseAppId: '',
       firebaseVapidKey: '',
+      firebaseMessagingSenderId: '',
     },
   },
   app: {
