@@ -15,11 +15,12 @@ export function buildWebDeviceName(userAgent: string): string {
     : /Firefox/.test(userAgent) ? 'Firefox'
     : /Safari/.test(userAgent) ? 'Safari'
     : 'Navigateur'
+  // iPhone et iPad avant macOS : leur user agent contient « like Mac OS X ».
   const os = /Windows/.test(userAgent) ? 'Windows'
+    : /iPhone|iPad|iPod/.test(userAgent) ? 'iOS'
     : /Mac OS|Macintosh/.test(userAgent) ? 'macOS'
     : /Android/.test(userAgent) ? 'Android'
     : /Linux/.test(userAgent) ? 'Linux'
-    : /iPhone|iPad/.test(userAgent) ? 'iOS'
     : 'Web'
   return `${browser} sur ${os}`
 }
