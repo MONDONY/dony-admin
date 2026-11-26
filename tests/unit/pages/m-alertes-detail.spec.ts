@@ -57,7 +57,7 @@ describe('m/alertes/[id] page', () => {
     await btn.trigger('click')
     await flushPromises()
     expect(svc.claim).toHaveBeenCalledWith(U)
-    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par admin@yadony.com')
+    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par admin@yadony.com à 10:00')
     expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
     expect(w.find('[data-test="release-button"]').text()).toBe('Libérer')
   })
@@ -112,6 +112,61 @@ describe('m/alertes/[id] page', () => {
     expect(svc.release).toHaveBeenCalledWith(U)
     expect(w.find('[data-test="release-button"]').exists()).toBe(false)
     expect(w.find('[data-test="claim-button"]').exists()).toBe(true)
+  })
+
+  it('claimer_identifiedByClaimedById_whenPresent, the e-mail only as a fallback', async () => {
+    // L'identifiant fait foi : même e-mail affiché, autre identifiant, pas le preneur.
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    let w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+    // Identifiant de l'admin connecté (u1), e-mail différent : c'est bien lui.
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u1', claimedByName: 'ancien@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    // Ancien back sans claimedById : comparaison des e-mails.
+    svc.get.mockResolvedValue({ ...base, claimedByName: 'ADMIN@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    svc.get.mockResolvedValue({ ...base, claimedById: null, claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+  })
+
+  it('release_requiresAlertResolve, as the back does, even for the claimer or ADMIN_MANAGE', async () => {
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u1', claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    seedAuth('ADMIN', { ALERT_RESOLVE: false })
+    let w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+    seedAuth('SUPER_ADMIN', { ALERT_RESOLVE: false })
+    w = await mountPage()
+    // SUPER_ADMIN ignore les dérogations : il garde ALERT_RESOLVE.
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    seedAuth('ADMIN', { ADMIN_MANAGE: true, ALERT_RESOLVE: false })
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+  })
+
+  it('claimedBy_showsTheClaimTime (Paris time) and the name alone when the time is unreadable', async () => {
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T08:05:00' })
+    let w = await mountPage()
+    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par autre@yadony.com à 09:05')
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: null, claimedAt: 'pas une date' })
+    w = await mountPage()
+    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par un administrateur')
+  })
+
+  it('no empty sticky bar: hidden without a button, a claimer or an error', async () => {
+    seedAuth('ADMIN', { ALERT_RESOLVE: false })
+    let w = await mountPage()
+    expect(w.find('[data-test="alert-title"]').exists()).toBe(true)
+    expect(w.find('[data-test="claim-bar"]').exists()).toBe(false)
+    seedAuth('ADMIN')
+    w = await mountPage()
+    expect(w.find('[data-test="claim-bar"]').exists()).toBe(true)
+    svc.get.mockResolvedValue({ ...base, resolved: true })
+    w = await mountPage()
+    expect(w.find('[data-test="claim-bar"]').exists()).toBe(false)
   })
 
   it('release 403 alert-claim-not-yours shows the message and refreshes', async () => {

@@ -51,8 +51,11 @@ onMounted(load)
         </ol>
       </section>
 
-      <div class="sticky -mx-4 bottom-0 -mb-4 space-y-2 border-t border-border bg-surface px-4 py-3">
-        <p v-if="claimedBy" data-test="claimed-by" class="text-sm font-semibold text-text">Pris en charge par {{ claimedBy }}</p>
+      <div
+        v-if="claimedBy || claimError || canClaim || canRelease" data-test="claim-bar"
+        class="sticky -mx-4 bottom-0 -mb-4 space-y-2 border-t border-border bg-surface px-4 py-3"
+      >
+        <p v-if="claimedBy" data-test="claimed-by" class="text-sm font-semibold text-text">{{ claimedBy }}</p>
         <p v-if="claimError" data-test="claim-error" class="text-sm text-danger" role="alert">{{ claimError }}</p>
         <button
           v-if="canClaim" type="button" data-test="claim-button" :disabled="claimBusy"

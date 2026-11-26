@@ -22,7 +22,9 @@ export interface AdminAlert {
   /**
    * Prise en charge depuis le mobile (back jumeau, pas encore déployé) : absents d'un ancien back.
    * `claimedByName` est l'e-mail de l'admin (donnée personnelle) : à afficher, jamais à stocker.
+   * `claimedById` (UUID de l'admin) identifie le preneur ; l'e-mail ne sert qu'en son absence.
    */
+  claimedById?: string | null
   claimedByName?: string | null
   claimedAt?: string | null
 }

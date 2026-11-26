@@ -7,6 +7,7 @@ import { isEndpointMissing, problemCode } from '@/lib/endpointMissing'
 import { httpStatus } from '@/lib/violations'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import { uuidParam } from '@/lib/safeInput'
+import { messageTime } from '@/features/support/lib/supportWorkbench'
 
 export const ALREADY_CLAIMED_MESSAGE = 'Déjà pris en charge par un autre administrateur'
 export const NOT_YOURS_MESSAGE = 'Cette prise en charge n’est pas la vôtre'
@@ -31,16 +32,27 @@ export function useMobileAlertDetail(rawId: Ref<unknown>) {
   const id = computed(() => uuidParam(rawId.value))
   const guide = computed(() => (alert.value ? alertGuide(alert.value.type) : null))
   const facts = computed(() => (alert.value ? alertFacts(alert.value) : []))
-  const claimedBy = computed(() => alert.value?.claimedAt ? (alert.value.claimedByName || 'un administrateur') : null)
+  /** « Pris en charge par X à HH:mm » (heure de Paris), sans l'heure si elle est illisible. */
+  const claimedBy = computed(() => {
+    const a = alert.value
+    if (!a?.claimedAt) return null
+    const at = messageTime(a.claimedAt)
+    return `Pris en charge par ${a.claimedByName || 'un administrateur'}${at ? ` à ${at}` : ''}`
+  })
+  /** Le preneur : par son identifiant quand le back le donne, sinon (ancien back) par son e-mail. */
   const isMine = computed(() => {
+    const a = alert.value
+    if (!a) return false
+    if (typeof a.claimedById === 'string' && a.claimedById) return a.claimedById === auth.user?.id
     const mine = auth.user?.email?.toLowerCase()
-    const by = alert.value?.claimedByName?.toLowerCase()
+    const by = a.claimedByName?.toLowerCase()
     return !!mine && !!by && mine === by
   })
   const canClaim = computed(() =>
     !!alert.value && claimAvailable.value && !alert.value.resolved && !alert.value.claimedAt && auth.can('ALERT_RESOLVE'))
+  /** Le back exige ALERT_RESOLVE, puis le preneur ou ADMIN_MANAGE. */
   const canRelease = computed(() =>
-    !!alert.value && claimAvailable.value && !!alert.value.claimedAt && (isMine.value || auth.can('ADMIN_MANAGE')))
+    !!alert.value && claimAvailable.value && !!alert.value.claimedAt && auth.can('ALERT_RESOLVE') && (isMine.value || auth.can('ADMIN_MANAGE')))
 
   async function load() {
     const current = id.value
