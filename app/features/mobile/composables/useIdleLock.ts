@@ -1,66 +1,25 @@
 import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
+import {
+  DEFAULT_IDLE_MS, LOCK_ROUTE, isActivityStale, markLocked, readLastActivity, rememberLockContext,
+  writeLastActivity,
+} from '@/features/mobile/lib/lockState'
 
-/** Page de verrouillage : publique, hors onglets. */
-export const LOCK_ROUTE = '/m/verrouille'
-export const DEFAULT_IDLE_MS = 30 * 60 * 1000
+// API historique de ce module, gardée pour les écrans qui l'importent d'ici.
+export {
+  LOCK_ROUTE, DEFAULT_IDLE_MS, LOCK_CONTEXT_KEY, isSafeReturnPath, readLockContext, clearLockContext,
+  type LockContext,
+} from '@/features/mobile/lib/lockState'
+
 /** Au plus une écriture de `lastActivityAt` dans le stockage toutes les 5 s. */
 const STORAGE_THROTTLE_MS = 5000
-const ACTIVITY_KEY = 'yadony-admin-last-activity'
-/** Page à retrouver (et e-mail à préremplir) après le verrouillage : session de l'onglet seulement. */
-export const LOCK_CONTEXT_KEY = 'yadony-admin-lock-context'
 
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'scroll'] as const
-
-/**
- * Chemin applicatif sûr pour revenir après le verrouillage : jamais une URL absolue ni `//hôte`
- * (redirection ouverte), uniquement l'app mobile (`/m...`), et pas la page de verrouillage elle-même.
- */
-export function isSafeReturnPath(path: unknown): path is string {
-  if (typeof path !== 'string' || path.length === 0) return false
-  if (!/^\/m(?:[/?#]|$)/.test(path)) return false
-  // eslint-disable-next-line no-control-regex
-  if (/[\\\u0000-\u001f]/.test(path)) return false
-  // Pas de remontée de dossier, de `//` après le premier caractère, ni de `/` ou `\` encodés.
-  if (path.includes('//') || /%2f|%5c/i.test(path)) return false
-  if (path.split(/[?#]/)[0]!.split('/').some(seg => seg === '..' || seg === '%2e%2e')) return false
-  if (path === LOCK_ROUTE || path.startsWith(`${LOCK_ROUTE}?`) || path.startsWith(`${LOCK_ROUTE}#`)
-    || path.startsWith(`${LOCK_ROUTE}/`)) return false
-  return true
-}
 
 /** Chemin relatif à l'appli (un seul `/` initial), valable à mémoriser. */
 function isAppRelative(path: unknown): path is string {
   return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !path.includes('\\')
-}
-
-export interface LockContext { path: string | null, email: string | null }
-
-let memoryContext: LockContext = { path: null, email: null }
-
-function rememberLockContext(ctx: LockContext): void {
-  memoryContext = ctx
-  try { sessionStorage.setItem(LOCK_CONTEXT_KEY, JSON.stringify(ctx)) } catch { /* mémoire seule */ }
-}
-
-export function readLockContext(): LockContext {
-  try {
-    const raw = sessionStorage.getItem(LOCK_CONTEXT_KEY)
-    if (raw) {
-      const p = JSON.parse(raw) as { path?: unknown, email?: unknown }
-      return {
-        path: typeof p.path === 'string' ? p.path : null,
-        email: typeof p.email === 'string' ? p.email : null,
-      }
-    }
-  } catch { /* repli mémoire */ }
-  return memoryContext
-}
-
-export function clearLockContext(): void {
-  memoryContext = { path: null, email: null }
-  try { sessionStorage.removeItem(LOCK_CONTEXT_KEY) } catch { /* rien à faire */ }
 }
 
 /**
@@ -74,13 +33,6 @@ export function resolveIdleMs(option: number | undefined, queryIdle: unknown, is
     if (Number.isFinite(n) && n > 0) return n
   }
   return DEFAULT_IDLE_MS
-}
-
-function readStoredActivity(): number {
-  try {
-    const n = Number(localStorage.getItem(ACTIVITY_KEY))
-    return Number.isFinite(n) ? n : 0
-  } catch { return 0 }
 }
 
 /**
@@ -99,13 +51,13 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
 
   /** Dernière activité connue, y compris celle d'un autre onglet (stockage partagé). */
   function lastKnownActivity(): number {
-    return Math.max(lastActivityAt.value, readStoredActivity())
+    return Math.max(lastActivityAt.value, readLastActivity())
   }
 
   function persist(now: number): void {
     if (now - lastWrite < STORAGE_THROTTLE_MS) return
     lastWrite = now
-    try { localStorage.setItem(ACTIVITY_KEY, String(now)) } catch { /* mémoire seule */ }
+    writeLastActivity(now)
   }
 
   async function lockNow(): Promise<void> {
@@ -117,6 +69,10 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
         path: isAppRelative(route.fullPath) ? route.fullPath : null,
         email: auth.user?.email ?? null,
       })
+      // Posé AVANT la déconnexion : si l'app est tuée ou rechargée pendant le signOut (toucher
+      // d'une notification), ou si Firebase refuse de se déconnecter, le plugin au redémarrage
+      // ne restaure pas la session.
+      markLocked('idle')
       const { signOut } = useFirebaseAuth()
       try {
         await signOut({ revokePush: false })
@@ -168,13 +124,19 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
 
   onMounted(() => {
     const now = Date.now()
-    lastActivityAt.value = now
-    persist(now)
+    // Comparer AVANT d'écraser : l'app relancée (ou rouverte depuis la console de bureau) après
+    // plus de `idleMs` sans activité mobile se verrouille tout de suite.
+    const stale = isActivityStale(readLastActivity(), now, idleMs)
+    if (!stale) {
+      lastActivityAt.value = now
+      persist(now)
+    }
     for (const evt of ACTIVITY_EVENTS) {
       window.addEventListener(evt, onActivity, { passive: true })
     }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pageshow', onPageShow)
+    if (stale) void lockNow()
     arm()
   })
 

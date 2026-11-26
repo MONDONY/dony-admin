@@ -14,6 +14,7 @@ import {
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { useApi } from '@/composables/useApi'
 import { clearPushOnLogout } from '@/features/mobile/composables/usePushSubscription'
+import { noteSignedIn } from '@/features/mobile/lib/lockState'
 
 /** Nom du compte dans l'appli d'authentification (Google Authenticator, 1Password…). */
 const TOTP_ISSUER = 'Yadony Admin'
@@ -69,7 +70,11 @@ export function useFirebaseAuth() {
   async function openSession(user: User): Promise<AdminUser> {
     authStore.setMfaEnrolled(hasTotpFactor(user))
     const token = await user.getIdToken(true)
-    return refreshProfile(token)
+    const adminUser = await refreshProfile(token)
+    // Connexion complète (connexion ou déverrouillage) : le verrou de l'app mobile est levé et
+    // l'inactivité repart de maintenant. En cas d'échec du profil, le marqueur reste (échec fermé).
+    noteSignedIn()
+    return adminUser
   }
 
   /**

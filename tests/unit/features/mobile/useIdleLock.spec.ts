@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const MIN = 60 * 1000
 const STORAGE_KEY = 'yadony-admin-last-activity'
+const LOCKED_KEY = 'yadony-admin-locked'
 
 const mounted: Array<{ unmount: () => void }> = []
 function mount(c: typeof Comp) {
@@ -246,6 +247,35 @@ describe('useIdleLock', () => {
     window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }))
     await vi.advanceTimersByTimeAsync(0)
     expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Relancement de l'app (F1) ─────────────────────────────────────────────
+
+  it('locks at mount when the stored last activity is 30 minutes old or more (app relaunched)', async () => {
+    localStorage.setItem(STORAGE_KEY, String(Date.now() - 120 * MIN))
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+    expect(navigateMock).toHaveBeenCalledWith(LOCK_ROUTE)
+    // La vieille valeur n'a pas été écrasée par « maintenant » avant la comparaison.
+    expect(Number(localStorage.getItem(STORAGE_KEY))).toBe(Date.now() - 120 * MIN)
+  })
+
+  it('does not lock at mount with a fresh stored activity, and stamps now', async () => {
+    localStorage.setItem(STORAGE_KEY, String(Date.now() - 5 * MIN))
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).not.toHaveBeenCalled()
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(Date.now()))
+  })
+
+  it('lockNow writes the lock marker BEFORE signing out', async () => {
+    let markerAtSignOut: string | null = null
+    signOutMock.mockImplementation(async () => { markerAtSignOut = localStorage.getItem(LOCKED_KEY) })
+    mount(Comp)
+    await api.lockNow()
+    expect(markerAtSignOut).not.toBeNull()
+    expect(JSON.parse(markerAtSignOut!)).toEqual({ at: Date.now(), reason: 'idle' })
   })
 
   it('pageshow listener is removed on unmount', () => {

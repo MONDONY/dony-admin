@@ -84,6 +84,34 @@ describe('useFirebaseAuth', () => {
     expect(useAuthStore().idToken).toBe('tok-123')
   })
 
+  it('a successful sign-in clears the lock marker and stamps the last activity (openSession)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-26T10:00:00Z'))
+    try {
+      localStorage.setItem('yadony-admin-locked', JSON.stringify({ at: 1, reason: 'idle' }))
+      localStorage.setItem('yadony-admin-last-activity', '1')
+      fbSignInMock.mockResolvedValue({ user: fbUser([]) })
+      apiMock.mockResolvedValue(fakeAdmin)
+      const { useFirebaseAuth } = await import('@/features/auth/composables/useFirebaseAuth')
+      await useFirebaseAuth().signIn('admin@yadony.com', 'pass')
+      expect(localStorage.getItem('yadony-admin-locked')).toBeNull()
+      expect(localStorage.getItem('yadony-admin-last-activity')).toBe(String(Date.now()))
+    } finally {
+      vi.useRealTimers()
+      localStorage.clear()
+    }
+  })
+
+  it('keeps the lock marker when the profile cannot be loaded (fail closed)', async () => {
+    localStorage.setItem('yadony-admin-locked', '1')
+    fbSignInMock.mockResolvedValue({ user: fbUser([]) })
+    apiMock.mockRejectedValue(new Error('403'))
+    const { useFirebaseAuth } = await import('@/features/auth/composables/useFirebaseAuth')
+    await expect(useFirebaseAuth().signIn('admin@yadony.com', 'pass')).rejects.toThrow('403')
+    expect(localStorage.getItem('yadony-admin-locked')).toBe('1')
+    localStorage.clear()
+  })
+
   it('signOut calls firebase signOut and clears the auth store', async () => {
     fbSignOutMock.mockResolvedValue(undefined)
     const { useFirebaseAuth } = await import('@/features/auth/composables/useFirebaseAuth')

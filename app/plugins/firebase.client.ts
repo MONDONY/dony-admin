@@ -2,6 +2,21 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
 import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { hasTotpFactor } from '@/features/auth/composables/useFirebaseAuth'
+import {
+  appPathFromLocation, isActivityStale, isMobileAppPath, markLocked, readLastActivity, readLockMarker,
+} from '@/features/mobile/lib/lockState'
+
+/**
+ * Faut-il refuser la session restaurée au démarrage ? Le marqueur de verrou s'applique partout ;
+ * l'expiration après 30 minutes sans activité mobile seulement dans la section `/m` (le bureau n'a
+ * pas d'expiration). Stockage illisible : aucune des deux conditions, la session est restaurée
+ * comme avant (le minuteur d'inactivité du layout mobile reste actif).
+ */
+function lockedAtStartup(appPath: string, now: number): 'marker' | 'idle' | null {
+  if (readLockMarker()) return 'marker'
+  if (isMobileAppPath(appPath) && isActivityStale(readLastActivity(), now)) return 'idle'
+  return null
+}
 
 export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth: Auth | null }>(async () => {
   // E2E fast-path: skip Firebase entirely when addInitScript set __yadonyAuthSeed
@@ -28,12 +43,22 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
   const app: FirebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig)
   const auth: Auth = getAuth(app)
   const authStore = useAuthStore()
+  // URL d'arrivée (app relancée, toucher d'une notification) : lue avant toute navigation.
+  const initialAppPath = appPathFromLocation(config.app?.baseURL)
 
   await new Promise<void>((resolve) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       unsubscribe()
 
-      if (firebaseUser) {
+      const locked = firebaseUser ? lockedAtStartup(initialAppPath, Date.now()) : null
+      if (firebaseUser && locked) {
+        // Verrou toujours en vigueur (app tuée en arrière-plan puis relancée, déconnexion
+        // Firebase échouée, rechargement pendant le verrouillage) : la session restaurée depuis
+        // IndexedDB est refermée et le store n'est jamais rempli.
+        if (locked === 'idle') markLocked('idle')
+        await auth.signOut().catch(() => {})
+        authStore.clear()
+      } else if (firebaseUser) {
         // Le backend est la seule source de vérité pour role/status/mustChangePassword :
         // on recharge toujours /admin/me au démarrage, jamais de cache local.
         try {
