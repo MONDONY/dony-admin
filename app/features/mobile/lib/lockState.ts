@@ -1,6 +1,7 @@
 /**
- * État du verrou de l'app mobile, partagé entre le plugin Firebase (démarrage à froid), le
- * middleware d'authentification, la connexion et le composable d'inactivité.
+ * État de l'expiration de session pour inactivité (console de bureau et app mobile `/m`), partagé
+ * entre le plugin Firebase (démarrage à froid), le middleware d'authentification, la connexion et
+ * le composable d'inactivité.
  *
  * SANS dépendance (ni Vue, ni Nuxt, ni Firebase) : le plugin `firebase.client.ts` l'importe et ne
  * doit pas tirer le code mobile dans le bundle du bureau. Toute lecture ou écriture du stockage
@@ -17,7 +18,7 @@ export const IDLE_MINUTES_DEFAULT = 30
 export const IDLE_MINUTES_MIN = 5
 export const IDLE_MINUTES_MAX = 720
 export const DEFAULT_IDLE_MS = IDLE_MINUTES_DEFAULT * 60 * 1000
-/** Dernière activité dans l'app mobile (ms epoch), partagée entre onglets. */
+/** Dernière activité dans l'admin, bureau ou mobile (ms epoch), partagée entre onglets. */
 export const ACTIVITY_KEY = 'yadony-admin-last-activity'
 /**
  * Marqueur « session verrouillée » : posé AVANT la déconnexion Firebase, effacé seulement par une
@@ -163,20 +164,54 @@ export function appPathFromLocation(baseURL: string | undefined): string {
 }
 
 /**
- * Chemin applicatif sûr pour revenir après le verrouillage : jamais une URL absolue ni `//hôte`
- * (redirection ouverte), uniquement l'app mobile (`/m...`), et pas la page de verrouillage elle-même.
+ * Chemin de l'appli sûr à rouvrir après une connexion : commence par un seul `/` (jamais une URL
+ * absolue, `//hôte` ni `javascript:` : pas de redirection ouverte), sans `\` ni caractère de
+ * contrôle, sans `//`, sans `/` ou `\` encodés, sans segment `.` ou `..` (même encodé).
+ */
+export function isSafeAppPath(path: unknown): path is string {
+  if (typeof path !== 'string' || !path.startsWith('/')) return false
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\u0000-\u001f\u007f]/.test(path)) return false
+  if (path.includes('//') || /%2f|%5c/i.test(path)) return false
+  const segments = path.split(/[?#]/)[0]!.split('/')
+  return !segments.some((seg) => {
+    const s = seg.replace(/%2e/gi, '.')
+    return s === '.' || s === '..'
+  })
+}
+
+/** Vrai pour `page` elle-même et ses variantes `page?…`, `page#…`, `page/…`. */
+function isRoute(path: string, page: string): boolean {
+  return path === page || path.startsWith(`${page}?`) || path.startsWith(`${page}#`) || path.startsWith(`${page}/`)
+}
+
+/**
+ * Chemin sûr pour revenir après le verrouillage : {@link isSafeAppPath}, uniquement l'app mobile
+ * (`/m...`), et pas la page de verrouillage elle-même.
  */
 export function isSafeReturnPath(path: unknown): path is string {
-  if (typeof path !== 'string' || path.length === 0) return false
-  if (!isMobileAppPath(path)) return false
-  // eslint-disable-next-line no-control-regex
-  if (/[\\\u0000-\u001f]/.test(path)) return false
-  // Pas de remontée de dossier, de `//` après le premier caractère, ni de `/` ou `\` encodés.
-  if (path.includes('//') || /%2f|%5c/i.test(path)) return false
-  if (path.split(/[?#]/)[0]!.split('/').some(seg => seg === '..' || seg === '%2e%2e')) return false
-  if (path === LOCK_ROUTE || path.startsWith(`${LOCK_ROUTE}?`) || path.startsWith(`${LOCK_ROUTE}#`)
-    || path.startsWith(`${LOCK_ROUTE}/`)) return false
-  return true
+  return isSafeAppPath(path) && isMobileAppPath(path) && !isRoute(path, LOCK_ROUTE)
+}
+
+/** Page de connexion de la console de bureau. */
+export const LOGIN_ROUTE = '/login'
+
+/**
+ * Page à ouvrir après une connexion par `/login?redirect=…` : le chemin s'il est sûr
+ * ({@link isSafeAppPath}) et n'est pas une page de connexion (pas de boucle), sinon l'accueil.
+ */
+export function loginRedirectTarget(raw: unknown): string {
+  if (!isSafeAppPath(raw) || isRoute(raw, LOGIN_ROUTE) || isRoute(raw, LOCK_ROUTE)) return '/'
+  return raw
+}
+
+/**
+ * Session de bureau fermée pour inactivité : `/login`, avec la page quittée en `redirect` quand elle
+ * est sûre et utile (pas l'accueil).
+ */
+export function idleLoginRoute(appPath: string): string {
+  const back = loginRedirectTarget(appPath)
+  return back === '/' ? LOGIN_ROUTE : `${LOGIN_ROUTE}?redirect=${encodeURIComponent(back)}`
 }
 
 export function rememberLockContext(ctx: LockContext): void {
@@ -214,7 +249,7 @@ export function rememberReturnPath(path: string): void {
  * `/login` pour la console de bureau.
  */
 export function sessionEndRoute(appPath: string): string {
-  if (!isMobileAppPath(appPath)) return '/login'
+  if (!isMobileAppPath(appPath)) return LOGIN_ROUTE
   rememberReturnPath(appPath)
   return LOCK_ROUTE
 }

@@ -4,19 +4,21 @@ import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { buildFirebaseConfig } from '@/lib/firebaseConfig'
 import { hasTotpFactor } from '@/features/auth/composables/useFirebaseAuth'
 import {
-  appPathFromLocation, isActivityStale, isMobileAppPath, markLocked, readLastActivity, readLockMarker,
-  resolveIdleMs, sessionEndRoute,
+  appPathFromLocation, isActivityStale, markLocked, readLastActivity, readLockMarker, resolveIdleMs,
+  sessionEndRoute,
 } from '@/features/mobile/lib/lockState'
 
 /**
- * Faut-il refuser la session restaurée au démarrage ? Le marqueur de verrou s'applique partout ;
- * l'expiration après `idleMs` sans activité mobile seulement dans la section `/m` (le bureau n'a
- * pas d'expiration). Stockage illisible : aucune des deux conditions, la session est restaurée
- * comme avant (le minuteur d'inactivité du layout mobile reste actif).
+ * Faut-il refuser la session restaurée au démarrage ? Sur TOUTES les pages (bureau compris : sur
+ * Android, l'app installée partage le stockage de Chrome ; tuée avant son minuteur, la session
+ * revenait sans mot de passe sur la console de bureau) : marqueur de verrou posé, ou dernière
+ * activité enregistrée vieille d'au moins `idleMs` (ou dans le futur). Aucune activité enregistrée
+ * (premier lancement, stockage vidé, mise en service de l'expiration) : la session passe, le layout
+ * l'horodate. Stockage illisible : idem, le minuteur des layouts reste actif.
  */
-function lockedAtStartup(appPath: string, now: number, idleMs: number): 'marker' | 'idle' | null {
+function lockedAtStartup(now: number, idleMs: number): 'marker' | 'idle' | null {
   if (readLockMarker()) return 'marker'
-  if (isMobileAppPath(appPath) && isActivityStale(readLastActivity(), now, idleMs)) return 'idle'
+  if (isActivityStale(readLastActivity(), now, idleMs)) return 'idle'
   return null
 }
 
@@ -41,20 +43,18 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
   const app: FirebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig)
   const auth: Auth = getAuth(app)
   const authStore = useAuthStore()
-  // URL d'arrivée (app relancée, toucher d'une notification) : lue avant toute navigation.
-  const initialAppPath = appPathFromLocation(config.app?.baseURL)
 
   await new Promise<void>((resolve) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       unsubscribe()
 
-      const locked = firebaseUser
-        ? lockedAtStartup(initialAppPath, Date.now(), resolveIdleMs(pub.idleLockMinutes))
-        : null
+      const locked = firebaseUser ? lockedAtStartup(Date.now(), resolveIdleMs(pub.idleLockMinutes)) : null
       if (firebaseUser && locked) {
         // Verrou toujours en vigueur (app tuée en arrière-plan puis relancée, déconnexion
         // Firebase échouée, rechargement pendant le verrouillage) : la session restaurée depuis
-        // IndexedDB est refermée et le store n'est jamais rempli.
+        // IndexedDB est refermée et le store n'est jamais rempli. Nuxt attend ce plugin avant
+        // d'installer l'app : aucune page privée n'est montée avant cette déconnexion. Le
+        // middleware mène ensuite à /login (bureau) ou à la page de verrouillage (/m).
         if (locked === 'idle') markLocked('idle')
         await auth.signOut().catch(() => {})
         authStore.clear()

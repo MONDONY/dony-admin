@@ -3,7 +3,9 @@ import { computed, watch } from 'vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
 import ShortcutsHelp from '@/components/layout/ShortcutsHelp.vue'
+import IdleWarning from '@/components/layout/IdleWarning.vue'
 import HelpAssistant from '@/features/help-center/components/HelpAssistant.vue'
+import { useIdleLock } from '@/features/mobile/composables/useIdleLock'
 import { backTarget, buildCrumbs, canGoBackInApp } from '@/components/layout/breadcrumb'
 import { useBreadcrumbLabel } from '@/composables/useBreadcrumbLabel'
 import { useGlobalShortcuts } from '@/composables/useShortcuts'
@@ -30,6 +32,10 @@ function goBack() {
 }
 
 useGlobalShortcuts({ navigate: to => router.push(to), can: p => auth.can(p) })
+
+// Session fermée après la durée d'inactivité configurée (comme l'app mobile), avec un bandeau
+// 60 s avant ; retour à cette page après la reconnexion. Effets côté client seulement.
+const { warning: idleWarning, stayConnected } = useIdleLock({ warn: true })
 </script>
 
 <template>
@@ -43,5 +49,6 @@ useGlobalShortcuts({ navigate: to => router.push(to), can: p => auth.can(p) })
     </div>
     <ClientOnly><ShortcutsHelp /></ClientOnly>
     <ClientOnly><HelpAssistant /></ClientOnly>
+    <IdleWarning :visible="idleWarning" @stay="stayConnected" />
   </div>
 </template>

@@ -1,9 +1,9 @@
-import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import {
-  LOCK_ROUTE, isActivityStale, markLocked, readLastActivity, rememberLockContext, resolveIdleMinutes,
-  resolveIdleMs, writeLastActivity,
+  ACTIVITY_KEY, LOCK_ROUTE, idleLoginRoute, isActivityStale, isMobileAppPath, markLocked, readLastActivity,
+  rememberLockContext, resolveIdleMinutes, resolveIdleMs, writeLastActivity,
 } from '@/features/mobile/lib/lockState'
 
 // API historique de ce module, gardée pour les écrans qui l'importent d'ici.
@@ -15,7 +15,17 @@ export {
 /** Au plus une écriture de `lastActivityAt` dans le stockage toutes les 5 s. */
 const STORAGE_THROTTLE_MS = 5000
 
-const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'scroll'] as const
+/** Avertissement de la console de bureau : 60 s avant la fermeture de la session. */
+export const WARNING_LEAD_MS = 60 * 1000
+
+/**
+ * Entrées de l'utilisateur, et elles seules : un envoi de fichier ou un export en cours ne compte
+ * pas. Écoutées en phase de capture sur `window` : un `scroll` dans un conteneur (il ne remonte pas
+ * jusqu'à `window` ; le contenu de la console défile dans `<main>`) et une touche qu'un composant
+ * arrête (`stopPropagation`) comptent aussi.
+ */
+const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll', 'input'] as const
+const LISTEN = { passive: true, capture: true } as const
 
 /** Chemin relatif à l'appli (un seul `/` initial), valable à mémoriser. */
 function isAppRelative(path: unknown): path is string {
@@ -46,46 +56,90 @@ export function effectiveIdleMs(option: number | undefined, queryIdle: unknown, 
   return resolveIdleMs(configMinutes)
 }
 
+export interface IdleLock {
+  lockNow: () => Promise<void>
+  lastActivityAt: Ref<number>
+  /** Bandeau « Votre session va se fermer pour inactivité » à afficher (option `warn`). */
+  warning: Ref<boolean>
+  /** « Rester connecté » : activité enregistrée tout de suite (tous les onglets), bandeau fermé. */
+  stayConnected: () => void
+}
+
 /**
- * Verrou d'inactivité de l'app mobile : après `idleMs` sans activité (ou au retour au premier plan
- * si le délai s'est écoulé en arrière-plan), déconnecte Firebase côté client SANS révoquer le push
- * (les notifications continuent d'arriver, un toucher mène à l'écran de verrouillage) et ouvre
- * {@link LOCK_ROUTE}. À appeler une fois, depuis le layout mobile.
+ * Fermeture de session après `idleMs` sans activité, pour toute la console (bureau et `/m`).
+ * À l'échéance (ou au retour au premier plan si le délai s'est écoulé en arrière-plan) : marqueur de
+ * verrou posé, déconnexion Firebase SANS révoquer le push, store vidé (échec fermé). Destination :
+ * {@link LOCK_ROUTE} sous `/m` (dans la portée de l'app installée), sinon `/login` avec la page
+ * quittée en retour. L'activité est partagée entre onglets du même navigateur (stockage).
+ *
+ * Inerte côté serveur et sans admin connecté. À appeler une fois par layout authentifié ; `warn`
+ * (bureau) expose {@link IdleLock.warning} 60 s avant l'échéance.
  */
-export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Promise<void>, lastActivityAt: Ref<number> } {
+export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): IdleLock {
   const route = useRoute()
-  const idleMs = effectiveIdleMs(options?.idleMs, route.query?.idle, Boolean(import.meta.dev), configuredIdleMinutes())
+  const auth = useAuthStore()
+  const idleMs = effectiveIdleMs(options.idleMs, route.query?.idle, Boolean(import.meta.dev), configuredIdleMinutes())
+  // 60 s ; moitié du délai pour un `?idle=` de développement plus court que deux minutes.
+  const warnLeadMs = Math.min(WARNING_LEAD_MS, Math.floor(idleMs / 2))
   const lastActivityAt = ref(Date.now())
-  let timer: ReturnType<typeof setTimeout> | null = null
+  const warning = ref(false)
+  let lockTimer: ReturnType<typeof setTimeout> | null = null
+  let warnTimer: ReturnType<typeof setTimeout> | null = null
   let lastWrite = 0
   let locking = false
+  let mounted = false
+
+  const active = (): boolean => mounted && auth.isAuthenticated
+  const inMobileApp = (): boolean => isMobileAppPath(route.path ?? '')
 
   /** Dernière activité connue, y compris celle d'un autre onglet (stockage partagé). */
   function lastKnownActivity(): number {
     return Math.max(lastActivityAt.value, readLastActivity())
   }
 
-  function persist(now: number): void {
-    if (now - lastWrite < STORAGE_THROTTLE_MS) return
+  function isExpired(): boolean {
+    return isActivityStale(lastKnownActivity(), Date.now(), idleMs)
+  }
+
+  /** Temps restant avant l'échéance, borné à [0, idleMs]. */
+  function msLeft(): number {
+    if (isExpired()) return 0
+    return Math.min(idleMs, Math.max(0, idleMs - (Date.now() - lastKnownActivity())))
+  }
+
+  function persist(now: number, force = false): void {
+    if (!force && now - lastWrite < STORAGE_THROTTLE_MS) return
     lastWrite = now
     writeLastActivity(now)
   }
 
+  function clearTimers(): void {
+    if (lockTimer) clearTimeout(lockTimer)
+    if (warnTimer) clearTimeout(warnTimer)
+    lockTimer = null
+    warnTimer = null
+  }
+
   async function lockNow(): Promise<void> {
-    const auth = useAuthStore()
     if (locking || !auth.isAuthenticated || route.path === LOCK_ROUTE) return
     locking = true
+    clearTimers()
+    warning.value = false
     try {
-      rememberLockContext({
-        path: isAppRelative(route.fullPath) ? route.fullPath : null,
-        email: auth.user?.email ?? null,
-      })
+      const mobile = inMobileApp()
+      if (mobile) {
+        rememberLockContext({
+          path: isAppRelative(route.fullPath) ? route.fullPath : null,
+          email: auth.user?.email ?? null,
+        })
+      }
+      const destination = mobile ? LOCK_ROUTE : idleLoginRoute(route.fullPath ?? route.path ?? '/')
       // Posé AVANT la déconnexion : si l'app est tuée ou rechargée pendant le signOut (toucher
       // d'une notification), ou si Firebase refuse de se déconnecter, le plugin au redémarrage
       // ne restaure pas la session.
       markLocked('idle')
       const { signOut } = useFirebaseAuth()
-      const lockSignOut = () => signOut({ revokePush: false, redirectTo: LOCK_ROUTE })
+      const lockSignOut = () => signOut({ revokePush: false, redirectTo: destination })
       try {
         await lockSignOut()
       } catch {
@@ -96,37 +150,69 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
       } finally {
         auth.clear()
       }
-      await navigateTo(LOCK_ROUTE)
+      await navigateTo(destination)
     } finally {
       locking = false
     }
   }
 
-  function arm(): void {
-    if (timer) clearTimeout(timer)
-    const remaining = Math.max(0, idleMs - (Date.now() - lastKnownActivity()))
-    timer = setTimeout(onTimer, remaining)
+  /** Minuteurs recalculés depuis la dernière activité connue (avertissement compris). */
+  function schedule(): void {
+    clearTimers()
+    if (!active()) {
+      warning.value = false
+      return
+    }
+    const left = msLeft()
+    lockTimer = setTimeout(onLockTimer, left)
+    if (!options.warn) return
+    if (left <= warnLeadMs) {
+      warning.value = true
+    } else {
+      warning.value = false
+      warnTimer = setTimeout(onWarnTimer, left - warnLeadMs)
+    }
   }
 
-  function onTimer(): void {
-    timer = null
-    // En arrière-plan, le contrôle se fait au retour (visibilitychange).
-    if (document.visibilityState === 'hidden') return
-    if (Date.now() - lastKnownActivity() >= idleMs) void lockNow()
-    else arm()
+  function onWarnTimer(): void {
+    warnTimer = null
+    if (!active()) return
+    // Activité entre-temps (cet onglet ou un autre) : on repart du nouveau délai.
+    if (msLeft() > warnLeadMs) schedule()
+    else warning.value = true
+  }
+
+  function onLockTimer(): void {
+    lockTimer = null
+    if (!active()) return
+    // Section mobile en arrière-plan : contrôle au retour (visibilitychange), comme avant. Un onglet
+    // de bureau caché se ferme à l'échéance : rien ne reste visible quand on y revient.
+    if (document.visibilityState === 'hidden' && inMobileApp()) return
+    if (isExpired()) void lockNow()
+    else schedule()
   }
 
   function onActivity(): void {
+    if (!active()) return
     const now = Date.now()
     lastActivityAt.value = now
     persist(now)
-    arm()
+    // Les minuteurs relisent la dernière activité à leur échéance ; seul le bandeau est à fermer.
+    if (warning.value) schedule()
+  }
+
+  function stayConnected(): void {
+    if (!active()) return
+    const now = Date.now()
+    lastActivityAt.value = now
+    persist(now, true)
+    schedule()
   }
 
   function onVisibility(): void {
-    if (document.visibilityState !== 'visible') return
-    if (Date.now() - lastKnownActivity() >= idleMs) void lockNow()
-    else arm()
+    if (document.visibilityState !== 'visible' || !active()) return
+    if (isExpired()) void lockNow()
+    else schedule()
   }
 
   function onPageShow(e: PageTransitionEvent): void {
@@ -134,31 +220,58 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
     if (e.persisted) onVisibility()
   }
 
-  onMounted(() => {
+  function onStorage(e: StorageEvent): void {
+    // Activité d'un autre onglet : le bandeau de celui-ci se ferme, le délai repart.
+    if (e.key === ACTIVITY_KEY && active()) schedule()
+  }
+
+  /** Démarrage avec un admin connecté : la dernière activité stockée est comparée AVANT d'écrire. */
+  function start(): void {
+    if (!active()) return
     const now = Date.now()
-    // Comparer AVANT d'écraser : l'app relancée (ou rouverte depuis la console de bureau) après
-    // plus de `idleMs` sans activité mobile se verrouille tout de suite.
-    const stale = isActivityStale(readLastActivity(), now, idleMs)
-    if (!stale) {
-      lastActivityAt.value = now
-      persist(now)
+    // App relancée (ou ouverte depuis un autre onglet) après plus de `idleMs` sans activité, ou
+    // horodatage douteux (futur) : fermeture tout de suite.
+    if (isActivityStale(readLastActivity(), now, idleMs)) {
+      void lockNow()
+      return
     }
-    for (const evt of ACTIVITY_EVENTS) {
-      window.addEventListener(evt, onActivity, { passive: true })
+    resume(now)
+  }
+
+  function resume(now: number = Date.now()): void {
+    lastActivityAt.value = now
+    persist(now, true)
+    schedule()
+  }
+
+  // Connexion pendant que le layout est monté : une session neuve, l'inactivité repart de
+  // maintenant. Déconnexion : plus de minuteur ni de bandeau.
+  watch(() => auth.isAuthenticated, (signedIn) => {
+    if (!mounted) return
+    if (signedIn) resume()
+    else {
+      clearTimers()
+      warning.value = false
     }
+  })
+
+  onMounted(() => {
+    mounted = true
+    for (const evt of ACTIVITY_EVENTS) window.addEventListener(evt, onActivity, LISTEN)
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pageshow', onPageShow)
-    if (stale) void lockNow()
-    arm()
+    window.addEventListener('storage', onStorage)
+    start()
   })
 
   onBeforeUnmount(() => {
-    for (const evt of ACTIVITY_EVENTS) window.removeEventListener(evt, onActivity)
+    mounted = false
+    for (const evt of ACTIVITY_EVENTS) window.removeEventListener(evt, onActivity, LISTEN)
     document.removeEventListener('visibilitychange', onVisibility)
     window.removeEventListener('pageshow', onPageShow)
-    if (timer) clearTimeout(timer)
-    timer = null
+    window.removeEventListener('storage', onStorage)
+    clearTimers()
   })
 
-  return { lockNow, lastActivityAt }
+  return { lockNow, lastActivityAt, warning, stayConnected }
 }

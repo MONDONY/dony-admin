@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   ACTIVITY_KEY, LOCKED_KEY, DEFAULT_IDLE_MS, FUTURE_TOLERANCE_MS, isActivityStale, readLastActivity, writeLastActivity,
   markLocked, readLockMarker, clearLockMarker, noteSignedIn, isMobileAppPath, appPathFromLocation,
-  _resetLockStateMemory, resolveIdleMinutes, resolveIdleMs, IDLE_MINUTES_DEFAULT, IDLE_MINUTES_MIN, IDLE_MINUTES_MAX,
+  _resetLockStateMemory, isSafeAppPath, loginRedirectTarget, idleLoginRoute, resolveIdleMinutes, resolveIdleMs, IDLE_MINUTES_DEFAULT, IDLE_MINUTES_MIN, IDLE_MINUTES_MAX,
 } from '@/features/mobile/lib/lockState'
 import { faultyStorage, restoreStorage } from '../../../helpers/storage'
 
@@ -200,5 +200,31 @@ describe('lockState', () => {
     window.history.replaceState(null, '', '/other/m')
     expect(appPathFromLocation('/siragbe/')).toBe('/other/m')
     expect(appPathFromLocation(undefined)).toBe('/other/m')
+  })
+})
+
+// Retour après la connexion du bureau (`/login?redirect=`) : chemins de l'appli seulement.
+describe('desktop return path after sign-in', () => {
+  it.each(['/transactions?x=1', '/', '/users/abc-123', '/alertes?item=REPORT:0b2f', '/m/alertes'])(
+    'accepts %s', (p) => {
+      expect(isSafeAppPath(p)).toBe(true)
+      expect(loginRedirectTarget(p)).toBe(p)
+    })
+
+  it.each([
+    '//evil.test', '//evil.test/x', 'https://evil.test', 'http:evil.test', 'javascript:alert(1)', 'JaVaScRiPt:alert(1)',
+    '/\\evil.test', '\\\\evil.test', '/users\\x', '/%2F%2Fevil.test', '/%2fevil', '/%5Cevil', '/users/%2F',
+    '/a/../..//evil', '/a/..', '/a/%2e%2e/b', '/a/%2E%2e/b', '/./x', '/users//x', '/x\ny', '/x\ty', 'transactions',
+    '', '/login', '/login?redirect=%2Fx', '/m/verrouille', null, undefined, 42, ['/x'], {},
+  ])('rejects %j (falls back to /)', (p) => {
+    expect(loginRedirectTarget(p)).toBe('/')
+  })
+
+  it('idleLoginRoute keeps the page left as an encoded redirect, never a trivial or unsafe one', () => {
+    expect(idleLoginRoute('/transactions?x=1')).toBe('/login?redirect=%2Ftransactions%3Fx%3D1')
+    expect(idleLoginRoute('/users/abc')).toBe('/login?redirect=%2Fusers%2Fabc')
+    expect(idleLoginRoute('/')).toBe('/login')
+    expect(idleLoginRoute('//evil.test')).toBe('/login')
+    expect(idleLoginRoute('/login?redirect=%2Fx')).toBe('/login')
   })
 })

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
+import { configuredIdleMinutes } from '@/features/mobile/composables/useIdleLock'
+import { loginRedirectTarget, readLockMarker } from '@/features/mobile/lib/lockState'
 import PasswordField from '@/features/auth/components/PasswordField.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
@@ -22,8 +24,17 @@ const totpInput = ref<HTMLInputElement | null>(null)
 const justEnrolled = computed(() => route.query.mfa === 'enrolled')
 const totpComplete = computed(() => /^\d{6}$/.test(totpCode.value.replace(/\s+/g, '')))
 
+/**
+ * Session fermée pour inactivité (marqueur `idle`) : on le dit, avec la durée configurée. Stockage
+ * lu au montage seulement : le rendu serveur et l'hydratation restent identiques.
+ */
+const idleClosed = ref(false)
+const idleMinutes = configuredIdleMinutes()
+onMounted(() => { idleClosed.value = readLockMarker()?.reason === 'idle' })
+
 async function goAfterSignIn(adminUser: { mustChangePassword: boolean }) {
-  await navigateTo(adminUser.mustChangePassword ? '/change-password' : '/')
+  // `?redirect=` (page quittée à la fermeture de session) : chemin de l'appli sûr, sinon l'accueil.
+  await navigateTo(adminUser.mustChangePassword ? '/change-password' : loginRedirectTarget(route.query.redirect))
 }
 
 async function submitPassword() {
@@ -113,6 +124,14 @@ function backToPassword() {
       class="rounded-btn bg-success/10 border border-success/20 px-3 py-2 text-sm text-success"
     >
       Double authentification activée. Reconnecte-toi avec ton mot de passe, puis ton code.
+    </div>
+
+    <div
+      v-if="idleClosed && !justEnrolled && step === 'password'"
+      data-test="idle-notice"
+      class="rounded-btn bg-surface-el border border-border px-3 py-2 text-sm text-text [text-wrap:pretty]"
+    >
+      Session fermée après {{ idleMinutes }} minutes d’inactivité. Connectez-vous pour continuer.
     </div>
 
     <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">

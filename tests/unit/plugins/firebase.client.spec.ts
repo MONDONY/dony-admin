@@ -49,7 +49,8 @@ vi.stubGlobal('useRuntimeConfig', () => config)
 import plugin from '@/plugins/firebase.client'
 import { useAuthStore } from '@/stores/auth'
 import {
-  ACTIVITY_KEY, LOCKED_KEY, LOCK_ROUTE, _resetLockStateMemory, clearLockContext, readLockContext, readLockMarker,
+  ACTIVITY_KEY, LOCKED_KEY, LOCK_ROUTE, _resetLockStateMemory, clearLockContext, noteSignedIn, readLockContext,
+  readLockMarker,
 } from '@/features/mobile/lib/lockState'
 import { faultyStorage, restoreStorage } from '../../helpers/storage'
 
@@ -81,7 +82,7 @@ describe('firebase.client plugin, cold start', () => {
   })
   afterEach(() => { restoreStorage(); vi.useRealTimers(); vi.restoreAllMocks(); at('/') })
 
-  it('restores the session on a desktop page (unchanged behaviour)', async () => {
+  it('restores the session on a desktop page without any stored activity (first start, deployment of the expiry)', async () => {
     at('/siragbe/users')
     await run()
     expect(fetchMock).toHaveBeenCalledWith('http://api.test/api/v1/admin/me', { headers: { Authorization: 'Bearer tok' } })
@@ -124,20 +125,90 @@ describe('firebase.client plugin, cold start', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('same stale activity on a desktop path: session restored (no expiry on desktop)', async () => {
-    at('/siragbe/users')
+  // ── Bureau : même expiration (Android : PWA tuée, Chrome rouvert sur /siragbe/) ─
+
+  it('stale activity on a desktop page (app killed, Chrome opened on the console): signs out, no hydration, idle marker', async () => {
+    at('/siragbe/')
     localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 120 * MIN))
+    await run()
+    expect(h.fbSignOut).toHaveBeenCalledTimes(1)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(useAuthStore().isAuthenticated).toBe(false)
+    expect(readLockMarker()?.reason).toBe('idle')
+  })
+
+  it('activity exactly at the delay on a desktop page counts as stale', async () => {
+    at('/siragbe/transactions?x=1')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 30 * MIN))
+    await run()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fresh activity on a desktop page: session restored', async () => {
+    at('/siragbe/transactions')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 29 * MIN))
     await run()
     expect(h.fbSignOut).not.toHaveBeenCalled()
     expect(useAuthStore().isAuthenticated).toBe(true)
   })
 
-  it('/mfa-setup is not the mobile section even though it starts with /m', async () => {
-    at('/siragbe/mfa-setup')
-    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 120 * MIN))
+  it('configured duration applies on the desktop too (10 minutes)', async () => {
+    config.public.idleLockMinutes = 10
+    at('/siragbe/users')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 11 * MIN))
+    await run()
+    expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  it('an activity stored far in the future (clock set back, tampering) is stale, not "fresh forever"', async () => {
+    at('/siragbe/users')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() + 24 * 60 * MIN))
+    await run()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  it.each(['-5', 'NaN', 'abc', '1.5'])('an invalid stored activity (%s) counts as none: session restored', async (raw) => {
+    at('/siragbe/users')
+    localStorage.setItem(ACTIVITY_KEY, raw)
     await run()
     expect(useAuthStore().isAuthenticated).toBe(true)
   })
+
+  it('no flash of private content: the plugin resolves only after the stale session is signed out', async () => {
+    at('/siragbe/messages')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 120 * MIN))
+    let release: () => void = () => {}
+    h.fbSignOut.mockImplementation(() => new Promise<void>((r) => { release = r }))
+    let resolved = false
+    const started = run().then(() => { resolved = true })
+    await vi.waitFor(() => expect(h.fbSignOut).toHaveBeenCalled())
+    await Promise.resolve()
+    // Nuxt n'installe l'app (pages, layouts) qu'une fois tous les plugins résolus.
+    expect(resolved).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+    release()
+    await started
+    expect(resolved).toBe(true)
+    expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  it.each(['/siragbe/login', '/siragbe/change-password', '/siragbe/mfa-setup', '/siragbe/denied', '/siragbe/m/verrouille'])(
+    'stale activity on %s: the old session is closed, and a new sign-in is not undone at the next start (no loop)', async (path) => {
+      at(path)
+      localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 120 * MIN))
+      await run()
+      expect(useAuthStore().isAuthenticated).toBe(false)
+      // L'admin se connecte (mot de passe, code ou page de verrouillage : openSession -> noteSignedIn).
+      noteSignedIn()
+      setActivePinia(createPinia())
+      h.listeners.length = 0
+      h.fbSignOut.mockClear()
+      _resetLockStateMemory()
+      await run()
+      expect(h.fbSignOut).not.toHaveBeenCalled()
+      expect(useAuthStore().isAuthenticated).toBe(true)
+    })
 
   it('configured duration (10 minutes): activity 10 minutes old under /m is stale', async () => {
     config.public.idleLockMinutes = 10

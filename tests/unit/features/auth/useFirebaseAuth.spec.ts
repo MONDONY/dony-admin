@@ -102,6 +102,27 @@ describe('useFirebaseAuth', () => {
     }
   })
 
+  it('a sign-in completed with the TOTP code also clears the lock marker (no permanent lockout)', async () => {
+    localStorage.setItem('yadony-admin-locked', JSON.stringify({ at: 1, reason: 'idle' }))
+    localStorage.setItem('yadony-admin-last-activity', '1')
+    fbSignInMock.mockRejectedValue(Object.assign(new Error('mfa'), { code: 'auth/multi-factor-auth-required' }))
+    getResolverMock.mockReturnValue({
+      hints: [{ factorId: 'totp', uid: 'factor-1' }],
+      resolveSignIn: vi.fn(() => Promise.resolve({ user: fbUser(['totp']) })),
+    })
+    assertionForSignInMock.mockReturnValue('assertion')
+    apiMock.mockResolvedValue(fakeAdmin)
+    const { useFirebaseAuth } = await import('@/features/auth/composables/useFirebaseAuth')
+    const fb = useFirebaseAuth()
+    await expect(fb.signIn('admin@yadony.com', 'pass')).rejects.toMatchObject({ code: 'auth/multi-factor-auth-required' })
+    // Étape mot de passe seule : le verrou tient toujours.
+    expect(localStorage.getItem('yadony-admin-locked')).not.toBeNull()
+    await fb.completeTotpSignIn('123456')
+    expect(localStorage.getItem('yadony-admin-locked')).toBeNull()
+    expect(Number(localStorage.getItem('yadony-admin-last-activity'))).toBeGreaterThan(1)
+    localStorage.clear()
+  })
+
   it('keeps the lock marker when the profile cannot be loaded (fail closed)', async () => {
     localStorage.setItem('yadony-admin-locked', '1')
     fbSignInMock.mockResolvedValue({ user: fbUser([]) })

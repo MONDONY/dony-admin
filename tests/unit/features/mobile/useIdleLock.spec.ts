@@ -21,7 +21,7 @@ import {
 } from '@/features/mobile/composables/useIdleLock'
 import { seedAuth } from '../../../helpers/auth'
 import { faultyStorage, restoreStorage } from '../../../helpers/storage'
-import { _resetLockStateMemory } from '@/features/mobile/lib/lockState'
+import { _resetLockStateMemory, noteSignedIn, readLockMarker } from '@/features/mobile/lib/lockState'
 import { useAuthStore } from '@/stores/auth'
 
 const MIN = 60 * 1000
@@ -29,20 +29,26 @@ const STORAGE_KEY = 'yadony-admin-last-activity'
 const LOCKED_KEY = 'yadony-admin-locked'
 
 const mounted: Array<{ unmount: () => void }> = []
-function mount(c: typeof Comp) {
-  const w = vtuMount(c)
+function mount(c: typeof Comp, props: { idleMs?: number, warn?: boolean } = {}) {
+  const w = vtuMount(c, { props })
   mounted.push(w)
   return w
 }
 
 let api: ReturnType<typeof useIdleLock>
 const Comp = defineComponent({
-  props: { idleMs: { type: Number, default: undefined } },
+  props: { idleMs: { type: Number, default: undefined }, warn: { type: Boolean, default: false } },
   setup(props) {
-    api = useIdleLock(props.idleMs ? { idleMs: props.idleMs } : undefined)
+    api = useIdleLock({ idleMs: props.idleMs, warn: props.warn })
     return () => h('div')
   },
 })
+
+/** Page de la console de bureau (layout par défaut). */
+function onDesktop(path = '/transactions', fullPath = '/transactions?x=1') {
+  routeState.path = path
+  routeState.fullPath = fullPath
+}
 
 function setVisibility(state: 'visible' | 'hidden') {
   Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
@@ -331,11 +337,261 @@ describe('useIdleLock', () => {
   })
 })
 
+describe('useIdleLock on the desktop console', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-26T10:00:00Z'))
+    signOutMock.mockReset().mockResolvedValue(undefined)
+    navigateMock.mockReset()
+    routeState.query = {}
+    onDesktop()
+    for (const k of Object.keys(runtimePublic)) delete runtimePublic[k]
+    localStorage.clear()
+    sessionStorage.clear()
+    _resetLockStateMemory()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    seedAuth('ADMIN')
+  })
+  afterEach(() => {
+    mounted.splice(0).forEach(w => w.unmount())
+    document.body.innerHTML = ''
+    restoreStorage()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('closes the session after the delay and goes to /login with the page as a safe return path', async () => {
+    let markerAtSignOut: unknown = 'unset'
+    signOutMock.mockImplementation(async () => { markerAtSignOut = readLockMarker() })
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(30 * MIN)
+    const target = '/login?redirect=%2Ftransactions%3Fx%3D1'
+    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: target })
+    expect(navigateMock).toHaveBeenCalledWith(target)
+    expect(navigateMock).not.toHaveBeenCalledWith(LOCK_ROUTE)
+    // Marqueur posé AVANT la déconnexion, comme sous /m.
+    expect(markerAtSignOut).toEqual({ at: Date.now(), reason: 'idle' })
+    expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  it.each([
+    ['/', '/'], ['/users', '//evil.test/x'], ['/users', '/users\\x'], ['/users', '/users/%2F%2Fevil'],
+  ])('an unsafe or trivial return path (%s, %s) goes to plain /login', async (path, fullPath) => {
+    onDesktop(path, fullPath)
+    mount(Comp)
+    await api.lockNow()
+    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: '/login' })
+    expect(navigateMock).toHaveBeenLastCalledWith('/login')
+  })
+
+  it('does not remember a lock-page context for a desktop page', async () => {
+    mount(Comp)
+    await api.lockNow()
+    expect(readLockContext()).toEqual({ path: null, email: null })
+  })
+
+  it('a failing sign-out still empties the store and goes to /login (fail closed)', async () => {
+    signOutMock.mockRejectedValue(new Error('offline'))
+    mount(Comp)
+    await api.lockNow()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useAuthStore().isAuthenticated).toBe(false)
+    expect(navigateMock).toHaveBeenLastCalledWith('/login?redirect=%2Ftransactions%3Fx%3D1')
+  })
+
+  // ── Entrées comptées comme activité ───────────────────────────────────────
+
+  it('scrolling inside a nested container counts (scroll does not bubble: capture listener)', async () => {
+    const box = document.createElement('div')
+    document.body.appendChild(box)
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    box.dispatchEvent(new Event('scroll', { bubbles: false }))
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('typing counts, even when a component stops the key event', async () => {
+    const field = document.createElement('input')
+    field.addEventListener('keydown', e => e.stopPropagation())
+    document.body.appendChild(field)
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['input', 'wheel'])('%s counts as activity (paste, mouse wheel)', async (evt) => {
+    const field = document.createElement('textarea')
+    document.body.appendChild(field)
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    field.dispatchEvent(new Event(evt, { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it('a hidden desktop tab is closed when the delay passes (no wait for its return)', async () => {
+    mount(Comp)
+    setVisibility('hidden')
+    await vi.advanceTimersByTimeAsync(30 * MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a hidden /m tab still waits for its return, as before', async () => {
+    routeState.path = '/m/alertes'
+    routeState.fullPath = '/m/alertes'
+    mount(Comp)
+    setVisibility('hidden')
+    await vi.advanceTimersByTimeAsync(40 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+    setVisibility('visible')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: LOCK_ROUTE })
+  })
+
+  // ── Avertissement 60 s avant ──────────────────────────────────────────────
+
+  it('warns 60 seconds before the expiry, not before', async () => {
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(29 * MIN - 1000)
+    expect(api.warning.value).toBe(false)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.warning.value).toBe(true)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+    expect(api.warning.value).toBe(false)
+  })
+
+  it('"Rester connecté" hides the warning, stamps the activity at once and restarts the delay', async () => {
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(29 * MIN + 30 * 1000)
+    expect(api.warning.value).toBe(true)
+    api.stayConnected()
+    expect(api.warning.value).toBe(false)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(Date.now()))
+    await vi.advanceTimersByTimeAsync(29 * MIN - 1000)
+    expect(api.warning.value).toBe(false)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.warning.value).toBe(true)
+  })
+
+  it('any user activity also dismisses the warning', async () => {
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(29 * MIN + 10 * 1000)
+    expect(api.warning.value).toBe(true)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift' }))
+    expect(api.warning.value).toBe(false)
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it('activity in another tab (storage event) dismisses the warning of this tab', async () => {
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(29 * MIN + 10 * 1000)
+    expect(api.warning.value).toBe(true)
+    localStorage.setItem(STORAGE_KEY, String(Date.now()))
+    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+    expect(api.warning.value).toBe(false)
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it('with the shortest duration (5 minutes) the warning still comes 60 seconds before', async () => {
+    runtimePublic.idleLockMinutes = 5
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(4 * MIN - 1000)
+    expect(api.warning.value).toBe(false)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.warning.value).toBe(true)
+    await vi.advanceTimersByTimeAsync(MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('without the warn option (mobile layout) no warning is ever shown', async () => {
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(29 * MIN + 30 * 1000)
+    expect(api.warning.value).toBe(false)
+  })
+
+  // ── Inerte sans admin connecté ────────────────────────────────────────────
+
+  it('inert when no admin is signed in: no stamp, no warning, no sign-out', async () => {
+    useAuthStore().clear()
+    mount(Comp, { warn: true })
+    window.dispatchEvent(new Event('pointerdown'))
+    await vi.advanceTimersByTimeAsync(40 * MIN)
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(api.warning.value).toBe(false)
+    expect(signOutMock).not.toHaveBeenCalled()
+  })
+
+  it('signed out while mounted: timers and warning stop; signed in again: the delay restarts', async () => {
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(29 * MIN + 10 * 1000)
+    expect(api.warning.value).toBe(true)
+    useAuthStore().clear()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.warning.value).toBe(false)
+    await vi.advanceTimersByTimeAsync(10 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+    // Connexion pendant que le layout est monté : l'activité repart de maintenant, sans
+    // comparer d'abord à l'ancienne valeur (sinon verrouillage juste après la connexion).
+    seedAuthKeepingPinia()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(Number(localStorage.getItem(STORAGE_KEY))).toBe(Date.now())
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Démarrage, horloge, stockage plein ────────────────────────────────────
+
+  it('a stored activity far in the future (clock set back, tampering) locks at mount', async () => {
+    localStorage.setItem(STORAGE_KEY, String(Date.now() + 2 * 60 * MIN))
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('the clock set back while running: the session closes instead of never expiring', async () => {
+    mount(Comp)
+    vi.setSystemTime(Date.now() - 60 * MIN)
+    await vi.advanceTimersByTimeAsync(30 * MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('quota full: sign-in then layout mount does not lock at once (no loop)', async () => {
+    localStorage.setItem(STORAGE_KEY, String(Date.now() - 120 * MIN))
+    faultyStorage({ set: true })
+    noteSignedIn()
+    mount(Comp, { warn: true })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(29 * MIN - 1000)
+    expect(signOutMock).not.toHaveBeenCalled()
+    expect(api.warning.value).toBe(false)
+  })
+})
+
+/** Reconnexion sans changer de Pinia (le composable garde la référence du store). */
+function seedAuthKeepingPinia() {
+  useAuthStore().setSession('test-token', {
+    id: 'u1', email: 'admin@yadony.com', role: 'ADMIN', status: 'ACTIVE', mustChangePassword: false, permissionOverrides: {},
+  })
+}
+
 describe('isSafeReturnPath', () => {
   it.each(['/m', '/m/alertes', '/m/alertes?item=A:B', '/m?x=1', '/m#h'])('accepts %s', (p) => {
     expect(isSafeReturnPath(p)).toBe(true)
   })
-  it.each(['//evil.test', 'https://evil.test', '/login', 'javascript:alert(1)', '/mx', '/m/verrouille', '/m\\evil', '/m/..//evil', '/m/../login', '/m/%2F%2Fevil', '/m/%2fevil', '/m/%5Cevil', '/m//x', '', null, undefined, 42, '/m/\nx'])('rejects %s', (p) => {
+  it.each(['//evil.test', 'https://evil.test', '/login', 'javascript:alert(1)', '/mx', '/m/verrouille', '/m\\evil', '/m/..//evil', '/m/../login', '/m/%2F%2Fevil', '/m/%2fevil', '/m/%5Cevil', '/m//x', '', null, undefined, 42, '/m/\nx', '/m/%2E%2E/login', '/m/.%2e/login', '/m/./x'])('rejects %s', (p) => {
     expect(isSafeReturnPath(p as string)).toBe(false)
   })
 })
