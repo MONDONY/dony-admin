@@ -5,12 +5,13 @@ import { mobileService } from '@/features/mobile/services/mobileService'
 import { buildWebDeviceName } from '@/composables/useDeviceRegistration'
 import { useAuthStore } from '@/stores/auth'
 import { resolveMessagingSenderId } from '@/lib/firebaseConfig'
+import { PUSH_TOKEN_KEY } from '@/features/mobile/lib/pushStorage'
 
 export type PushState = 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on'
 /** Cause d'un échec d'activation, affichée sous le bouton (`config` : clés ou projet Firebase). */
 export type PushError = 'config' | 'permission' | 'generic'
 
-const TOKEN_KEY = 'yadony-admin-push-token'
+const TOKEN_KEY = PUSH_TOKEN_KEY
 /** Attente maximale de l'activation du service worker au premier abonnement. */
 export const SW_ACTIVATION_TIMEOUT_MS = 10_000
 

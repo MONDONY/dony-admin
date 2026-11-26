@@ -13,7 +13,7 @@ import {
 } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { useApi } from '@/composables/useApi'
-import { clearPushOnLogout } from '@/features/mobile/composables/usePushSubscription'
+import { hasStoredPushToken } from '@/features/mobile/lib/pushStorage'
 import { noteSignedIn } from '@/features/mobile/lib/lockState'
 
 /** Nom du compte dans l'appli d'authentification (Google Authenticator, 1Password…). */
@@ -155,7 +155,14 @@ export function useFirebaseAuth() {
     { revokePush = true, redirectTo = '/login' }: { revokePush?: boolean, redirectTo?: string } = {},
   ): Promise<void> {
     pendingResolver = null
-    if (revokePush) await clearPushOnLogout()
+    // Module push (firebase/messaging) chargé seulement s'il y a un jeton à révoquer : il n'entre
+    // pas dans le bundle de la console de bureau.
+    if (revokePush && hasStoredPushToken()) {
+      try {
+        const { clearPushOnLogout } = await import('@/features/mobile/composables/usePushSubscription')
+        await clearPushOnLogout()
+      } catch { /* module indisponible (hors ligne) : la déconnexion continue */ }
+    }
     // Échec fermé : le store est vidé même si Firebase refuse de se déconnecter (hors ligne,
     // erreur IndexedDB), sinon le middleware verrait encore un admin connecté. L'erreur est
     // relancée après coup pour que l'appelant sache que la déconnexion Firebase a échoué.
