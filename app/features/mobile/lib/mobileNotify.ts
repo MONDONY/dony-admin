@@ -18,12 +18,16 @@ export function canSendNotification(d: NotifyDraft): boolean {
     && body.length > 0 && body.length <= NOTIFY_BODY_MAX
 }
 
-type Identity = Pick<AdminUserListItem, 'id' | 'firstName' | 'lastName' | 'email' | 'phoneNumber'>
+type Identity = Pick<AdminUserListItem, 'firstName' | 'lastName'>
 
-/** Nom affiché d'un destinataire : nom complet, sinon e-mail, téléphone, identifiant court. */
+export const NAMELESS_RECIPIENT = 'Utilisateur sans nom'
+
+/**
+ * Nom affiché d'un destinataire : prénom et nom, sinon « Utilisateur sans nom ». Jamais l'e-mail ni le
+ * téléphone en clair (la ligne d'identification montre l'e-mail masqué et le suffixe d'identifiant).
+ */
 export function recipientName(u: Identity): string {
-  const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
-  return name || u.email?.trim() || u.phoneNumber?.trim() || u.id.slice(0, 8)
+  return [u.firstName, u.lastName].map(p => (p ?? '').trim()).filter(Boolean).join(' ') || NAMELESS_RECIPIENT
 }
 
 /** `#ab12cd` : les 6 derniers caractères de l'identifiant, pour départager deux homonymes. */

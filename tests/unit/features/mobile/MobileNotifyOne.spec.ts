@@ -14,7 +14,7 @@ import { useMobileTabs } from '@/features/mobile/composables/useMobileTabs'
 import { useMobileNotifyOne } from '@/features/mobile/composables/useMobileNotifyOne'
 import {
   accountInfo, canSendNotification, idSuffix, identityLine, maskEmail, notifyErrorMessage, NOTIFY_BODY_MAX, NOTIFY_MAYBE_SENT,
-  NOTIFY_TITLE_MAX,
+  NOTIFY_TITLE_MAX, recipientName,
 } from '@/features/mobile/lib/mobileNotify'
 
 const UID = '11111111-1111-4111-8111-111111111111'
@@ -273,6 +273,41 @@ describe('m/diffuser', () => {
     expect(maskEmail('a@b.fr')).toBe('a…@b.fr')
     expect(maskEmail('nope')).toBeNull()
     expect(idSuffix('ABCDEF123456')).toBe('#123456')
+  })
+
+  it('privacy_namelessAccount_neverShowsRawEmailOrPhone: "Utilisateur sans nom" plus masked e-mail and id suffix', async () => {
+    const nameless = { ...user, firstName: null, lastName: '  ', email: 'secret.person@example.com', phoneNumber: '+22501020304' }
+    users.list.mockResolvedValue({ content: [nameless] })
+    users.get.mockResolvedValue({ ...nameless })
+    const w = mountPage()
+    const raw = () => expect(w.html()).not.toMatch(/secret\.person|\+22501020304|22501020304/)
+    await find(w, 'notify-search').setValue('secret'); vi.advanceTimersByTime(400); await flushPromises()
+    expect(find(w, 'notify-result').text()).toContain('Utilisateur sans nom')
+    expect(find(w, 'notify-result-identity').text()).toBe('se…@example.com · #111111')
+    raw()
+    await find(w, 'notify-result').trigger('click'); await flushPromises()
+    expect(find(w, 'notify-recipient').text()).toBe('Utilisateur sans nom')
+    expect(find(w, 'notify-recipient-identity').text()).toBe('se…@example.com · #111111')
+    raw()
+    await fill(w)
+    await find(w, 'notify-review').trigger('click')
+    expect(find(w, 'confirm-recipient').text()).toBe('Utilisateur sans nom')
+    raw()
+    await find(w, 'notify-confirm-send').trigger('click'); await flushPromises()
+    expect(find(w, 'notify-sent-to').text()).toBe('à Utilisateur sans nom #111111')
+    raw()
+    // Identifiant collé : même règle.
+    await find(w, 'notify-new').trigger('click')
+    await find(w, 'notify-search').setValue(UID); await flushPromises()
+    expect(find(w, 'notify-recipient').text()).toBe('Utilisateur sans nom')
+    raw()
+  })
+
+  it('recipientName: first and last name only, never the e-mail, the phone or a piece of the id', () => {
+    expect(recipientName({ id: UID, firstName: 'Aïcha', lastName: 'Traoré', email: 'a@b.fr', phoneNumber: '+33' })).toBe('Aïcha Traoré')
+    expect(recipientName({ id: UID, firstName: 'Aïcha', lastName: null, email: 'a@b.fr', phoneNumber: null })).toBe('Aïcha')
+    expect(recipientName({ id: UID, firstName: ' ', lastName: null, email: 'a@b.fr', phoneNumber: '+33600000000' })).toBe('Utilisateur sans nom')
+    expect(recipientName({ id: UID, firstName: null, lastName: null, email: null, phoneNumber: null })).toBe('Utilisateur sans nom')
   })
 
   it.each([['BANNED', 'Compte banni'], ['PENDING_DELETION', 'Suppression du compte demandée']])(
