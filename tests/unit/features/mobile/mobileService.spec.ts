@@ -22,4 +22,16 @@ describe('mobileService', () => {
     await mobileService.unregisterDevice('t')
     expect(apiMock).toHaveBeenCalledWith('/admin/mobile/devices', { method: 'DELETE', query: { fcmToken: 't' } })
   })
+
+  it('claimAlert POSTs /admin/alerts/{id}/claim', async () => {
+    apiMock.mockResolvedValue({ id: 'a1' })
+    await expect(mobileService.claimAlert('a1')).resolves.toEqual({ id: 'a1' })
+    expect(apiMock).toHaveBeenCalledWith('/admin/alerts/a1/claim', { method: 'POST' })
+  })
+
+  it('releaseAlert DELETEs /admin/alerts/{id}/claim', async () => {
+    apiMock.mockResolvedValue({ id: 'a1' })
+    await mobileService.releaseAlert('a1')
+    expect(apiMock).toHaveBeenCalledWith('/admin/alerts/a1/claim', { method: 'DELETE' })
+  })
 })
