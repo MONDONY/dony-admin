@@ -361,7 +361,7 @@ describe('modules_neverImportDestructiveMethods', () => {
 
   it('no module reached from the pages (whole app import graph) can delete, restore, note or use desktop moderation code', () => {
     const g = crawl(entries)
-    expect(g.files.length).toBeGreaterThanOrEqual(10)
+    expect(g.files.length).toBeGreaterThanOrEqual(15)
     expect(g.files).toContain('app/features/mobile/services/mobileMessagesService.ts')
     expect(g.files).toContain('app/features/support/lib/supportWorkbench.ts')
     expect(violations(g, /deleteMessage|restoreMessage|addNote|moderationService|features\/moderation\/components|features\/moderation\/services/)).toEqual([])

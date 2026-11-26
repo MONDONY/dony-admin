@@ -8,11 +8,12 @@ import { dirname, join, relative, resolve } from 'node:path'
  * gabarits et les composants utilisés par auto-import Nuxt sans être importés.
  */
 export const ROOT = resolve(__dirname, '../../../../..')
-const APP = join(ROOT, 'app')
 
 const EXTENSIONS = ['', '.ts', '.vue', '.js', '/index.ts', '/index.vue', '/index.js']
 
-export function resolveSpecifier(spec: string, fromFile: string): string | null {
+/** `root` : racine du dépôt (réglable pour les fixtures temporaires des tests du helper). */
+export function resolveSpecifier(spec: string, fromFile: string, root: string = ROOT): string | null {
+  const APP = join(root, 'app')
   let base: string
   if (spec.startsWith('@/')) base = join(APP, spec.slice(2))
   else if (spec.startsWith('~/')) base = join(APP, spec.slice(2))
@@ -49,9 +50,10 @@ function walkDir(dir: string, acc: string[] = []): string[] {
 const pascal = (s: string) => s.replace(/(^|-)(\w)/g, (_m, _d, c: string) => c.toUpperCase())
 
 /** Composants que Nuxt enregistre seul : `app/components/**` et `app/features/<x>/components/**` (hors mobile). */
-function autoImportable(): Map<string, string> {
+function autoImportable(root: string): Map<string, string> {
+  const APP = join(root, 'app')
   const map = new Map<string, string>()
-  for (const f of walkDir(APP)) {
+  for (const f of existsSync(APP) ? walkDir(APP) : []) {
     const rel = relative(APP, f)
     const inComponents = rel.startsWith('components/') || /^features\/[^/]+\/components\//.test(rel)
     if (!inComponents || rel.startsWith('features/mobile/')) continue
@@ -71,14 +73,14 @@ export interface Graph {
   autoImports: Map<string, string[]>
 }
 
-export function crawl(entries: readonly string[]): Graph {
-  const known = autoImportable()
+export function crawl(entries: readonly string[], root: string = ROOT): Graph {
+  const known = autoImportable(root)
   const files = new Set<string>()
   const sources = new Map<string, string>()
   const tags = new Map<string, string[]>()
   const autoImports = new Map<string, string[]>()
   const visit = (abs: string) => {
-    const rel = relative(ROOT, abs)
+    const rel = relative(root, abs)
     if (files.has(rel)) return
     files.add(rel)
     const src = readFileSync(abs, 'utf8')
@@ -92,12 +94,12 @@ export function crawl(entries: readonly string[]): Graph {
       if (auto.length) autoImports.set(rel, auto)
     }
     for (const spec of importsOf(src)) {
-      const target = resolveSpecifier(spec, abs)
+      const target = resolveSpecifier(spec, abs, root)
       if (target) visit(target)
     }
   }
   for (const e of entries) {
-    const abs = join(ROOT, e)
+    const abs = join(root, e)
     if (!existsSync(abs)) throw new Error(`entry missing: ${e}`)
     visit(abs)
   }
@@ -107,13 +109,39 @@ export function crawl(entries: readonly string[]): Graph {
 /** Appels de méthode : `.nom(` (un appel, pas la définition `nom(` d'un objet). */
 export const callRe = (names: readonly string[]) => new RegExp(`\\.(?:${names.join('|')})\\s*\\(`)
 
-/** Retourne `fichier: motif` pour chaque fichier du graphe (hors `allow`) dont la source correspond. */
-export function violations(g: Graph, pattern: RegExp, allow: readonly string[] = []): string[] {
+/** Exception étroite : ce fichier, et seulement les lignes qui contiennent exactement ce texte. */
+/** Filtre de fichiers. */
+// eslint-disable-next-line no-unused-vars
+export type Scope = (file: string) => boolean
+
+export interface Allow { file: string; text: string }
+
+/**
+ * Retourne `fichier:ligne: motif` pour chaque ligne du graphe qui correspond au motif, sauf les lignes
+ * couvertes par une entrée `allow` (même fichier ET texte exact). Simple recherche de sous-chaîne : un
+ * commentaire qui contient le motif est donc signalé aussi. `scope` limite les fichiers examinés.
+ */
+export function violations(g: Graph, pattern: RegExp, allow: readonly Allow[] = [], scope: Scope = () => true): string[] {
   const out: string[] = []
   for (const [f, src] of g.sources) {
-    if (allow.includes(f)) continue
-    const m = pattern.exec(src)
-    if (m) out.push(`${f}: ${m[0]}`)
+    if (!scope(f)) continue
+    src.split('\n').forEach((line, i) => {
+      const m = pattern.exec(line)
+      if (!m) return
+      if (allow.some(a => a.file === f && line.includes(a.text))) return
+      out.push(`${f}:${i + 1}: ${m[0]}`)
+    })
   }
   return out
 }
+
+/** Fichiers mobiles du graphe : `app/features/mobile/**` et `app/pages/m/**`. */
+export const isMobileFile = (f: string) => f.startsWith('app/features/mobile/') || f.startsWith('app/pages/m/')
+
+/** `useApi.ts` : `Promise.resolve(...)` de la déconnexion, aucun lien avec une alerte ou un billet. */
+export const ALLOW_API_PROMISE_RESOLVE: Allow = { file: 'app/composables/useApi.ts', text: 'Promise.resolve(' }
+/** `auth.ts` : `Set.delete` sur les permissions, aucune requête. */
+export const ALLOW_AUTH_SET_DELETE: Allow = { file: 'app/stores/auth.ts', text: 'set.delete(' }
+
+/** Mots interdits dans tout fichier mobile (même sans point : déstructuration, référence). */
+export const wordRe = (names: readonly string[]) => new RegExp(`\\b(?:${names.join('|')})\\b`)

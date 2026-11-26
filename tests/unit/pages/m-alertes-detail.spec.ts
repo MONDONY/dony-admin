@@ -16,7 +16,7 @@ vi.mock('@/features/mobile/services/mobileService', () => ({ mobileService: mobi
 import Page from '@/pages/m/alertes/[id].vue'
 import { alertGuide } from '@/features/alerts/lib/alertCatalog'
 import { seedAuth } from '../../helpers/auth'
-import { callRe, crawl, violations } from '../features/mobile/helpers/importGraph'
+import { ALLOW_API_PROMISE_RESOLVE, callRe, crawl, isMobileFile, violations, wordRe } from '../features/mobile/helpers/importGraph'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
 const base = {
@@ -159,8 +159,11 @@ describe('m/alertes/[id] page', () => {
     // Et le code lui-même (tout le graphe d'imports) n'en appelle aucune.
     const g = crawl(['app/pages/m/alertes/[id].vue'])
     expect(g.files).toContain('app/features/mobile/composables/useMobileAlertDetail.ts')
-    // Entrée autorisée : `useApi.ts` (Promise.resolve de la déconnexion).
-    expect(violations(g, callRe(['resolve', 'resolveBatch', 'resolveMany', 'snooze', 'unsnooze', 'reopen']), ['app/composables/useApi.ts'])).toEqual([])
+    expect(g.files.length).toBeGreaterThanOrEqual(12)
+    // Entrée autorisée (fichier + texte exact) : `useApi.ts` / `Promise.resolve(`.
+    const names = ['resolve', 'resolveBatch', 'resolveMany', 'snooze', 'unsnooze', 'reopen']
+    expect(violations(g, callRe(names), [ALLOW_API_PROMISE_RESOLVE])).toEqual([])
+    expect(violations(g, wordRe(names), [], isMobileFile)).toEqual([])
     expect(g.files.filter(f => /alerts\/composables\/useAlerts/.test(f))).toEqual([])
     expect([...g.autoImports]).toEqual([])
   })
