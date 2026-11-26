@@ -84,6 +84,24 @@ describe('useApi', () => {
     }
   })
 
+  // Le crochet d'erreur peut tourner pendant le rendu serveur (pas de `window`) : la page courante
+  // n'y est pas lisible, la session se termine sur /login sans lever.
+  it('401 during server rendering (no window): no crash, goes to /login', async () => {
+    const realWindow = globalThis.window
+    useAuthStore().setSession('the-token', adminUser)
+    vi.stubGlobal('window', undefined)
+    try {
+      const { useApi } = await import('@/composables/useApi')
+      useApi()
+      const opts = fetchCreate.mock.calls[0][0]
+      await expect(opts.onResponseError({ response: { status: 401, _data: null } })).resolves.toBeUndefined()
+      expect(navigateToMock).toHaveBeenCalledWith('/login')
+      expect(useAuthStore().isAuthenticated).toBe(false)
+    } finally {
+      vi.stubGlobal('window', realWindow)
+    }
+  })
+
   it('redirects to /change-password on 403 PASSWORD_CHANGE_REQUIRED and keeps the session', async () => {
     useAuthStore().setSession('the-token', adminUser)
     const { useApi } = await import('@/composables/useApi')

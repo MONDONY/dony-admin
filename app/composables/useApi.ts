@@ -15,6 +15,16 @@ export function useApi(): ReturnType<typeof $fetch.create> {
   const config = useRuntimeConfig()
   const auth = useAuthStore()
 
+  /**
+   * Page courante de l'appli. Ce crochet d'erreur peut tourner pendant le rendu serveur, sans
+   * `window` : on ne lit alors rien (`import.meta.server` dans le build Nuxt ; le test de `window`
+   * couvre aussi un environnement où cette constante n'est pas remplacée, comme Vitest).
+   */
+  function currentAppPath(): string {
+    if (import.meta.server || typeof window === 'undefined') return '/'
+    return appPathFromLocation(config.app?.baseURL)
+  }
+
   async function clearFirebaseSession(): Promise<void> {
     const { $firebaseAuth } = useNuxtApp()
     if ($firebaseAuth) {
@@ -22,7 +32,7 @@ export function useApi(): ReturnType<typeof $fetch.create> {
     }
     auth.clear()
     // Section mobile : page de verrouillage, la page courante y est retenue (jamais /login).
-    await navigateTo(sessionEndRoute(appPathFromLocation(config.app?.baseURL)))
+    await navigateTo(sessionEndRoute(currentAppPath()))
   }
 
   const instance = $fetch.create({
