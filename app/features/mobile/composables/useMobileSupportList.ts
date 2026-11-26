@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { supportService } from '@/features/support/services/supportService'
-import { SUPPORT_PAGE_SIZE } from '@/features/support/composables/useSupportTickets'
+import { SUPPORT_PAGE_SIZE } from '@/features/support/lib/constants'
 import { filterForChip, sortNewestFirst, type SupportChip } from '@/features/mobile/lib/mobileSupport'
 import type { AdminSupportTicket } from '@/features/support/types/index'
 import { extractProblemMessage } from '@/lib/problemDetail'

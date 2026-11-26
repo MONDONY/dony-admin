@@ -8,6 +8,7 @@ import { httpStatus } from '@/lib/violations'
 import { uuidParam } from '@/lib/safeInput'
 
 export const NOT_ASSIGNED_MESSAGE = 'Ce billet n’est pas assigné à vous : prenez-le en charge depuis l’ordinateur'
+export const TAKEN_BY_COLLEAGUE_MESSAGE = 'Ce billet vient d’être pris en charge par un collègue'
 
 /**
  * Conversation de support sur mobile : lire et répondre, rien d'autre (ni résolution, ni
@@ -23,12 +24,22 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
   const draft = ref('')
   const sending = ref(false)
   const sendError = ref<string | null>(null)
+  const assigning = ref(false)
+  const assignError = ref<string | null>(null)
+  /** Route de prise en charge refusée ou absente : le bouton disparaît. */
+  const assignAvailable = ref(true)
   let seq = 0
   let tmp = 0
 
   const id = computed(() => uuidParam(rawId.value))
   const isResolved = computed(() => ticket.value?.status === 'RESOLVED')
-  const canReply = computed(() => !!ticket.value && !isResolved.value && auth.can('SUPPORT_TICKET_MANAGE'))
+  const isMine = computed(() => !!ticket.value?.assignedAdminId && ticket.value.assignedAdminId === auth.user?.id)
+  const isUnassigned = computed(() => !!ticket.value && !ticket.value.assignedAdminId)
+  const canManage = computed(() => auth.can('SUPPORT_TICKET_MANAGE'))
+  /** Le back refuse la réponse d'un admin qui n'est pas l'assigné : le champ n'apparaît que pour le sien. */
+  const canReply = computed(() => !!ticket.value && !isResolved.value && canManage.value && isMine.value)
+  const canAssign = computed(() => !!ticket.value && !isResolved.value && canManage.value && isUnassigned.value && assignAvailable.value)
+  const heldByColleague = computed(() => !!ticket.value && !isResolved.value && !!ticket.value.assignedAdminId && !isMine.value)
   const canSend = computed(() => canReply.value && !sending.value && checkReply(draft.value).ok)
 
   async function load() {
@@ -56,6 +67,29 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
       else error.value = extractProblemMessage(e, 'Impossible de charger la conversation')
     } finally {
       if (my === seq) isLoading.value = false
+    }
+  }
+
+  /** Seule action d'assignation du mobile : se saisir d'un billet que personne n'a pris. */
+  async function assign() {
+    const current = id.value
+    if (!current || !canAssign.value || assigning.value) return
+    assigning.value = true
+    assignError.value = null
+    try {
+      await supportService.assign(current)
+      await load()
+    } catch (e) {
+      const status = httpStatus(e)
+      if (status === 409) {
+        await load()
+        assignError.value = TAKEN_BY_COLLEAGUE_MESSAGE
+      } else {
+        assignError.value = extractProblemMessage(e, 'Prise en charge impossible pour le moment')
+        if (status === 403 || status === 404 || status === 405) assignAvailable.value = false
+      }
+    } finally {
+      assigning.value = false
     }
   }
 
@@ -87,5 +121,5 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
     }
   }
 
-  return { ticket, messages, isLoading, error, notFound, draft, sending, sendError, isResolved, canReply, canSend, load, send }
+  return { ticket, messages, isLoading, error, notFound, draft, sending, sendError, isResolved, canReply, canSend, canAssign, heldByColleague, assigning, assignError, load, send, assign }
 }

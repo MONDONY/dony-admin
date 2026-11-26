@@ -252,20 +252,131 @@ describe('m/support/[id] detail', () => {
   })
 })
 
+describe('m/support/[id] prise en charge', () => {
+  beforeEach(() => {
+    Object.values(svc).forEach(f => f.mockReset())
+    routeState.params = { id: U }
+    seedAuth('ADMIN')
+  })
+  const btn = (w: ReturnType<typeof mount>) => w.find('[data-test="assign-button"]')
+
+  it('assign_buttonShown_onlyWhenUnassigned_andManage', async () => {
+    svc.get.mockResolvedValue(withMsgs({ assignedAdminId: null, assignedAdminEmail: null }))
+    let w = await mountDetail()
+    expect(btn(w).text()).toBe('Prendre en charge')
+    expect(w.find('[data-test="reply-form"]').exists()).toBe(false)
+    seedAuth('ADMIN', { SUPPORT_TICKET_MANAGE: false })
+    w = await mountDetail()
+    expect(btn(w).exists()).toBe(false)
+    expect(w.find('[data-test="reply-form"]').exists()).toBe(false)
+    svc.get.mockResolvedValue(withMsgs({ assignedAdminId: null, status: 'RESOLVED' }))
+    seedAuth('ADMIN')
+    w = await mountDetail()
+    expect(btn(w).exists()).toBe(false)
+  })
+
+  it('assign_success_refreshesAndShowsReplyBox', async () => {
+    svc.get.mockResolvedValueOnce(withMsgs({ assignedAdminId: null })).mockResolvedValueOnce(withMsgs({ assignedAdminId: 'u1' }))
+    svc.assign.mockResolvedValue({})
+    const w = await mountDetail()
+    await btn(w).trigger('click'); await flushPromises()
+    expect(svc.assign).toHaveBeenCalledWith(U)
+    expect(svc.get).toHaveBeenCalledTimes(2)
+    expect(btn(w).exists()).toBe(false)
+    expect(w.find('[data-test="reply-form"]').exists()).toBe(true)
+    for (const k of ['reassign', 'resolve', 'uploadAttachment']) expect(svc[k as keyof typeof svc]).not.toHaveBeenCalled()
+  })
+
+  it('assign_409_refreshesWithColleagueMessage', async () => {
+    svc.get.mockResolvedValueOnce(withMsgs({ assignedAdminId: null })).mockResolvedValueOnce(withMsgs({ assignedAdminId: 'u7' }))
+    svc.assign.mockRejectedValue(err(409))
+    const w = await mountDetail()
+    await btn(w).trigger('click'); await flushPromises()
+    expect(svc.get).toHaveBeenCalledTimes(2)
+    expect(w.find('[data-test="assign-error"]').text()).toBe('Ce billet vient d’être pris en charge par un collègue')
+    expect(btn(w).exists()).toBe(false)
+    expect(w.find('[data-test="reply-form"]').exists()).toBe(false)
+  })
+
+  it('assign 403/404/405 shows the problem message and hides the button; other errors keep it and reset loading', async () => {
+    svc.get.mockResolvedValue(withMsgs({ assignedAdminId: null }))
+    svc.assign.mockRejectedValue(err(405, 'Non disponible'))
+    let w = await mountDetail()
+    await btn(w).trigger('click'); await flushPromises()
+    expect(w.find('[data-test="assign-error"]').text()).toBe('Non disponible')
+    expect(btn(w).exists()).toBe(false)
+    svc.assign.mockRejectedValue(err(500, 'Panne'))
+    w = await mountDetail()
+    await btn(w).trigger('click'); await flushPromises()
+    expect(w.find('[data-test="assign-error"]').text()).toBe('Panne')
+    expect(btn(w).exists()).toBe(true)
+    expect(btn(w).attributes('disabled')).toBeUndefined()
+  })
+
+  it('assign_noDoubleTap', async () => {
+    let done!: (_v: unknown) => void
+    svc.get.mockResolvedValueOnce(withMsgs({ assignedAdminId: null })).mockResolvedValue(withMsgs({ assignedAdminId: 'u1' }))
+    svc.assign.mockImplementation(() => new Promise((r) => { done = r }))
+    const w = await mountDetail()
+    await btn(w).trigger('click'); await btn(w).trigger('click')
+    expect(svc.assign).toHaveBeenCalledTimes(1)
+    expect(btn(w).attributes('disabled')).toBeDefined()
+    done({}); await flushPromises()
+    expect(svc.assign).toHaveBeenCalledTimes(1)
+  })
+
+  it('assignedToColleague_hidesReplyAndButton', async () => {
+    svc.get.mockResolvedValue(withMsgs({ assignedAdminId: 'u7' }))
+    const w = await mountDetail()
+    expect(w.find('[data-test="colleague-note"]').text()).toBe('Billet pris en charge par un collègue')
+    expect(btn(w).exists()).toBe(false)
+    expect(w.find('[data-test="reply-form"]').exists()).toBe(false)
+  })
+
+  it('reply_stillWorksWhenAssignedToMe', async () => {
+    svc.get.mockResolvedValue(withMsgs({ assignedAdminId: 'u1' }))
+    svc.reply.mockResolvedValue({ id: 'm3', authorType: 'ADMIN', content: 'ok', createdAt: '2026-11-26T08:00:00' })
+    const w = await mountDetail()
+    expect(btn(w).exists()).toBe(false)
+    expect(w.find('[data-test="colleague-note"]').exists()).toBe(false)
+    await w.find('[data-test="reply-input"]').setValue('ok')
+    await w.find('[data-test="reply-form"]').trigger('submit'); await flushPromises()
+    expect(svc.reply).toHaveBeenCalledWith(U, 'ok')
+    expect(svc.assign).not.toHaveBeenCalled()
+  })
+})
+
 describe('noResolveAssignOrUpload and the support route', () => {
   const root = resolvePath(__dirname, '../../../..')
-  const files = [
-    'app/pages/m/support/index.vue', 'app/pages/m/support/[id].vue',
-    'app/features/mobile/composables/useMobileSupportList.ts', 'app/features/mobile/composables/useMobileSupportTicket.ts',
-    'app/features/mobile/lib/mobileSupport.ts', 'app/features/mobile/components/MobileSupportCard.vue',
-  ]
+  const entries = ['app/pages/m/support/index.vue', 'app/pages/m/support/[id].vue']
+  /** Pages + tous les modules mobiles qu'elles importent, transitivement (alias `@/`). */
+  const crawl = (): string[] => {
+    const seen = new Set<string>()
+    const walk = (rel: string) => {
+      if (seen.has(rel)) return
+      seen.add(rel)
+      const full = resolvePath(root, rel)
+      expect(existsSync(full), rel).toBe(true)
+      const src = readFileSync(full, 'utf8')
+      for (const m of src.matchAll(/from '@\/(features\/mobile\/[^']+?)(\.ts|\.vue)?'/g)) {
+        const base = `app/${m[1]}`
+        const ext = m[2] ?? (existsSync(resolvePath(root, `${base}.ts`)) ? '.ts' : '.vue')
+        walk(base + ext)
+      }
+    }
+    entries.forEach(walk)
+    return [...seen]
+  }
 
-  it('noResolveAssignOrUpload: no source mentions the forbidden service calls or uploader', () => {
+  it('noResolveAssignOrUpload: no mobile module reached from the pages uses forbidden calls or desktop workflows', () => {
+    const files = crawl()
+    expect(files.length).toBeGreaterThanOrEqual(6)
     for (const f of files) {
-      expect(existsSync(resolvePath(root, f)), f).toBe(true)
       const src = readFileSync(resolvePath(root, f), 'utf8')
-      expect(src, f).not.toMatch(/\.(resolve|assign|reassign|uploadAttachment|setPriority|startTicket)\b/)
+      expect(src, f).not.toMatch(/\.(resolve|reassign|uploadAttachment|setPriority|startTicket)\b/)
+      if (!f.endsWith('useMobileSupportTicket.ts')) expect(src, f).not.toMatch(/\.assign\b/)
       expect(src, f).not.toMatch(/SupportAttachmentUploader|StartSupportConversation|type="file"/)
+      expect(src, f).not.toMatch(/useSupportTickets|support\/components\//)
     }
   })
 

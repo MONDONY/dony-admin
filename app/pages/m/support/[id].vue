@@ -8,7 +8,7 @@ definePageMeta({ layout: 'mobile', middleware: 'admin-only', permission: 'SUPPOR
 
 const route = useRoute()
 const {
-  ticket, messages, isLoading, error, notFound, draft, sending, sendError, isResolved, canReply, canSend, load, send,
+  ticket, messages, isLoading, error, notFound, draft, sending, sendError, isResolved, canReply, canSend, canAssign, heldByColleague, assigning, assignError, load, send, assign,
 } = useMobileSupportTicket(computed(() => route.params?.id))
 
 onMounted(load)
@@ -44,6 +44,16 @@ onMounted(load)
       <p v-if="isResolved" data-test="resolved-note" class="rounded-xl border border-dashed border-border px-3 py-3 text-sm text-text-muted">
         Conversation résolue : plus de réponse possible.
       </p>
+
+      <p v-if="heldByColleague" data-test="colleague-note" class="rounded-xl border border-dashed border-border px-3 py-3 text-sm text-text-muted">Billet pris en charge par un collègue</p>
+      <p v-if="assignError" data-test="assign-error" class="text-sm text-danger" role="alert">{{ assignError }}</p>
+      <div v-if="canAssign" class="sticky -mx-4 bottom-0 -mb-4 border-t border-border bg-surface px-4 py-3">
+        <button
+          type="button" data-test="assign-button" :disabled="assigning"
+          class="min-h-[48px] w-full whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-bold text-white disabled:opacity-60"
+          @click="assign"
+        >Prendre en charge</button>
+      </div>
 
       <form
         v-if="canReply" data-test="reply-form"
