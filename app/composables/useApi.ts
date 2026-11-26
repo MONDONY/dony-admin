@@ -6,6 +6,11 @@ import { appPathFromLocation, sessionEndRoute } from '@/features/mobile/lib/lock
 
 let apiInstance: any = null
 
+/** `useRoute()`, ou null hors contexte Nuxt. */
+function tryRoute(): { fullPath?: string } | null {
+  try { return useRoute() } catch { return null }
+}
+
 export function useApi(): ReturnType<typeof $fetch.create> {
   // Cache uniquement côté client : en SSR une instance module-scope serait
   // partagée entre requêtes (fuite du store Pinia de la 1re requête).
@@ -15,13 +20,20 @@ export function useApi(): ReturnType<typeof $fetch.create> {
   const config = useRuntimeConfig()
   const auth = useAuthStore()
 
+  const onServer = import.meta.server || typeof window === 'undefined'
+  /**
+   * Route de la requête, côté serveur, lue ici (contexte Nuxt disponible) : dans le crochet d'erreur,
+   * après des `await`, `useRoute()` peut ne plus trouver l'app. L'objet suit la route courante.
+   */
+  const serverRoute = onServer ? tryRoute() : null
+
   /**
    * Page courante de l'appli. Ce crochet d'erreur peut tourner pendant le rendu serveur, sans
-   * `window` : on ne lit alors rien (`import.meta.server` dans le build Nuxt ; le test de `window`
-   * couvre aussi un environnement où cette constante n'est pas remplacée, comme Vitest).
+   * `window` (`import.meta.server` dans le build Nuxt ; le test de `window` couvre aussi un
+   * environnement où cette constante n'est pas remplacée, comme Vitest) : la route de Nuxt y sert.
    */
   function currentAppPath(): string {
-    if (import.meta.server || typeof window === 'undefined') return '/'
+    if (onServer) return (serverRoute ?? tryRoute())?.fullPath || '/'
     return appPathFromLocation(config.app?.baseURL)
   }
 

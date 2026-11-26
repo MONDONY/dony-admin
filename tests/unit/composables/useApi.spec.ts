@@ -102,6 +102,33 @@ describe('useApi', () => {
     }
   })
 
+  // Côté serveur, la page courante vient du routeur de Nuxt (useRoute), pas de `window`.
+  it.each([
+    ['/m/alertes/abc?x=1', '/m/verrouille', '/m/alertes/abc?x=1'],
+    ['/users/abc', '/login', null],
+  ])('401 during server rendering on %s: uses the route of the request (%s)', async (fullPath, target, remembered) => {
+    const realWindow = globalThis.window
+    useAuthStore().setSession('the-token', adminUser)
+    vi.stubGlobal('useRoute', () => ({ fullPath }))
+    vi.stubGlobal('window', undefined)
+    const { readLockContext, clearLockContext } = await import('@/features/mobile/lib/lockState')
+    try {
+      sessionStorage.clear()
+      clearLockContext()
+      const { useApi } = await import('@/composables/useApi')
+      useApi()
+      const opts = fetchCreate.mock.calls[0][0]
+      await opts.onResponseError({ response: { status: 401, _data: null } })
+      expect(navigateToMock).toHaveBeenCalledWith(target)
+      expect(readLockContext().path).toBe(remembered)
+    } finally {
+      clearLockContext()
+      vi.stubGlobal('window', realWindow)
+      vi.stubGlobal('useRoute', undefined)
+      sessionStorage.clear()
+    }
+  })
+
   it('redirects to /change-password on 403 PASSWORD_CHANGE_REQUIRED and keeps the session', async () => {
     useAuthStore().setSession('the-token', adminUser)
     const { useApi } = await import('@/composables/useApi')
