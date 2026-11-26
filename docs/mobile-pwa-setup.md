@@ -99,6 +99,15 @@ d'accueil**) depuis une page `/m`, puis même parcours.
       Chrome sur `https://<hôte de l'admin>/siragbe/` : page de connexion, aucun contenu visible.
 - [ ] Avec `NUXT_PUBLIC_IDLE_LOCK_MINUTES` réglée (par exemple 10) : bandeau et fermeture à la
       nouvelle durée, texte des pages de connexion et de verrouillage à cette durée.
+- [ ] Veille : console de bureau ouverte, mettre l'ordinateur en veille (capot fermé) plus
+      longtemps que la durée réglée ; au réveil, le premier clic ou la première touche mène à la
+      page de connexion et le mot de passe est demandé ; ce clic ne déclenche rien dans la page.
+      Même essai avec le bandeau affiché avant la veille : « Rester connecté » au réveil mène aussi
+      à la page de connexion.
+- [ ] Deux onglets de la console : travailler dans l'un seulement ; l'autre reste ouvert après la
+      durée réglée, et son bandeau éventuel se ferme quand on agit dans le premier. Plus rien
+      dans aucun des deux pendant la durée : les deux mènent à la page de connexion, chacun avec
+      sa propre page en retour après la connexion.
 
 ## 6. Expiration de session pour inactivité (bureau et mobile)
 
@@ -126,8 +135,14 @@ avec Chrome ; si elle était tuée avant la fin de son minuteur, n'importe qui o
 
 Uniquement les entrées de l'utilisateur dans une page de l'admin : clic ou toucher, touche du
 clavier (saisie comprise), collage, molette, défilement (y compris dans une liste ou un panneau
-qui défile seul). **Un envoi de fichier ou un export en cours n'est pas détecté** : un long export
-lancé puis laissé sans toucher à rien peut voir la session se fermer avant la fin. Les pages
+qui défile seul), fichier glissé depuis l'ordinateur. **Un envoi de fichier ou un export en cours
+n'est pas détecté** : un long export lancé puis laissé sans toucher à rien peut voir la session
+se fermer avant la fin. À l'inverse, **un défilement provoqué par la page elle-même compte aussi**
+(le navigateur ne le distingue pas d'un défilement de l'utilisateur) : ligne amenée à l'écran après
+une action, assistant qui descend au dernier message, liste rafraîchie qui défile.
+
+Une entrée arrivée après l'échéance (réveil de l'ordinateur, page gelée, minuteur en retard) ne
+prolonge jamais la session : elle la ferme, et elle n'atteint pas la page. Les pages
 `/change-password` et `/mfa-setup` n'ont pas de minuteur et le temps passé dessus ne compte pas
 comme activité : y rester plus longtemps que la durée réglée, puis ouvrir la console, demande de
 se reconnecter.
