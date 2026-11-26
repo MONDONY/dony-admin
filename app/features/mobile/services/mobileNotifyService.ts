@@ -1,4 +1,8 @@
 import { useApi } from '@/composables/useApi'
+import { isUuid } from '@/lib/safeInput'
+
+/** Réponse du back (202) : seul le compteur de destinataires joignables nous intéresse. */
+export interface NotifyResult { recipientCount?: number }
 
 /**
  * Notification à UNE personne, depuis le mobile. Volontairement distinct du service de diffusion du poste
@@ -8,10 +12,15 @@ import { useApi } from '@/composables/useApi'
  * `push: true` comme le défaut du poste ordinateur pour un message adressé à une personne.
  */
 export const mobileNotifyService = {
-  sendToOne(input: { userId: string; title: string; body: string }): Promise<unknown> {
-    return useApi()<unknown>('/admin/notifications/broadcast', {
+  sendToOne(input: { userId: string; title: string; body: string }): Promise<NotifyResult> {
+    const title = input.title.trim()
+    const body = input.body.trim()
+    // Défense en profondeur : même si l'écran est contourné, rien ne part sans UUID, titre et message.
+    if (!isUuid(input.userId)) return Promise.reject(new Error('Identifiant du destinataire invalide'))
+    if (!title || !body) return Promise.reject(new Error('Titre et message obligatoires'))
+    return useApi()<NotifyResult>('/admin/notifications/broadcast', {
       method: 'POST',
-      body: { title: input.title, body: input.body, target: { type: 'USER', userId: input.userId }, push: true },
+      body: { title, body, target: { type: 'USER', userId: input.userId }, push: true },
     })
   },
 }

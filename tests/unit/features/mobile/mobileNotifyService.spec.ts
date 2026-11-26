@@ -16,6 +16,19 @@ describe('mobileNotifyService', () => {
     })
   })
 
+  it('sendToOne: rejects without calling the API on a bad id or an empty title or message', async () => {
+    await expect(mobileNotifyService.sendToOne({ userId: 'abc', title: 't', body: 'b' })).rejects.toThrow('Identifiant')
+    await expect(mobileNotifyService.sendToOne({ userId: '11111111-1111-4111-8111-111111111111', title: '  ', body: 'b' })).rejects.toThrow('obligatoires')
+    await expect(mobileNotifyService.sendToOne({ userId: '11111111-1111-4111-8111-111111111111', title: 't', body: ' \n' })).rejects.toThrow('obligatoires')
+    expect(apiMock).not.toHaveBeenCalled()
+  })
+
+  it('sendToOne: trims title and body in the request', async () => {
+    apiMock.mockResolvedValue({})
+    await mobileNotifyService.sendToOne({ userId: '11111111-1111-4111-8111-111111111111', title: ' T ', body: ' B ' })
+    expect(apiMock.mock.calls[0]![1].body).toEqual({ title: 'T', body: 'B', target: { type: 'USER', userId: '11111111-1111-4111-8111-111111111111' }, push: true })
+  })
+
   it('exposes only sendToOne', () => {
     expect(Object.keys(mobileNotifyService)).toEqual(['sendToOne'])
   })
