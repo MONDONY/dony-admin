@@ -9,7 +9,7 @@ definePageMeta({ layout: 'mobile', middleware: 'admin-only', permission: 'ALERT_
 const route = useRoute()
 const rawItem = computed(() => route.query?.item)
 const {
-  chips, chip, sorted, isLoading, error, feed, isUnread, item, itemInvalid, itemNotification, load, selectChip,
+  chips, chip, sorted, isLoading, error, feed, feedSettled, isUnread, item, itemInvalid, itemNotification, load, selectChip,
 } = useMobileAlertList(rawItem)
 
 onMounted(load)
@@ -19,6 +19,7 @@ onMounted(load)
   <div class="space-y-4">
     <section v-if="item || itemInvalid" data-test="item-detail" class="space-y-2">
       <MobileNotificationSummary v-if="itemNotification" :item="itemNotification" :linked="false" />
+      <p v-else-if="item && !feedSettled" data-test="item-loading" class="px-3 py-4 text-sm text-text-muted">Chargement…</p>
       <p v-else data-test="item-empty" class="rounded-xl border border-border bg-surface px-3 py-4 text-sm text-text-muted">
         Cette nouveauté n’est plus dans votre fil. Retrouvez-la sur l’ordinateur.
       </p>

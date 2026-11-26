@@ -20,10 +20,19 @@ const a = (id: string, severity: string, createdAt: string, extra: Record<string
   id, type: 'PAYOUT_HELD_x', severity, payload: {}, resolved: false, resolvedAt: null, createdAt, ...extra,
 })
 const page = (content: unknown[]) => ({ content, totalElements: content.length, totalPages: 1, number: 0, size: 100 })
-const feedItem = (over: Record<string, unknown>) => ({
-  id: 'n1', type: 'DISPUTE_OPENED', title: 'Litige ouvert', summary: 'Colis non reçu', severity: 'WARNING',
-  createdAt: '2026-11-26T08:00:00Z', link: null, ...over,
+const T = '9b8c7d6e-2222-4333-8444-555566667777'
+const M = '1a2b3c4d-5555-4666-8777-888899990000'
+/** Contrat réel du fil : id composite `<TYPE>:<uuid>`, lien interne de l'ordinateur. */
+const feedItem = (over: Record<string, unknown> = {}) => ({
+  id: `DISPUTE_OPENED:${U}`, type: 'DISPUTE_OPENED', title: 'Litige ouvert', summary: 'Colis non reçu', severity: 'WARNING',
+  createdAt: '2026-11-26T08:00:00Z', link: `/litiges?open=${U}`, ...over,
 })
+const deferred = () => {
+  // eslint-disable-next-line no-unused-vars
+  let resolve!: (v: unknown) => void
+  const promise = new Promise((r) => { resolve = r })
+  return { promise, resolve }
+}
 const mountPage = async () => {
   const w = mount(Page, { global: { stubs: { NuxtLink } } })
   await flushPromises()
@@ -75,38 +84,80 @@ describe('m/alertes index page', () => {
     expect(w.find('[data-test="alerts-error"]').text()).toBe('Panne')
   })
 
-  it('lists "Autres nouveautés" read-only with routes per type, greying read ones', async () => {
+  it('lists "Autres nouveautés" read-only with routes per type, without the alerts already listed above', async () => {
     notif.feed.mockResolvedValue({
       items: [
-        feedItem({ id: 'n-alert', type: 'ADMIN_ALERT', title: 'Alerte', link: `/alertes?open=${U}` }),
-        feedItem({ id: 'n-sup', type: 'SUPPORT_MESSAGE_RECEIVED', title: 'Message', link: `/support?ticket=${U}` }),
-        feedItem({ id: U, type: 'DISPUTE_OPENED', title: 'Litige ouvert' }),
+        feedItem({ id: `ADMIN_ALERT:${M}`, type: 'ADMIN_ALERT', title: 'Alerte', link: '/alertes', createdAt: '2026-11-26T09:00:00Z' }),
+        feedItem({ id: `SUPPORT_MESSAGE_RECEIVED:${M}`, type: 'SUPPORT_MESSAGE_RECEIVED', title: 'Message', link: `/support?ticket=${T}`, createdAt: '2026-11-26T07:00:00Z' }),
+        feedItem({ createdAt: '2026-11-26T09:00:00Z' }),
       ],
       unreadCount: 1, lastSeenAt: '2026-11-26T08:30:00Z', readIds: [],
     })
     const w = await mountPage()
     expect(w.find('h2').text()).toBe('Autres nouveautés')
     const items = w.findAll('[data-test="mobile-feed-item"]')
-    expect(items.map(i => i.attributes('href'))).toEqual([`/m/alertes/${U}`, `/m/support/${U}`, `/m/alertes?item=DISPUTE_OPENED:${U}`])
-    expect(items[2]!.text()).toContain('Colis non reçu')
+    expect(items.map(i => i.attributes('href'))).toEqual([`/m/support/${T}`, `/m/alertes?item=DISPUTE_OPENED:${U}`])
+    expect(items.some(i => i.text().includes('Alerte'))).toBe(false)
+    expect(items[1]!.text()).toContain('Colis non reçu')
     expect(items[0]!.classes()).toContain('opacity-60')
+    expect(items[1]!.classes()).not.toContain('opacity-60')
   })
 
-  it('item=<TYPE>:<uuid> shows the read-only note and summary from the feed', async () => {
+  it('push landing on ?item=DISPUTE_OPENED:<uuid> shows the read-only card from the feed', async () => {
     routeState.query = { item: `DISPUTE_OPENED:${U}` }
-    notif.feed.mockResolvedValue({ items: [feedItem({ id: U })], unreadCount: 0, lastSeenAt: null })
+    notif.feed.mockResolvedValue({ items: [feedItem()], unreadCount: 0, lastSeenAt: null })
     const w = await mountPage()
     const box = w.find('[data-test="item-detail"]')
     expect(box.text()).toContain('À traiter sur ordinateur')
     expect(box.text()).toContain('Colis non reçu')
+    expect(box.find('[data-test="item-empty"]').exists()).toBe(false)
     expect(box.find('button').exists()).toBe(false)
   })
 
-  it('item not in the feed shows a friendly empty state; invalid item too', async () => {
-    routeState.query = { item: `DISPUTE_OPENED:${U}` }
+  it('a tap in the list leads to a URL that opens the same card', async () => {
+    notif.feed.mockResolvedValue({ items: [feedItem({ id: `KYC_IN_REVIEW:${T}`, type: 'KYC_IN_REVIEW', summary: 'Pièce à vérifier', link: '/kyc' })], unreadCount: 0, lastSeenAt: null })
     let w = await mountPage()
+    const href = w.find('[data-test="mobile-feed-item"]').attributes('href')!
+    expect(href).toBe(`/m/alertes?item=KYC_IN_REVIEW:${T}`)
+    routeState.query = Object.fromEntries(new URLSearchParams(href.split('?')[1]))
+    w = await mountPage()
+    expect(w.find('[data-test="item-detail"]').text()).toContain('Pièce à vérifier')
+  })
+
+  it('while the feed loads: Chargement, never a false "plus dans votre fil"', async () => {
+    routeState.query = { item: `DISPUTE_OPENED:${U}` }
+    const slow = deferred()
+    notif.feed.mockReturnValue(slow.promise)
+    const w = await mountPage()
+    expect(w.find('[data-test="item-loading"]').text()).toContain('Chargement')
+    expect(w.find('[data-test="item-empty"]').exists()).toBe(false)
+    slow.resolve({ items: [], unreadCount: 0, lastSeenAt: null })
+    await flushPromises()
+    expect(w.find('[data-test="item-loading"]').exists()).toBe(false)
     expect(w.find('[data-test="item-empty"]').text()).toContain('n’est plus dans votre fil')
+  })
+
+  it('unknown id: friendly state once the feed is ready, failed or absent from the back-end', async () => {
+    routeState.query = { item: `DISPUTE_OPENED:${U}` }
+    notif.feed.mockResolvedValue({ items: [feedItem({ id: `DISPUTE_OPENED:${T}` })], unreadCount: 0, lastSeenAt: null })
+    let w = await mountPage()
+    expect(w.find('[data-test="item-empty"]').exists()).toBe(true)
+    notif.feed.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne' } }))
+    w = await mountPage()
+    expect(w.find('[data-test="item-empty"]').exists()).toBe(true)
+    seedAuth('ADMIN')
+    notif.feed.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 404, data: {} }))
+    w = await mountPage()
+    expect(w.find('[data-test="item-loading"]').exists()).toBe(false)
+    expect(w.find('[data-test="item-empty"]').exists()).toBe(true)
+  })
+
+  it('an invalid item shows the friendly state at once; no item, no box', async () => {
+    notif.feed.mockReturnValue(new Promise(() => {}))
     routeState.query = { item: '../x' }
+    let w = await mountPage()
+    expect(w.find('[data-test="item-empty"]').exists()).toBe(true)
+    routeState.query = { item: U }
     w = await mountPage()
     expect(w.find('[data-test="item-empty"]').exists()).toBe(true)
     routeState.query = {}

@@ -14,10 +14,15 @@ export function useMobileAlertList(rawItem: Ref<unknown>) {
   const item = computed(() => parseItemParam(rawItem.value))
   /** `?item=` présent mais illisible : on le dit au lieu de l'ignorer. */
   const itemInvalid = computed(() => rawItem.value !== undefined && rawItem.value !== null && rawItem.value !== '' && !item.value)
+  /** L'identifiant du fil est opaque : comparé entier, jamais découpé. */
   const itemNotification = computed(() => {
     const wanted = item.value
-    return wanted ? notifications.items.find(n => n.id === wanted.id && n.type === wanted.type) ?? null : null
+    return wanted ? notifications.items.find(n => n.id === wanted) ?? null : null
   })
+  /** Fil chargé, en échec ou absent du back : avant, une nouveauté introuvable n'est pas encore « partie ». */
+  const feedSettled = computed(() => notifications.unavailable || notifications.feedStatus === 'ready' || notifications.feedStatus === 'error')
+  /** Les alertes du fil sont déjà dans la liste du dessus : « Autres nouveautés » ne les répète pas. */
+  const feed = computed(() => notifications.items.filter(n => n.type !== 'ADMIN_ALERT'))
 
   async function load() {
     await Promise.all([list.fetchAlerts(), notifications.openPanel()])
@@ -30,7 +35,6 @@ export function useMobileAlertList(rawItem: Ref<unknown>) {
 
   return {
     chips: ALERT_CHIPS, chip, sorted, isLoading: list.isLoading, error: list.error,
-    feed: computed(() => notifications.items), feedStatus: computed(() => notifications.feedStatus),
-    isUnread: notifications.isUnread, item, itemInvalid, itemNotification, load, selectChip,
+    feed, feedSettled, isUnread: notifications.isUnread, item, itemInvalid, itemNotification, load, selectChip,
   }
 }

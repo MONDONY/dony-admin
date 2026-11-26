@@ -23,15 +23,22 @@ export const ALERT_CHIPS: readonly AlertChip[] = [
   { key: 'RESOLVED', label: 'Traitées' },
 ]
 
-const ITEM_RE = /^[A-Z_]+:[0-9a-f-]{36}$/
+/**
+ * Identifiant d'une nouveauté du fil, tel que le back l'émet : composite `<TYPE>:<uuid>`
+ * (`DISPUTE_OPENED:<uuid>`, `ADMIN_ALERT:<uuid>`, `SUPPORT_MESSAGE_RECEIVED:<messageId>`).
+ * Il reste opaque : on le compare entier, on ne le découpe que pour une alerte.
+ */
+const FEED_ID_RE = /^[A-Z_]+:[0-9a-fA-F-]{36}$/
 
-export interface ItemRef { type: string; id: string }
+function uuidAfterType(raw: string): string | null {
+  const id = raw.slice(raw.indexOf(':') + 1)
+  return isUuid(id) ? id : null
+}
 
-/** Paramètre `?item=<TYPE>:<uuid>` : forme stricte, sinon rejeté (jamais utilisé tel quel). */
-export function parseItemParam(raw: unknown): ItemRef | null {
-  if (typeof raw !== 'string' || !ITEM_RE.test(raw)) return null
-  const [type, id] = raw.split(':') as [string, string]
-  return isUuid(id) ? { type, id } : null
+/** Paramètre `?item=<TYPE>:<uuid>` : l'identifiant entier du fil, de forme stricte, sinon rejeté. */
+export function parseItemParam(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !FEED_ID_RE.test(raw)) return null
+  return uuidAfterType(raw) ? raw : null
 }
 
 function queryParam(link: string | null | undefined, name: string): string | null {
@@ -41,15 +48,19 @@ function queryParam(link: string | null | undefined, name: string): string | nul
   return new URLSearchParams(link.slice(q + 1)).get(name)
 }
 
-/** Où mène un clic sur une nouveauté du fil : alerte, billet de support, ou fiche courte « sur ordinateur ». */
+/**
+ * Où mène un clic sur une nouveauté du fil : l'alerte (`ADMIN_ALERT:<uuid>`), le billet de support
+ * (`link` = `/support?ticket=<uuid>`), sinon la fiche courte `?item=<id entier>`, comme les pushs.
+ */
 export function feedItemRoute(item: Pick<AdminNotification, 'id' | 'type' | 'link'>): string {
+  const id = parseItemParam(item.id)
   if (item.type === 'ADMIN_ALERT') {
-    const open = queryParam(item.link, 'open')
-    const id = isUuid(open) ? open : isUuid(item.id) ? item.id : null
-    if (id) return `/m/alertes/${id}`
-  } else if (item.type.startsWith('SUPPORT_')) {
+    const alertId = id ? uuidAfterType(id) : null
+    return alertId ? `/m/alertes/${alertId}` : '/m/alertes'
+  }
+  if (item.type.startsWith('SUPPORT_')) {
     const ticket = queryParam(item.link, 'ticket')
     if (isUuid(ticket)) return `/m/support/${ticket}`
   }
-  return parseItemParam(`${item.type}:${item.id}`) ? `/m/alertes?item=${item.type}:${item.id}` : '/m/alertes'
+  return id ? `/m/alertes?item=${id}` : '/m/alertes'
 }

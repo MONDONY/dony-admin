@@ -398,7 +398,8 @@ describe('noResolveAssignOrUpload and the support route', () => {
   })
 
   it('support alerts of the feed link to /m/support/<ticketId> and that route exists', () => {
-    expect(feedItemRoute({ id: 'n', type: 'SUPPORT_MESSAGE_RECEIVED', link: `/support?ticket=${U}` })).toBe(`/m/support/${U}`)
+    expect(feedItemRoute({ id: 'SUPPORT_MESSAGE_RECEIVED:1a2b3c4d-5555-4666-8777-888899990000', type: 'SUPPORT_MESSAGE_RECEIVED', link: `/support?ticket=${U}` }))
+      .toBe(`/m/support/${U}`)
     const dir = resolvePath(root, 'app/pages/m/support')
     expect(readdirSync(dir).sort()).toEqual(['[id].vue', 'index.vue'])
   })

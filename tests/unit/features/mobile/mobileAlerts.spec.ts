@@ -24,21 +24,37 @@ describe('mobileAlerts lib', () => {
     expect(ALERT_CHIPS.map(c => [c.label, c.key])).toEqual([['À traiter', 'OPEN'], ['En attente', 'SNOOZED'], ['Traitées', 'RESOLVED']])
   })
 
-  it('item_queryValidation', () => {
-    expect(parseItemParam(`ADMIN_ALERT:${U}`)).toEqual({ type: 'ADMIN_ALERT', id: U })
-    expect(parseItemParam(`DISPUTE_OPENED:${U}`)).toEqual({ type: 'DISPUTE_OPENED', id: U })
-    for (const bad of ['../x', 'X:1', `admin:${U}`, `A:${U}/../x`, 'A:' + 'g'.repeat(36), 'A:' + '-'.repeat(36), undefined, ['A:' + U], 42, '']) {
+  it('item_queryValidation: the composite feed id stays whole and opaque (hex in either case)', () => {
+    expect(parseItemParam(`ADMIN_ALERT:${U}`)).toBe(`ADMIN_ALERT:${U}`)
+    expect(parseItemParam(`DISPUTE_OPENED:${U}`)).toBe(`DISPUTE_OPENED:${U}`)
+    expect(parseItemParam(`SUPPORT_MESSAGE_RECEIVED:${U.toUpperCase()}`)).toBe(`SUPPORT_MESSAGE_RECEIVED:${U.toUpperCase()}`)
+    for (const bad of [
+      '../x', 'X:1', U, `admin:${U}`, `A:${U}/../x`, `TYPE:TYPE:${U}`, 'A:' + 'g'.repeat(36), 'A:' + '-'.repeat(36),
+      undefined, ['A:' + U], 42, '',
+    ]) {
       expect(parseItemParam(bad)).toBeNull()
     }
   })
 
-  it('feedItem_routes', () => {
-    expect(feedItemRoute({ id: 'n1', type: 'SUPPORT_MESSAGE_RECEIVED', link: `/support?ticket=${U}` })).toBe(`/m/support/${U}`)
-    expect(feedItemRoute({ id: U, type: 'SUPPORT_TICKET_CREATED', link: null })).toBe(`/m/alertes?item=SUPPORT_TICKET_CREATED:${U}`)
-    expect(feedItemRoute({ id: 'n1', type: 'SUPPORT_TICKET_CREATED', link: '/support?ticket=../x' })).toBe('/m/alertes')
-    expect(feedItemRoute({ id: U, type: 'ADMIN_ALERT', link: null })).toBe(`/m/alertes/${U}`)
-    expect(feedItemRoute({ id: 'n', type: 'ADMIN_ALERT', link: `/alertes?open=${U}` })).toBe(`/m/alertes/${U}`)
-    expect(feedItemRoute({ id: 'n', type: 'ADMIN_ALERT', link: '/alertes' })).toBe('/m/alertes')
-    expect(feedItemRoute({ id: U, type: 'DISPUTE_OPENED', link: '/litiges' })).toBe(`/m/alertes?item=DISPUTE_OPENED:${U}`)
+  // Contrat réel du back : ids composites `<TYPE>:<uuid>`, lien d'alerte `/alertes` sans `?open=`,
+  // lien de support `/support?ticket=<uuid>`.
+  it('feedItem_routes on the real feed contract', () => {
+    const T = '9b8c7d6e-2222-4333-8444-555566667777'
+    expect(feedItemRoute({ id: `ADMIN_ALERT:${U}`, type: 'ADMIN_ALERT', link: '/alertes' })).toBe(`/m/alertes/${U}`)
+    expect(feedItemRoute({ id: 'ADMIN_ALERT:nope', type: 'ADMIN_ALERT', link: '/alertes' })).toBe('/m/alertes')
+    expect(feedItemRoute({ id: `SUPPORT_MESSAGE_RECEIVED:${U}`, type: 'SUPPORT_MESSAGE_RECEIVED', link: `/support?ticket=${T}` })).toBe(`/m/support/${T}`)
+    expect(feedItemRoute({ id: `SUPPORT_TICKET_CREATED:${T}`, type: 'SUPPORT_TICKET_CREATED', link: `/support?ticket=${T}` })).toBe(`/m/support/${T}`)
+    // Lien de support illisible : la fiche courte, jamais un segment tiré du lien.
+    expect(feedItemRoute({ id: `SUPPORT_TICKET_CREATED:${T}`, type: 'SUPPORT_TICKET_CREATED', link: '/support?ticket=../x' }))
+      .toBe(`/m/alertes?item=SUPPORT_TICKET_CREATED:${T}`)
+    expect(feedItemRoute({ id: `DISPUTE_OPENED:${U}`, type: 'DISPUTE_OPENED', link: '/litiges' })).toBe(`/m/alertes?item=DISPUTE_OPENED:${U}`)
+    expect(feedItemRoute({ id: 'n1', type: 'DISPUTE_OPENED', link: null })).toBe('/m/alertes')
+  })
+
+  it('the route built from a feed item is the one the push sends, and it parses back to the same id', () => {
+    const id = `KYC_IN_REVIEW:${U}`
+    const route = feedItemRoute({ id, type: 'KYC_IN_REVIEW', link: '/kyc' })
+    expect(route).toBe(`/m/alertes?item=${id}`)
+    expect(parseItemParam(new URLSearchParams(route.split('?')[1]).get('item'))).toBe(id)
   })
 })
