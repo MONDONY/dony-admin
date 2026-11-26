@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, renderToString } from '@vue/test-utils'
 
 vi.stubGlobal('definePageMeta', vi.fn())
 
@@ -209,6 +209,7 @@ describe('m/diffuser', () => {
   it('picker_withoutUserView_showsNoteAndBlocksSend', async () => {
     seedAuth('ADMIN', { USER_VIEW: false })
     const w = mountPage()
+    await flushPromises()
     expect(find(w, 'notify-no-userview').text()).toBe('La recherche d’un utilisateur demande un droit supplémentaire')
     expect(find(w, 'notify-search').exists()).toBe(false)
     await fill(w)
@@ -217,6 +218,19 @@ describe('m/diffuser', () => {
     expect(find(w, 'notify-confirm').exists()).toBe(false)
     expect(users.list).not.toHaveBeenCalled()
     expect(svc.sendToOne).not.toHaveBeenCalled()
+  })
+
+  it('hydration: the server render does not depend on auth (the note waits for the mount)', async () => {
+    const { setActivePinia, createPinia } = await import('pinia')
+    setActivePinia(createPinia())
+    const noSession = await renderToString(Page)
+    seedAuth('ADMIN', { USER_VIEW: false })
+    const withoutRight = await renderToString(Page)
+    seedAuth('ADMIN')
+    const withRight = await renderToString(Page)
+    expect(noSession).not.toContain('notify-no-userview')
+    expect(withoutRight).toBe(noSession)
+    expect(withRight).toBe(noSession)
   })
 
   it('tab_hidden_withoutNotificationSend', () => {

@@ -13,7 +13,8 @@ export function useMobileAlertList(rawItem: Ref<unknown>) {
   const notifications = useNotificationsStore()
   const chip = ref<ResolvedFilter>('OPEN')
   const alerts = ref<AdminAlert[]>([])
-  const isLoading = ref(false)
+  // Vrai dès le départ (rendu serveur, avant le montage) : jamais « Aucune … » avant la première réponse.
+  const isLoading = ref(true)
   const error = ref<string | null>(null)
   let seq = 0
 

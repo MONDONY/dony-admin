@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, renderToString } from '@vue/test-utils'
 
 vi.stubGlobal('definePageMeta', vi.fn())
 const U = '3f2a9c1e-1111-4222-8333-444455556666'
@@ -163,6 +163,13 @@ describe('m/alertes index page', () => {
     routeState.query = {}
     w = await mountPage()
     expect(w.find('[data-test="item-detail"]').exists()).toBe(false)
+  })
+
+  it('first paint (server render, before mount): Chargement, never a false "Aucune alerte"', async () => {
+    const html = await renderToString(Page, { global: { stubs: { NuxtLink } } })
+    expect(html).toContain('Chargement')
+    expect(html).not.toContain('Aucune alerte')
+    expect(svc.list).not.toHaveBeenCalled()
   })
 
   it('uses one-line labels without em dash', async () => {

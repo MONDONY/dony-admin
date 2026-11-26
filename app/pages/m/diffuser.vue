@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { identityLine, recipientName } from '@/features/mobile/lib/mobileNotify'
 import { useMobileNotifyOne } from '@/features/mobile/composables/useMobileNotifyOne'
 
@@ -9,6 +10,11 @@ const {
   unreachableReason, lockSeconds, results, searching, searched, searchError,
   titleMax, bodyMax, setTerm, choose, changeRecipient, retryAccount, review, backToEdit, confirm, resendAnyway, backToForm, reset,
 } = useMobileNotifyOne()
+
+// L'auth n'existe que côté client : la note « droit supplémentaire » attend le montage, pour que le rendu
+// serveur et l'hydratation soient identiques.
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
 
 const field = 'min-h-[44px] w-full rounded-xl border border-border bg-surface px-3 text-base text-text'
 const secondary = 'min-h-[44px] w-full whitespace-nowrap rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-text disabled:opacity-60'
@@ -52,7 +58,7 @@ const primary = 'min-h-[44px] w-full whitespace-nowrap rounded-xl bg-primary px-
 
       <section class="space-y-2 rounded-xl border border-border bg-surface px-3 py-3" aria-labelledby="notify-who">
         <h3 id="notify-who" class="text-sm font-semibold text-text">À qui</h3>
-        <p v-if="!canSearch" data-test="notify-no-userview" class="text-sm text-text-muted" role="note">La recherche d’un utilisateur demande un droit supplémentaire</p>
+        <p v-if="mounted && !canSearch" data-test="notify-no-userview" class="text-sm text-text-muted" role="note">La recherche d’un utilisateur demande un droit supplémentaire</p>
         <template v-else-if="recipient">
           <p data-test="notify-recipient" class="font-semibold text-text">{{ recipient.name }}</p>
           <p data-test="notify-recipient-identity" class="text-sm text-text-muted">{{ identity }}</p>

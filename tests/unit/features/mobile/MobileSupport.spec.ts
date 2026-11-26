@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, renderToString } from '@vue/test-utils'
 import { readdirSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 
@@ -95,6 +95,13 @@ describe('m/support list', () => {
     slow(page([ticket('t-stale', { status: 'RESOLVED' })]))
     await flushPromises()
     expect(w.findAll('[data-test="support-card"]').map(c => c.attributes('href'))).toEqual(['/m/support/t-fast'])
+  })
+
+  it('first paint (server render, before mount): Chargement, never a false "Aucune conversation"', async () => {
+    const html = await renderToString(ListPage, { global: { stubs: { NuxtLink } } })
+    expect(html).toContain('Chargement')
+    expect(html).not.toContain('Aucune conversation')
+    expect(svc.list).not.toHaveBeenCalled()
   })
 
   it('shows Chargement while pending', async () => {
