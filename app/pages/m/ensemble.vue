@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, resolveComponent } from 'vue'
 import PeriodChips from '@/features/mobile/components/PeriodChips.vue'
 import { useMobileOverview } from '@/features/mobile/composables/useMobileOverview'
 import { formatCount } from '@/features/mobile/lib/mobileOverview'
@@ -7,6 +7,8 @@ import { formatCount } from '@/features/mobile/lib/mobileOverview'
 definePageMeta({ layout: 'mobile', middleware: 'admin-only', permission: 'METRICS_VIEW', pageTitle: 'Vue d’ensemble' })
 
 const { period, tiles, queueRows, hasPeriod, canOpenAlerts, data, isLoading, error, load, selectPeriod } = useMobileOverview()
+// Résolu ici (le chargeur de Nuxt le remplace) : un nom en chaîne dans `:is` rendrait une balise <nuxtlink> inerte.
+const NuxtLink = resolveComponent('NuxtLink')
 
 onMounted(load)
 </script>
@@ -23,7 +25,7 @@ onMounted(load)
       <ul class="grid grid-cols-2 gap-3" :class="isLoading ? 'opacity-60' : ''">
         <li v-for="t in tiles" :key="t.id">
           <component
-            :is="t.id === 'alerts' && canOpenAlerts ? 'NuxtLink' : 'div'"
+            :is="t.id === 'alerts' && canOpenAlerts ? NuxtLink : 'div'"
             :to="t.id === 'alerts' && canOpenAlerts ? '/m/alertes' : undefined"
             :data-test="`tile-${t.id}`"
             class="block min-h-[88px] rounded-xl border border-border bg-surface px-3 py-3"
