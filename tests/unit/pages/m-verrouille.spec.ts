@@ -16,8 +16,8 @@ vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
   useFirebaseAuth: () => ({ signIn: signInMock, completeTotpSignIn: completeTotpMock, cancelTotpSignIn: cancelTotpMock }),
 }))
 
+import { defineComponent, h, type Component } from 'vue'
 import Page from '@/pages/m/verrouille.vue'
-import MobileLayout from '@/layouts/mobile.vue'
 import { LOCK_CONTEXT_KEY } from '@/features/mobile/composables/useIdleLock'
 import { LOCKED_KEY, clearLockContext } from '@/features/mobile/lib/lockState'
 import authMiddleware from '@/middleware/auth.global'
@@ -210,13 +210,21 @@ describe('m/verrouille page', () => {
     expect(navigateMock).toHaveBeenCalledWith('/change-password')
   })
 
-  it('uses a layout without the tab bar', () => {
-    const w = mount(Page)
+  it('is rendered in the real "auth" layout, which has no tab bar', async () => {
+    mount(Page)
+    const meta = vi.mocked(definePageMeta as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as { layout?: string }
+    expect(meta.layout).toBe('auth')
+    // Même résolution que Nuxt : `layout: 'auth'` -> app/layouts/auth.vue.
+    const loaders = import.meta.glob('../../../app/layouts/*.vue')
+    const load = loaders[`../../../app/layouts/${meta.layout}.vue`]
+    expect(load).toBeDefined()
+    const Layout = ((await load!()) as { default: Component }).default
+    const w = mount(defineComponent({ render: () => h(Layout, null, { default: () => h(Page) }) }))
+    await flushPromises()
+    expect(w.find('input#password').exists()).toBe(true)
+    // Ni la barre d'onglets du layout mobile, ni aucune navigation.
     expect(w.find('[data-test="mobile-tab"]').exists()).toBe(false)
+    expect(w.find('nav[aria-label="Navigation principale"]').exists()).toBe(false)
     expect(w.find('nav').exists()).toBe(false)
-    // Le layout mobile (avec onglets) n'est pas celui de la page de verrouillage.
-    expect(MobileLayout).toBeDefined()
-    const meta = vi.mocked(definePageMeta as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]
-    expect(meta.layout).not.toBe('mobile')
   })
 })
