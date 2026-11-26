@@ -45,7 +45,7 @@ describe('état du formulaire', () => {
       frequency: 'UP_TO_N', frequencyDays: null, stopAfterAnswer: true, allowDontShowAgain: false, priority: 0,
       connectedOnly: false, conditions: null, minAppVersion: null, maxAppVersion: null, platforms: [], samplePercent: 100, situations: [],
       // Campagne d'avant les moments d'action : seuils par défaut, tous les corridors.
-      triggerOptions: { fewResultsMax: 2, tripViewedTimes: 3 }, corridors: [],
+      triggerOptions: { fewResultsMax: 2, tripViewedTimes: 3 }, corridors: [], parcelRoles: [],
     })
   })
 

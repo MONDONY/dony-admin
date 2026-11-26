@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { screenLabel } from '@/features/video-modals/lib/labels'
 import { BUTTON_LABEL_SOFT_LIMIT } from '@/features/video-modals/lib/validation'
 import {
-  ACTION_KIND_LABELS, INFO_SCREENS, INFO_SCREEN_LABELS, VIDEO_MODAL_ACTION_KINDS,
+  ACTION_KIND_LABELS, INFO_SCREENS, PARCEL_SCREENS, VIDEO_MODAL_ACTION_KINDS,
   type InfoScreen, type VideoModalAction, type VideoModalActionKind,
 } from '@/features/video-modals/types/index'
 
@@ -16,6 +17,8 @@ const props = defineProps<{
   action: VideoModalAction
   labelFr: string
   labelEn: string
+  /** Au moins une étape du colis est cochée : les quatre boutons du colis sont alors proposés. */
+  parcelSteps?: boolean
   errors: { action?: string; url?: string; labelFr?: string; labelEn?: string }
 }>()
 const emit = defineEmits<{
@@ -28,6 +31,8 @@ const inputClass = 'mt-1 w-full rounded-btn border border-border bg-bg p-2 text-
 const errClass = 'mt-1 text-xs text-danger'
 const labelClass = 'block text-xs font-semibold text-text-muted'
 
+// Un bouton du colis déjà choisi reste dans la liste, même sans étape : la validation l'explique.
+const screens = computed(() => INFO_SCREENS.filter(s => props.parcelSteps || !PARCEL_SCREENS.includes(s) || props.action.screen === s))
 const labelHint = computed(() => (props.action.kind === 'CLOSE' ? 'Vide : « OK ».' : `${BUTTON_LABEL_SOFT_LIMIT} caractères au plus.`))
 
 function setKind(kind: VideoModalActionKind) {
@@ -64,7 +69,7 @@ const onEn = (e: Event) => emit('update:labelEn', (e.target as HTMLInputElement)
     <label v-if="action.kind === 'SCREEN'" :class="[labelClass, 'mt-3']">Écran à ouvrir
       <select :value="action.screen ?? ''" :data-test="`vm-${prefix}-screen`" :class="inputClass" @change="onScreen">
         <option value="" disabled>Choisir un écran</option>
-        <option v-for="s in INFO_SCREENS" :key="s" :value="s">{{ INFO_SCREEN_LABELS[s] }}</option>
+        <option v-for="s in screens" :key="s" :value="s">{{ screenLabel(s) }}</option>
       </select>
     </label>
     <label v-else-if="action.kind === 'URL'" :class="[labelClass, 'mt-3']">Lien (https uniquement)

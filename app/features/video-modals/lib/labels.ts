@@ -1,4 +1,17 @@
-import type { AdminVideoModal } from '@/features/video-modals/types/index'
+import {
+  INFO_SCREEN_LABELS, PARCEL_ROLE_LABELS, TRIGGER_CHIP_LABELS, TRIGGER_LABELS, TRIGGER_SHORT_LABELS,
+  type AdminVideoModal, type InfoScreen, type ParcelRole, type VideoModalTrigger,
+} from '@/features/video-modals/types/index'
+
+/**
+ * Libellés tolérants à un back plus récent : une valeur inconnue s'affiche telle quelle, sans lever d'erreur.
+ */
+export const triggerLabel = (t: string): string => TRIGGER_LABELS[t as VideoModalTrigger] ?? t
+/** Pastille du formulaire et libellé court de la liste : même repli sur la valeur brute. */
+export const triggerChipLabel = (t: string): string => TRIGGER_CHIP_LABELS[t as VideoModalTrigger] ?? t
+export const triggerShortLabel = (t: string): string => TRIGGER_SHORT_LABELS[t as VideoModalTrigger] ?? t
+export const parcelRoleLabel = (r: string): string => PARCEL_ROLE_LABELS[r as ParcelRole] ?? r
+export const screenLabel = (s: string): string => INFO_SCREEN_LABELS[s as InfoScreen] ?? s
 
 /**
  * Fréquence d'une campagne en quelques mots, pour la liste. Une campagne d'avant le ciblage (sans
@@ -10,6 +23,7 @@ export function frequencyLabel(m: Pick<AdminVideoModal, 'frequency' | 'maxDispla
   if (f === 'UP_TO_N') return `Jusqu’à ${m.maxDisplays ?? 3} fois`
   if (f === 'EVERY_OPEN') return 'À chaque ouverture'
   if (f === 'EVERY_TIME') return 'À chaque fois'
+  if (f === 'ONCE_PER_PARCEL') return 'Une fois par colis'
   if (f === 'EVERY_N_DAYS') return m.frequencyDays === 1 ? 'Chaque jour' : `Tous les ${m.frequencyDays ?? '…'} jours`
   return String(f)
 }

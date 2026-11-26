@@ -9,12 +9,12 @@ import {
 import { audienceFields, infoInput, infoModal, modal, validInput } from './fixtures'
 
 describe('déclencheurs de l’étape 2 : valeurs du contrat', () => {
-  it('treize valeurs d’enum, exactement celles du back, en plus des huit existantes', () => {
+  it('dix-huit valeurs d’enum (treize moments et cinq étapes du colis), exactement celles du back, en plus des huit existantes', () => {
     expect([...MOMENT_TRIGGERS].sort()).toEqual([
-      'APP_UPDATED', 'DELIVERY_CONFIRMED', 'FAVORITE_ADDED', 'FORM_ABANDONED', 'KYC_VERIFIED', 'PAYMENT_FAILED', 'PAYMENT_SUCCEEDED',
+      'APP_UPDATED', 'DELIVERY_CONFIRMED', 'FAVORITE_ADDED', 'FORM_ABANDONED', 'KYC_VERIFIED', 'PARCEL_ACCEPTED', 'PARCEL_ARRIVED', 'PARCEL_DELIVERED', 'PARCEL_HANDED_OVER', 'PARCEL_IN_TRANSIT', 'PAYMENT_FAILED', 'PAYMENT_SUCCEEDED',
       'REQUEST_PUBLISHED', 'SEARCH_FEW_RESULTS', 'SEARCH_NO_PARCEL_RESULTS', 'SEARCH_NO_TRIP_RESULTS', 'TRIP_PUBLISHED', 'TRIP_VIEWED_REPEATEDLY',
     ])
-    expect(VIDEO_MODAL_TRIGGERS).toHaveLength(21)
+    expect(VIDEO_MODAL_TRIGGERS).toHaveLength(26)
     expect(isMomentTrigger('PAYMENT_FAILED')).toBe(true)
     expect(isMomentTrigger('SEARCH_TAB')).toBe(false)
   })
@@ -25,7 +25,7 @@ describe('déclencheurs de l’étape 2 : valeurs du contrat', () => {
       expect(TRIGGER_SHORT_LABELS[t], t).toBeTruthy()
       expect(TRIGGER_LABELS[t], t).toBeTruthy()
     }
-    expect([...MOMENT_GROUPS.ACTION, ...MOMENT_GROUPS.SEARCH, ...MOMENT_GROUPS.PAYMENT, ...MOMENT_GROUPS.ACCOUNT].sort()).toEqual([...MOMENT_TRIGGERS].sort())
+    expect([...MOMENT_GROUPS.ACTION, ...MOMENT_GROUPS.SEARCH, ...MOMENT_GROUPS.PAYMENT, ...MOMENT_GROUPS.ACCOUNT, ...MOMENT_GROUPS.PARCEL].sort()).toEqual([...MOMENT_TRIGGERS].sort())
   })
 
   it('le corridor concerne recherche, favori, consultation, formulaire abandonné, trajet et demande publiés, pas le reste', () => {

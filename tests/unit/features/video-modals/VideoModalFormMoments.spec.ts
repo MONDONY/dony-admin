@@ -205,3 +205,83 @@ describe('VideoModalForm : moments d’action et corridors', () => {
     expect(w.exists()).toBe(true)
   })
 })
+
+describe('VideoModalForm : étapes du colis', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    fieldsMock.mockReset().mockResolvedValue(audienceFields)
+    estimateMock.mockReset().mockResolvedValue({ accounts: 10, afterSample: 10 })
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('Form_savesParcelRoles : étape « Colis arrivé » + Voyageur, aperçu, corps envoyé', async () => {
+    const w = await ready({ type: 'INFO' })
+    await w.get('[data-test="vm-name"]').setValue('Arrivé')
+    await w.get('[data-test="vm-title-fr"]').setValue('{voyageur} est arrivé à {ville_arrivee}')
+    await w.get('[data-test="vm-body-fr"]').setValue('Retirez votre colis.')
+    expect(w.find('[data-test="vm-parcel-roles"]').exists()).toBe(false)
+    expect(w.find('[data-test="vm-preview-role-SENDER"]').exists()).toBe(false)
+    await check(w, 'PARCEL_ARRIVED')
+    await check(w, 'SEARCH_TAB')
+    await w.get('[data-test="vm-parcel-role-TRAVELER"] input').setValue(true)
+    expect(w.get('[data-test="vm-preview-title"]').text()).toBe('Awa est arrivé à Abidjan')
+    expect(summaryOf(w)).toContain('voyageur')
+    expect((w.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input').element as HTMLInputElement).disabled).toBe(false)
+    await w.get('form').trigger('submit')
+    expect(submitted(w)[0]).toMatchObject({ triggers: ['PARCEL_ARRIVED'], parcelRoles: ['TRAVELER'] })
+  })
+
+  it('une étape du colis mêlée à un écran : « une fois par colis » désactivé', async () => {
+    const w = await ready({ type: 'INFO' })
+    await check(w, 'PARCEL_ARRIVED')
+    expect((w.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input').element as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('erreur titleEn affichée après soumission', async () => {
+    const w = await ready({ type: 'INFO' })
+    await w.get('[data-test="vm-name"]').setValue('X')
+    await w.get('[data-test="vm-title-fr"]').setValue('Titre')
+    await w.get('[data-test="vm-title-en"]').setValue('Hello {code}')
+    await w.get('[data-test="vm-body-fr"]').setValue('Texte')
+    await w.get('form').trigger('submit')
+    expect(w.text()).toContain('Variable inconnue')
+    expect(w.emitted('submit')).toBeUndefined()
+  })
+
+  it('I1 : étape du colis + écran par défaut : avertissement, retiré en décochant l’écran', async () => {
+    const w = await ready({ type: 'INFO' })
+    expect(w.find('[data-test="vm-parcel-mixed-warning"]').exists()).toBe(false)
+    await check(w, 'PARCEL_ARRIVED')
+    const warn = w.get('[data-test="vm-parcel-mixed-warning"]')
+    expect(warn.text()).toContain('Ce modal s’ouvre aussi hors d’un colis')
+    expect(warn.text()).toContain('Onglet Rechercher')
+    expect(warn.text()).toContain('Pour ne l’ouvrir qu’à l’étape du colis, décochez les autres déclencheurs.')
+    expect(w.get('[data-test="vm-dc-parcel-mixed"]').attributes('data-verdict')).toBe('check')
+    await check(w, 'SEARCH_TAB')
+    expect(w.find('[data-test="vm-parcel-mixed-warning"]').exists()).toBe(false)
+    expect(w.find('[data-test="vm-dc-parcel-mixed"]').exists()).toBe(false)
+  })
+
+  it('I2 : rôles visés dans l’aperçu, destinataire + bouton QR : « OK »', async () => {
+    const w = await ready({ type: 'INFO' })
+    await check(w, 'PARCEL_ARRIVED')
+    await check(w, 'SEARCH_TAB')
+    await w.get('[data-test="vm-parcel-role-RECIPIENT"] input').setValue(true)
+    expect(w.find('[data-test="vm-preview-role-SENDER"]').exists()).toBe(false)
+    expect(w.get('[data-test="vm-preview-roles"]').text()).toContain('Aperçu pour')
+    await w.get('[data-test="vm-primary-kind"]').setValue('SCREEN')
+    await w.get('[data-test="vm-primary-screen"]').setValue('PARCEL_QR')
+    expect(w.get('[data-test="vm-preview-primary"]').text()).toBe('OK')
+    expect(w.get('[data-test="vm-preview-warn-sender"]').exists()).toBe(true)
+  })
+
+  it('I3 : « ne plus afficher après un bouton » désactivé pour « Une fois par colis »', async () => {
+    const w = await ready({ type: 'INFO' })
+    await check(w, 'PARCEL_ARRIVED')
+    await check(w, 'SEARCH_TAB')
+    await w.get('[data-test="vm-frequency-ONCE_PER_PARCEL"] input').setValue(true)
+    expect((w.get('[data-test="vm-stop-after-answer"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.get('[data-test="vm-stop-after-answer-note"]').text()).toContain('Sans effet pour « Une fois par colis »')
+    expect(summaryOf(w)).not.toContain('ne revient plus après un bouton touché')
+  })
+})

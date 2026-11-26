@@ -1,7 +1,7 @@
 import { extractYoutubeId } from '@/features/video-modals/lib/youtube'
 import { httpsUrlError } from '@/features/video-modals/lib/url'
 import {
-  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, isMomentTrigger, MAX_HIGHLIGHTS,
+  BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TEXT_MAX_LENGTH, FEW_RESULTS_MAX, FEW_RESULTS_MIN, FREQUENCY_DAYS_MAX, FREQUENCY_DAYS_MIN, HIGHLIGHT_ICONS, IMAGE_ALT_MAX_LENGTH, IMAGE_FITS, IMAGE_MODES, INFO_SCREENS, isMomentTrigger, isParcelStepTrigger, MAX_HIGHLIGHTS, PARCEL_SCREENS, PARCEL_VARIABLES,
   MODAL_FREQUENCIES, MODAL_ICONS, MODAL_LAYOUTS, MODAL_PLATFORMS, SAMPLE_MAX, SAMPLE_MIN, SITUATIONS, SIZE_MAX, SIZE_MIN, TRIP_VIEWED_MAX, TRIP_VIEWED_MIN, VIDEO_MODAL_TRIGGERS,
   type VideoModalAction, type VideoModalInput,
 } from '@/features/video-modals/types/index'
@@ -13,7 +13,7 @@ export type VideoModalField =
   | 'primaryLabelEn' | 'secondaryLabelEn'
   | 'layout' | 'sizePercent' | 'imageMode' | 'imageFit' | 'imageAltFr' | 'imageAltEn'
   | 'frequency' | 'frequencyDays' | 'priority' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms' | 'samplePercent' | 'situations'
-  | 'fewResultsMax' | 'tripViewedTimes' | 'corridors'
+  | 'fewResultsMax' | 'tripViewedTimes' | 'corridors' | 'titleEn' | 'parcelRoles'
 
 export type VideoModalErrors = Partial<Record<VideoModalField, string>>
 
@@ -64,6 +64,7 @@ export function validateVideoModal(input: VideoModalInput, opts: ValidationOptio
   }
 
   validateSchedule(input, errors, opts)
+  validateParcelSteps(input, errors)
   return errors
 }
 
@@ -141,6 +142,9 @@ function validateFrequency(input: VideoModalInput, errors: VideoModalErrors) {
       errors.frequencyDays = `Nombre de jours entier, de ${FREQUENCY_DAYS_MIN} à ${FREQUENCY_DAYS_MAX}.`
     }
   }
+  if (input.frequency === 'ONCE_PER_PARCEL' && !((input.triggers ?? []).length > 0 && (input.triggers ?? []).every(isParcelStepTrigger))) {
+    errors.frequency = 'Cette fréquence ne s’applique qu’aux étapes du colis : retire les autres déclencheurs.'
+  }
   if (input.frequency === 'EVERY_TIME' && (input.triggers ?? []).some(t => !isMomentTrigger(t))) {
     errors.frequency = 'Cette fréquence ne s’applique qu’aux moments d’action : retire les déclencheurs d’écran ou de bouton.'
   }
@@ -186,6 +190,45 @@ function validateTargeting(input: VideoModalInput, errors: VideoModalErrors, opt
         errors.situations = `${spec.before || 'Valeur'} : ${spec.unit === 'HOURS' ? 'nombre d’heures' : 'nombre de jours'} entier de ${spec.min} à ${spec.max}.`
         break
       }
+    }
+  }
+}
+
+/** Tout ce qui est écrit entre accolades, sans accolade à l'intérieur (comme le back). */
+const VARIABLE_RE = /\{[^{}]*\}/g
+
+/** Première variable hors liste permise du texte, ou null. */
+function unknownVariable(text: string | null | undefined): string | null {
+  for (const m of (text ?? '').matchAll(VARIABLE_RE)) {
+    if (!(PARCEL_VARIABLES as readonly string[]).includes(m[0])) return m[0]
+  }
+  return null
+}
+
+/**
+ * Étapes du colis, mêmes règles que le back (422 sinon) : rôles seulement avec une étape du colis, bouton
+ * `PARCEL_*` seulement avec une étape du colis, et variables des titres et textes limitées à la liste permise.
+ */
+function validateParcelSteps(input: VideoModalInput, errors: VideoModalErrors) {
+  const parcelStep = (input.triggers ?? []).some(isParcelStepTrigger)
+  const roles = input.parcelRoles ?? []
+  // Un rôle inconnu (back plus récent) passe : le back reste juge.
+  if (roles.length > 0 && !parcelStep) {
+    errors.parcelRoles = 'Le rôle ne s’applique qu’avec au moins une étape du colis.'
+  }
+
+  const opensParcel = (a: VideoModalAction | null | undefined) => a?.kind === 'SCREEN' && !!a.screen && PARCEL_SCREENS.includes(a.screen)
+  const needStep = 'Ce bouton ne s’utilise qu’avec au moins une étape du colis.'
+  if (!parcelStep && opensParcel(input.primaryAction)) errors.primaryAction = errors.primaryAction ?? needStep
+  if (!parcelStep && opensParcel(input.secondaryAction)) errors.secondaryAction = errors.secondaryAction ?? needStep
+
+  // Le back vide le texte d'une vidéo : les variables du corps ne se contrôlent que pour une information.
+  const fields = [['titleFr', input.titleFr], ['titleEn', input.titleEn],
+    ...(input.type === 'INFO' ? [['bodyFr', input.bodyFr], ['bodyEn', input.bodyEn]] as const : [])] as const
+  for (const [field, text] of fields) {
+    const bad = unknownVariable(text)
+    if (bad && !errors[field]) {
+      errors[field] = `Variable inconnue : « ${bad} ». Variables permises : ${PARCEL_VARIABLES.join(', ')}.`
     }
   }
 }
@@ -266,6 +309,7 @@ function validateInfoModal(input: VideoModalInput, opts: ValidationOptions): Vid
   }
 
   validateSchedule(input, errors, opts)
+  validateParcelSteps(input, errors)
   return errors
 }
 

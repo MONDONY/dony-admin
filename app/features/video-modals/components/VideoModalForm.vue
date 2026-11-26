@@ -14,6 +14,7 @@ import ImageSection from '@/features/video-modals/components/ImageSection.vue'
 import InfoModalPreview from '@/features/video-modals/components/InfoModalPreview.vue'
 import LayoutPicker from '@/features/video-modals/components/LayoutPicker.vue'
 import TargetingSummary from '@/features/video-modals/components/TargetingSummary.vue'
+import ParcelRolesSection from '@/features/video-modals/components/ParcelRolesSection.vue'
 import TriggerPicker from '@/features/video-modals/components/TriggerPicker.vue'
 import VideoModalPreview from '@/features/video-modals/components/VideoModalPreview.vue'
 import VideoModalStats from '@/features/video-modals/components/VideoModalStats.vue'
@@ -24,7 +25,7 @@ import { useAudienceEstimate } from '@/features/video-modals/composables/useAudi
 import { validateImageFile } from '@/features/video-modals/lib/image'
 import { extractYoutubeId, formatDuration, youtubeWatchUrl } from '@/features/video-modals/lib/youtube'
 import {
-  AUDIENCE_LABELS, BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TRIGGERS, HIGHLIGHT_ICONS, ICON_LABELS, MAX_HIGHLIGHTS, MODAL_ICONS, SITUATIONS, TYPE_LABELS,
+  AUDIENCE_LABELS, BODY_MAX_LENGTH, CORRIDORS_MAX, CORRIDOR_TRIGGERS, HIGHLIGHT_ICONS, ICON_LABELS, isParcelStepTrigger, MAX_HIGHLIGHTS, MODAL_ICONS, SITUATIONS, TYPE_LABELS,
   type AdminVideoModal, type AudienceEstimateRequest, type SituationKind, type VideoModalAction, type VideoModalInput, type VideoModalTrigger, type VideoModalType,
 } from '@/features/video-modals/types/index'
 
@@ -79,6 +80,10 @@ if (state.conditions) rule.load(state.conditions)
 watch(() => serializeRule(rule.root.value), (wire) => { state.conditions = wire.children.length > 0 ? wire : null })
 const conditionsComplete = computed(() => fields.value.length === 0 || rule.isComplete.value)
 
+const hasParcelStep = computed(() => state.triggers.some(isParcelStepTrigger))
+// « Une fois par colis » : seulement si tous les déclencheurs cochés sont des étapes du colis (comme le back).
+const otherTriggers = computed(() => (hasParcelStep.value ? state.triggers.filter(t => !isParcelStepTrigger(t)) : []))
+const parcelOnly = computed(() => state.triggers.length > 0 && state.triggers.every(isParcelStepTrigger))
 const input = computed(() => inputFromFormState(state))
 const errors = computed(() => validateVideoModal(input.value, { hasImage: hasImage.value, conditionsComplete: conditionsComplete.value }))
 const shown = (k: keyof typeof errors.value) => (submitted.value ? errors.value[k] : undefined)
@@ -274,6 +279,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         </label>
         <label :class="labelClass">Titre EN
           <input v-model="state.titleEn" data-test="vm-title-en" type="text" :class="inputClass" placeholder="Welcome to Yadony">
+          <span v-if="shown('titleEn')" data-test="vm-title-en-error" :class="errClass">{{ shown('titleEn') }}</span>
         </label>
         <label :class="labelClass">Sous-titre FR
           <input v-model="state.subtitleFr" data-test="vm-subtitle-fr" type="text" :class="inputClass">
@@ -313,7 +319,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         />
 
         <ActionEditor
-          prefix="primary" title="Bouton principal" :action="state.primaryAction"
+          prefix="primary" title="Bouton principal" :action="state.primaryAction" :parcel-steps="hasParcelStep"
           :label-fr="state.primaryLabelFr" :label-en="state.primaryLabelEn" :errors="primaryErrors"
           @update:action="setPrimary" @update:label-fr="v => state.primaryLabelFr = v" @update:label-en="v => state.primaryLabelEn = v"
         />
@@ -323,7 +329,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         </label>
         <ActionEditor
           v-if="state.secondaryEnabled"
-          prefix="secondary" title="Bouton secondaire" :action="state.secondaryAction"
+          prefix="secondary" title="Bouton secondaire" :action="state.secondaryAction" :parcel-steps="hasParcelStep"
           :label-fr="state.secondaryLabelFr" :label-en="state.secondaryLabelEn" :errors="secondaryErrors"
           @update:action="setSecondary" @update:label-fr="v => state.secondaryLabelFr = v" @update:label-en="v => state.secondaryLabelEn = v"
         />
@@ -388,6 +394,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           @toggle-trigger="toggleTrigger" @toggle-situation="toggleSituation" @set-situation-value="setSituationValue"
           @set-trigger-option="setTriggerOption"
         />
+        <ParcelRolesSection v-model="state.parcelRoles" :visible="hasParcelStep" :error="shown('parcelRoles')" :other-triggers="otherTriggers" />
         <div class="mt-5">
           <CorridorSection
             :corridors="state.corridors" :applies="corridorApplies" :error="shown('corridors')"
@@ -413,7 +420,7 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
           v-model:frequency="state.frequency" v-model:max-displays="state.maxDisplays" v-model:frequency-days="state.frequencyDays"
           v-model:stop-after-answer="state.stopAfterAnswer" v-model:allow-dont-show-again="state.allowDontShowAgain"
           v-model:priority="state.priority" v-model:starts-at="state.startsAt" v-model:ends-at="state.endsAt"
-          :is-info="isInfo"
+          :is-info="isInfo" :parcel-only="parcelOnly"
           :errors="{ frequency: shown('frequency'), frequencyDays: shown('frequencyDays'), maxDisplays: shown('maxDisplays'), priority: shown('priority'), period: shown('period') }"
         />
       </section>
@@ -480,6 +487,8 @@ const labelClass = 'block text-xs font-semibold text-text-muted'
         :primary-label-fr="state.primaryLabelFr" :primary-label-en="state.primaryLabelEn" :primary-kind="state.primaryAction.kind"
         :secondary-enabled="state.secondaryEnabled" :secondary-label-fr="state.secondaryLabelFr" :secondary-label-en="state.secondaryLabelEn"
         :secondary-kind="state.secondaryAction.kind"
+        :primary-screen="state.primaryAction.screen" :secondary-screen="state.secondaryAction.screen" :parcel-steps="hasParcelStep"
+        :parcel-roles="state.parcelRoles" :triggers="state.triggers"
         :layout="state.layout" :size-percent="state.sizePercent" :allow-dont-show-again="state.allowDontShowAgain"
         :image-mode="state.imageMode" :image-fit="state.imageFit" :image-url="previewImageUrl"
         :image-alt-fr="state.imageAltFr" :image-alt-en="state.imageAltEn"

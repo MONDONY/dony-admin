@@ -1,8 +1,8 @@
 import type { WireCondition, WireGroup } from '@/features/broadcast/composables/audienceRule'
 import type { AudienceField } from '@/features/broadcast/types/index'
 import {
-  CORRIDOR_TRIGGERS, FEW_RESULTS_DEFAULT, NO_DELAY_TRIGGERS, OPEN_DELAY_SECONDS, PLATFORM_LABELS, TRIP_VIEWED_DEFAULT,
-  type ModalCorridor, type ModalPlatform, type SituationKind, type VideoModalInput, type VideoModalTrigger,
+  CORRIDOR_TRIGGERS, FEW_RESULTS_DEFAULT, isParcelStepTrigger, NO_DELAY_TRIGGERS, OPEN_DELAY_SECONDS, PLATFORM_LABELS, TRIP_VIEWED_DEFAULT,
+  type ModalCorridor, type ModalPlatform, type ParcelRole, type SituationKind, type VideoModalInput, type VideoModalTrigger,
 } from '@/features/video-modals/types/index'
 
 /** Un morceau de la phrase : `strong` met en avant ce que l'admin a réglé (or sur fond marine). */
@@ -14,7 +14,7 @@ export interface SummaryPart {
 export type SummaryInput = Pick<
   VideoModalInput,
   'triggers' | 'situations' | 'connectedOnly' | 'conditions' | 'minAppVersion' | 'maxAppVersion' | 'platforms'
-  | 'samplePercent' | 'triggerOptions' | 'corridors' | 'frequency' | 'frequencyDays' | 'maxDisplays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'startsAt' | 'endsAt'
+  | 'samplePercent' | 'triggerOptions' | 'corridors' | 'frequency' | 'frequencyDays' | 'maxDisplays' | 'stopAfterAnswer' | 'allowDontShowAgain' | 'startsAt' | 'endsAt' | 'parcelRoles'
 >
 
 const TRIGGER_PHRASES: Record<VideoModalTrigger, string> = {
@@ -39,6 +39,11 @@ const TRIGGER_PHRASES: Record<VideoModalTrigger, string> = {
   TRIP_VIEWED_REPEATEDLY: 'la consultation répétée du même trajet',
   PAYMENT_FAILED: 'un paiement échoué ou annulé',
   APP_UPDATED: 'la première ouverture après une mise à jour de l’app',
+  PARCEL_ACCEPTED: 'l’ouverture d’un colis accepté',
+  PARCEL_HANDED_OVER: 'l’ouverture d’un colis remis',
+  PARCEL_IN_TRANSIT: 'l’ouverture d’un colis en voyage',
+  PARCEL_ARRIVED: 'l’ouverture d’un colis arrivé',
+  PARCEL_DELIVERED: 'l’ouverture d’un colis livré',
 }
 
 /** Phrase d'un déclencheur ; les deux moments à seuil précisent leur valeur. */
@@ -169,6 +174,19 @@ function momentParts(input: SummaryInput): SummaryPart[] {
   return parts
 }
 
+const ROLE_PHRASES: Record<ParcelRole, string> = { SENDER: 'l’expéditeur', TRAVELER: 'le voyageur', RECIPIENT: 'le destinataire' }
+
+/** Rôles visés : seulement quand une étape du colis est cochée (sinon sans effet). */
+function parcelRoleParts(input: SummaryInput): SummaryPart[] {
+  if (!input.triggers.some(isParcelStepTrigger)) return []
+  const roles = (input.parcelRoles ?? []) as string[]
+  if (roles.length === 0) return [plain(', '), strong('quel que soit son rôle sur le colis')]
+  const names = roles.map(r => ROLE_PHRASES[r as ParcelRole] ?? r)
+  // Avec d'autres déclencheurs, le rôle ne vaut que pour les étapes du colis : on le dit.
+  const mixed = input.triggers.some(t => !isParcelStepTrigger(t))
+  return [plain(', '), strong(`pour ${joinOr(names)}`), ...(mixed ? [plain(', '), strong('à l’ouverture du colis')] : [])]
+}
+
 /** « de Paris vers Abidjan », « au départ de Paris », « à l’arrivée à Abidjan ». */
 function corridorPhrase(c: ModalCorridor): string {
   const from = c.from?.trim()
@@ -203,7 +221,9 @@ function audienceParts(input: SummaryInput, fields: AudienceField[]): SummaryPar
   else if (min) parts.push(plain(', avec l’application '), strong(`${min} ou plus`))
   else if (max) parts.push(plain(', avec l’application '), strong(`${max} ou moins`))
   if (sample !== null) parts.push(plain(', pour '), strong(`${sample} %`), plain(' des personnes concernées'))
-  if (parts.length === 0 && !situations) parts.push(plain(', pour '), strong('tout le monde'), plain(', visiteurs sans compte compris'))
+  // Un modal d'étape suit un colis du compte : jamais ouvert à un visiteur, on ne le dit donc pas.
+  const parcelOnly = input.triggers.length > 0 && input.triggers.every(isParcelStepTrigger)
+  if (parts.length === 0 && !situations && !parcelOnly) parts.push(plain(', pour '), strong('tout le monde'), plain(', visiteurs sans compte compris'))
   return parts
 }
 
@@ -214,11 +234,13 @@ function frequencyParts(input: SummaryInput): SummaryPart[] {
   else if (freq === 'UP_TO_N') parts.push(strong(`jusqu’à ${isNum(input.maxDisplays) ? input.maxDisplays : '…'} fois`))
   else if (freq === 'EVERY_OPEN') parts.push(strong('à chaque ouverture de l’app'))
   else if (freq === 'EVERY_TIME') parts.push(strong('à chaque fois que l’action se produit'))
+  else if (freq === 'ONCE_PER_PARCEL') parts.push(strong('une fois par colis'))
   else {
     const n = input.frequencyDays
     parts.push(strong(n === 1 ? 'au plus une fois par jour' : `au plus une fois tous les ${isNum(n) ? n : '…'} jours`))
   }
-  if (freq !== 'ONCE') {
+  // « Une fois par colis » ignore ce réglage (back et app) : le modal revient pour chaque nouveau colis.
+  if (freq !== 'ONCE' && freq !== 'ONCE_PER_PARCEL') {
     parts.push(plain(input.stopAfterAnswer === false ? ', même après un bouton touché' : ', et ne revient plus après un bouton touché'))
   }
   const start = fmtDate(input.startsAt)
@@ -235,6 +257,7 @@ export function buildSummary(input: SummaryInput, fields: AudienceField[]): Summ
   return [
     ...momentParts(input),
     ...corridorParts(input),
+    ...parcelRoleParts(input),
     ...audienceParts(input, fields),
     plain('. '),
     ...frequencyParts(input),

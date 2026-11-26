@@ -29,6 +29,7 @@ export const ACTION_KIND_LABELS: Record<VideoModalActionKind, string> = {
 export const INFO_SCREENS = [
   'SEARCH', 'ACTIVITIES', 'TRACKING', 'MESSAGES', 'PROFILE', 'PUBLISH_TRIP', 'SEND_PARCEL',
   'SETTINGS', 'MY_MONEY', 'REFERRAL', 'TRIP_ALERTS', 'HELP',
+  'PARCEL_DETAIL', 'PARCEL_QR', 'PARCEL_SEND_CODE', 'PARCEL_TRACKING',
 ] as const
 export type InfoScreen = typeof INFO_SCREENS[number]
 
@@ -45,7 +46,14 @@ export const INFO_SCREEN_LABELS: Record<InfoScreen, string> = {
   REFERRAL: 'Parrainage',
   TRIP_ALERTS: 'Alertes de trajet',
   HELP: 'Aide et tutoriels',
+  PARCEL_DETAIL: 'Ouvrir le colis',
+  PARCEL_QR: 'Afficher le QR du colis',
+  PARCEL_SEND_CODE: 'Envoyer le code de retrait',
+  PARCEL_TRACKING: 'Ouvrir le suivi',
 }
+
+/** Écrans qui agissent sur le colis ouvert : permis seulement avec au moins un déclencheur d'étape du colis. */
+export const PARCEL_SCREENS: readonly InfoScreen[] = ['PARCEL_DETAIL', 'PARCEL_QR', 'PARCEL_SEND_CODE', 'PARCEL_TRACKING']
 
 export interface VideoModalAction {
   kind: VideoModalActionKind
@@ -69,12 +77,34 @@ export const MOMENT_TRIGGERS = [
   'SEARCH_NO_TRIP_RESULTS', 'SEARCH_NO_PARCEL_RESULTS', 'SEARCH_FEW_RESULTS', 'FAVORITE_ADDED', 'FORM_ABANDONED', 'TRIP_VIEWED_REPEATEDLY',
   'PAYMENT_FAILED',
   'APP_UPDATED',
+  'PARCEL_ACCEPTED', 'PARCEL_HANDED_OVER', 'PARCEL_IN_TRANSIT', 'PARCEL_ARRIVED', 'PARCEL_DELIVERED',
 ] as const
 export type MomentTrigger = typeof MOMENT_TRIGGERS[number]
 
 /** Toutes les valeurs de `VideoModalTrigger` connues du back. */
 export const VIDEO_MODAL_TRIGGERS = [...SCREEN_TRIGGERS, ...MOMENT_TRIGGERS] as const
 export type VideoModalTrigger = typeof VIDEO_MODAL_TRIGGERS[number]
+
+/** Étapes du colis (sous-ensemble des moments) : l'app les déclenche à l'ouverture du colis à ce statut. */
+export const PARCEL_STEP_TRIGGERS = ['PARCEL_ACCEPTED', 'PARCEL_HANDED_OVER', 'PARCEL_IN_TRANSIT', 'PARCEL_ARRIVED', 'PARCEL_DELIVERED'] as const satisfies readonly MomentTrigger[]
+export type ParcelStepTrigger = typeof PARCEL_STEP_TRIGGERS[number]
+export const isParcelStepTrigger = (t: string): t is ParcelStepTrigger => (PARCEL_STEP_TRIGGERS as readonly string[]).includes(t)
+
+/** Rôle de la personne sur le colis ; liste vide = tous les rôles. L'app calcule le rôle, le back ne le vérifie pas. */
+export const PARCEL_ROLES = ['SENDER', 'TRAVELER', 'RECIPIENT'] as const
+export type ParcelRole = typeof PARCEL_ROLES[number]
+export const PARCEL_ROLE_LABELS: Record<ParcelRole, string> = {
+  SENDER: 'Expéditeur',
+  TRAVELER: 'Voyageur',
+  RECIPIENT: 'Destinataire',
+}
+
+/**
+ * Variables permises dans les titres et les textes (jamais les sous-titres ni les boutons), remplies par l'app.
+ * Identiques au back (`PARCEL_VARIABLES`). Toute autre accolade est refusée, `{code}` compris : le code de retrait
+ * n'apparaît jamais dans un modal.
+ */
+export const PARCEL_VARIABLES = ['{destinataire}', '{voyageur}', '{expéditeur}', '{ville_arrivee}'] as const
 
 export const isMomentTrigger = (t: string): t is MomentTrigger => (MOMENT_TRIGGERS as readonly string[]).includes(t)
 
@@ -84,6 +114,7 @@ export const MOMENT_GROUPS = {
   SEARCH: ['SEARCH_NO_TRIP_RESULTS', 'SEARCH_NO_PARCEL_RESULTS', 'SEARCH_FEW_RESULTS', 'FAVORITE_ADDED', 'FORM_ABANDONED', 'TRIP_VIEWED_REPEATEDLY'],
   PAYMENT: ['PAYMENT_FAILED'],
   ACCOUNT: ['APP_UPDATED'],
+  PARCEL: PARCEL_STEP_TRIGGERS,
 } as const satisfies Record<string, readonly MomentTrigger[]>
 
 export const TRIGGER_LABELS: Record<VideoModalTrigger, string> = {
@@ -108,6 +139,11 @@ export const TRIGGER_LABELS: Record<VideoModalTrigger, string> = {
   TRIP_VIEWED_REPEATEDLY: 'Même trajet consulté plusieurs fois',
   PAYMENT_FAILED: 'Paiement échoué ou annulé',
   APP_UPDATED: 'Première ouverture après une mise à jour',
+  PARCEL_ACCEPTED: 'Colis accepté',
+  PARCEL_HANDED_OVER: 'Colis remis',
+  PARCEL_IN_TRANSIT: 'Colis en voyage',
+  PARCEL_ARRIVED: 'Colis arrivé',
+  PARCEL_DELIVERED: 'Colis livré',
 }
 
 /** Libellés courts pour la liste des campagnes. */
@@ -133,6 +169,11 @@ export const TRIGGER_SHORT_LABELS: Record<VideoModalTrigger, string> = {
   TRIP_VIEWED_REPEATEDLY: 'Trajet consulté N fois',
   PAYMENT_FAILED: 'Paiement échoué',
   APP_UPDATED: 'Après mise à jour',
+  PARCEL_ACCEPTED: 'Colis accepté',
+  PARCEL_HANDED_OVER: 'Colis remis',
+  PARCEL_IN_TRANSIT: 'Colis en voyage',
+  PARCEL_ARRIVED: 'Colis arrivé',
+  PARCEL_DELIVERED: 'Colis livré',
 }
 
 /** Libellés des déclencheurs dans le formulaire (même vocabulaire que la maquette). */
@@ -158,6 +199,11 @@ export const TRIGGER_CHIP_LABELS: Record<VideoModalTrigger, string> = {
   TRIP_VIEWED_REPEATEDLY: 'Même trajet consulté plusieurs fois',
   PAYMENT_FAILED: 'Paiement échoué ou annulé',
   APP_UPDATED: 'Première ouverture après une mise à jour',
+  PARCEL_ACCEPTED: 'Colis accepté',
+  PARCEL_HANDED_OVER: 'Colis remis',
+  PARCEL_IN_TRANSIT: 'Colis en voyage',
+  PARCEL_ARRIVED: 'Colis arrivé',
+  PARCEL_DELIVERED: 'Colis livré',
 }
 
 /**
@@ -240,7 +286,7 @@ export interface ModalSituation {
 }
 
 /** Fréquence d'affichage (étape 1 du ciblage). */
-export const MODAL_FREQUENCIES = ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS', 'EVERY_TIME'] as const
+export const MODAL_FREQUENCIES = ['ONCE', 'UP_TO_N', 'EVERY_OPEN', 'EVERY_N_DAYS', 'EVERY_TIME', 'ONCE_PER_PARCEL'] as const
 export type ModalFrequency = typeof MODAL_FREQUENCIES[number]
 
 export const FREQUENCY_SHORT_LABELS: Record<ModalFrequency, string> = {
@@ -249,6 +295,7 @@ export const FREQUENCY_SHORT_LABELS: Record<ModalFrequency, string> = {
   EVERY_OPEN: 'À chaque ouverture',
   EVERY_N_DAYS: 'Tous les N jours',
   EVERY_TIME: 'À chaque fois',
+  ONCE_PER_PARCEL: 'Une fois par colis',
 }
 
 export const FREQUENCY_DAYS_MIN = 1
@@ -399,6 +446,11 @@ export interface VideoModalInput {
   triggerOptions?: TriggerOptions
   /** Étape 2 : « trajet ou colis précis », 0 à 10 corridors ; liste vide = tous. Absent d'un back plus ancien. */
   corridors?: ModalCorridor[]
+  /**
+   * Rôles visés sur le colis (étapes du colis seulement) ; vide = tous. Toujours envoyé : une mise à jour sans
+   * ce champ efface les rôles côté back. Absent ou null d'un back plus ancien : lu comme vide.
+   */
+  parcelRoles?: ParcelRole[]
   /** Création d'un modal Information seulement : public de la version 1 (`EVERYONE`). */
   audience?: VideoModalAudience
 }
