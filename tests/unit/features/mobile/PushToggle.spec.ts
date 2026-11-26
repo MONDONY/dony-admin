@@ -36,13 +36,37 @@ describe('PushToggle', () => {
     expect(enable).toHaveBeenCalled()
   })
 
-  it('on: button "Désactiver les notifications" calls disable', async () => {
+  it('on: discreet status, no button in view; "Désactiver" sits behind a closed "Réglages" disclosure', async () => {
     state.value = 'on'
     const w = mount(PushToggle)
-    const b = w.find('button')
+    expect(w.find('[data-test="push-status"]').text()).toBe('Notifications activées')
+    const details = w.find('details[data-test="push-settings"]')
+    expect(details.exists()).toBe(true)
+    expect(details.attributes('open')).toBeUndefined()
+    expect(details.find('summary').text()).toBe('Réglages')
+    // Le seul bouton est dans la zone repliée : aucun toucher accidentel possible depuis l'en-tête.
+    const buttons = w.findAll('button')
+    expect(buttons).toHaveLength(1)
+    expect(details.find('button').exists()).toBe(true)
+    expect(w.find('[data-test="push-enable"]').exists()).toBe(false)
+  })
+
+  it('on: opening "Réglages" then "Désactiver les notifications" calls disable', async () => {
+    state.value = 'on'
+    const w = mount(PushToggle)
+    const details = w.find('details[data-test="push-settings"]')
+    ;(details.element as HTMLDetailsElement).open = true
+    const b = details.find('[data-test="push-disable"]')
     expect(b.text()).toBe('Désactiver les notifications')
     await b.trigger('click')
     expect(disable).toHaveBeenCalled()
+  })
+
+  it.each(['off', 'needs-install'])('%s: the call to action shows, no status text, no settings', (st) => {
+    state.value = st
+    const w = mount(PushToggle)
+    expect(w.find('[data-test="push-status"]').exists()).toBe(false)
+    expect(w.find('details').exists()).toBe(false)
   })
 
   it('needs-install: iOS hint, no button', () => {
@@ -105,12 +129,13 @@ describe('PushToggle', () => {
     let release: () => void = () => {}
     disable.mockImplementation(() => new Promise<void>((r) => { release = r }))
     const w = mount(PushToggle)
-    await w.find('button').trigger('click')
-    await w.find('button').trigger('click')
+    const b = () => w.find('[data-test="push-disable"]')
+    await b().trigger('click')
+    await b().trigger('click')
     expect(disable).toHaveBeenCalledTimes(1)
-    expect(w.find('button').attributes('disabled')).toBeDefined()
+    expect(b().attributes('disabled')).toBeDefined()
     release()
     await flushPromises()
-    expect(w.find('button').attributes('disabled')).toBeUndefined()
+    expect(b().attributes('disabled')).toBeUndefined()
   })
 })

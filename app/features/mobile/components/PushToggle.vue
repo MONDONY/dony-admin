@@ -37,15 +37,21 @@ async function run(action: () => Promise<void>): Promise<void> {
       :aria-busy="busy"
       @click="run(enable)"
     >Activer les notifications</button>
-    <button
-      v-else
-      type="button"
-      class="min-h-[44px] whitespace-nowrap rounded-md border border-border bg-surface px-3 font-semibold text-text disabled:opacity-50"
-      data-test="push-disable"
-      :disabled="busy"
-      :aria-busy="busy"
-      @click="run(disable)"
-    >Désactiver les notifications</button>
+    <!-- Activées : simple état, la désactivation est repliée sous « Réglages » (pas de toucher accidentel). -->
+    <div v-else class="flex flex-wrap items-center gap-x-3" data-test="push-on">
+      <span class="text-text-muted" data-test="push-status">Notifications activées</span>
+      <details data-test="push-settings">
+        <summary class="flex min-h-[44px] cursor-pointer items-center font-semibold text-primary">Réglages</summary>
+        <button
+          type="button"
+          class="mb-2 min-h-[44px] whitespace-nowrap rounded-md border border-border bg-surface px-3 font-semibold text-text disabled:opacity-50"
+          data-test="push-disable"
+          :disabled="busy"
+          :aria-busy="busy"
+          @click="run(disable)"
+        >Désactiver les notifications</button>
+      </details>
+    </div>
     <p v-if="error" class="mt-1 text-danger [text-wrap:pretty]" data-test="push-error">{{ ERROR_TEXT[error] }}</p>
   </div>
 </template>
