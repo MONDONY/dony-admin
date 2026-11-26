@@ -73,4 +73,12 @@ describe('useFirebaseAuth.signOut and push revocation', () => {
     expect(unregisterDevice).not.toHaveBeenCalled()
     expect(fbSignOutMock).toHaveBeenCalled()
   })
+
+  it('empties the auth store even when the Firebase sign-out rejects, then rethrows', async () => {
+    fbSignOutMock.mockImplementationOnce(() => Promise.reject(new Error('offline')))
+    await expect(useFirebaseAuth().signOut()).rejects.toThrow('offline')
+    expect(useAuthStore().user).toBeNull()
+    expect(useAuthStore().isAuthenticated).toBe(false)
+    expect(navigateToMock).toHaveBeenCalledWith('/login')
+  })
 })

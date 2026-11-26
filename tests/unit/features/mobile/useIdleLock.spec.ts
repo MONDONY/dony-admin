@@ -226,11 +226,33 @@ describe('useIdleLock', () => {
     expect(signOutMock).not.toHaveBeenCalled()
   })
 
-  it('a failing sign-out does not break and allows a later retry', async () => {
-    signOutMock.mockRejectedValueOnce(new Error('network'))
+  it('a failing sign-out still empties the auth store (fail closed), retries once and keeps the lock page', async () => {
+    signOutMock.mockRejectedValue(new Error('network'))
     mount(Comp)
+    expect(useAuthStore().isAuthenticated).toBe(true)
     await api.lockNow()
-    expect(navigateMock).toHaveBeenCalledWith(LOCK_ROUTE)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useAuthStore().isAuthenticated).toBe(false)
+    expect(signOutMock).toHaveBeenCalledTimes(2)
+    expect(navigateMock).toHaveBeenLastCalledWith(LOCK_ROUTE)
+  })
+
+  it('pageshow from the bfcache locks when the delay elapsed, a plain pageshow does not', async () => {
+    mount(Comp)
+    vi.setSystemTime(Date.now() + 31 * MIN)
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: false }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).not.toHaveBeenCalled()
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('pageshow listener is removed on unmount', () => {
+    const rm = vi.spyOn(window, 'removeEventListener')
+    const w = mount(Comp)
+    w.unmount()
+    expect(rm.mock.calls.map(c => c[0])).toContain('pageshow')
   })
 })
 
@@ -238,7 +260,7 @@ describe('isSafeReturnPath', () => {
   it.each(['/m', '/m/alertes', '/m/alertes?item=A:B', '/m?x=1', '/m#h'])('accepts %s', (p) => {
     expect(isSafeReturnPath(p)).toBe(true)
   })
-  it.each(['//evil.test', 'https://evil.test', '/login', 'javascript:alert(1)', '/mx', '/m/verrouille', '/m\\evil', '', null, undefined, 42, '/m/\nx'])('rejects %s', (p) => {
+  it.each(['//evil.test', 'https://evil.test', '/login', 'javascript:alert(1)', '/mx', '/m/verrouille', '/m\\evil', '/m/..//evil', '/m/../login', '/m/%2F%2Fevil', '/m/%2fevil', '/m/%5Cevil', '/m//x', '', null, undefined, 42, '/m/\nx'])('rejects %s', (p) => {
     expect(isSafeReturnPath(p as string)).toBe(false)
   })
 })

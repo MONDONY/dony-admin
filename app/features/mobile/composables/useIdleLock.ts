@@ -22,6 +22,9 @@ export function isSafeReturnPath(path: unknown): path is string {
   if (!/^\/m(?:[/?#]|$)/.test(path)) return false
   // eslint-disable-next-line no-control-regex
   if (/[\\\u0000-\u001f]/.test(path)) return false
+  // Pas de remontée de dossier, de `//` après le premier caractère, ni de `/` ou `\` encodés.
+  if (path.includes('//') || /%2f|%5c/i.test(path)) return false
+  if (path.split(/[?#]/)[0]!.split('/').some(seg => seg === '..' || seg === '%2e%2e')) return false
   if (path === LOCK_ROUTE || path.startsWith(`${LOCK_ROUTE}?`) || path.startsWith(`${LOCK_ROUTE}#`)
     || path.startsWith(`${LOCK_ROUTE}/`)) return false
   return true
@@ -114,9 +117,17 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
         path: isAppRelative(route.fullPath) ? route.fullPath : null,
         email: auth.user?.email ?? null,
       })
+      const { signOut } = useFirebaseAuth()
       try {
-        await useFirebaseAuth().signOut({ revokePush: false })
-      } catch { /* la session locale est de toute façon fermée ci-dessous */ }
+        await signOut({ revokePush: false })
+      } catch {
+        // Échec fermé : le store est vidé ci-dessous quoi qu'il arrive ; une seconde tentative
+        // de déconnexion Firebase part en arrière-plan (meilleur effort).
+        // Le signOut renavigue vers /login : on remet la page de verrouillage ensuite.
+        void signOut({ revokePush: false }).catch(() => {}).finally(() => { void navigateTo(LOCK_ROUTE) })
+      } finally {
+        auth.clear()
+      }
       await navigateTo(LOCK_ROUTE)
     } finally {
       locking = false
@@ -150,6 +161,11 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
     else arm()
   }
 
+  function onPageShow(e: PageTransitionEvent): void {
+    // Retour depuis le cache avant/arrière (bfcache) : même contrôle que visibilitychange.
+    if (e.persisted) onVisibility()
+  }
+
   onMounted(() => {
     const now = Date.now()
     lastActivityAt.value = now
@@ -158,12 +174,14 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
       window.addEventListener(evt, onActivity, { passive: true })
     }
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pageshow', onPageShow)
     arm()
   })
 
   onBeforeUnmount(() => {
     for (const evt of ACTIVITY_EVENTS) window.removeEventListener(evt, onActivity)
     document.removeEventListener('visibilitychange', onVisibility)
+    window.removeEventListener('pageshow', onPageShow)
     if (timer) clearTimeout(timer)
     timer = null
   })

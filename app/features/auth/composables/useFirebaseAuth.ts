@@ -147,11 +147,21 @@ export function useFirebaseAuth() {
   async function signOut({ revokePush = true }: { revokePush?: boolean } = {}): Promise<void> {
     pendingResolver = null
     if (revokePush) await clearPushOnLogout()
-    if ($firebaseAuth) {
-      await fbSignOut($firebaseAuth as Auth)
+    // Échec fermé : le store est vidé même si Firebase refuse de se déconnecter (hors ligne,
+    // erreur IndexedDB), sinon le middleware verrait encore un admin connecté. L'erreur est
+    // relancée après coup pour que l'appelant sache que la déconnexion Firebase a échoué.
+    let failure: unknown = null
+    try {
+      if ($firebaseAuth) {
+        await fbSignOut($firebaseAuth as Auth)
+      }
+    } catch (e: unknown) {
+      failure = e
+    } finally {
+      authStore.clear()
     }
-    authStore.clear()
     await navigateTo('/login')
+    if (failure) throw failure
   }
 
   return {
