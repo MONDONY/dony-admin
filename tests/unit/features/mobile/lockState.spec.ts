@@ -216,6 +216,8 @@ describe('desktop return path after sign-in', () => {
     '/\\evil.test', '\\\\evil.test', '/users\\x', '/%2F%2Fevil.test', '/%2fevil', '/%5Cevil', '/users/%2F',
     '/a/../..//evil', '/a/..', '/a/%2e%2e/b', '/a/%2E%2e/b', '/./x', '/users//x', '/x\ny', '/x\ty', 'transactions',
     '', '/login', '/login?redirect=%2Fx', '/m/verrouille', null, undefined, 42, ['/x'], {},
+    // vue-router compare les chemins sans tenir compte de la casse : /LOGIN est la page de connexion.
+    '/LOGIN', '/Login?x=1', '/login/', '/M/VERROUILLE', '/m/Verrouille?x=1',
   ])('rejects %j (falls back to /)', (p) => {
     expect(loginRedirectTarget(p)).toBe('/')
   })
@@ -226,5 +228,6 @@ describe('desktop return path after sign-in', () => {
     expect(idleLoginRoute('/')).toBe('/login')
     expect(idleLoginRoute('//evil.test')).toBe('/login')
     expect(idleLoginRoute('/login?redirect=%2Fx')).toBe('/login')
+    expect(idleLoginRoute('/Login?x')).toBe('/login')
   })
 })

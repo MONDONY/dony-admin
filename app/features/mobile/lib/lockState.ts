@@ -180,9 +180,13 @@ export function isSafeAppPath(path: unknown): path is string {
   })
 }
 
-/** Vrai pour `page` elle-même et ses variantes `page?…`, `page#…`, `page/…`. */
+/**
+ * Vrai pour `page` elle-même et ses variantes `page?…`, `page#…`, `page/…`, sans tenir compte de la
+ * casse : vue-router fait de même (`/LOGIN` ouvre la page de connexion).
+ */
 function isRoute(path: string, page: string): boolean {
-  return path === page || path.startsWith(`${page}?`) || path.startsWith(`${page}#`) || path.startsWith(`${page}/`)
+  const p = path.toLowerCase()
+  return p === page || p.startsWith(`${page}?`) || p.startsWith(`${page}#`) || p.startsWith(`${page}/`)
 }
 
 /**

@@ -789,7 +789,7 @@ describe('isSafeReturnPath', () => {
   it.each(['/m', '/m/alertes', '/m/alertes?item=A:B', '/m?x=1', '/m#h'])('accepts %s', (p) => {
     expect(isSafeReturnPath(p)).toBe(true)
   })
-  it.each(['//evil.test', 'https://evil.test', '/login', 'javascript:alert(1)', '/mx', '/m/verrouille', '/m\\evil', '/m/..//evil', '/m/../login', '/m/%2F%2Fevil', '/m/%2fevil', '/m/%5Cevil', '/m//x', '', null, undefined, 42, '/m/\nx', '/m/%2E%2E/login', '/m/.%2e/login', '/m/./x'])('rejects %s', (p) => {
+  it.each(['//evil.test', 'https://evil.test', '/login', 'javascript:alert(1)', '/mx', '/m/verrouille', '/m\\evil', '/m/..//evil', '/m/../login', '/m/%2F%2Fevil', '/m/%2fevil', '/m/%5Cevil', '/m//x', '', null, undefined, 42, '/m/\nx', '/m/%2E%2E/login', '/m/.%2e/login', '/m/./x', '/m/VERROUILLE', '/m/Verrouille?x=1'])('rejects %s', (p) => {
     expect(isSafeReturnPath(p as string)).toBe(false)
   })
 })
