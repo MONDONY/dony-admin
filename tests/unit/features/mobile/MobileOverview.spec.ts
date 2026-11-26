@@ -9,6 +9,8 @@ vi.mock('@/features/overview/services/overviewService', () => ({ overviewService
 
 import Page from '@/pages/m/ensemble.vue'
 import PeriodChips from '@/features/mobile/components/PeriodChips.vue'
+import { buildTiles } from '@/features/mobile/lib/mobileOverview'
+import type { AdminOverview } from '@/features/overview/types/index'
 import { seedAuth } from '../../../helpers/auth'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to" v-bind="$attrs"><slot /></a>' }
@@ -90,6 +92,22 @@ describe('m/ensemble page', () => {
     seedAuth('ADMIN', { ALERT_VIEW: false })
     w = await mountPage()
     expect(tile(w, 'alerts').attributes('href')).toBeUndefined()
+  })
+
+  it('identity tile is a snapshot: caption "à l’instant", outside the period tiles, never dimmed by a period reload', async () => {
+    const tiles = buildTiles(overview() as unknown as AdminOverview)
+    expect(tiles.find(t => t.id === 'kyc')).toMatchObject({ label: 'Identités en cours', period: false, caption: 'à l’instant' })
+    expect(tiles.filter(t => t.period).map(t => t.id)).toEqual(['signups', 'deleted', 'cancelled'])
+    expect(tiles.filter(t => t.caption).map(t => t.id)).toEqual(['kyc'])
+    const w = await mountPage()
+    expect(tile(w, 'kyc').find('[data-test="tile-caption"]').text()).toBe('à l’instant')
+    expect(tile(w, 'signups').find('[data-test="tile-caption"]').exists()).toBe(false)
+    svc.fetch.mockReturnValueOnce(new Promise(() => {}))
+    await w.findAll('[data-test="period-chip"]')[0]!.trigger('click')
+    expect(tile(w, 'signups').classes()).toContain('opacity-60')
+    expect(tile(w, 'cancelled').classes()).toContain('opacity-60')
+    expect(tile(w, 'kyc').classes()).not.toContain('opacity-60')
+    expect(tile(w, 'alerts').classes()).not.toContain('opacity-60')
   })
 
   it('staleResponse_isIgnored: a slow earlier response never overwrites a newer one', async () => {

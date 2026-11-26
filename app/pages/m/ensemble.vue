@@ -22,13 +22,14 @@ onMounted(load)
     <p v-else-if="isLoading && !data" class="text-sm text-text-muted">Chargement…</p>
 
     <template v-if="data">
-      <ul class="grid grid-cols-2 gap-3" :class="isLoading ? 'opacity-60' : ''">
+      <ul class="grid grid-cols-2 gap-3">
         <li v-for="t in tiles" :key="t.id">
           <component
             :is="t.id === 'alerts' && canOpenAlerts ? NuxtLink : 'div'"
             :to="t.id === 'alerts' && canOpenAlerts ? '/m/alertes' : undefined"
             :data-test="`tile-${t.id}`"
             class="block min-h-[88px] rounded-xl border border-border bg-surface px-3 py-3"
+            :class="isLoading && t.period ? 'opacity-60' : ''"
           >
             <span
               data-test="tile-value" class="block text-3xl font-bold tabular-nums"
@@ -36,6 +37,7 @@ onMounted(load)
               style="font-variant-numeric: tabular-nums"
             >{{ formatCount(t.value) }}</span>
             <span class="mt-1 block truncate text-sm text-text-muted">{{ t.label }}</span>
+            <span v-if="t.caption" data-test="tile-caption" class="block text-xs text-text-muted">{{ t.caption }}</span>
           </component>
         </li>
       </ul>
