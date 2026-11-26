@@ -40,7 +40,7 @@ const config = {
     firebaseProjectId: 'proj',
     firebaseAppId: '1:424242:web:abc',
     firebaseMessagingSenderId: '',
-  } as Record<string, string>,
+  } as Record<string, unknown>,
 }
 vi.stubGlobal('$fetch', fetchMock)
 vi.stubGlobal('navigateTo', navigateMock)
@@ -70,6 +70,7 @@ describe('firebase.client plugin, cold start', () => {
     navigateMock.mockReset()
     config.public.firebaseMessagingSenderId = ''
     config.public.firebaseAppId = '1:424242:web:abc'
+    delete config.public.idleLockMinutes
     localStorage.clear()
     sessionStorage.clear()
     // Chaque cas est un nouveau démarrage : rien en mémoire d'un cas précédent.
@@ -134,6 +135,31 @@ describe('firebase.client plugin, cold start', () => {
   it('/mfa-setup is not the mobile section even though it starts with /m', async () => {
     at('/siragbe/mfa-setup')
     localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 120 * MIN))
+    await run()
+    expect(useAuthStore().isAuthenticated).toBe(true)
+  })
+
+  it('configured duration (10 minutes): activity 10 minutes old under /m is stale', async () => {
+    config.public.idleLockMinutes = 10
+    at('/siragbe/m/alertes')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 10 * MIN))
+    await run()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  it('configured duration (10 minutes): activity 9 minutes old under /m is fresh', async () => {
+    config.public.idleLockMinutes = '10'
+    at('/siragbe/m/alertes')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 9 * MIN))
+    await run()
+    expect(useAuthStore().isAuthenticated).toBe(true)
+  })
+
+  it('empty or invalid configured duration (unset GitHub variable): 30 minutes', async () => {
+    config.public.idleLockMinutes = ''
+    at('/siragbe/m/alertes')
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now() - 29 * MIN))
     await run()
     expect(useAuthStore().isAuthenticated).toBe(true)
   })

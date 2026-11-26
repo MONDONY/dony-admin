@@ -12,9 +12,12 @@ const routeState: { path: string, fullPath: string, query: Record<string, string
   path: '/m/alertes', fullPath: '/m/alertes?item=A:B', query: {},
 }
 vi.stubGlobal('useRoute', () => routeState)
+// Configuration publique de Nuxt (idleLockMinutes) ; vide = durée par défaut.
+const runtimePublic: Record<string, unknown> = {}
+vi.stubGlobal('useRuntimeConfig', () => ({ public: runtimePublic }))
 
 import {
-  useIdleLock, resolveIdleMs, LOCK_ROUTE, readLockContext, clearLockContext, isSafeReturnPath,
+  useIdleLock, effectiveIdleMs, configuredIdleMinutes, LOCK_ROUTE, readLockContext, clearLockContext, isSafeReturnPath,
 } from '@/features/mobile/composables/useIdleLock'
 import { seedAuth } from '../../../helpers/auth'
 import { faultyStorage, restoreStorage } from '../../../helpers/storage'
@@ -55,6 +58,7 @@ describe('useIdleLock', () => {
     routeState.path = '/m/alertes'
     routeState.fullPath = '/m/alertes?item=A:B'
     routeState.query = {}
+    for (const k of Object.keys(runtimePublic)) delete runtimePublic[k]
     localStorage.clear()
     sessionStorage.clear()
     _resetLockStateMemory()
@@ -207,15 +211,47 @@ describe('useIdleLock', () => {
     mount(Comp)
     await vi.advanceTimersByTimeAsync(5000)
     expect(signOutMock).not.toHaveBeenCalled()
-    expect(resolveIdleMs(undefined, '1000', false)).toBe(30 * MIN)
+    expect(effectiveIdleMs(undefined, '1000', false, undefined)).toBe(30 * MIN)
   })
 
-  it('resolveIdleMs honours ?idle only in dev, with a valid value', () => {
-    expect(resolveIdleMs(undefined, '10000', true)).toBe(10000)
-    expect(resolveIdleMs(undefined, 'abc', true)).toBe(30 * MIN)
-    expect(resolveIdleMs(undefined, '-5', true)).toBe(30 * MIN)
-    expect(resolveIdleMs(5000, '10000', false)).toBe(5000)
-    expect(resolveIdleMs(undefined, undefined, true)).toBe(30 * MIN)
+  it('effectiveIdleMs honours ?idle only in dev, with a valid value, else the configured minutes', () => {
+    expect(effectiveIdleMs(undefined, '10000', true, 45)).toBe(10000)
+    expect(effectiveIdleMs(undefined, 'abc', true, undefined)).toBe(30 * MIN)
+    expect(effectiveIdleMs(undefined, '-5', true, undefined)).toBe(30 * MIN)
+    expect(effectiveIdleMs(5000, '10000', false, 45)).toBe(5000)
+    expect(effectiveIdleMs(undefined, undefined, true, undefined)).toBe(30 * MIN)
+    // Hors développement, `?idle` ne contourne jamais la configuration (ni ses bornes).
+    expect(effectiveIdleMs(undefined, '1000', false, 45)).toBe(45 * MIN)
+    expect(effectiveIdleMs(undefined, undefined, false, 2)).toBe(5 * MIN)
+    expect(effectiveIdleMs(undefined, undefined, false, '')).toBe(30 * MIN)
+  })
+
+  it('uses the configured duration (runtimeConfig.public.idleLockMinutes)', async () => {
+    runtimePublic.idleLockMinutes = 10
+    expect(configuredIdleMinutes()).toBe(10)
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(10 * MIN - 1000)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('an invalid configured duration falls back to 30 minutes', async () => {
+    runtimePublic.idleLockMinutes = 'abc'
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(29 * MIN)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('outside a Nuxt context (no runtime config), the duration is 30 minutes', () => {
+    vi.stubGlobal('useRuntimeConfig', () => { throw new Error('nuxt instance unavailable') })
+    try {
+      expect(configuredIdleMinutes()).toBe(30)
+    } finally {
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: runtimePublic }))
+    }
   })
 
   it('listenersRemovedOnUnmount', async () => {

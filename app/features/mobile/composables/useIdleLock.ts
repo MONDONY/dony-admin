@@ -2,8 +2,8 @@ import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import {
-  DEFAULT_IDLE_MS, LOCK_ROUTE, isActivityStale, markLocked, readLastActivity, rememberLockContext,
-  writeLastActivity,
+  LOCK_ROUTE, isActivityStale, markLocked, readLastActivity, rememberLockContext, resolveIdleMinutes,
+  resolveIdleMs, writeLastActivity,
 } from '@/features/mobile/lib/lockState'
 
 // API historique de ce module, gardée pour les écrans qui l'importent d'ici.
@@ -23,16 +23,27 @@ function isAppRelative(path: unknown): path is string {
 }
 
 /**
- * Délai d'inactivité effectif. Le paramètre `?idle=<ms>` (ex. `?idle=10000` pour tester le verrou
- * en 10 s) n'est lu QUE en développement (`import.meta.dev`) : ignoré dans un build de production.
+ * Durée configurée (`runtimeConfig.public.idleLockMinutes`, bornée par {@link resolveIdleMinutes}).
+ * Hors contexte Nuxt (appel après un `await`, tests sans configuration) : 30 minutes.
  */
-export function resolveIdleMs(option: number | undefined, queryIdle: unknown, isDev: boolean): number {
+export function configuredIdleMinutes(): number {
+  let raw: unknown
+  try { raw = useRuntimeConfig().public.idleLockMinutes } catch { raw = undefined }
+  return resolveIdleMinutes(raw)
+}
+
+/**
+ * Délai d'inactivité effectif : la durée configurée. Le paramètre `?idle=<ms>` (ex. `?idle=10000`
+ * pour tester le verrou en 10 s) n'est lu QUE en développement (`import.meta.dev`) : ignoré dans
+ * un build de production, où les bornes de la configuration s'appliquent toujours.
+ */
+export function effectiveIdleMs(option: number | undefined, queryIdle: unknown, isDev: boolean, configMinutes: unknown): number {
   if (option && option > 0) return option
   if (isDev && typeof queryIdle === 'string') {
     const n = Number(queryIdle)
     if (Number.isFinite(n) && n > 0) return n
   }
-  return DEFAULT_IDLE_MS
+  return resolveIdleMs(configMinutes)
 }
 
 /**
@@ -43,7 +54,7 @@ export function resolveIdleMs(option: number | undefined, queryIdle: unknown, is
  */
 export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Promise<void>, lastActivityAt: Ref<number> } {
   const route = useRoute()
-  const idleMs = resolveIdleMs(options?.idleMs, route.query?.idle, Boolean(import.meta.dev))
+  const idleMs = effectiveIdleMs(options?.idleMs, route.query?.idle, Boolean(import.meta.dev), configuredIdleMinutes())
   const lastActivityAt = ref(Date.now())
   let timer: ReturnType<typeof setTimeout> | null = null
   let lastWrite = 0

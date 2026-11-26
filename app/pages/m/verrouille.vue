@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
 import { clearLockContext, isSafeReturnPath, readLockContext, readLockMarker } from '@/features/mobile/lib/lockState'
+import { configuredIdleMinutes } from '@/features/mobile/composables/useIdleLock'
 import PasswordField from '@/features/auth/components/PasswordField.vue'
 
 // Layout sans onglets : l'admin est déconnecté, rien ne dépend de ses permissions.
@@ -18,10 +19,11 @@ const error = ref('')
 const loading = ref(false)
 const totpInput = ref<HTMLInputElement | null>(null)
 /**
- * Verrou posé par l'inactivité (marqueur `idle`) : texte « session fermée après 30 minutes ».
- * Sinon (premier lancement, session terminée) : simple invitation à se connecter.
+ * Verrou posé par l'inactivité (marqueur `idle`) : texte « session fermée après N minutes »
+ * (durée configurée). Sinon (premier lancement, session terminée) : simple invitation à se connecter.
  */
 const idleLocked = ref(false)
+const idleMinutes = configuredIdleMinutes()
 
 const totpComplete = computed(() => /^\d{6}$/.test(totpCode.value.replace(/\s+/g, '')))
 
@@ -105,7 +107,7 @@ function backToPassword() {
         {{ step === 'totp'
           ? 'Saisissez le code à 6 chiffres affiché par votre appli d’authentification.'
           : idleLocked
-            ? 'Votre session a été fermée après 30 minutes d’inactivité.'
+            ? `Votre session a été fermée après ${idleMinutes} minutes d’inactivité.`
             : 'Connectez-vous pour continuer.' }}
       </p>
     </div>

@@ -6,6 +6,8 @@ vi.stubGlobal('definePageMeta', vi.fn())
 const navigateMock = vi.fn()
 vi.stubGlobal('navigateTo', navigateMock)
 vi.stubGlobal('useRoute', () => ({ path: '/m/verrouille', query: {} }))
+const runtimePublic: Record<string, unknown> = {}
+vi.stubGlobal('useRuntimeConfig', () => ({ public: runtimePublic }))
 // Le middleware est importé statiquement (import remonté) : le stub doit le précéder.
 vi.hoisted(() => { vi.stubGlobal('defineNuxtRouteMiddleware', (fn: unknown) => fn) })
 
@@ -19,7 +21,7 @@ vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
 import { defineComponent, h, type Component } from 'vue'
 import Page from '@/pages/m/verrouille.vue'
 import { LOCK_CONTEXT_KEY } from '@/features/mobile/composables/useIdleLock'
-import { LOCKED_KEY, clearLockContext } from '@/features/mobile/lib/lockState'
+import { LOCKED_KEY, _resetLockStateMemory, clearLockContext } from '@/features/mobile/lib/lockState'
 import authMiddleware from '@/middleware/auth.global'
 
 const mfaError = () => Object.assign(new Error('mfa'), { code: 'auth/multi-factor-auth-required' })
@@ -42,6 +44,8 @@ describe('m/verrouille page', () => {
     sessionStorage.clear()
     localStorage.clear()
     clearLockContext()
+    _resetLockStateMemory()
+    delete runtimePublic.idleLockMinutes
   })
 
   it('locked for inactivity: shows the lock message and the one-line button', async () => {
@@ -52,6 +56,15 @@ describe('m/verrouille page', () => {
     expect(w.text()).toContain('Votre session a été fermée après 30 minutes d’inactivité.')
     expect(w.find('button[type="submit"]').text()).toBe('Se reconnecter')
     expect(w.text()).not.toContain('—')
+  })
+
+  it('the inactivity sentence shows the configured duration', async () => {
+    runtimePublic.idleLockMinutes = 45
+    localStorage.setItem(LOCKED_KEY, JSON.stringify({ at: 1, reason: 'idle' }))
+    const w = mount(Page)
+    await flushPromises()
+    expect(w.text()).toContain('Votre session a été fermée après 45 minutes d’inactivité.')
+    expect(w.text()).not.toContain('30 minutes')
   })
 
   it('first launch or session ended (no idle lock): asks to sign in, without the inactivity sentence', async () => {

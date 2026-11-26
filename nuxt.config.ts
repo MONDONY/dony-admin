@@ -32,6 +32,7 @@ export default defineNuxtConfig({
       firebaseAppId: '',
       firebaseVapidKey: '',
       firebaseMessagingSenderId: '',
+      idleLockMinutes: 30,
     },
   },
   app: {

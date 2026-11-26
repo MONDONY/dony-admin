@@ -9,8 +9,14 @@
 
 /** Page de verrouillage : publique, hors onglets. */
 export const LOCK_ROUTE = '/m/verrouille'
-/** Délai d'inactivité de l'app mobile (décision du propriétaire). */
-export const DEFAULT_IDLE_MS = 30 * 60 * 1000
+/**
+ * Délai d'inactivité (décision du propriétaire), réglable par `NUXT_PUBLIC_IDLE_LOCK_MINUTES` :
+ * 30 minutes par défaut, borné entre 5 minutes et 12 heures. Jamais désactivable.
+ */
+export const IDLE_MINUTES_DEFAULT = 30
+export const IDLE_MINUTES_MIN = 5
+export const IDLE_MINUTES_MAX = 720
+export const DEFAULT_IDLE_MS = IDLE_MINUTES_DEFAULT * 60 * 1000
 /** Dernière activité dans l'app mobile (ms epoch), partagée entre onglets. */
 export const ACTIVITY_KEY = 'yadony-admin-last-activity'
 /**
@@ -32,6 +38,24 @@ export const FUTURE_TOLERANCE_MS = 5 * 60 * 1000
 let memoryActivity = 0
 let memoryMarker: LockMarker | null = null
 let memoryContext: LockContext = { path: null, email: null }
+
+/**
+ * Durée d'inactivité configurée, en minutes entières : `runtimeConfig.public.idleLockMinutes`
+ * (nombre, ou chaîne telle que Nuxt la reçoit de l'environnement). Absente, vide, non numérique,
+ * NaN ou <= 0 : 30 minutes. Sinon arrondie à la minute inférieure et bornée à [5, 720].
+ */
+export function resolveIdleMinutes(raw: unknown): number {
+  let n = Number.NaN
+  if (typeof raw === 'number') n = raw
+  else if (typeof raw === 'string' && raw.trim() !== '') n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return IDLE_MINUTES_DEFAULT
+  return Math.min(IDLE_MINUTES_MAX, Math.max(IDLE_MINUTES_MIN, Math.floor(n)))
+}
+
+/** {@link resolveIdleMinutes} en millisecondes. */
+export function resolveIdleMs(rawMinutes: unknown): number {
+  return resolveIdleMinutes(rawMinutes) * 60 * 1000
+}
 
 /** Mémoire du module remise à zéro, comme dans un nouveau document (tests). */
 export function _resetLockStateMemory(): void {

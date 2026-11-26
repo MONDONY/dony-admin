@@ -5,18 +5,18 @@ import { buildFirebaseConfig } from '@/lib/firebaseConfig'
 import { hasTotpFactor } from '@/features/auth/composables/useFirebaseAuth'
 import {
   appPathFromLocation, isActivityStale, isMobileAppPath, markLocked, readLastActivity, readLockMarker,
-  sessionEndRoute,
+  resolveIdleMs, sessionEndRoute,
 } from '@/features/mobile/lib/lockState'
 
 /**
  * Faut-il refuser la session restaurée au démarrage ? Le marqueur de verrou s'applique partout ;
- * l'expiration après 30 minutes sans activité mobile seulement dans la section `/m` (le bureau n'a
+ * l'expiration après `idleMs` sans activité mobile seulement dans la section `/m` (le bureau n'a
  * pas d'expiration). Stockage illisible : aucune des deux conditions, la session est restaurée
  * comme avant (le minuteur d'inactivité du layout mobile reste actif).
  */
-function lockedAtStartup(appPath: string, now: number): 'marker' | 'idle' | null {
+function lockedAtStartup(appPath: string, now: number, idleMs: number): 'marker' | 'idle' | null {
   if (readLockMarker()) return 'marker'
-  if (isMobileAppPath(appPath) && isActivityStale(readLastActivity(), now)) return 'idle'
+  if (isMobileAppPath(appPath) && isActivityStale(readLastActivity(), now, idleMs)) return 'idle'
   return null
 }
 
@@ -48,7 +48,9 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       unsubscribe()
 
-      const locked = firebaseUser ? lockedAtStartup(initialAppPath, Date.now()) : null
+      const locked = firebaseUser
+        ? lockedAtStartup(initialAppPath, Date.now(), resolveIdleMs(pub.idleLockMinutes))
+        : null
       if (firebaseUser && locked) {
         // Verrou toujours en vigueur (app tuée en arrière-plan puis relancée, déconnexion
         // Firebase échouée, rechargement pendant le verrouillage) : la session restaurée depuis

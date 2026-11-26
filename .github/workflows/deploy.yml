@@ -128,6 +128,7 @@ jobs:
           NUXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NUXT_PUBLIC_FIREBASE_APP_ID }}
           NUXT_PUBLIC_FIREBASE_VAPID_KEY=${{ vars.NUXT_PUBLIC_FIREBASE_VAPID_KEY }}
           NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ vars.NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NUXT_PUBLIC_IDLE_LOCK_MINUTES=${{ vars.NUXT_PUBLIC_IDLE_LOCK_MINUTES }}
           EOF
           chmod 600 .env
           echo "✅ Fichier .env créé (600 permissions)"

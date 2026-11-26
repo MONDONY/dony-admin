@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   ACTIVITY_KEY, LOCKED_KEY, DEFAULT_IDLE_MS, FUTURE_TOLERANCE_MS, isActivityStale, readLastActivity, writeLastActivity,
   markLocked, readLockMarker, clearLockMarker, noteSignedIn, isMobileAppPath, appPathFromLocation,
-  _resetLockStateMemory,
+  _resetLockStateMemory, resolveIdleMinutes, resolveIdleMs, IDLE_MINUTES_DEFAULT, IDLE_MINUTES_MIN, IDLE_MINUTES_MAX,
 } from '@/features/mobile/lib/lockState'
 import { faultyStorage, restoreStorage } from '../../../helpers/storage'
 
@@ -168,6 +168,29 @@ describe('lockState', () => {
     clearLockMarker()
     _resetLockStateMemory()
     expect(readLockMarker()).toBeNull()
+  })
+
+  // ── Durée configurable (NUXT_PUBLIC_IDLE_LOCK_MINUTES) ─────────────────────
+
+  it('bounds: 30 minutes by default, never below 5, never above 720 (12 h)', () => {
+    expect([IDLE_MINUTES_DEFAULT, IDLE_MINUTES_MIN, IDLE_MINUTES_MAX]).toEqual([30, 5, 720])
+  })
+
+  it.each([
+    [undefined], [null], [''], ['   '], ['abc'], ['30min'], [Number.NaN], ['NaN'],
+    [Number.POSITIVE_INFINITY], [Number.NEGATIVE_INFINITY], [0], ['0'], [-1], ['-15'], [true], [{}], [[45]],
+  ])('missing or invalid value %j: 30 minutes (the expiry can never be disabled)', (raw) => {
+    expect(resolveIdleMinutes(raw)).toBe(30)
+    expect(resolveIdleMs(raw)).toBe(30 * MIN)
+  })
+
+  it.each([
+    [5, 5], [4, 5], [1, 5], [0.5, 5], ['3', 5],
+    [45, 45], ['45', 45], [' 45 ', 45], [45.9, 45], ['10.5', 10],
+    [720, 720], [721, 720], [100000, 720], ['1e3', 720],
+  ])('%j minutes resolves to %i (clamped, whole minutes)', (raw, minutes) => {
+    expect(resolveIdleMinutes(raw)).toBe(minutes)
+    expect(resolveIdleMs(raw)).toBe(minutes * MIN)
   })
 
   it('appPathFromLocation strips the base URL and keeps query and hash', () => {
