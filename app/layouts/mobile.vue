@@ -2,10 +2,14 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useMobileTabs, type MobileTab } from '@/features/mobile/composables/useMobileTabs'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useSwNavigation } from '@/features/mobile/composables/useSwNavigation'
+import PushToggle from '@/features/mobile/components/PushToggle.vue'
 
 const route = useRoute()
 const tabs = useMobileTabs()
 const notifications = useNotificationsStore()
+// Repli du service worker quand il ne peut pas naviguer lui-même (clic sur une notification).
+useSwNavigation()
 
 // Le manifest vit sous `<base>m/` : il ne s'applique qu'à l'app mobile, pas à la console de bureau.
 const base = useRuntimeConfig().app.baseURL.replace(/\/?$/, '/')
@@ -48,6 +52,7 @@ onBeforeUnmount(() => unsubscribe?.())
       <h1 class="flex h-12 items-center truncate font-display text-lg font-bold">
         <slot name="title">{{ title }}</slot>
       </h1>
+      <PushToggle class="pb-2" />
     </header>
 
     <main class="flex-1 overflow-y-auto px-4 py-4">

@@ -20,7 +20,7 @@ export default defineNuxtConfig({
   },
   vite: {
     optimizeDeps: {
-      include: ['firebase/app', 'firebase/auth', 'clsx', 'tailwind-merge', 'class-variance-authority', 'radix-vue', 'lucide-vue-next'],
+      include: ['firebase/app', 'firebase/auth', 'firebase/messaging', 'clsx', 'tailwind-merge', 'class-variance-authority', 'radix-vue', 'lucide-vue-next'],
     },
   },
   runtimeConfig: {
@@ -30,6 +30,7 @@ export default defineNuxtConfig({
       firebaseAuthDomain: '',
       firebaseProjectId: '',
       firebaseAppId: '',
+      firebaseVapidKey: '',
     },
   },
   app: {
