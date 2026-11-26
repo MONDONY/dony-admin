@@ -3,11 +3,16 @@ import { computed, onMounted } from 'vue'
 import MobileAlertCard from '@/features/mobile/components/MobileAlertCard.vue'
 import MobileNotificationSummary from '@/features/mobile/components/MobileNotificationSummary.vue'
 import { useMobileAlertList } from '@/features/mobile/composables/useMobileAlertList'
-import { ALERTS_FEED_PERMISSIONS } from '@/features/mobile/lib/mobileAlerts'
 
 // Le fil porte toutes les nouveautés (filtrées par le back selon les droits) et leurs pushs mènent ici :
 // un seul de ces droits ouvre la page. La fiche d'une alerte (/m/alertes/<id>) reste ALERT_VIEW.
-definePageMeta({ layout: 'mobile', middleware: 'admin-only', permissionAnyOf: ALERTS_FEED_PERMISSIONS, pageTitle: 'Alertes' })
+// Liste écrite en clair (macro extraite à la compilation) ; le test vérifie qu'elle égale ALERTS_FEED_PERMISSIONS.
+definePageMeta({
+  layout: 'mobile',
+  middleware: 'admin-only',
+  permissionAnyOf: ['ALERT_VIEW', 'DISPUTE_VIEW', 'USER_KYC', 'PAYMENT_VIEW', 'REPORT_VIEW', 'USER_GDPR_DELETE', 'SUPPORT_TICKET_VIEW'],
+  pageTitle: 'Alertes',
+})
 
 const route = useRoute()
 const rawItem = computed(() => route.query?.item)
