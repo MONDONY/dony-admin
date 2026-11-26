@@ -11,7 +11,8 @@ export function useMobileMessageList() {
   const items = ref<AdminConversation[]>([])
   const page = ref(0)
   const totalPages = ref(0)
-  const isLoading = ref(false)
+  /** Vrai dès le départ : pas de « Aucune conversation » avant le premier chargement. */
+  const isLoading = ref(true)
   const isLoadingMore = ref(false)
   const error = ref<string | null>(null)
   let seq = 0

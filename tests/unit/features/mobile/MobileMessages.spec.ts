@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { readFileSync, existsSync } from 'node:fs'
-import { resolve as resolvePath } from 'node:path'
 
 const metaSpy = vi.fn()
 vi.stubGlobal('definePageMeta', metaSpy)
@@ -14,6 +12,7 @@ vi.mock('@/features/mobile/services/mobileMessagesService', () => ({ mobileMessa
 import ListPage from '@/pages/m/messages/index.vue'
 import ThreadPage from '@/pages/m/messages/[id].vue'
 import { seedAuth } from '../../../helpers/auth'
+import { crawl, violations } from './helpers/importGraph'
 import {
   conversationSeverity, effectiveQuery, messageCountLabel, pairLabel, reportCountLabel, reportReasons, shortParticipant, threadRoute, toBubbles,
 } from '@/features/mobile/lib/mobileMessages'
@@ -72,7 +71,7 @@ describe('m/messages list', () => {
     expect(card.text()).toContain('4 messages')
     expect(card.attributes('data-severity')).toBe('danger')
     expect(w.text()).toContain('Conversations entre utilisateurs')
-    expect(w.find('[data-test="messages-search"]').attributes('placeholder')).toBe('Rechercher un nom ou un colis')
+    expect(w.find('[data-test="messages-search"]').attributes('placeholder')).toBe('Rechercher un nom')
   })
 
   it('chips_switchToAllRemovesFlag', async () => {
@@ -122,6 +121,20 @@ describe('m/messages list', () => {
     expect(w.findAll('[data-test="conversation-card"]')).toHaveLength(1)
   })
 
+  it('loadMore is dropped when the chip changes mid-flight', async () => {
+    svc.listConversations.mockResolvedValueOnce(page([conv('c1')], 2, 0))
+    const w = await mountList()
+    const more = deferred<ReturnType<typeof page>>()
+    svc.listConversations.mockReturnValueOnce(more.promise)
+    await w.find('[data-test="messages-more"]').trigger('click')
+    svc.listConversations.mockResolvedValueOnce(page([conv('all1')], 1, 0))
+    await w.find('[data-chip="ALL"]').trigger('click'); await flushPromises()
+    more.resolve(page([conv('late')], 2, 1))
+    await flushPromises()
+    expect(w.findAll('[data-test="conversation-card"]').map(c => c.attributes('href'))).toEqual(['/m/messages/all1'])
+    expect(w.find('[data-test="messages-more"]').exists()).toBe(false)
+  })
+
   it('staleResponse_isIgnored', async () => {
     const first = deferred<ReturnType<typeof page>>()
     svc.listConversations.mockReturnValueOnce(first.promise)
@@ -168,6 +181,7 @@ describe('m/messages list', () => {
 })
 
 describe('m/messages thread', () => {
+  afterEach(() => vi.restoreAllMocks())
   beforeEach(() => {
     Object.values(svc).forEach(f => f.mockReset())
     seedAuth('ADMIN')
@@ -191,14 +205,36 @@ describe('m/messages thread', () => {
     expect(w.find('[data-test="desktop-note"]').text()).toBe('Pour supprimer un message ou sanctionner, passez sur l’ordinateur.')
   })
 
-  it('thread_marksFlaggedMessagesWithReason', async () => {
-    svc.getMessages.mockResolvedValue([msg('m1'), msg('m2', { flagged: true })])
+  it('thread_showsReasonsOnceInTopCard_andPlainFlagOnBubbles', async () => {
+    svc.getContext.mockResolvedValue(ctx({ reports: [
+      { id: 'r1', reason: 'HARASSMENT', status: 'OPEN', reporterName: 'X', createdAt: null },
+      { id: 'r2', reason: 'SPAM', status: 'OPEN', reporterName: 'Y', createdAt: null },
+      { id: 'r3', reason: 'SPAM', status: 'OPEN', reporterName: 'Z', createdAt: null },
+    ] }))
+    svc.getMessages.mockResolvedValue([msg('m1'), msg('m2', { flagged: true }), msg('m3', { flagged: true })])
     const w = await mountThread()
+    const card = w.find('[data-test="thread-reports"]')
+    expect(card.text()).toContain('Signalements de cette conversation')
+    expect(w.findAll('[data-test="thread-reason"]').map(c => c.text())).toEqual(['Harcèlement ou comportement abusif', 'Spam'])
     const b = w.findAll('[data-test="bubble"]')
     expect(b[0]!.attributes('data-flagged')).toBeUndefined()
-    expect(b[1]!.attributes('data-flagged')).toBe('true')
-    expect(b[1]!.find('[data-test="bubble-reason"]').text()).toMatch(/^Signalé : /)
-    expect(b[1]!.find('[data-test="bubble-reason"]').text().length).toBeGreaterThan('Signalé : '.length)
+    expect(b[0]!.find('[data-test="bubble-flag"]').exists()).toBe(false)
+    for (const i of [1, 2]) {
+      expect(b[i]!.attributes('data-flagged')).toBe('true')
+      expect(b[i]!.find('[data-test="bubble-flag"]').text()).toBe('Signalé')
+      expect(b[i]!.text()).not.toMatch(/Harcèlement|Spam/)
+    }
+  })
+
+  it('no reports in the context: no card, a report without reason is shown as such', async () => {
+    svc.getContext.mockResolvedValue(ctx({ reports: [] }))
+    svc.getMessages.mockResolvedValue([msg('m1', { flagged: true })])
+    let w = await mountThread()
+    expect(w.find('[data-test="thread-reports"]').exists()).toBe(false)
+    expect(w.find('[data-test="bubble-flag"]').exists()).toBe(true)
+    svc.getContext.mockResolvedValue(ctx({ reports: [{ id: 'r', reason: null, status: null, reporterName: null, createdAt: null }] }))
+    w = await mountThread()
+    expect(w.find('[data-test="thread-reason"]').text()).toBe('Motif non précisé')
   })
 
   it('thread_deletedMessage_showsPlaceholderNotContent', async () => {
@@ -207,7 +243,28 @@ describe('m/messages thread', () => {
     expect(w.find('[data-test="bubble-deleted"]').text()).toBe('Message supprimé')
     expect(w.html()).not.toContain('SECRET')
     expect(w.html()).not.toContain('r2/')
-    expect(w.find('[data-test="bubble-reason"]').exists()).toBe(false)
+    expect(w.find('[data-test="bubble-flag"]').exists()).toBe(false)
+  })
+
+  it('thread_deletedAt or deletedByAdmin also count as deleted (content and image stripped)', async () => {
+    svc.getMessages.mockResolvedValue([
+      msg('m1', { content: 'SECRET1', deletedAt: '2026-11-25T09:00:00' }),
+      msg('m2', { content: 'SECRET2', deletedByAdmin: true, type: 'IMAGE', imageUrl: 'https://r2.example/x.jpg', thumbUrl: 'https://r2.example/t.jpg' }),
+    ])
+    const w = await mountThread()
+    expect(w.findAll('[data-test="bubble-deleted"]')).toHaveLength(2)
+    expect(w.html()).not.toMatch(/SECRET|r2\.example/)
+  })
+
+  it('first render shows loading, never the empty state (thread and list)', () => {
+    svc.getMessages.mockReturnValue(new Promise(() => undefined))
+    svc.listConversations.mockReturnValue(new Promise(() => undefined))
+    const t = mount(ThreadPage, { global: { stubs: { NuxtLink } } })
+    expect(t.text()).toContain('Chargement')
+    expect(t.text()).not.toContain('Aucun message')
+    const l = mount(ListPage, { global: { stubs: { NuxtLink } } })
+    expect(l.text()).toContain('Chargement')
+    expect(l.find('[data-test="messages-empty"]').exists()).toBe(false)
   })
 
   it('thread_contextFailure_stillShowsMessages', async () => {
@@ -216,7 +273,8 @@ describe('m/messages thread', () => {
     const w = await mountThread()
     expect(w.find('[data-test="thread-error"]').exists()).toBe(false)
     expect(w.text()).toContain('Texte m1')
-    expect(w.find('[data-test="bubble-reason"]').text()).toBe('Signalé')
+    expect(w.find('[data-test="bubble-flag"]').text()).toBe('Signalé')
+    expect(w.find('[data-test="thread-reports"]').exists()).toBe(false)
     expect(w.find('[data-test="thread-participants"]').exists()).toBe(false)
   })
 
@@ -250,16 +308,19 @@ describe('m/messages thread', () => {
     expect(imgs[0]!.attributes('referrerpolicy')).toBe('no-referrer')
     expect(imgs[1]!.attributes('src')).toBe('https://r2.example/only.jpg?sig=2')
     expect(w.find('[data-test="image-overlay"]').exists()).toBe(false)
+    expect(imgs[0]!.attributes('draggable')).toBe('false')
+    expect(imgs[0]!.classes()).toContain('[-webkit-touch-callout:none]')
     await w.find('[data-test="bubble-image"]').trigger('click')
     const big = w.find('[data-test="image-overlay"] img')
     expect(big.attributes('src')).toBe('https://r2.example/full.jpg?sig=1')
+    expect(big.attributes('draggable')).toBe('false')
+    expect(big.classes()).toContain('[-webkit-touch-callout:none]')
     expect(w.find('[data-test="image-overlay"] a, [data-test="image-overlay"] [download]').exists()).toBe(false)
     await w.find('[data-test="image-close"]').trigger('click')
     expect(w.find('[data-test="image-overlay"]').exists()).toBe(false)
     expect(open).not.toHaveBeenCalled()
     expect(setItem).not.toHaveBeenCalled()
     expect(log).not.toHaveBeenCalled()
-    vi.restoreAllMocks()
   })
 
   it('thread_hasNoDeleteRestoreNoteControl', async () => {
@@ -290,39 +351,29 @@ describe('mobileMessages lib', () => {
     expect(effectiveQuery(' a ')).toBeUndefined()
     expect(effectiveQuery(' ab ')).toBe('ab')
     expect(reportReasons(undefined)).toEqual([])
-    expect(reportReasons([{ id: '1', reason: null, status: null, reporterName: null, createdAt: null }])).toEqual([])
-    expect(toBubbles([msg('a', { createdAt: 'nope' }) as never, msg('b', { createdAt: 'nope' }) as never], []).map(b => b.id)).toEqual(['a', 'b'])
+    expect(reportReasons([{ id: '1', reason: null, status: null, reporterName: null, createdAt: null }])).toEqual(['Motif non précisé'])
+    expect(toBubbles([msg('a', { createdAt: 'nope' }) as never, msg('b', { createdAt: 'nope' }) as never]).map(b => b.id)).toEqual(['a', 'b'])
   })
 })
 
 describe('modules_neverImportDestructiveMethods', () => {
-  const root = resolvePath(__dirname, '../../../..')
   const entries = ['app/pages/m/messages/index.vue', 'app/pages/m/messages/[id].vue']
-  const crawl = (): string[] => {
-    const seen = new Set<string>()
-    const walk = (rel: string) => {
-      if (seen.has(rel)) return
-      seen.add(rel)
-      const full = resolvePath(root, rel)
-      expect(existsSync(full), rel).toBe(true)
-      const src = readFileSync(full, 'utf8')
-      for (const m of src.matchAll(/from '@\/(features\/mobile\/[^']+?)(\.ts|\.vue)?'/g)) {
-        const base = `app/${m[1]}`
-        const ext = m[2] ?? (existsSync(resolvePath(root, `${base}.ts`)) ? '.ts' : '.vue')
-        walk(base + ext)
-      }
-    }
-    entries.forEach(walk)
-    return [...seen]
-  }
 
-  it('no mobile module reached from the pages can delete, restore, note or use the desktop moderation code', () => {
-    const files = crawl()
-    expect(files.length).toBeGreaterThanOrEqual(7)
-    expect(files).toContain('app/features/mobile/services/mobileMessagesService.ts')
-    for (const f of files) {
-      const src = readFileSync(resolvePath(root, f), 'utf8')
-      expect(src, f).not.toMatch(/deleteMessage|restoreMessage|addNote|moderationService|features\/moderation\/components|features\/moderation\/services/)
-    }
+  it('no module reached from the pages (whole app import graph) can delete, restore, note or use desktop moderation code', () => {
+    const g = crawl(entries)
+    expect(g.files.length).toBeGreaterThanOrEqual(10)
+    expect(g.files).toContain('app/features/mobile/services/mobileMessagesService.ts')
+    expect(g.files).toContain('app/features/support/lib/supportWorkbench.ts')
+    expect(violations(g, /deleteMessage|restoreMessage|addNote|moderationService|features\/moderation\/components|features\/moderation\/services/)).toEqual([])
+    expect(g.files.filter(f => /features\/moderation\/(components|services)\//.test(f))).toEqual([])
+    const tags = [...g.tags.values()].flat()
+    expect(tags.filter(t => /^Moderation/.test(t))).toEqual([])
+    expect([...g.autoImports]).toEqual([])
+  })
+
+  it('the helper follows double-quoted, relative, dynamic, side-effect and export-from imports and skips type imports', async () => {
+    const { importsOf } = await import('./helpers/importGraph')
+    expect(importsOf(`import a from "../x"\nexport { b } from './y'\nimport type { T } from '@/t'\nexport type { U } from './u'\nimport './side'\nconst z = import("./dyn")\nimport {\n  c,\n} from '@/multi'`).sort())
+      .toEqual(['../x', './dyn', './side', './y', '@/multi'].sort())
   })
 })

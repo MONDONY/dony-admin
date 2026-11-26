@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 
 vi.stubGlobal('definePageMeta', vi.fn())
@@ -18,6 +18,7 @@ import ListPage from '@/pages/m/support/index.vue'
 import DetailPage from '@/pages/m/support/[id].vue'
 import { feedItemRoute } from '@/features/mobile/lib/mobileAlerts'
 import { seedAuth } from '../../../helpers/auth'
+import { callRe, crawl, violations } from './helpers/importGraph'
 
 const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to" v-bind="$attrs"><slot /></a>' }
 const ticket = (id: string, over: Record<string, unknown> = {}) => ({
@@ -349,35 +350,17 @@ describe('m/support/[id] prise en charge', () => {
 describe('noResolveAssignOrUpload and the support route', () => {
   const root = resolvePath(__dirname, '../../../..')
   const entries = ['app/pages/m/support/index.vue', 'app/pages/m/support/[id].vue']
-  /** Pages + tous les modules mobiles qu'elles importent, transitivement (alias `@/`). */
-  const crawl = (): string[] => {
-    const seen = new Set<string>()
-    const walk = (rel: string) => {
-      if (seen.has(rel)) return
-      seen.add(rel)
-      const full = resolvePath(root, rel)
-      expect(existsSync(full), rel).toBe(true)
-      const src = readFileSync(full, 'utf8')
-      for (const m of src.matchAll(/from '@\/(features\/mobile\/[^']+?)(\.ts|\.vue)?'/g)) {
-        const base = `app/${m[1]}`
-        const ext = m[2] ?? (existsSync(resolvePath(root, `${base}.ts`)) ? '.ts' : '.vue')
-        walk(base + ext)
-      }
-    }
-    entries.forEach(walk)
-    return [...seen]
-  }
 
-  it('noResolveAssignOrUpload: no mobile module reached from the pages uses forbidden calls or desktop workflows', () => {
-    const files = crawl()
-    expect(files.length).toBeGreaterThanOrEqual(6)
-    for (const f of files) {
-      const src = readFileSync(resolvePath(root, f), 'utf8')
-      expect(src, f).not.toMatch(/\.(resolve|reassign|uploadAttachment|setPriority|startTicket)\b/)
-      if (!f.endsWith('useMobileSupportTicket.ts')) expect(src, f).not.toMatch(/\.assign\b/)
-      expect(src, f).not.toMatch(/SupportAttachmentUploader|StartSupportConversation|type="file"/)
-      expect(src, f).not.toMatch(/useSupportTickets|support\/components\//)
-    }
+  it('noResolveAssignOrUpload: no module reached from the pages (whole app import graph) uses forbidden calls or desktop workflows', () => {
+    const g = crawl(entries)
+    expect(g.files.length).toBeGreaterThanOrEqual(6)
+    // Appels seulement. Entrées autorisées : `useApi.ts` (Promise.resolve de la déconnexion) ;
+    // `.assign(` n'est permis que dans useMobileSupportTicket.ts (prise en charge d'un billet).
+    expect(violations(g, callRe(['resolve', 'reassign', 'uploadAttachment', 'setPriority', 'startTicket']), ['app/composables/useApi.ts'])).toEqual([])
+    expect(violations(g, callRe(['assign']), ['app/features/mobile/composables/useMobileSupportTicket.ts'])).toEqual([])
+    expect(violations(g, /SupportAttachmentUploader|StartSupportConversation|type="file"|useSupportTickets|support\/components\//)).toEqual([])
+    expect(g.files.filter(f => /features\/support\/components\//.test(f))).toEqual([])
+    expect([...g.autoImports]).toEqual([])
   })
 
   it('noResolveAssignOrUpload at runtime: a full reply flow never touches them', async () => {

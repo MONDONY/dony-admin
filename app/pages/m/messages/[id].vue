@@ -6,7 +6,7 @@ import { messageTime } from '@/features/support/lib/supportWorkbench'
 definePageMeta({ layout: 'mobile', middleware: 'admin-only', permission: 'MODERATION_VIEW', pageTitle: 'Conversation' })
 
 const route = useRoute()
-const { bubbles, participants, isLoading, error, invalid, openImage, load, showImage, closeImage } = useMobileMessageThread(computed(() => route.params?.id))
+const { bubbles, reasons, participants, isLoading, error, invalid, openImage, load, showImage, closeImage } = useMobileMessageThread(computed(() => route.params?.id))
 
 onMounted(load)
 </script>
@@ -27,6 +27,13 @@ onMounted(load)
         <h2 data-test="thread-participants" class="font-display text-lg font-bold text-text">{{ participants.join(' et ') }}</h2>
       </header>
 
+      <section v-if="reasons.length" data-test="thread-reports" aria-labelledby="thread-reports-title" class="rounded-xl border border-danger bg-danger/10 px-3 py-3">
+        <h3 id="thread-reports-title" class="text-sm font-bold text-danger">Signalements de cette conversation</h3>
+        <ul class="mt-2 flex flex-wrap gap-2">
+          <li v-for="r in reasons" :key="r" data-test="thread-reason" class="whitespace-nowrap rounded-full border border-danger px-2 py-0.5 text-xs font-semibold text-danger">{{ r }}</li>
+        </ul>
+      </section>
+
       <div class="flex flex-col gap-2" data-test="bubbles">
         <div
           v-for="b in bubbles" :key="b.id" data-test="bubble" :data-flagged="b.flagged ? 'true' : undefined" :data-deleted="b.deleted ? 'true' : undefined"
@@ -40,10 +47,10 @@ onMounted(load)
               v-if="b.image" type="button" data-test="bubble-image" class="my-1 block min-h-[44px] overflow-hidden rounded-xl" aria-label="Voir la photo en grand"
               @click="showImage(b.image.full)"
             >
-              <img :src="b.image.thumb" alt="Photo envoyée" loading="lazy" referrerpolicy="no-referrer" class="max-h-48 w-auto max-w-full">
+              <img :src="b.image.thumb" alt="Photo envoyée" loading="lazy" referrerpolicy="no-referrer" draggable="false" class="max-h-48 w-auto max-w-full [-webkit-touch-callout:none]">
             </button>
             <p v-if="b.content" class="whitespace-pre-wrap break-words">{{ b.content }}</p>
-            <p v-if="b.flagged" data-test="bubble-reason" class="mt-1 text-xs font-semibold">Signalé{{ b.reason ? ` : ${b.reason}` : '' }}</p>
+            <p v-if="b.flagged" data-test="bubble-flag" class="mt-1 text-xs font-semibold">Signalé</p>
           </template>
           <p class="mt-1 text-[11px] opacity-70">{{ messageTime(b.createdAt) }}</p>
         </div>
@@ -61,7 +68,7 @@ onMounted(load)
     >
       <button type="button" data-test="image-close" class="min-h-[44px] self-end px-4 text-sm font-semibold text-white" @click="closeImage">Fermer</button>
       <div class="flex min-h-0 flex-1 items-center justify-center p-4">
-        <img :src="openImage" alt="Photo envoyée" referrerpolicy="no-referrer" class="max-h-full max-w-full object-contain">
+        <img :src="openImage" alt="Photo envoyée" referrerpolicy="no-referrer" draggable="false" class="max-h-full max-w-full object-contain [-webkit-touch-callout:none]">
       </div>
     </div>
   </div>

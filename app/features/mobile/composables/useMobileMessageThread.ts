@@ -9,7 +9,8 @@ import { firestoreIdParam } from '@/lib/safeInput'
 export function useMobileMessageThread(rawId: Ref<unknown>) {
   const messages = ref<AdminMessage[]>([])
   const context = ref<ConversationContext | null>(null)
-  const isLoading = ref(false)
+  /** Vrai dès le départ : le premier rendu (avant onMounted) n'affiche ni « Aucun message » ni liste vide. */
+  const isLoading = ref(true)
   const error = ref<string | null>(null)
   const invalid = ref(false)
   /** Photo ouverte en grand dans la même page (URL présignée : gardée en mémoire seulement). */
@@ -17,7 +18,8 @@ export function useMobileMessageThread(rawId: Ref<unknown>) {
   let seq = 0
 
   const id = computed(() => firestoreIdParam(rawId.value))
-  const bubbles = computed(() => toBubbles(messages.value, reportReasons(context.value?.reports)))
+  const bubbles = computed(() => toBubbles(messages.value))
+  const reasons = computed(() => (context.value?.reports?.length ? reportReasons(context.value.reports) : []))
   const participants = computed(() => (context.value?.participants ?? []).map(p => shortParticipant(p.displayName)))
 
   async function load() {
@@ -27,6 +29,7 @@ export function useMobileMessageThread(rawId: Ref<unknown>) {
     invalid.value = false
     if (!current) {
       invalid.value = true
+      isLoading.value = false
       return
     }
     isLoading.value = true
@@ -52,5 +55,5 @@ export function useMobileMessageThread(rawId: Ref<unknown>) {
   const showImage = (url: string) => { openImage.value = url }
   const closeImage = () => { openImage.value = null }
 
-  return { bubbles, participants, isLoading, error, invalid, openImage, load, showImage, closeImage }
+  return { bubbles, reasons, participants, isLoading, error, invalid, openImage, load, showImage, closeImage }
 }

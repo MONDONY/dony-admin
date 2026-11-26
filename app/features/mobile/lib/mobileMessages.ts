@@ -72,15 +72,19 @@ export interface Bubble {
   deleted: boolean
   content: string
   flagged: boolean
-  reason: string | null
   image: BubbleImage | null
 }
 
-/** Motifs des signalements du fil, sans doublon (le signalement vise le fil, pas un message précis). */
+/** Motifs des signalements du fil, sans doublon : affichés une fois en tête, jamais sur un message précis. */
 export function reportReasons(reports: readonly ConversationLinkedReport[] | null | undefined): string[] {
   const out = new Set<string>()
-  for (const r of reports ?? []) if (r.reason) out.add(reportReasonLabel(r.reason))
+  for (const r of reports ?? []) out.add(r.reason ? reportReasonLabel(r.reason) : 'Motif non précisé')
   return [...out]
+}
+
+/** Supprimé par l'utilisateur ou par un admin, quel que soit le champ que le back renseigne. */
+export function isDeletedMessage(m: Pick<AdminMessage, 'deleted' | 'deletedAt' | 'deletedByAdmin'>): boolean {
+  return m.deleted === true || !!m.deletedAt || m.deletedByAdmin === true
 }
 
 function imageOf(m: AdminMessage): BubbleImage | null {
@@ -91,7 +95,7 @@ function imageOf(m: AdminMessage): BubbleImage | null {
 }
 
 /** Ordre chronologique ; un message supprimé n'expose jamais son contenu ni sa photo. */
-export function toBubbles(messages: readonly AdminMessage[], reasons: readonly string[]): Bubble[] {
+export function toBubbles(messages: readonly AdminMessage[]): Bubble[] {
   const ms = (m: AdminMessage) => {
     const t = parseServerDate(m.createdAt)
     return Number.isNaN(t) ? 0 : t
@@ -100,7 +104,7 @@ export function toBubbles(messages: readonly AdminMessage[], reasons: readonly s
     .map((m, i) => ({ m, i }))
     .sort((a, b) => ms(a.m) - ms(b.m) || a.i - b.i)
     .map(({ m }) => {
-      const deleted = m.deleted === true
+      const deleted = isDeletedMessage(m)
       return {
         id: m.id,
         sender: shortParticipant(m.senderName),
@@ -108,7 +112,6 @@ export function toBubbles(messages: readonly AdminMessage[], reasons: readonly s
         deleted,
         content: deleted ? '' : (m.content ?? ''),
         flagged: !deleted && m.flagged === true,
-        reason: !deleted && m.flagged === true ? (reasons.length ? reasons.join(', ') : null) : null,
         image: deleted ? null : imageOf(m),
       }
     })

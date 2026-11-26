@@ -16,10 +16,10 @@ onMounted(load)
     <p class="text-sm text-text-muted">Conversations entre utilisateurs</p>
 
     <div>
-      <label for="messages-search" class="sr-only">Rechercher un nom ou un colis</label>
+      <label for="messages-search" class="sr-only">Rechercher un nom</label>
       <input
         id="messages-search" type="search" data-test="messages-search" :value="search" autocomplete="off"
-        placeholder="Rechercher un nom ou un colis"
+        placeholder="Rechercher un nom"
         class="min-h-[44px] w-full rounded-xl border border-border bg-surface px-3 text-base text-text"
         @input="setSearch(($event.target as HTMLInputElement).value)"
       >
