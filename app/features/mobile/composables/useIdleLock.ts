@@ -156,13 +156,12 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
     }
   }
 
-  /** Minuteurs recalculés depuis la dernière activité connue (avertissement compris). */
+  /**
+   * Minuteurs recalculés depuis la dernière activité connue (avertissement compris). Appelée
+   * seulement avec un admin connecté et le layout monté.
+   */
   function schedule(): void {
     clearTimers()
-    if (!active()) {
-      warning.value = false
-      return
-    }
     const left = msLeft()
     lockTimer = setTimeout(onLockTimer, left)
     if (!options.warn) return

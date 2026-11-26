@@ -513,6 +513,17 @@ describe('useIdleLock on the desktop console', () => {
     expect(signOutMock).toHaveBeenCalledTimes(1)
   })
 
+  it('back to the tab 30 seconds before the expiry: the warning shows at once', async () => {
+    mount(Comp, { warn: true })
+    setVisibility('hidden')
+    vi.setSystemTime(Date.now() + 29 * MIN + 30 * 1000)
+    setVisibility('visible')
+    expect(api.warning.value).toBe(true)
+    expect(signOutMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(30 * 1000)
+    expect(signOutMock).toHaveBeenCalledTimes(1)
+  })
+
   it('without the warn option (mobile layout) no warning is ever shown', async () => {
     mount(Comp)
     await vi.advanceTimersByTimeAsync(29 * MIN + 30 * 1000)
