@@ -105,7 +105,7 @@ describe('useIdleLock', () => {
     expect(signOutMock).not.toHaveBeenCalled()
   })
 
-  it('throttles storage writes to once per 5 seconds', async () => {
+  it('throttles storage writes to once per 5 seconds, the skipped input written at the end of the window', async () => {
     mount(Comp)
     const t0 = Date.now()
     expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0))
@@ -113,9 +113,70 @@ describe('useIdleLock', () => {
     window.dispatchEvent(new Event('pointerdown'))
     expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0))
     expect(api.lastActivityAt.value).toBe(t0 + 1000)
-    await vi.advanceTimersByTimeAsync(5000)
+    await vi.advanceTimersByTimeAsync(3999)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0))
+    // Fin de la fenêtre de 5 s : le geste sauté est écrit (les autres onglets le voient).
+    await vi.advanceTimersByTimeAsync(1)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 1000))
+    // L'écriture différée compte : un geste 1 s plus tard attend la fenêtre suivante.
+    await vi.advanceTimersByTimeAsync(1000)
     window.dispatchEvent(new Event('pointerdown'))
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 1000))
+    await vi.advanceTimersByTimeAsync(4000)
     expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 6000))
+  })
+
+  it('without a skipped input, no extra write at the end of the window', async () => {
+    mount(Comp)
+    const t0 = Date.now()
+    // Témoin : une écriture inutile remplacerait cette valeur par t0.
+    localStorage.setItem(STORAGE_KEY, String(t0 - 1000))
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 - 1000))
+  })
+
+  it('another tab never closes the shared session early: the last input reaches the storage', async () => {
+    mount(Comp)
+    const t0 = Date.now()
+    await vi.advanceTimersByTimeAsync(2000)
+    window.dispatchEvent(new Event('keydown'))
+    // Sans écriture différée, le stockage garderait t0 : l'autre onglet fermerait 2 s trop tôt.
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(Number(localStorage.getItem(STORAGE_KEY))).toBe(t0 + 2000)
+  })
+
+  it('a pending write is flushed when the tab is hidden, and when the layout unmounts', async () => {
+    const w = mount(Comp)
+    const t0 = Date.now()
+    await vi.advanceTimersByTimeAsync(1000)
+    window.dispatchEvent(new Event('pointerdown'))
+    setVisibility('hidden')
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 1000))
+    setVisibility('visible')
+    await vi.advanceTimersByTimeAsync(1000)
+    window.dispatchEvent(new Event('pointerdown'))
+    w.unmount()
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 2000))
+  })
+
+  it('the deferred write never moves the shared activity backwards (another tab wrote later)', async () => {
+    mount(Comp)
+    const t0 = Date.now()
+    await vi.advanceTimersByTimeAsync(1000)
+    window.dispatchEvent(new Event('pointerdown'))
+    localStorage.setItem(STORAGE_KEY, String(t0 + 3000))
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(String(t0 + 3000))
+  })
+
+  it('no pending write after the session closed (a closed session is never extended)', async () => {
+    mount(Comp)
+    await vi.advanceTimersByTimeAsync(29 * MIN + 58 * 1000)
+    window.dispatchEvent(new Event('pointerdown'))
+    const stamped = localStorage.getItem(STORAGE_KEY)
+    await api.lockNow()
+    await vi.advanceTimersByTimeAsync(10 * 1000)
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(stamped)
   })
 
   it('locks_onReturn_ifElapsedWhileHidden', async () => {

@@ -12,7 +12,10 @@ export {
   type LockContext,
 } from '@/features/mobile/lib/lockState'
 
-/** Au plus une écriture de `lastActivityAt` dans le stockage toutes les 5 s. */
+/**
+ * Au plus une écriture de `lastActivityAt` dans le stockage toutes les 5 s ; un geste sauté est
+ * écrit à la fin de la fenêtre.
+ */
 const STORAGE_THROTTLE_MS = 5000
 
 /** Avertissement de la console de bureau : 60 s avant la fermeture de la session. */
@@ -93,6 +96,7 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   const warning = ref(false)
   let lockTimer: ReturnType<typeof setTimeout> | null = null
   let warnTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingWrite: ReturnType<typeof setTimeout> | null = null
   let lastWrite = 0
   let locking = false
   let mounted = false
@@ -136,9 +140,31 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   }
 
   function persist(now: number, force = false): void {
-    if (!force && now - lastWrite < STORAGE_THROTTLE_MS) return
+    if (!force && now - lastWrite < STORAGE_THROTTLE_MS) {
+      // Geste sauté : écrit à la fin de la fenêtre, sinon un autre onglet, qui ne lit que le
+      // stockage, fermerait la session partagée jusqu'à 5 s trop tôt.
+      if (!pendingWrite) pendingWrite = setTimeout(flushPendingWrite, lastWrite + STORAGE_THROTTLE_MS - now)
+      return
+    }
+    cancelPendingWrite()
     lastWrite = now
     writeLastActivity(now)
+  }
+
+  function cancelPendingWrite(): void {
+    if (pendingWrite) clearTimeout(pendingWrite)
+    pendingWrite = null
+  }
+
+  /** Écriture différée du dernier geste ; jamais après la fermeture, jamais en arrière. */
+  function flushPendingWrite(): void {
+    cancelPendingWrite()
+    if (sealed || !active()) return
+    const at = lastActivityAt.value
+    // Un autre onglet a pu écrire plus récent entre-temps : ne pas le faire reculer.
+    if (at <= readLastActivity()) return
+    lastWrite = Date.now()
+    writeLastActivity(at)
   }
 
   function clearTimers(): void {
@@ -153,6 +179,7 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
     locking = true
     sealed = true
     clearTimers()
+    cancelPendingWrite()
     warning.value = false
     try {
       const mobile = inMobileApp()
@@ -255,6 +282,8 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   }
 
   function onVisibility(): void {
+    // Onglet caché (ou fermé ensuite) : le geste en attente est écrit tout de suite.
+    if (document.visibilityState === 'hidden' && pendingWrite) flushPendingWrite()
     if (document.visibilityState !== 'visible' || !active()) return
     if (isExpired()) void lockNow()
     else schedule()
@@ -299,6 +328,7 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
     }
     else {
       clearTimers()
+      cancelPendingWrite()
       warning.value = false
     }
   })
@@ -315,6 +345,7 @@ export function useIdleLock(options: { idleMs?: number, warn?: boolean } = {}): 
   })
 
   onBeforeUnmount(() => {
+    if (pendingWrite) flushPendingWrite()
     mounted = false
     for (const evt of PASSIVE_EVENTS) window.removeEventListener(evt, onPassiveInput, PASSIVE)
     for (const evt of CANCELABLE_EVENTS) window.removeEventListener(evt, onCancelableInput, CAPTURE)
