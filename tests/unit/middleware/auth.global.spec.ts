@@ -38,6 +38,18 @@ describe('auth.global middleware', () => {
     expect(navigateToMock).not.toHaveBeenCalled()
   })
 
+  it('allows /m/verrouille without auth', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/verrouille' })
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('still sends unauthenticated /m pages to /login', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/alertes' })
+    expect(navigateToMock).toHaveBeenCalledWith('/login')
+  })
+
   it('lets authenticated users through', async () => {
     useAuthStore().setSession('t', adminUser)
     const mw = (await import('@/middleware/auth.global')).default as Mw

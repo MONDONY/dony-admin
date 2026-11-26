@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 
-const PUBLIC_ROUTES = ['/login', '/denied']
+const PUBLIC_ROUTES = ['/login', '/denied', '/m/verrouille']
 
 export default defineNuxtRouteMiddleware((to) => {
   if (import.meta.server) return
