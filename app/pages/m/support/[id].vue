@@ -47,6 +47,8 @@ onMounted(load)
 
       <p v-if="heldByColleague" data-test="colleague-note" class="rounded-xl border border-dashed border-border px-3 py-3 text-sm text-text-muted">Billet pris en charge par un collègue</p>
       <p v-if="assignError" data-test="assign-error" class="text-sm text-danger" role="alert">{{ assignError }}</p>
+      <!-- Réponse refusée (billet changé de main) : le champ a disparu, le message reste lisible. -->
+      <p v-if="sendError && !canReply" data-test="reply-error" class="text-sm text-danger" role="alert">{{ sendError }}</p>
       <div v-if="canAssign" class="sticky -mx-4 bottom-0 -mb-4 border-t border-border bg-surface px-4 py-3">
         <button
           type="button" data-test="assign-button" :disabled="assigning"

@@ -182,12 +182,34 @@ describe('m/support/[id] detail', () => {
     expect(w.find('[data-test="reply-send"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('reply 409 explains that the ticket is not assigned to the admin', async () => {
+  it('reply 409: reloads the ticket, says how to take it from the phone, and keeps the draft', async () => {
+    svc.get.mockResolvedValueOnce(withMsgs()).mockResolvedValueOnce(withMsgs({ assignedAdminId: null, status: 'OPEN' }))
     svc.reply.mockRejectedValue(err(409))
     const w = await mountDetail()
     await w.find('[data-test="reply-input"]').setValue('Bonjour')
     await w.find('[data-test="reply-form"]').trigger('submit'); await flushPromises()
-    expect(w.find('[data-test="reply-error"]').text()).toContain('ordinateur')
+    expect(svc.get).toHaveBeenCalledTimes(2)
+    expect(w.find('[data-test="reply-error"]').text()).toBe('Ce billet ne vous est pas assigné. Touchez « Prendre en charge » pour répondre.')
+    expect(w.text()).not.toContain('ordinateur')
+    expect(w.find('[data-test="assign-button"]').exists()).toBe(true)
+    expect(w.findAll('[data-test="bubble"]')).toHaveLength(2)
+    // Pris en charge depuis le téléphone : le brouillon revient dans le champ.
+    svc.assign.mockResolvedValue({})
+    svc.get.mockResolvedValueOnce(withMsgs())
+    await w.find('[data-test="assign-button"]').trigger('click'); await flushPromises()
+    expect((w.find('[data-test="reply-input"]').element as HTMLTextAreaElement).value).toBe('Bonjour')
+    expect(w.find('[data-test="reply-error"]').exists()).toBe(false)
+  })
+
+  it('reply 409 on a ticket a colleague just took: the reload shows it and says so', async () => {
+    svc.get.mockResolvedValueOnce(withMsgs()).mockResolvedValueOnce(withMsgs({ assignedAdminId: 'u7' }))
+    svc.reply.mockRejectedValue(err(409))
+    const w = await mountDetail()
+    await w.find('[data-test="reply-input"]').setValue('Bonjour')
+    await w.find('[data-test="reply-form"]').trigger('submit'); await flushPromises()
+    expect(w.find('[data-test="reply-error"]').text()).toBe('Ce billet vient d’être pris en charge par un collègue')
+    expect(w.find('[data-test="colleague-note"]').exists()).toBe(true)
+    expect(w.find('[data-test="reply-form"]').exists()).toBe(false)
   })
 
   it('reply_noDoubleSend: second submit while sending is ignored and the button is disabled', async () => {

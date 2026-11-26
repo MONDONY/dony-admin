@@ -7,12 +7,13 @@ import { extractProblemMessage } from '@/lib/problemDetail'
 import { httpStatus } from '@/lib/violations'
 import { uuidParam } from '@/lib/safeInput'
 
-export const NOT_ASSIGNED_MESSAGE = 'Ce billet n’est pas assigné à vous : prenez-le en charge depuis l’ordinateur'
+export const NOT_ASSIGNED_MESSAGE = 'Ce billet ne vous est pas assigné. Touchez « Prendre en charge » pour répondre.'
 export const TAKEN_BY_COLLEAGUE_MESSAGE = 'Ce billet vient d’être pris en charge par un collègue'
 
 /**
- * Conversation de support sur mobile : lire et répondre, rien d'autre (ni résolution, ni
- * assignation, ni pièce jointe). La réponse apparaît tout de suite et se retire si l'envoi échoue.
+ * Conversation de support sur mobile : lire, prendre en charge un billet libre et répondre, rien
+ * d'autre (ni résolution, ni réassignation, ni pièce jointe). La réponse apparaît tout de suite et se
+ * retire si l'envoi échoue.
  */
 export function useMobileSupportTicket(rawId: Ref<unknown>) {
   const auth = useAuthStore()
@@ -78,6 +79,7 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
     assignError.value = null
     try {
       await mobileSupportService.assign(current)
+      sendError.value = null
       await load()
     } catch (e) {
       const status = httpStatus(e)
@@ -115,7 +117,13 @@ export function useMobileSupportTicket(rawId: Ref<unknown>) {
     } catch (e) {
       messages.value = messages.value.filter(m => m.id !== pending.id)
       draft.value = sentDraft
-      sendError.value = httpStatus(e) === 409 ? NOT_ASSIGNED_MESSAGE : extractProblemMessage(e, 'Envoi impossible pour le moment')
+      if (httpStatus(e) === 409) {
+        // Le billet a changé de main : on le relit pour montrer « Prendre en charge » ou le collègue.
+        await load()
+        sendError.value = heldByColleague.value ? TAKEN_BY_COLLEAGUE_MESSAGE : NOT_ASSIGNED_MESSAGE
+      } else {
+        sendError.value = extractProblemMessage(e, 'Envoi impossible pour le moment')
+      }
     } finally {
       sending.value = false
     }
