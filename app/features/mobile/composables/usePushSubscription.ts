@@ -3,17 +3,30 @@ import { getMessaging, getToken, deleteToken } from 'firebase/messaging'
 import type { FirebaseApp } from 'firebase/app'
 import { mobileService } from '@/features/mobile/services/mobileService'
 import { buildWebDeviceName } from '@/composables/useDeviceRegistration'
+import { useAuthStore } from '@/stores/auth'
 
 export type PushState = 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on'
 
 const TOKEN_KEY = 'yadony-admin-push-token'
 
+/** Identité de l'admin connecté : un jeton stocké pour un autre admin est ignoré. */
+function currentUid(): string | null {
+  try { return useAuthStore().user?.id ?? null } catch { return null }
+}
 function readToken(): string | null {
-  try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
+  const uid = currentUid()
+  if (!uid) return null
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { uid?: unknown, token?: unknown }
+    return parsed.uid === uid && typeof parsed.token === 'string' && parsed.token ? parsed.token : null
+  } catch { return null }
 }
 function writeToken(token: string | null): void {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token)
+    const uid = currentUid()
+    if (token && uid) localStorage.setItem(TOKEN_KEY, JSON.stringify({ uid, token }))
     else localStorage.removeItem(TOKEN_KEY)
   } catch { /* l'app marche sans stockage */ }
 }
@@ -52,7 +65,8 @@ export function usePushSubscription(): {
     return 'off'
   }
 
-  const state = ref<PushState>(detect())
+  // 'unsupported' des deux côtés (SSR et hydratation) : l'état réel est calculé par refresh() au montage.
+  const state = ref<PushState>('unsupported')
 
   function messaging() {
     const app = (useNuxtApp() as unknown as { $firebaseApp: FirebaseApp | null }).$firebaseApp
@@ -67,7 +81,8 @@ export function usePushSubscription(): {
   }
 
   async function enable(): Promise<void> {
-    if (state.value === 'unsupported' || state.value === 'needs-install') return
+    const detected = detect()
+    if (detected === 'unsupported' || detected === 'needs-install') { state.value = detected; return }
     try {
       // Doit rester dans le geste de l'utilisateur : première instruction asynchrone.
       const permission = await Notification.requestPermission()
@@ -102,4 +117,29 @@ export function usePushSubscription(): {
   }
 
   return { state, enable, disable, refresh }
+}
+
+const LOGOUT_TEARDOWN_TIMEOUT_MS = 2000
+
+/**
+ * Révoque l'abonnement push de cet appareil à la déconnexion explicite (appelée AVANT la
+ * déconnexion Firebase, les identifiants d'API sont encore valides). Meilleur effort : ne lève
+ * jamais, no-op sans jeton ou côté serveur, attend au plus 2 s.
+ */
+export async function clearPushOnLogout(): Promise<void> {
+  if (typeof window === 'undefined') return
+  const token = readToken()
+  if (!token) return
+  const teardown = (async () => {
+    try { await mobileService.unregisterDevice(token) } catch { /* meilleur effort */ }
+    try {
+      const app = (useNuxtApp() as unknown as { $firebaseApp: FirebaseApp | null }).$firebaseApp
+      if (app) await deleteToken(getMessaging(app))
+    } catch { /* meilleur effort */ }
+  })()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, LOGOUT_TEARDOWN_TIMEOUT_MS) })
+  try { await Promise.race([teardown, timeout]) } catch { /* jamais bloquant */ }
+  clearTimeout(timer)
+  writeToken(null)
 }

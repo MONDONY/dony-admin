@@ -131,7 +131,7 @@ async function handleSubmit() {
         <button
           v-if="reloginRequired" type="button" data-test="relogin"
           class="mt-2 block font-semibold underline underline-offset-2"
-          @click="signOut"
+          @click="signOut()"
         >
           Se reconnecter
         </button>

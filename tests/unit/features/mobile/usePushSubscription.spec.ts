@@ -16,9 +16,12 @@ vi.mock('firebase/messaging', () => ({
 
 const config = { app: { baseURL: '/siragbe/' }, public: { firebaseVapidKey: 'VAPID' } as Record<string, string> }
 
-import { usePushSubscription } from '@/features/mobile/composables/usePushSubscription'
+import { usePushSubscription, clearPushOnLogout } from '@/features/mobile/composables/usePushSubscription'
 
 const KEY = 'yadony-admin-push-token'
+const stored = (token = 'tok-1', uid = 'admin-1') => JSON.stringify({ uid, token })
+const authStore = { user: { id: 'admin-1' } as { id: string } | null }
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
 const registration = { scope: '/siragbe/m/' }
 const register = vi.fn()
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36'
@@ -50,33 +53,59 @@ describe('usePushSubscription', () => {
     unregisterDevice.mockResolvedValue(undefined)
     deleteToken.mockResolvedValue(true)
     localStorage.clear()
+    authStore.user = { id: 'admin-1' }
   })
   afterEach(() => { vi.unstubAllGlobals(); delPush() })
 
-  it('state_needsInstall_onIosOutsideStandalone', () => {
+  it('state_isUnsupportedFirst_thenDetectedAfterRefresh (no SSR hydration mismatch)', async () => {
+    setup({ permission: 'denied' })
+    const p = usePushSubscription()
+    expect(p.state.value).toBe('unsupported')
+    await p.refresh()
+    expect(p.state.value).toBe('denied')
+  })
+
+  it('state_isUnsupported_onServer_withoutWindow', () => {
+    setup()
+    const w = window
+    vi.stubGlobal('window', undefined)
+    try { expect(usePushSubscription().state.value).toBe('unsupported') } finally { vi.stubGlobal('window', w) }
+  })
+
+  it('state_needsInstall_onIosOutsideStandalone', async () => {
     setup({ ua: IOS, standalone: false })
-    expect(usePushSubscription().state.value).toBe('needs-install')
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('needs-install')
   })
 
-  it('state_isNotNeedsInstall_onIosStandalone', () => {
+  it('state_isNotNeedsInstall_onIosStandalone', async () => {
     setup({ ua: IOS, standalone: true })
-    expect(usePushSubscription().state.value).toBe('off')
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('off')
   })
 
-  it('state_unsupported_withoutPushManager', () => {
+  it('state_unsupported_withoutPushManager', async () => {
     setup({ push: false })
-    expect(usePushSubscription().state.value).toBe('unsupported')
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('unsupported')
   })
 
-  it('state_unsupported_withoutVapidKey', () => {
+  it('state_unsupported_withoutVapidKey', async () => {
     setup()
     config.public.firebaseVapidKey = ''
-    expect(usePushSubscription().state.value).toBe('unsupported')
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('unsupported')
   })
 
-  it('state_denied_whenPermissionAlreadyDenied', () => {
+  it('state_denied_whenPermissionAlreadyDenied', async () => {
     setup({ permission: 'denied' })
-    expect(usePushSubscription().state.value).toBe('denied')
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('denied')
   })
 
   it('enable_registersTokenWithBackend', async () => {
@@ -88,7 +117,7 @@ describe('usePushSubscription', () => {
     expect(registerDevice).toHaveBeenCalledWith({ fcmToken: 'tok-1', deviceName: 'Chrome sur Android', platform: 'web' })
     expect(Object.keys(registerDevice.mock.calls[0]![0]).sort()).toEqual(['deviceName', 'fcmToken', 'platform'])
     expect(p.state.value).toBe('on')
-    expect(localStorage.getItem(KEY)).toBe('tok-1')
+    expect(localStorage.getItem(KEY)).toBe(stored())
   })
 
   it('enable_setsDenied_whenPermissionRefused', async () => {
@@ -147,7 +176,7 @@ describe('usePushSubscription', () => {
 
   it('disable_unregistersAndDeletesToken', async () => {
     setup({ permission: 'granted' })
-    localStorage.setItem(KEY, 'tok-1')
+    localStorage.setItem(KEY, stored())
     const p = usePushSubscription()
     await p.refresh()
     expect(p.state.value).toBe('on')
@@ -160,7 +189,7 @@ describe('usePushSubscription', () => {
 
   it('disable_continuesWhenBackendFails', async () => {
     setup({ permission: 'granted' })
-    localStorage.setItem(KEY, 'tok-1')
+    localStorage.setItem(KEY, stored())
     unregisterDevice.mockRejectedValue(new Error('net'))
     const p = usePushSubscription()
     await p.refresh()
@@ -172,9 +201,9 @@ describe('usePushSubscription', () => {
 
   it('refresh_restoresOnState_whenPermissionGrantedAndTokenStored', async () => {
     setup({ permission: 'granted' })
-    localStorage.setItem(KEY, 'tok-1')
+    localStorage.setItem(KEY, stored())
     const p = usePushSubscription()
-    expect(p.state.value).toBe('off')
+    expect(p.state.value).toBe('unsupported')
     await p.refresh()
     expect(p.state.value).toBe('on')
   })
@@ -184,5 +213,72 @@ describe('usePushSubscription', () => {
     const p = usePushSubscription()
     await p.refresh()
     expect(p.state.value).toBe('off')
+  })
+
+  it('refresh_isOff_whenStoredTokenBelongsToAnotherAdmin', async () => {
+    setup({ permission: 'granted' })
+    localStorage.setItem(KEY, stored('tok-9', 'someone-else'))
+    const p = usePushSubscription()
+    await p.refresh()
+    expect(p.state.value).toBe('off')
+  })
+
+  it('enable_storesTokenWithUid', async () => {
+    setup()
+    await usePushSubscription().enable()
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual({ uid: 'admin-1', token: 'tok-1' })
+  })
+})
+
+describe('clearPushOnLogout', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    config.public.firebaseVapidKey = 'VAPID'
+    unregisterDevice.mockResolvedValue(undefined)
+    deleteToken.mockResolvedValue(true)
+    localStorage.clear()
+    authStore.user = { id: 'admin-1' }
+    setup({ permission: 'granted' })
+  })
+  afterEach(() => { vi.unstubAllGlobals(); delPush() })
+
+  it('unregisters, deletes the FCM token and removes the key', async () => {
+    localStorage.setItem(KEY, stored())
+    await clearPushOnLogout()
+    expect(unregisterDevice).toHaveBeenCalledWith('tok-1')
+    expect(deleteToken).toHaveBeenCalledWith({ fake: 'messaging' })
+    expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('never throws and still cleans up when the backend rejects', async () => {
+    localStorage.setItem(KEY, stored())
+    unregisterDevice.mockRejectedValue(new Error('net'))
+    deleteToken.mockRejectedValue(new Error('fcm'))
+    await expect(clearPushOnLogout()).resolves.toBeUndefined()
+    expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('is a no-op without a stored token', async () => {
+    await clearPushOnLogout()
+    expect(unregisterDevice).not.toHaveBeenCalled()
+    expect(deleteToken).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op for a token of another admin', async () => {
+    localStorage.setItem(KEY, stored('tok-9', 'someone-else'))
+    await clearPushOnLogout()
+    expect(unregisterDevice).not.toHaveBeenCalled()
+  })
+
+  it('is bounded: returns within ~2 s even if the backend hangs', async () => {
+    localStorage.setItem(KEY, stored())
+    unregisterDevice.mockReturnValue(new Promise(() => {}))
+    vi.useFakeTimers()
+    try {
+      const p = clearPushOnLogout()
+      await vi.advanceTimersByTimeAsync(2100)
+      await expect(p).resolves.toBeUndefined()
+    } finally { vi.useRealTimers() }
+    expect(localStorage.getItem(KEY)).toBeNull()
   })
 })

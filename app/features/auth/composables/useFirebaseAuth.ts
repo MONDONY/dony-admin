@@ -13,6 +13,7 @@ import {
 } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { useApi } from '@/composables/useApi'
+import { clearPushOnLogout } from '@/features/mobile/composables/usePushSubscription'
 
 /** Nom du compte dans l'appli d'authentification (Google Authenticator, 1Password…). */
 const TOTP_ISSUER = 'Yadony Admin'
@@ -139,8 +140,13 @@ export function useFirebaseAuth() {
     await sendEmailVerification(requireCurrentUser())
   }
 
-  async function signOut(): Promise<void> {
+  /**
+   * `revokePush: false` pour un simple verrouillage (inactivité) : les push continuent d'arriver.
+   * Sinon l'abonnement push de l'appareil est révoqué avant la déconnexion (meilleur effort).
+   */
+  async function signOut({ revokePush = true }: { revokePush?: boolean } = {}): Promise<void> {
     pendingResolver = null
+    if (revokePush) await clearPushOnLogout()
     if ($firebaseAuth) {
       await fbSignOut($firebaseAuth as Auth)
     }
