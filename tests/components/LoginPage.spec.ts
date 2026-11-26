@@ -3,14 +3,15 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
 vi.stubGlobal('definePageMeta', vi.fn())
-vi.stubGlobal('useRuntimeConfig', () => ({ public: { firebaseApiKey: 'key' } }))
+const runtimePublic: Record<string, unknown> = { firebaseApiKey: 'key' }
+vi.stubGlobal('useRuntimeConfig', () => ({ public: runtimePublic }))
 vi.stubGlobal('navigateTo', vi.fn())
 vi.stubGlobal('import.meta', { dev: false })
 
 const signInMock = vi.fn()
 const completeTotpMock = vi.fn()
 const cancelTotpMock = vi.fn()
-let routeQuery: Record<string, string> = {}
+let routeQuery: Record<string, unknown> = {}
 vi.stubGlobal('useRoute', () => ({ query: routeQuery }))
 vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
   useFirebaseAuth: () => ({ signIn: signInMock, completeTotpSignIn: completeTotpMock, cancelTotpSignIn: cancelTotpMock }),
@@ -18,6 +19,8 @@ vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
 vi.mock('@/components/ui/ThemeToggle.vue', () => ({
   default: { name: 'ThemeToggle', template: '<div />' },
 }))
+
+import { LOCKED_KEY, _resetLockStateMemory } from '@/features/mobile/lib/lockState'
 
 async function mountLogin() {
   const mod = await import('@/pages/login.vue')
@@ -31,7 +34,85 @@ describe('login page (email+password)', () => {
     completeTotpMock.mockReset()
     cancelTotpMock.mockReset()
     routeQuery = {}
+    delete runtimePublic.idleLockMinutes
+    localStorage.clear()
+    _resetLockStateMemory()
     vi.mocked(vi.stubGlobal('navigateTo', vi.fn()))
+  })
+
+  async function signInDirectly(admin = { mustChangePassword: false }) {
+    signInMock.mockResolvedValueOnce(admin)
+    const nav = vi.fn()
+    vi.stubGlobal('navigateTo', nav)
+    const wrapper = await mountLogin()
+    await wrapper.find('input#email').setValue('admin@yadony.com')
+    await wrapper.find('input#password').setValue('pass123')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    return { wrapper, nav }
+  }
+
+  // ── Retour à la page quittée (session fermée pour inactivité) ─────────────
+
+  it('returns to the page given in ?redirect after sign-in', async () => {
+    routeQuery = { redirect: '/transactions?x=1' }
+    const { nav } = await signInDirectly()
+    expect(nav).toHaveBeenCalledWith('/transactions?x=1')
+  })
+
+  it('returns to the ?redirect page after the TOTP step too', async () => {
+    routeQuery = { redirect: '/users/abc' }
+    completeTotpMock.mockResolvedValueOnce({ mustChangePassword: false })
+    const nav = vi.fn()
+    vi.stubGlobal('navigateTo', nav)
+    const wrapper = await passwordStepThenCode()
+    await wrapper.find('input#totp-code').setValue('123456')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(nav).toHaveBeenCalledWith('/users/abc')
+  })
+
+  it.each([
+    ['//evil.test'], ['https://evil.test'], ['javascript:alert(1)'], ['/\\evil.test'], ['\\\\evil.test'],
+    ['/%2F%2Fevil.test'], ['/%5Cevil'], ['/a/../..//evil'], ['/login'], [''], [['/x', '/y']],
+  ])('an unsafe ?redirect (%j) goes home instead', async (bad) => {
+    routeQuery = { redirect: bad }
+    const { nav } = await signInDirectly()
+    expect(nav).toHaveBeenCalledWith('/')
+  })
+
+  it('a forced password change still wins over ?redirect', async () => {
+    routeQuery = { redirect: '/transactions' }
+    const { nav } = await signInDirectly({ mustChangePassword: true })
+    expect(nav).toHaveBeenCalledWith('/change-password')
+  })
+
+  it('session closed for inactivity: says so, with the configured duration', async () => {
+    runtimePublic.idleLockMinutes = 45
+    localStorage.setItem(LOCKED_KEY, JSON.stringify({ at: 1, reason: 'idle' }))
+    const wrapper = await mountLogin()
+    await flushPromises()
+    const notice = wrapper.find('[data-test="idle-notice"]')
+    expect(notice.exists()).toBe(true)
+    expect(notice.text()).toBe('Session fermée après 45 minutes d’inactivité. Connectez-vous pour continuer.')
+    expect(wrapper.text()).not.toContain('—')
+  })
+
+  it('default duration in the inactivity notice is 30 minutes', async () => {
+    localStorage.setItem(LOCKED_KEY, JSON.stringify({ at: 1, reason: 'idle' }))
+    const wrapper = await mountLogin()
+    await flushPromises()
+    expect(wrapper.find('[data-test="idle-notice"]').text()).toContain('après 30 minutes')
+  })
+
+  it('no inactivity notice without an idle lock (plain visit, explicit sign-out)', async () => {
+    const wrapper = await mountLogin()
+    await flushPromises()
+    expect(wrapper.find('[data-test="idle-notice"]').exists()).toBe(false)
+    localStorage.setItem(LOCKED_KEY, '1')
+    const other = await mountLogin()
+    await flushPromises()
+    expect(other.find('[data-test="idle-notice"]').exists()).toBe(false)
   })
 
   async function passwordStepThenCode() {

@@ -2,8 +2,14 @@ import type { Auth } from 'firebase/auth'
 import { signOut as fbSignOut } from 'firebase/auth'
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceId } from '@/lib/deviceId'
+import { appPathFromLocation, sessionEndRoute } from '@/features/mobile/lib/lockState'
 
 let apiInstance: any = null
+
+/** `useRoute()`, ou null hors contexte Nuxt. */
+function tryRoute(): { fullPath?: string } | null {
+  try { return useRoute() } catch { return null }
+}
 
 export function useApi(): ReturnType<typeof $fetch.create> {
   // Cache uniquement côté client : en SSR une instance module-scope serait
@@ -14,13 +20,31 @@ export function useApi(): ReturnType<typeof $fetch.create> {
   const config = useRuntimeConfig()
   const auth = useAuthStore()
 
+  const onServer = import.meta.server || typeof window === 'undefined'
+  /**
+   * Route de la requête, côté serveur, lue ici (contexte Nuxt disponible) : dans le crochet d'erreur,
+   * après des `await`, `useRoute()` peut ne plus trouver l'app. L'objet suit la route courante.
+   */
+  const serverRoute = onServer ? tryRoute() : null
+
+  /**
+   * Page courante de l'appli. Ce crochet d'erreur peut tourner pendant le rendu serveur, sans
+   * `window` (`import.meta.server` dans le build Nuxt ; le test de `window` couvre aussi un
+   * environnement où cette constante n'est pas remplacée, comme Vitest) : la route de Nuxt y sert.
+   */
+  function currentAppPath(): string {
+    if (onServer) return (serverRoute ?? tryRoute())?.fullPath || '/'
+    return appPathFromLocation(config.app?.baseURL)
+  }
+
   async function clearFirebaseSession(): Promise<void> {
     const { $firebaseAuth } = useNuxtApp()
     if ($firebaseAuth) {
       await Promise.resolve(fbSignOut($firebaseAuth as Auth)).catch(() => {})
     }
     auth.clear()
-    await navigateTo('/login')
+    // Section mobile : page de verrouillage, la page courante y est retenue (jamais /login).
+    await navigateTo(sessionEndRoute(currentAppPath()))
   }
 
   const instance = $fetch.create({

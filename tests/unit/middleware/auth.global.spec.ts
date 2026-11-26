@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
+import { clearLockContext, readLockContext, rememberLockContext } from '@/features/mobile/lib/lockState'
 
 const navigateToMock = vi.fn()
 vi.stubGlobal('navigateTo', navigateToMock)
@@ -11,13 +12,15 @@ const adminUser: AdminUser = {
   id: 'u', email: 'admin@yadony.com', role: 'ADMIN', status: 'ACTIVE',
   mustChangePassword: false, permissionOverrides: {},
 }
-type Mw = (_to: { path: string }) => unknown
+type Mw = (_to: { path: string, fullPath?: string }) => unknown
 
 describe('auth.global middleware', () => {
   beforeEach(() => {
     vi.resetModules()
     setActivePinia(createPinia())
     navigateToMock.mockClear()
+    sessionStorage.clear()
+    clearLockContext()
   })
 
   it('redirects unauthenticated to /login', async () => {
@@ -36,6 +39,47 @@ describe('auth.global middleware', () => {
     const mw = (await import('@/middleware/auth.global')).default as Mw
     await mw({ path: '/denied' })
     expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('allows /m/verrouille without auth', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/verrouille' })
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('sends unauthenticated /m pages to the lock page, never to /login', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/alertes' })
+    expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille')
+    expect(navigateToMock).not.toHaveBeenCalledWith('/login')
+  })
+
+  it('unauthenticated /m/alertes/<id> goes to /m/verrouille and remembers the full path', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/alertes/0b2f-77', fullPath: '/m/alertes/0b2f-77?tab=detail' })
+    expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille')
+    expect(readLockContext().path).toBe('/m/alertes/0b2f-77?tab=detail')
+  })
+
+  it('keeps the remembered email when it remembers a new return path', async () => {
+    rememberLockContext({ path: '/m/support', email: 'admin@yadony.com' })
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/alertes', fullPath: '/m/alertes' })
+    expect(readLockContext()).toEqual({ path: '/m/alertes', email: 'admin@yadony.com' })
+  })
+
+  it('does not remember an unsafe /m return path', async () => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path: '/m/x', fullPath: '/m/..//evil.test' })
+    expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille')
+    expect(readLockContext().path).toBeNull()
+  })
+
+  it.each(['/users', '/', '/mfa-setup', '/alertes'])('desktop unauthenticated %s still goes to /login', async (path) => {
+    const mw = (await import('@/middleware/auth.global')).default as Mw
+    await mw({ path, fullPath: path })
+    expect(navigateToMock).toHaveBeenCalledWith('/login')
+    expect(readLockContext().path).toBeNull()
   })
 
   it('lets authenticated users through', async () => {

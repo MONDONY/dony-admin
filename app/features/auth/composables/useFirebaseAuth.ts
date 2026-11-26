@@ -13,6 +13,8 @@ import {
 } from 'firebase/auth'
 import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { useApi } from '@/composables/useApi'
+import { hasStoredPushToken } from '@/features/mobile/lib/pushStorage'
+import { noteSignedIn } from '@/features/mobile/lib/lockState'
 
 /** Nom du compte dans l'appli d'authentification (Google Authenticator, 1Password…). */
 const TOTP_ISSUER = 'Yadony Admin'
@@ -68,7 +70,11 @@ export function useFirebaseAuth() {
   async function openSession(user: User): Promise<AdminUser> {
     authStore.setMfaEnrolled(hasTotpFactor(user))
     const token = await user.getIdToken(true)
-    return refreshProfile(token)
+    const adminUser = await refreshProfile(token)
+    // Connexion complète (connexion ou déverrouillage) : le verrou de l'app mobile est levé et
+    // l'inactivité repart de maintenant. En cas d'échec du profil, le marqueur reste (échec fermé).
+    noteSignedIn()
+    return adminUser
   }
 
   /**
@@ -139,13 +145,39 @@ export function useFirebaseAuth() {
     await sendEmailVerification(requireCurrentUser())
   }
 
-  async function signOut(): Promise<void> {
+  /**
+   * `revokePush: false` pour un simple verrouillage (inactivité) : les push continuent d'arriver.
+   * Sinon l'abonnement push de l'appareil est révoqué avant la déconnexion (meilleur effort).
+   * `redirectTo` : page ouverte ensuite (`/login` par défaut ; la page de verrouillage pour le
+   * verrou mobile, sans passage par `/login`).
+   */
+  async function signOut(
+    { revokePush = true, redirectTo = '/login' }: { revokePush?: boolean, redirectTo?: string } = {},
+  ): Promise<void> {
     pendingResolver = null
-    if ($firebaseAuth) {
-      await fbSignOut($firebaseAuth as Auth)
+    // Module push (firebase/messaging) chargé seulement s'il y a un jeton à révoquer : il n'entre
+    // pas dans le bundle de la console de bureau.
+    if (revokePush && hasStoredPushToken()) {
+      try {
+        const { clearPushOnLogout } = await import('@/features/mobile/composables/usePushSubscription')
+        await clearPushOnLogout()
+      } catch { /* module indisponible (hors ligne) : la déconnexion continue */ }
     }
-    authStore.clear()
-    await navigateTo('/login')
+    // Échec fermé : le store est vidé même si Firebase refuse de se déconnecter (hors ligne,
+    // erreur IndexedDB), sinon le middleware verrait encore un admin connecté. L'erreur est
+    // relancée après coup pour que l'appelant sache que la déconnexion Firebase a échoué.
+    let failure: unknown = null
+    try {
+      if ($firebaseAuth) {
+        await fbSignOut($firebaseAuth as Auth)
+      }
+    } catch (e: unknown) {
+      failure = e
+    } finally {
+      authStore.clear()
+    }
+    await navigateTo(redirectTo)
+    if (failure) throw failure
   }
 
   return {

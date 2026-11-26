@@ -115,7 +115,7 @@ onMounted(start)
         <button
           type="button" data-test="sign-in-again"
           class="self-start rounded-btn bg-primary text-white font-semibold px-3 py-2 text-sm hover:bg-primary/90 active:scale-[0.96] transition-[background-color,scale]"
-          @click="signOut"
+          @click="signOut()"
         >
           Se reconnecter
         </button>
@@ -182,7 +182,7 @@ onMounted(start)
       </button>
     </form>
 
-    <button type="button" class="text-sm text-subtle hover:text-text transition-colors self-center" @click="signOut">
+    <button type="button" class="text-sm text-subtle hover:text-text transition-colors self-center" @click="signOut()">
       Se déconnecter
     </button>
   </div>

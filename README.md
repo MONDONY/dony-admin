@@ -16,6 +16,8 @@ pnpm dev
 
 `.env.example` liste les 4 variables Firebase requises (`NUXT_PUBLIC_FIREBASE_API_KEY`, `AUTH_DOMAIN`, `PROJECT_ID`, `APP_ID`) plus `NUXT_PUBLIC_API_BASE_URL`. Toutes publiques — aucune n'est un secret.
 
+App mobile (`/siragbe/m/`, push et verrou) : `NUXT_PUBLIC_FIREBASE_VAPID_KEY` et `NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` en plus, réglages Firebase, GitHub et iPhone dans `docs/mobile-pwa-setup.md`. Expiration de session pour inactivité (bureau et mobile) : `NUXT_PUBLIC_IDLE_LOCK_MINUTES`, facultative (5 à 720 minutes, 30 par défaut), même document.
+
 ## Authentification
 
 La connexion se fait par **email** (pas de compte de démo). Le premier compte

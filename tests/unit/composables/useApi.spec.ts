@@ -66,6 +66,69 @@ describe('useApi', () => {
     expect(navigateToMock).toHaveBeenCalledWith('/login')
   })
 
+  it('401 on a mobile page goes to the lock page with the page remembered, never to /login', async () => {
+    window.history.replaceState(null, '', '/m/alertes/abc')
+    try {
+      useAuthStore().setSession('the-token', adminUser)
+      const { useApi } = await import('@/composables/useApi')
+      useApi()
+      const opts = fetchCreate.mock.calls[0][0]
+      await opts.onResponseError({ response: { status: 401, _data: null } })
+      expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille')
+      expect(navigateToMock).not.toHaveBeenCalledWith('/login')
+      const { readLockContext } = await import('@/features/mobile/lib/lockState')
+      expect(readLockContext().path).toBe('/m/alertes/abc')
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
+
+  // Le crochet d'erreur peut tourner pendant le rendu serveur (pas de `window`) : la page courante
+  // n'y est pas lisible, la session se termine sur /login sans lever.
+  it('401 during server rendering (no window): no crash, goes to /login', async () => {
+    const realWindow = globalThis.window
+    useAuthStore().setSession('the-token', adminUser)
+    vi.stubGlobal('window', undefined)
+    try {
+      const { useApi } = await import('@/composables/useApi')
+      useApi()
+      const opts = fetchCreate.mock.calls[0][0]
+      await expect(opts.onResponseError({ response: { status: 401, _data: null } })).resolves.toBeUndefined()
+      expect(navigateToMock).toHaveBeenCalledWith('/login')
+      expect(useAuthStore().isAuthenticated).toBe(false)
+    } finally {
+      vi.stubGlobal('window', realWindow)
+    }
+  })
+
+  // Côté serveur, la page courante vient du routeur de Nuxt (useRoute), pas de `window`.
+  it.each([
+    ['/m/alertes/abc?x=1', '/m/verrouille', '/m/alertes/abc?x=1'],
+    ['/users/abc', '/login', null],
+  ])('401 during server rendering on %s: uses the route of the request (%s)', async (fullPath, target, remembered) => {
+    const realWindow = globalThis.window
+    useAuthStore().setSession('the-token', adminUser)
+    vi.stubGlobal('useRoute', () => ({ fullPath }))
+    vi.stubGlobal('window', undefined)
+    const { readLockContext, clearLockContext } = await import('@/features/mobile/lib/lockState')
+    try {
+      sessionStorage.clear()
+      clearLockContext()
+      const { useApi } = await import('@/composables/useApi')
+      useApi()
+      const opts = fetchCreate.mock.calls[0][0]
+      await opts.onResponseError({ response: { status: 401, _data: null } })
+      expect(navigateToMock).toHaveBeenCalledWith(target)
+      expect(readLockContext().path).toBe(remembered)
+    } finally {
+      clearLockContext()
+      vi.stubGlobal('window', realWindow)
+      vi.stubGlobal('useRoute', undefined)
+      sessionStorage.clear()
+    }
+  })
+
   it('redirects to /change-password on 403 PASSWORD_CHANGE_REQUIRED and keeps the session', async () => {
     useAuthStore().setSession('the-token', adminUser)
     const { useApi } = await import('@/composables/useApi')

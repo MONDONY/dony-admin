@@ -38,6 +38,23 @@ describe('useDeviceRegistration', () => {
       expect(buildWebDeviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 16) Chrome/112')).toBe('Chrome sur iOS')
     })
 
+    it('detects Safari on an iPhone (its UA says "like Mac OS X"): iOS, not macOS', async () => {
+      const { buildWebDeviceName } = await import('@/composables/useDeviceRegistration')
+      expect(buildWebDeviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')).toBe('Safari sur iOS')
+    })
+
+    it('detects Safari on an iPad (mobile UA): iOS', async () => {
+      const { buildWebDeviceName } = await import('@/composables/useDeviceRegistration')
+      expect(buildWebDeviceName('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1')).toBe('Safari sur iOS')
+    })
+
+    it('keeps desktop results identical (real Mac Safari and Chrome)', async () => {
+      const { buildWebDeviceName } = await import('@/composables/useDeviceRegistration')
+      expect(buildWebDeviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15')).toBe('Safari sur macOS')
+      expect(buildWebDeviceName('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36')).toBe('Chrome sur macOS')
+      expect(buildWebDeviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36')).toBe('Chrome sur Windows')
+    })
+
     it('falls back to Navigateur/Web for unknown UA', async () => {
       const { buildWebDeviceName } = await import('@/composables/useDeviceRegistration')
       expect(buildWebDeviceName('Unknown/1.0')).toBe('Navigateur sur Web')
