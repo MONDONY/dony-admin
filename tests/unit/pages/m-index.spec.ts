@@ -36,11 +36,11 @@ describe('/m index', () => {
     expect(navigateToMock).toHaveBeenCalledWith('/denied', { replace: true })
   })
 
-  it('goes to /login when nobody is authenticated (session not restored)', () => {
+  it('goes to the lock page (never /login) when nobody is authenticated (session not restored)', () => {
     setActivePinia(createPinia())
     mount(MIndex)
     expect(navigateToMock).toHaveBeenCalledTimes(1)
-    expect(navigateToMock).toHaveBeenCalledWith('/login', { replace: true })
+    expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille', { replace: true })
   })
 
   it('never lands on /denied for an admin whose session arrives after a first empty state', () => {

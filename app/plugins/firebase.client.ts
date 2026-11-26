@@ -4,6 +4,7 @@ import { useAuthStore, type AdminUser } from '@/stores/auth'
 import { hasTotpFactor } from '@/features/auth/composables/useFirebaseAuth'
 import {
   appPathFromLocation, isActivityStale, isMobileAppPath, markLocked, readLastActivity, readLockMarker,
+  sessionEndRoute,
 } from '@/features/mobile/lib/lockState'
 
 /**
@@ -94,7 +95,8 @@ export default defineNuxtPlugin<{ firebaseApp: FirebaseApp | null; firebaseAuth:
       }
     } else if (authStore.isAuthenticated && !hasE2ESeed) {
       authStore.clear()
-      navigateTo('/login')
+      // Section mobile : page de verrouillage (jamais /login, hors de la portée de l'app installée).
+      navigateTo(sessionEndRoute(appPathFromLocation(config.app?.baseURL)))
     }
   })
 

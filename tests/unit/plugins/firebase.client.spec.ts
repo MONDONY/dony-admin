@@ -48,7 +48,7 @@ vi.stubGlobal('useRuntimeConfig', () => config)
 
 import plugin from '@/plugins/firebase.client'
 import { useAuthStore } from '@/stores/auth'
-import { ACTIVITY_KEY, LOCKED_KEY, clearLockContext, readLockMarker } from '@/features/mobile/lib/lockState'
+import { ACTIVITY_KEY, LOCKED_KEY, LOCK_ROUTE, clearLockContext, readLockContext, readLockMarker } from '@/features/mobile/lib/lockState'
 
 const MIN = 60 * 1000
 const run = plugin as unknown as () => Promise<{ provide: Record<string, unknown> }>
@@ -161,5 +161,25 @@ describe('firebase.client plugin, cold start', () => {
     await run()
     expect(h.fbSignOut).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  // ── F5 : la session disparaît pendant l'utilisation ───────────────────────
+
+  it('session lost on an /m page: goes to the lock page (never /login) and remembers the page', async () => {
+    at('/siragbe/m/alertes/abc?x=1')
+    await run()
+    expect(useAuthStore().isAuthenticated).toBe(true)
+    await h.listeners[1]!(null)
+    expect(navigateMock).toHaveBeenCalledWith(LOCK_ROUTE)
+    expect(navigateMock).not.toHaveBeenCalledWith('/login')
+    expect(readLockContext().path).toBe('/m/alertes/abc?x=1')
+    expect(useAuthStore().isAuthenticated).toBe(false)
+  })
+
+  it('session lost on a desktop page: still goes to /login', async () => {
+    at('/siragbe/users')
+    await run()
+    await h.listeners[1]!(null)
+    expect(navigateMock).toHaveBeenCalledWith('/login')
   })
 })

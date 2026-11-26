@@ -74,13 +74,14 @@ export function useIdleLock(options?: { idleMs?: number }): { lockNow: () => Pro
       // ne restaure pas la session.
       markLocked('idle')
       const { signOut } = useFirebaseAuth()
+      const lockSignOut = () => signOut({ revokePush: false, redirectTo: LOCK_ROUTE })
       try {
-        await signOut({ revokePush: false })
+        await lockSignOut()
       } catch {
-        // Échec fermé : le store est vidé ci-dessous quoi qu'il arrive ; une seconde tentative
-        // de déconnexion Firebase part en arrière-plan (meilleur effort).
-        // Le signOut renavigue vers /login : on remet la page de verrouillage ensuite.
-        void signOut({ revokePush: false }).catch(() => {}).finally(() => { void navigateTo(LOCK_ROUTE) })
+        // Échec fermé : le store est vidé ci-dessous quoi qu'il arrive, le marqueur empêche toute
+        // restauration au prochain démarrage ; une seconde tentative de déconnexion Firebase part
+        // en arrière-plan (meilleur effort).
+        void lockSignOut().catch(() => {})
       } finally {
         auth.clear()
       }

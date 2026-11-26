@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/auth'
+import { LOCK_ROUTE, isMobileAppPath, rememberReturnPath } from '@/features/mobile/lib/lockState'
 
-const PUBLIC_ROUTES = ['/login', '/denied', '/m/verrouille']
+const PUBLIC_ROUTES = ['/login', '/denied', LOCK_ROUTE]
 
 export default defineNuxtRouteMiddleware((to) => {
   if (import.meta.server) return
@@ -12,6 +13,12 @@ export default defineNuxtRouteMiddleware((to) => {
   if (to.path === '/change-password' && !auth.isAuthenticated) return navigateTo('/login')
 
   if (!auth.isAuthenticated) {
+    // App mobile : connexion par la page de verrouillage (dans la portée de l'app installée),
+    // puis retour à la page demandée (notification touchée, lien profond).
+    if (isMobileAppPath(to.path)) {
+      rememberReturnPath(to.fullPath ?? to.path)
+      return navigateTo(LOCK_ROUTE)
+    }
     return navigateTo('/login')
   }
 

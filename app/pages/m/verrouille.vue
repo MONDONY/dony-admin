@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useFirebaseAuth } from '@/features/auth/composables/useFirebaseAuth'
-import { clearLockContext, isSafeReturnPath, readLockContext } from '@/features/mobile/composables/useIdleLock'
+import { clearLockContext, isSafeReturnPath, readLockContext, readLockMarker } from '@/features/mobile/lib/lockState'
 import PasswordField from '@/features/auth/components/PasswordField.vue'
 
 // Layout sans onglets : l'admin est déconnecté, rien ne dépend de ses permissions.
@@ -10,19 +10,30 @@ definePageMeta({ layout: 'auth' })
 // Même parcours que login.vue (mot de passe, puis code TOTP), sans logique métier en plus.
 const { signIn, completeTotpSignIn, cancelTotpSignIn } = useFirebaseAuth()
 
-const context = readLockContext()
 const step = ref<'password' | 'totp'>('password')
-const email = ref(context.email ?? '')
+const email = ref('')
 const password = ref('')
 const totpCode = ref('')
 const error = ref('')
 const loading = ref(false)
 const totpInput = ref<HTMLInputElement | null>(null)
+/**
+ * Verrou posé par l'inactivité (marqueur `idle`) : texte « session fermée après 30 minutes ».
+ * Sinon (premier lancement, session terminée) : simple invitation à se connecter.
+ */
+const idleLocked = ref(false)
 
 const totpComplete = computed(() => /^\d{6}$/.test(totpCode.value.replace(/\s+/g, '')))
 
+// Stockage du navigateur lu au montage seulement : le rendu serveur et l'hydratation restent identiques.
+onMounted(() => {
+  idleLocked.value = readLockMarker()?.reason === 'idle'
+  if (!email.value) email.value = readLockContext().email ?? ''
+})
+
 async function goAfterSignIn(adminUser: { mustChangePassword: boolean }) {
-  const back = isSafeReturnPath(context.path) ? context.path : '/m'
+  const remembered = readLockContext().path
+  const back = isSafeReturnPath(remembered) ? remembered : '/m'
   clearLockContext()
   await navigateTo(adminUser.mustChangePassword ? '/change-password' : back)
 }
@@ -41,9 +52,9 @@ async function submitPassword() {
     } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
       error.value = 'Identifiants incorrects'
     } else if (code === 'auth/too-many-requests') {
-      error.value = 'Trop de tentatives. Réessaie dans quelques minutes.'
+      error.value = 'Trop de tentatives. Réessayez dans quelques minutes.'
     } else {
-      error.value = 'Erreur de connexion. Réessaie.'
+      error.value = 'Erreur de connexion. Réessayez.'
     }
   }
 }
@@ -56,11 +67,11 @@ async function submitTotp() {
     const code = (e as { code?: string })?.code
     totpCode.value = ''
     if (code === 'auth/invalid-verification-code') {
-      error.value = 'Code incorrect. Vérifie l’heure de ton téléphone et réessaie.'
+      error.value = 'Code incorrect. Vérifiez l’heure de votre téléphone et réessayez.'
     } else if (code === 'auth/too-many-requests') {
-      error.value = 'Trop de tentatives. Réessaie dans quelques minutes.'
+      error.value = 'Trop de tentatives. Réessayez dans quelques minutes.'
     } else {
-      error.value = 'Le code a expiré. Reconnecte-toi.'
+      error.value = 'Le code a expiré. Reconnectez-vous.'
       backToPassword()
     }
   }
@@ -88,12 +99,14 @@ function backToPassword() {
   <div class="w-full max-w-md flex flex-col gap-6">
     <div>
       <h1 class="font-display text-2xl font-extrabold text-text [text-wrap:balance]">
-        {{ step === 'password' ? 'Session verrouillée' : 'Code de vérification' }}
+        {{ step === 'totp' ? 'Code de vérification' : idleLocked ? 'Session verrouillée' : 'Connexion' }}
       </h1>
-      <p class="text-sm text-subtle mt-1 [text-wrap:pretty]">
-        {{ step === 'password'
-          ? 'Votre session a été fermée après 30 minutes d’inactivité.'
-          : 'Saisis le code à 6 chiffres affiché par ton appli d’authentification.' }}
+      <p class="text-sm text-subtle mt-1 [text-wrap:pretty]" data-test="lock-reason">
+        {{ step === 'totp'
+          ? 'Saisissez le code à 6 chiffres affiché par votre appli d’authentification.'
+          : idleLocked
+            ? 'Votre session a été fermée après 30 minutes d’inactivité.'
+            : 'Connectez-vous pour continuer.' }}
       </p>
     </div>
 
@@ -148,7 +161,7 @@ function backToPassword() {
           <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
           <path d="M12 2a10 10 0 0 1 10 10" />
         </svg>
-        <template v-if="step === 'password'">{{ loading ? 'Connexion…' : 'Se reconnecter' }}</template>
+        <template v-if="step === 'password'">{{ loading ? 'Connexion…' : idleLocked ? 'Se reconnecter' : 'Se connecter' }}</template>
         <template v-else>{{ loading ? 'Vérification…' : 'Valider le code' }}</template>
       </button>
 

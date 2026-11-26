@@ -66,6 +66,24 @@ describe('useApi', () => {
     expect(navigateToMock).toHaveBeenCalledWith('/login')
   })
 
+  it('401 on a mobile page goes to the lock page with the page remembered, never to /login', async () => {
+    window.history.replaceState(null, '', '/m/alertes/abc')
+    try {
+      useAuthStore().setSession('the-token', adminUser)
+      const { useApi } = await import('@/composables/useApi')
+      useApi()
+      const opts = fetchCreate.mock.calls[0][0]
+      await opts.onResponseError({ response: { status: 401, _data: null } })
+      expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille')
+      expect(navigateToMock).not.toHaveBeenCalledWith('/login')
+      const { readLockContext } = await import('@/features/mobile/lib/lockState')
+      expect(readLockContext().path).toBe('/m/alertes/abc')
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
+
   it('redirects to /change-password on 403 PASSWORD_CHANGE_REQUIRED and keeps the session', async () => {
     useAuthStore().setSession('the-token', adminUser)
     const { useApi } = await import('@/composables/useApi')

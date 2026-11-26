@@ -131,3 +131,19 @@ export function clearLockContext(): void {
   memoryContext = { path: null, email: null }
   try { sessionStorage.removeItem(LOCK_CONTEXT_KEY) } catch { /* rien à faire */ }
 }
+
+/** Mémorise la page mobile où revenir après la connexion (null si le chemin n'est pas sûr), e-mail gardé. */
+export function rememberReturnPath(path: string): void {
+  rememberLockContext({ path: isSafeReturnPath(path) ? path : null, email: readLockContext().email })
+}
+
+/**
+ * Où envoyer un admin dont la session vient de disparaître : la page de verrouillage pour la
+ * section mobile (jamais `/login`, hors de la portée de l'app installée), en retenant la page ;
+ * `/login` pour la console de bureau.
+ */
+export function sessionEndRoute(appPath: string): string {
+  if (!isMobileAppPath(appPath)) return '/login'
+  rememberReturnPath(appPath)
+  return LOCK_ROUTE
+}

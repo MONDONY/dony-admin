@@ -132,8 +132,9 @@ describe('useIdleLock', () => {
   it('lockNow_signsOutFirebase_withRevokePushFalse', async () => {
     mount(Comp)
     await api.lockNow()
-    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false })
+    expect(signOutMock).toHaveBeenCalledWith({ revokePush: false, redirectTo: '/m/verrouille' })
     expect(navigateMock).toHaveBeenCalledWith('/m/verrouille')
+    expect(navigateMock).not.toHaveBeenCalledWith('/login')
     expect(signOutMock.mock.invocationCallOrder[0]).toBeLessThan(navigateMock.mock.invocationCallOrder[0]!)
   })
 

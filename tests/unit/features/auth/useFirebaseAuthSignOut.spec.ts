@@ -67,6 +67,12 @@ describe('useFirebaseAuth.signOut and push revocation', () => {
     expect(fbSignOutMock).toHaveBeenCalled()
   })
 
+  it('signOut({ redirectTo }) goes there instead of /login (lock page, no /login flash)', async () => {
+    await useFirebaseAuth().signOut({ revokePush: false, redirectTo: '/m/verrouille' })
+    expect(navigateToMock).toHaveBeenCalledTimes(1)
+    expect(navigateToMock).toHaveBeenCalledWith('/m/verrouille')
+  })
+
   it('is unchanged when no token is stored', async () => {
     localStorage.clear()
     await useFirebaseAuth().signOut()

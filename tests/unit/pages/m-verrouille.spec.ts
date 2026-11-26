@@ -6,6 +6,8 @@ vi.stubGlobal('definePageMeta', vi.fn())
 const navigateMock = vi.fn()
 vi.stubGlobal('navigateTo', navigateMock)
 vi.stubGlobal('useRoute', () => ({ path: '/m/verrouille', query: {} }))
+// Le middleware est importé statiquement (import remonté) : le stub doit le précéder.
+vi.hoisted(() => { vi.stubGlobal('defineNuxtRouteMiddleware', (fn: unknown) => fn) })
 
 const signInMock = vi.fn()
 const completeTotpMock = vi.fn()
@@ -17,6 +19,8 @@ vi.mock('@/features/auth/composables/useFirebaseAuth', () => ({
 import Page from '@/pages/m/verrouille.vue'
 import MobileLayout from '@/layouts/mobile.vue'
 import { LOCK_CONTEXT_KEY } from '@/features/mobile/composables/useIdleLock'
+import { LOCKED_KEY, clearLockContext } from '@/features/mobile/lib/lockState'
+import authMiddleware from '@/middleware/auth.global'
 
 const mfaError = () => Object.assign(new Error('mfa'), { code: 'auth/multi-factor-auth-required' })
 
@@ -36,20 +40,57 @@ describe('m/verrouille page', () => {
     setActivePinia(createPinia())
     signInMock.mockReset(); completeTotpMock.mockReset(); cancelTotpMock.mockReset(); navigateMock.mockReset()
     sessionStorage.clear()
+    localStorage.clear()
+    clearLockContext()
   })
 
-  it('shows the lock message and the one-line button', () => {
+  it('locked for inactivity: shows the lock message and the one-line button', async () => {
+    localStorage.setItem(LOCKED_KEY, JSON.stringify({ at: 1, reason: 'idle' }))
     const w = mount(Page)
+    await flushPromises()
     expect(w.text()).toContain('Session verrouillée')
     expect(w.text()).toContain('Votre session a été fermée après 30 minutes d’inactivité.')
     expect(w.find('button[type="submit"]').text()).toBe('Se reconnecter')
     expect(w.text()).not.toContain('—')
   })
 
-  it('prefills the remembered email', () => {
+  it('first launch or session ended (no idle lock): asks to sign in, without the inactivity sentence', async () => {
+    const w = mount(Page)
+    await flushPromises()
+    expect(w.text()).toContain('Connectez-vous pour continuer.')
+    expect(w.text()).not.toContain('30 minutes')
+    expect(w.text()).not.toContain('Session verrouillée')
+    expect(w.find('button[type="submit"]').text()).toBe('Se connecter')
+  })
+
+  it('speaks with vouvoiement on every step', async () => {
+    signInMock.mockRejectedValueOnce(mfaError())
+    completeTotpMock.mockRejectedValueOnce(Object.assign(new Error('bad'), { code: 'auth/invalid-verification-code' }))
+    const w = mount(Page)
+    await fillPassword(w)
+    expect(w.text()).toContain('Saisissez le code à 6 chiffres affiché par votre appli d’authentification.')
+    await w.find('input#totp-code').setValue('000000')
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    expect(w.text()).toContain('Code incorrect. Vérifiez l’heure de votre téléphone et réessayez.')
+    expect(w.text()).not.toMatch(/\b(ton|ta|tes|toi|Saisis|Réessaie|Reconnecte-toi)\b/)
+  })
+
+  it('prefills the remembered email', async () => {
     remember('/m/alertes', 'admin@yadony.com')
     const w = mount(Page)
+    await flushPromises()
     expect((w.find('input#email').element as HTMLInputElement).value).toBe('admin@yadony.com')
+  })
+
+  it('returns to the /m page the middleware remembered (unauthenticated deep link)', async () => {
+    await (authMiddleware as unknown as (_to: { path: string, fullPath: string }) => unknown)({ path: '/m/alertes/abc', fullPath: '/m/alertes/abc' })
+    expect(navigateMock).toHaveBeenCalledWith('/m/verrouille')
+    navigateMock.mockReset()
+    signInMock.mockResolvedValueOnce({ mustChangePassword: false })
+    const w = mount(Page)
+    await fillPassword(w)
+    expect(navigateMock).toHaveBeenCalledWith('/m/alertes/abc')
   })
 
   it('password step then TOTP step, then returns to the remembered page', async () => {
@@ -88,8 +129,8 @@ describe('m/verrouille page', () => {
   })
 
   it.each([
-    ['auth/too-many-requests', 'Trop de tentatives'],
-    ['auth/other', 'Erreur de connexion'],
+    ['auth/too-many-requests', 'Trop de tentatives. Réessayez dans quelques minutes.'],
+    ['auth/other', 'Erreur de connexion. Réessayez.'],
   ])('maps %s to a French message', async (code, text) => {
     signInMock.mockRejectedValueOnce(Object.assign(new Error('x'), { code }))
     const w = mount(Page)
@@ -124,7 +165,7 @@ describe('m/verrouille page', () => {
     await w.find('input#totp-code').setValue('111111')
     await w.find('form').trigger('submit')
     await flushPromises()
-    expect(w.text()).toContain('expiré')
+    expect(w.text()).toContain('Le code a expiré. Reconnectez-vous.')
     expect(cancelTotpMock).toHaveBeenCalled()
     expect(w.find('input#password').exists()).toBe(true)
   })

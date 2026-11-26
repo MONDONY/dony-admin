@@ -148,8 +148,12 @@ export function useFirebaseAuth() {
   /**
    * `revokePush: false` pour un simple verrouillage (inactivité) : les push continuent d'arriver.
    * Sinon l'abonnement push de l'appareil est révoqué avant la déconnexion (meilleur effort).
+   * `redirectTo` : page ouverte ensuite (`/login` par défaut ; la page de verrouillage pour le
+   * verrou mobile, sans passage par `/login`).
    */
-  async function signOut({ revokePush = true }: { revokePush?: boolean } = {}): Promise<void> {
+  async function signOut(
+    { revokePush = true, redirectTo = '/login' }: { revokePush?: boolean, redirectTo?: string } = {},
+  ): Promise<void> {
     pendingResolver = null
     if (revokePush) await clearPushOnLogout()
     // Échec fermé : le store est vidé même si Firebase refuse de se déconnecter (hors ligne,
@@ -165,7 +169,7 @@ export function useFirebaseAuth() {
     } finally {
       authStore.clear()
     }
-    await navigateTo('/login')
+    await navigateTo(redirectTo)
     if (failure) throw failure
   }
 

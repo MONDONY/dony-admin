@@ -2,6 +2,7 @@ import type { Auth } from 'firebase/auth'
 import { signOut as fbSignOut } from 'firebase/auth'
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceId } from '@/lib/deviceId'
+import { appPathFromLocation, sessionEndRoute } from '@/features/mobile/lib/lockState'
 
 let apiInstance: any = null
 
@@ -20,7 +21,8 @@ export function useApi(): ReturnType<typeof $fetch.create> {
       await Promise.resolve(fbSignOut($firebaseAuth as Auth)).catch(() => {})
     }
     auth.clear()
-    await navigateTo('/login')
+    // Section mobile : page de verrouillage, la page courante y est retenue (jamais /login).
+    await navigateTo(sessionEndRoute(appPathFromLocation(config.app?.baseURL)))
   }
 
   const instance = $fetch.create({
