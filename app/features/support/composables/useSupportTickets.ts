@@ -3,8 +3,10 @@ import { supportService } from '@/features/support/services/supportService'
 import { extractProblemMessage } from '@/lib/problemDetail'
 import type { AdminSupportTicket, SupportPriority } from '@/features/support/types/index'
 
+import { SUPPORT_PAGE_SIZE } from '@/features/support/lib/constants'
+
 /** Une page : les 100 conversations les plus récentes. Périmètre, recherche et filtres se font sur cette page. */
-export const SUPPORT_PAGE_SIZE = 100
+export { SUPPORT_PAGE_SIZE }
 
 /**
  * File support : toutes les conversations (une page), et le détail sélectionné. Après chaque action

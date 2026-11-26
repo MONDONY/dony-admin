@@ -1,8 +1,13 @@
 import { useApi } from '@/composables/useApi'
-import type { AdminOverview } from '@/features/overview/types/index'
+import type { AdminOverview, OverviewPeriod } from '@/features/overview/types/index'
 
 export const overviewService = {
-  fetch(): Promise<AdminOverview> {
-    return useApi()<AdminOverview>('/admin/metrics/overview')
+  /**
+   * Sans argument : appel historique du tableau de bord (aucun paramètre). Avec `period`, le back
+   * ajoute le bloc `period` (mobile) ; un ancien back ignore le paramètre et n'envoie pas le bloc.
+   */
+  fetch(period?: OverviewPeriod): Promise<AdminOverview> {
+    if (!period) return useApi()<AdminOverview>('/admin/metrics/overview')
+    return useApi()<AdminOverview>('/admin/metrics/overview', { query: { period } })
   },
 }

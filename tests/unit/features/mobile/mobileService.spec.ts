@@ -22,4 +22,8 @@ describe('mobileService', () => {
     await mobileService.unregisterDevice('t')
     expect(apiMock).toHaveBeenCalledWith('/admin/mobile/devices', { method: 'DELETE', query: { fcmToken: 't' } })
   })
+
+  it('exposes only the two device calls', () => {
+    expect(Object.keys(mobileService).sort()).toEqual(['registerDevice', 'unregisterDevice'])
+  })
 })

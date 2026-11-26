@@ -12,4 +12,9 @@ export default defineNuxtRouteMiddleware((to) => {
   if (permission && !auth.can(permission)) {
     return navigateTo('/denied')
   }
+  // `permissionAnyOf` : une seule de ces permissions suffit (page dont le contenu est filtré par le back).
+  const anyOf = to.meta.permissionAnyOf as readonly AdminPermission[] | undefined
+  if (anyOf && !anyOf.some(p => auth.can(p))) {
+    return navigateTo('/denied')
+  }
 })

@@ -21,3 +21,16 @@ describe('overviewService', () => {
     expect(r.users.total).toBe(5)
   })
 })
+
+describe('overviewService period param', () => {
+  beforeEach(() => apiMock.mockReset())
+
+  it('service_fetch_sendsPeriodParamOnlyWhenGiven', async () => {
+    apiMock.mockResolvedValue({})
+    await overviewService.fetch()
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/metrics/overview')
+    expect(apiMock.mock.calls.at(-1)).toHaveLength(1)
+    await overviewService.fetch('D30')
+    expect(apiMock).toHaveBeenLastCalledWith('/admin/metrics/overview', { query: { period: 'D30' } })
+  })
+})

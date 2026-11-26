@@ -6,6 +6,7 @@ export interface RegisterDeviceBody {
   platform: 'web'
 }
 
+/** Appareil de l'admin pour les notifications push (la prise en charge d'une alerte est dans `mobileAlertsService`). */
 export const mobileService = {
   /** Enregistre le jeton push de cet appareil (idempotent par jeton côté back). */
   async registerDevice(body: RegisterDeviceBody): Promise<void> {

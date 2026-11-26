@@ -13,8 +13,9 @@ const makeAdmin = (
   id: 'u', email: 'admin@yadony.com', role, status: 'ACTIVE',
   mustChangePassword: false, permissionOverrides: overrides,
 })
-type Mw = (_to: { path: string; meta: { permission?: AdminPermission } }) => unknown
+type Mw = (_to: { path: string; meta: { permission?: AdminPermission; permissionAnyOf?: readonly AdminPermission[] } }) => unknown
 const route = (permission?: AdminPermission) => ({ path: '/x', meta: { permission } })
+const anyOf = (permissionAnyOf: readonly AdminPermission[], permission?: AdminPermission) => ({ path: '/x', meta: { permission, permissionAnyOf } })
 
 describe('admin-only middleware', () => {
   beforeEach(() => {
@@ -92,5 +93,31 @@ describe('admin-only middleware', () => {
     const mw = (await import('@/middleware/admin-only')).default as Mw
     mw(route('ADMIN_MANAGE'))
     expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  // --- Une permission parmi plusieurs (meta.permissionAnyOf) ---
+
+  it('permissionAnyOf: lets through an admin holding any one of the listed permissions', async () => {
+    useAuthStore().setSession('t', makeAdmin('ADMIN', { ALERT_VIEW: false }))
+    const mw = (await import('@/middleware/admin-only')).default as Mw
+    mw(anyOf(['ALERT_VIEW', 'DISPUTE_VIEW']))
+    expect(navigateToMock).not.toHaveBeenCalled()
+  })
+
+  it('permissionAnyOf: denies an admin holding none of them', async () => {
+    useAuthStore().setSession('t', makeAdmin('ADMIN', { ALERT_VIEW: false, DISPUTE_VIEW: false }))
+    const mw = (await import('@/middleware/admin-only')).default as Mw
+    mw(anyOf(['ALERT_VIEW', 'DISPUTE_VIEW']))
+    expect(navigateToMock).toHaveBeenCalledWith('/denied')
+  })
+
+  it('permissionAnyOf and permission together: both must hold; an empty list denies', async () => {
+    useAuthStore().setSession('t', makeAdmin('ADMIN', { ALERT_VIEW: false }))
+    const mw = (await import('@/middleware/admin-only')).default as Mw
+    mw(anyOf(['DISPUTE_VIEW'], 'ALERT_VIEW'))
+    expect(navigateToMock).toHaveBeenCalledWith('/denied')
+    navigateToMock.mockClear()
+    mw(anyOf([]))
+    expect(navigateToMock).toHaveBeenCalledWith('/denied')
   })
 })

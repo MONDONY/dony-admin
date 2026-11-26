@@ -11,11 +11,11 @@ vi.stubGlobal('useNuxtApp', () => ({ ssrContext }))
 import MIndex from '@/pages/m/index.vue'
 import { useAuthStore } from '@/stores/auth'
 import { seedAuth, makeAdmin } from '../../helpers/auth'
+import { ALERTS_FEED_PERMISSIONS } from '@/features/mobile/lib/mobileAlerts'
 
-const NO_TABS = {
-  ALERT_VIEW: false, METRICS_VIEW: false, SUPPORT_TICKET_VIEW: false,
-  MODERATION_VIEW: false, NOTIFICATION_SEND: false,
-}
+/** L'onglet Alertes s'ouvre avec n'importe quel droit du fil : tous retirés. */
+const NO_FEED = Object.fromEntries(ALERTS_FEED_PERMISSIONS.map(p => [p, false]))
+const NO_TABS = { ...NO_FEED, METRICS_VIEW: false, MODERATION_VIEW: false, NOTIFICATION_SEND: false }
 
 describe('/m index', () => {
   beforeEach(() => {
@@ -24,9 +24,15 @@ describe('/m index', () => {
   })
 
   it('goes to the first permitted tab', () => {
-    seedAuth('ADMIN', { ALERT_VIEW: false })
+    seedAuth('ADMIN', NO_FEED)
     mount(MIndex)
     expect(navigateToMock).toHaveBeenCalledWith('/m/ensemble', { replace: true })
+  })
+
+  it('an admin following disputes only (no ALERT_VIEW) starts on the Alertes tab, never /denied', () => {
+    seedAuth('ADMIN', { ...NO_TABS, DISPUTE_VIEW: true })
+    mount(MIndex)
+    expect(navigateToMock).toHaveBeenCalledWith('/m/alertes', { replace: true })
   })
 
   it('goes to /denied for an authenticated admin without any tab', () => {

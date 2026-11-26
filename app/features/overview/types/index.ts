@@ -7,6 +7,18 @@ export interface AdminOverviewVolume {
   commissionCents: number
 }
 
+/** Période demandée à `/admin/metrics/overview` (vue mobile). */
+export type OverviewPeriod = 'TODAY' | 'D7' | 'D30'
+
+/** Compteurs sur la période demandée ; absents d'un back qui ignore `period`. */
+export interface AdminOverviewPeriod {
+  name: string
+  signups: number
+  deletedAccounts: number
+  parcelsCancelled: number
+  kycInProgress: number
+}
+
 export interface AdminOverview {
   users: {
     total: number; active: number; suspended: number; banned: number; pendingDeletion: number
@@ -18,6 +30,8 @@ export interface AdminOverview {
   gmv: { escrowHeld: number; released: number; refunded: number; commission: number }
   /** Absent d'un backend pas encore mis à jour : la section reste vide plutôt que fausse. */
   gmvByCurrency?: AdminOverviewVolume[]
+  /** Présent seulement quand `period` est demandé et que le back le gère. */
+  period?: AdminOverviewPeriod
   queues: {
     openDisputes: number; pendingNoShows: number; unresolvedAlerts: number; escrowJ48: number
     /** Ancien compteur KYC ; absent d'un back qui ne l'envoie plus. */

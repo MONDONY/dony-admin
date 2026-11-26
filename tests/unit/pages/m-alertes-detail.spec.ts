@@ -1,0 +1,241 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+
+const metaSpy = vi.fn()
+vi.stubGlobal('definePageMeta', metaSpy)
+const U = '3f2a9c1e-1111-4222-8333-444455556666'
+const routeState: { params: Record<string, unknown> } = { params: { id: U } }
+vi.stubGlobal('useRoute', () => routeState)
+
+const svc = vi.hoisted(() => ({ get: vi.fn(), list: vi.fn(), claim: vi.fn(), release: vi.fn() }))
+vi.mock('@/features/mobile/services/mobileAlertsService', () => ({ mobileAlertsService: svc }))
+
+import Page from '@/pages/m/alertes/[id].vue'
+import { alertGuide } from '@/features/alerts/lib/alertCatalog'
+import { seedAuth } from '../../helpers/auth'
+
+const NuxtLink = { name: 'NuxtLink', props: ['to'], template: '<a :href="to"><slot /></a>' }
+const base = {
+  id: U, type: 'PAYOUT_HELD_abc', severity: 'CRITICAL', payload: { amount: 120, currency: 'EUR' },
+  resolved: false, resolvedAt: null, createdAt: '2026-11-26T08:00:00',
+}
+const mountPage = async () => {
+  const w = mount(Page, { global: { stubs: { NuxtLink } } })
+  await flushPromises()
+  return w
+}
+const err = (status: number, code?: string) => Object.assign(new Error('x'), { statusCode: status, data: code ? { code } : {} })
+
+describe('m/alertes/[id] page', () => {
+  beforeEach(() => {
+    Object.values(svc).forEach(f => f.mockReset())
+    routeState.params = { id: U }
+    seedAuth('ADMIN')
+    svc.get.mockResolvedValue({ ...base })
+  })
+
+  it('page meta: the alert itself still requires ALERT_VIEW', async () => {
+    await mountPage()
+    expect(metaSpy).toHaveBeenCalledWith(expect.objectContaining({ middleware: 'admin-only', permission: 'ALERT_VIEW' }))
+    expect(metaSpy.mock.calls.at(-1)![0]).not.toHaveProperty('permissionAnyOf')
+  })
+
+  it('detail_showsFactsExplanationAndDesktopSteps', async () => {
+    const w = await mountPage()
+    const guide = alertGuide('PAYOUT_HELD_abc')
+    expect(w.find('[data-test="alert-title"]').text()).toBe(guide.title)
+    expect(w.find('[data-test="tag-severity"]').text()).toBe('Critique')
+    expect(w.find('[data-test="tag-category"]').text()).toBe(guide.category)
+    expect(w.find('[data-test="facts"]').text()).toContain('Montant')
+    expect(w.find('[data-test="facts"]').text()).toContain('120')
+    expect(w.find('[data-test="explanation"]').text()).toContain('Pourquoi c’est important')
+    expect(w.find('[data-test="explanation"]').text()).toContain(guide.explanation)
+    const steps = w.findAll('[data-test="desktop-steps"] li').map(l => l.text())
+    expect(steps).toEqual(guide.actions)
+    expect(w.find('[data-test="desktop-steps"]').text()).toContain('Ensuite, sur l’ordinateur')
+    expect(w.text()).not.toContain('—')
+  })
+
+  it('claimButton_callsClaimAndShowsOwner', async () => {
+    svc.claim.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    const w = await mountPage()
+    const btn = w.find('[data-test="claim-button"]')
+    expect(btn.text()).toBe('J’ai vu, je m’en occupe')
+    await btn.trigger('click')
+    await flushPromises()
+    expect(svc.claim).toHaveBeenCalledWith(U)
+    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par admin@yadony.com à 10:00')
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
+    expect(w.find('[data-test="release-button"]').text()).toBe('Libérer')
+  })
+
+  it('claimButton_hidden_withoutAlertResolve', async () => {
+    seedAuth('ADMIN', { ALERT_RESOLVE: false })
+    const w = await mountPage()
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
+    expect(w.find('[data-test="alert-title"]').exists()).toBe(true)
+  })
+
+  it('claimButton_hidden_whenBackendReturns404', async () => {
+    svc.claim.mockRejectedValue(err(404))
+    const w = await mountPage()
+    await w.find('[data-test="claim-button"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
+    expect(w.find('[data-test="claim-error"]').exists()).toBe(false)
+    expect(w.find('[data-test="alert-title"]').exists()).toBe(true)
+  })
+
+  it('claim_409_showsAlreadyClaimedAndRefreshes', async () => {
+    svc.claim.mockRejectedValue(err(409, 'alert-already-claimed'))
+    svc.get.mockResolvedValueOnce({ ...base })
+      .mockResolvedValueOnce({ ...base, claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    const w = await mountPage()
+    await w.find('[data-test="claim-button"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="claim-error"]').text()).toBe('Déjà pris en charge par un autre administrateur')
+    expect(svc.get).toHaveBeenCalledTimes(2)
+    expect(w.find('[data-test="claimed-by"]').text()).toContain('autre@yadony.com')
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
+  })
+
+  it('release_onlyForClaimerOrAdminManage', async () => {
+    const claimed = { ...base, claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' }
+    // ADMIN (sans ADMIN_MANAGE), pas le preneur : pas de bouton.
+    svc.get.mockResolvedValue(claimed)
+    let w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+    // Le preneur : bouton.
+    svc.get.mockResolvedValue({ ...claimed, claimedByName: 'Admin@Yadony.com' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    // SUPER_ADMIN (ADMIN_MANAGE) : bouton même s'il n'est pas le preneur.
+    seedAuth('SUPER_ADMIN')
+    svc.get.mockResolvedValue(claimed)
+    w = await mountPage()
+    svc.release.mockResolvedValue({ ...base })
+    await w.find('[data-test="release-button"]').trigger('click')
+    await flushPromises()
+    expect(svc.release).toHaveBeenCalledWith(U)
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(true)
+  })
+
+  it('claimer_identifiedByClaimedById_whenPresent, the e-mail only as a fallback', async () => {
+    // L'identifiant fait foi : même e-mail affiché, autre identifiant, pas le preneur.
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    let w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+    // Identifiant de l'admin connecté (u1), e-mail différent : c'est bien lui.
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u1', claimedByName: 'ancien@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    // Ancien back sans claimedById : comparaison des e-mails.
+    svc.get.mockResolvedValue({ ...base, claimedByName: 'ADMIN@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    svc.get.mockResolvedValue({ ...base, claimedById: null, claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+  })
+
+  it('release_requiresAlertResolve, as the back does, even for the claimer or ADMIN_MANAGE', async () => {
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u1', claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    seedAuth('ADMIN', { ALERT_RESOLVE: false })
+    let w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+    seedAuth('SUPER_ADMIN', { ALERT_RESOLVE: false })
+    w = await mountPage()
+    // SUPER_ADMIN ignore les dérogations : il garde ALERT_RESOLVE.
+    expect(w.find('[data-test="release-button"]').exists()).toBe(true)
+    seedAuth('ADMIN', { ADMIN_MANAGE: true, ALERT_RESOLVE: false })
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    w = await mountPage()
+    expect(w.find('[data-test="release-button"]').exists()).toBe(false)
+  })
+
+  it('claimedBy_showsTheClaimTime (Paris time) and the name alone when the time is unreadable', async () => {
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: 'autre@yadony.com', claimedAt: '2026-11-26T08:05:00' })
+    let w = await mountPage()
+    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par autre@yadony.com à 09:05')
+    svc.get.mockResolvedValue({ ...base, claimedById: 'u7', claimedByName: null, claimedAt: 'pas une date' })
+    w = await mountPage()
+    expect(w.find('[data-test="claimed-by"]').text()).toBe('Pris en charge par un administrateur')
+  })
+
+  it('no empty sticky bar: hidden without a button, a claimer or an error', async () => {
+    seedAuth('ADMIN', { ALERT_RESOLVE: false })
+    let w = await mountPage()
+    expect(w.find('[data-test="alert-title"]').exists()).toBe(true)
+    expect(w.find('[data-test="claim-bar"]').exists()).toBe(false)
+    seedAuth('ADMIN')
+    w = await mountPage()
+    expect(w.find('[data-test="claim-bar"]').exists()).toBe(true)
+    svc.get.mockResolvedValue({ ...base, resolved: true })
+    w = await mountPage()
+    expect(w.find('[data-test="claim-bar"]').exists()).toBe(false)
+  })
+
+  it('release 403 alert-claim-not-yours shows the message and refreshes', async () => {
+    svc.get.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    svc.release.mockRejectedValue(err(403, 'alert-claim-not-yours'))
+    const w = await mountPage()
+    await w.find('[data-test="release-button"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="claim-error"]').text()).toBe('Cette prise en charge n’est pas la vôtre')
+    expect(svc.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('other claim errors show the problem message and keep the button', async () => {
+    svc.claim.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne' } }))
+    const w = await mountPage()
+    await w.find('[data-test="claim-button"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="claim-error"]').text()).toBe('Panne')
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(true)
+  })
+
+  it('hides the claim button on a resolved alert', async () => {
+    svc.get.mockResolvedValue({ ...base, resolved: true })
+    const w = await mountPage()
+    expect(w.find('[data-test="claim-button"]').exists()).toBe(false)
+  })
+
+  it('noButtonCallsResolveSnoozeOrReopen: every button only reads, claims or releases', async () => {
+    svc.claim.mockResolvedValue({ ...base, claimedByName: 'admin@yadony.com', claimedAt: '2026-11-26T09:00:00' })
+    svc.release.mockResolvedValue({ ...base })
+    const w = await mountPage()
+    for (const sel of ['[data-test="claim-button"]', '[data-test="release-button"]']) {
+      await w.find(sel).trigger('click')
+      await flushPromises()
+    }
+    for (const b of w.findAll('button')) { await b.trigger('click'); await flushPromises() }
+    // Le service mobile n'a que ces quatre appels (garde du graphe : mobileNetworkSurface.spec.ts).
+    expect(Object.keys(svc).sort()).toEqual(['claim', 'get', 'list', 'release'])
+    expect(svc.list).not.toHaveBeenCalled()
+    expect(svc.claim.mock.calls.every(c => c.length === 1 && c[0] === U)).toBe(true)
+    expect(svc.release).toHaveBeenCalledWith(U)
+  })
+
+  it('shows not found for an invalid or unknown id', async () => {
+    routeState.params = { id: '../x' }
+    let w = await mountPage()
+    expect(w.find('[data-test="alert-not-found"]').exists()).toBe(true)
+    expect(svc.get).not.toHaveBeenCalled()
+    routeState.params = { id: U }
+    svc.get.mockRejectedValue(err(404))
+    w = await mountPage()
+    expect(w.find('[data-test="alert-not-found"]').exists()).toBe(true)
+  })
+
+  it('shows a message on a load failure', async () => {
+    svc.get.mockRejectedValue(Object.assign(new Error('x'), { statusCode: 500, data: { detail: 'Panne serveur' } }))
+    const w = await mountPage()
+    expect(w.find('[data-test="alert-error"]').text()).toBe('Panne serveur')
+  })
+
+  it('has no secondary write-to-user button (no /m/support start flow)', async () => {
+    const w = await mountPage()
+    expect(w.text()).not.toContain('Écrire à l’utilisateur')
+  })
+})
