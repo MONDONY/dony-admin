@@ -16,9 +16,14 @@ const KYC = {
 describe('UserKycTab', () => {
   beforeEach(() => seedAuth('ADMIN'))
 
+  it('affiche « abandonné » quand la session est ouverte et le compte repassé à NOT_STARTED', () => {
+    const w = mount(UserKycTab, { props: { kyc: { ...KYC, kycStatus: 'NOT_STARTED', verificationStatus: 'PENDING' } } })
+    expect(w.find('[data-test="kyc-status"]').text()).toContain('abandonné')
+  })
+
   it('affiche les deux statuts et la session Stripe courante', () => {
     const w = mount(UserKycTab, { props: { kyc: KYC } })
-    expect(w.find('[data-test="kyc-status"]').text()).toContain('REJECTED')
+    expect(w.find('[data-test="kyc-status"]').text()).toContain('Refusée')
     expect(w.find('[data-test="kyc-verification-status"]').text()).toContain('REJECTED')
     expect(w.find('[data-test="kyc-stripe-session"]').text()).toContain('vs_001')
     expect(w.text()).toContain('The document has expired.')
@@ -29,7 +34,7 @@ describe('UserKycTab', () => {
       props: { kyc: { ...KYC, stripeStatus: null, stripeLastErrorCode: null, stripeLastErrorReason: null, stripeUnavailable: true } },
     })
     expect(w.find('[data-test="kyc-stripe-unavailable"]').exists()).toBe(true)
-    expect(w.find('[data-test="kyc-status"]').text()).toContain('REJECTED')
+    expect(w.find('[data-test="kyc-status"]').text()).toContain('Refusée')
   })
 
   it('indique clairement l\'absence de vérification démarrée', () => {

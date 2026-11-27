@@ -88,7 +88,7 @@ test('admin consulte le KYC d\'un utilisateur puis le réinitialise', async ({ p
   await expect(page.locator('[data-test="action-suspend"]')).toBeVisible()
   await page.locator('[data-test="tab-kyc"]').click()
 
-  await expect(page.locator('[data-test="kyc-status"]')).toContainText('REJECTED')
+  await expect(page.locator('[data-test="kyc-status"]')).toContainText('Refusée')
   await expect(page.locator('[data-test="kyc-stripe-session"]')).toContainText('vs_001')
   await expect(page.getByText('The document has expired.')).toBeVisible()
 
@@ -96,7 +96,7 @@ test('admin consulte le KYC d\'un utilisateur puis le réinitialise', async ({ p
   await page.locator('[data-test="reason"]').fill('document illisible')
   await page.locator('[data-test="confirm"]').click()
 
-  await expect(page.locator('[data-test="kyc-status"]')).toContainText('NOT_STARTED')
+  await expect(page.locator('[data-test="kyc-status"]')).toContainText('Non commencée')
   await expect(page.locator('[data-test="kyc-stripe-session"]')).toContainText('Aucune session')
   await expect.poll(() => resetCalls.length).toBe(1)
   expect(resetCalls[0]).toEqual({ reason: 'document illisible' })
@@ -120,7 +120,7 @@ test('Stripe indisponible : le KYC local reste affiché avec un avertissement', 
   await page.locator('[data-test="tab-kyc"]').click()
 
   await expect(page.locator('[data-test="kyc-stripe-unavailable"]')).toBeVisible()
-  await expect(page.locator('[data-test="kyc-status"]')).toContainText('REJECTED')
+  await expect(page.locator('[data-test="kyc-status"]')).toContainText('Refusée')
 })
 
 test('admin exécute une suppression RGPD après double confirmation par le nom', async ({ page }) => {

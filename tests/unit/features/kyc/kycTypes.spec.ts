@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
   KYC_DECISION_CODES, KYC_QUEUE_STATUS_TABS, formatWaiting, isOverdue, kycActorLabel, kycDecisionCodeLabel,
-  kycDecisionCodeUserMessage, kycDecisionMeta, kycHistoryActionLabel, kycProviderLabel, kycStatusMeta,
+  kycDecisionCodeUserMessage, kycDecisionMeta, kycHistoryActionLabel, kycProviderLabel, kycStatusMeta, kycAccountStatusLabel,
   reasonLengthValid, KYC_APPROVE_REASON_MIN, KYC_REVOKE_REASON_MIN, KYC_REASON_MAX,
 } from '@/features/kyc/types/index'
 
 describe('types KYC', () => {
   it('ouvre la file sur « En attente de décision »', () => {
     expect(KYC_QUEUE_STATUS_TABS[0]).toEqual({ value: 'IN_REVIEW', label: 'En attente de décision' })
-    expect(KYC_QUEUE_STATUS_TABS.map((t) => t.value)).toEqual(['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'VERIFIED', 'NOT_STARTED'])
+    expect(KYC_QUEUE_STATUS_TABS.map((t) => t.value)).toEqual(['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'VERIFIED', 'ABANDONED', 'NOT_STARTED'])
     expect(KYC_QUEUE_STATUS_TABS[1]!.label).toBe('Parcours en cours')
   })
 
@@ -20,6 +20,15 @@ describe('types KYC', () => {
     expect(kycStatusMeta('REJECTED').tone).toBe('danger')
     expect(kycStatusMeta('NOT_STARTED').label).toBe('Non commencée')
     expect(kycStatusMeta('FUTUR')).toEqual({ label: 'FUTUR', tone: 'neutral' })
+  })
+
+  it('statut du compte : session ouverte + NOT_STARTED = parcours abandonné', () => {
+    expect(kycStatusMeta('ABANDONED')).toEqual({ label: 'Abandonnée : à relancer', tone: 'warning' })
+    expect(kycAccountStatusLabel('NOT_STARTED', 'PENDING', true)).toContain('abandonné')
+    expect(kycAccountStatusLabel('NOT_STARTED', 'PENDING', false)).toBe('Non commencée')
+    expect(kycAccountStatusLabel('NOT_STARTED', 'NOT_STARTED', false)).toBe('Non commencée')
+    expect(kycAccountStatusLabel('PENDING', 'PENDING', true)).toBe('En cours')
+    expect(kycAccountStatusLabel('VERIFIED', 'VERIFIED', true)).toBe('Validée')
   })
 
   it('fournisseurs', () => {

@@ -202,7 +202,7 @@ test.describe('admin', () => {
     expect(mocks.hits['kyc'] ?? 0).toBe(0) // chargement paresseux : rien avant l'ouverture de l'onglet
 
     await page.locator('[data-test="tab-identity"]').click()
-    await expect(page.locator('[data-test="kyc-status"]')).toContainText('VERIFIED')
+    await expect(page.locator('[data-test="kyc-status"]')).toContainText('Validée')
     await expect(page.locator('[data-test="kyc-stripe-session"]')).toContainText('vs_001')
     expect(mocks.hits['kyc']).toBe(1)
   })
