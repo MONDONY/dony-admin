@@ -67,6 +67,12 @@ export interface KycDecisionFields {
   decisionReason?: string | null
   providerSessionUrl?: string | null
   history?: KycHistoryEntry[]
+  /** Dernière étape atteinte chez le fournisseur : ID_DOCUMENT, LIVENESS, FACE_MATCH. Absent d'un ancien back. */
+  providerStep?: string | null
+  /** false : étape commencée sans être terminée. */
+  providerStepFinished?: boolean | null
+  /** Raison donnée par l'utilisateur en quittant (code). */
+  abandonReason?: string | null
 }
 
 export const KYC_QUEUE_STATUS_TABS: readonly { value: KycQueueStatus; label: string }[] = [
@@ -123,6 +129,7 @@ const HISTORY_ACTIONS: Record<string, string> = {
   // USER
   KYC_SESSION_CREATED: 'Parcours de vérification commencé',
   KYC_SESSION_ABANDONED: 'Parcours abandonné par l’utilisateur',
+  KYC_ABANDON_REASON: 'Raison donnée en quittant',
   // PROVIDER
   KYC_VERIFIED: 'Identité validée par le fournisseur',
   KYC_REJECTED: 'Identité refusée par le fournisseur',
@@ -231,4 +238,29 @@ export function kycAccountStatusLabel(
   }
   if (kycStatus === 'PENDING') return 'En cours'
   return kycStatusMeta(kycStatus ?? '').label
+}
+
+const STEPS: Record<string, string> = {
+  ID_DOCUMENT: 'la pièce d’identité',
+  LIVENESS: 'le selfie de vivacité',
+  FACE_MATCH: 'la comparaison du visage',
+}
+/** « Arrêté sur la pièce d’identité », « Étape terminée : le selfie… », ou null quand aucune étape n’est connue. */
+export function kycStepSummary(step: string | null | undefined, finished: boolean | null | undefined): string | null {
+  if (!step) return null
+  const label = STEPS[step] ?? step
+  return finished === false ? `Arrêté pendant ${label}` : `Dernière étape terminée : ${label}`
+}
+
+const ABANDON_REASONS: Record<string, string> = {
+  NO_DOCUMENT: 'Pas de pièce d’identité sous la main',
+  PRIVACY: 'Ne veut pas partager ses documents',
+  TOO_LONG: 'Trop long',
+  TECHNICAL: 'Problème technique',
+  LATER: 'Le fera plus tard',
+  OTHER: 'Autre raison',
+}
+export function kycAbandonReasonLabel(code: string | null | undefined): string | null {
+  if (!code) return null
+  return ABANDON_REASONS[code] ?? code
 }

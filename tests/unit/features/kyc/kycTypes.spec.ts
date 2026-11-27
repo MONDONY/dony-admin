@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   KYC_DECISION_CODES, KYC_QUEUE_STATUS_TABS, formatWaiting, isOverdue, kycActorLabel, kycDecisionCodeLabel,
-  kycDecisionCodeUserMessage, kycDecisionMeta, kycHistoryActionLabel, kycProviderLabel, kycStatusMeta, kycAccountStatusLabel,
+  kycDecisionCodeUserMessage, kycDecisionMeta, kycHistoryActionLabel, kycProviderLabel, kycStatusMeta, kycAccountStatusLabel, kycStepSummary, kycAbandonReasonLabel,
   reasonLengthValid, KYC_APPROVE_REASON_MIN, KYC_REVOKE_REASON_MIN, KYC_REASON_MAX,
 } from '@/features/kyc/types/index'
 
@@ -29,6 +29,16 @@ describe('types KYC', () => {
     expect(kycAccountStatusLabel('NOT_STARTED', 'NOT_STARTED', false)).toBe('Non commencée')
     expect(kycAccountStatusLabel('PENDING', 'PENDING', true)).toBe('En cours')
     expect(kycAccountStatusLabel('VERIFIED', 'VERIFIED', true)).toBe('Validée')
+  })
+
+  it('étape atteinte et raison d’abandon', () => {
+    expect(kycStepSummary(null, null)).toBeNull()
+    expect(kycStepSummary('ID_DOCUMENT', false)).toBe('Arrêté pendant la pièce d’identité')
+    expect(kycStepSummary('FACE_MATCH', true)).toContain('comparaison du visage')
+    expect(kycStepSummary('AUTRE', false)).toBe('Arrêté pendant AUTRE')
+    expect(kycAbandonReasonLabel(null)).toBeNull()
+    expect(kycAbandonReasonLabel('PRIVACY')).toBe('Ne veut pas partager ses documents')
+    expect(kycAbandonReasonLabel('FUTUR')).toBe('FUTUR')
   })
 
   it('fournisseurs', () => {
