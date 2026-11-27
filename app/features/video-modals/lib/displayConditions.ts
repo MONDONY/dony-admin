@@ -180,7 +180,7 @@ function repetition(input: VideoModalInput): ConditionRow[] {
   const group = 'Répétition' as const
   const f = input.frequency ?? 'UP_TO_N'
   const rows: ConditionRow[] = []
-  let freq = ''
+  let freq: string
   let verdict: Verdict = 'check'
   if (f === 'ONCE' || (f === 'UP_TO_N' && input.maxDisplays === 1)) freq = 'Une seule fois par version, puis plus jamais.'
   else if (f === 'UP_TO_N') freq = `Au plus ${input.maxDisplays} affichages par version : le plafond atteint, plus rien.`
