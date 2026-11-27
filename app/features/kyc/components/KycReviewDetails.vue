@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { kycActorLabel, kycDecisionMeta, kycHistoryActionLabel } from '@/features/kyc/types/index'
+import {
+  kycAbandonReasonLabel, kycActorLabel, kycDecisionMeta, kycHistoryActionLabel, kycStepSummary,
+} from '@/features/kyc/types/index'
 import type { AdminKycDetail } from '@/features/users/types/index'
 
 /**
@@ -8,7 +11,14 @@ import type { AdminKycDetail } from '@/features/users/types/index'
  * Partagé par la fiche latérale de /kyc et l'onglet KYC de la fiche utilisateur. Un ancien
  * back n'envoie ni décision ni historique : les sections se replient sans bruit.
  */
-defineProps<{ kyc: AdminKycDetail; hideProviderLink?: boolean }>()
+const props = defineProps<{ kyc: AdminKycDetail; hideProviderLink?: boolean }>()
+
+const step = computed(() => kycStepSummary(props.kyc.providerStep, props.kyc.providerStepFinished))
+const abandonReason = computed(() => kycAbandonReasonLabel(props.kyc.abandonReason))
+
+function historyDetail(h: { action: string; detail?: string | null }) {
+  return h.action === 'KYC_ABANDON_REASON' ? (kycAbandonReasonLabel(h.detail) ?? h.detail) : h.detail
+}
 
 function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleString('fr-FR') : 'Date inconnue' }
 </script>
@@ -20,6 +30,14 @@ function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleStri
       data-test="kyc-provider-link"
       class="inline-flex items-center rounded-btn border border-border px-3 py-2 text-sm font-medium text-primary transition-[background-color,scale] hover:bg-surface-elevated active:scale-[0.96]"
     >Voir la session chez le fournisseur</a>
+
+    <section v-if="step || abandonReason" data-test="kyc-journey">
+      <h3 class="text-sm font-semibold text-text-muted uppercase tracking-wider mb-2">Parcours</h3>
+      <div class="rounded-card border border-border px-3 py-2 text-sm space-y-1">
+        <p v-if="step" data-test="kyc-step">{{ step }}</p>
+        <p v-if="abandonReason" data-test="kyc-abandon-reason">Raison donnée : {{ abandonReason }}</p>
+      </div>
+    </section>
 
     <section>
       <h3 class="text-sm font-semibold text-text-muted uppercase tracking-wider mb-2">Décision admin</h3>
@@ -46,7 +64,7 @@ function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleStri
           <div class="text-xs text-text-muted tabular-nums">
             {{ fmt(h.at) }} · {{ kycActorLabel(h.actorKind) }}<template v-if="h.actorEmail"> ({{ h.actorEmail }})</template>
           </div>
-          <p v-if="h.detail" class="mt-0.5 text-xs text-text-muted text-pretty break-words">{{ h.detail }}</p>
+          <p v-if="historyDetail(h)" class="mt-0.5 text-xs text-text-muted text-pretty break-words">{{ historyDetail(h) }}</p>
         </li>
       </ol>
       <p v-else data-test="kyc-history-empty" class="text-sm text-text-muted">Aucun événement.</p>
