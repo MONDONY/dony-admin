@@ -1,6 +1,6 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-15',
-  devtools: { enabled: true },
+  devtools: { enabled: !process.env.CI },
   modules: ['@nuxt/eslint', '@nuxtjs/tailwindcss', '@pinia/nuxt'],
   components: [
     { path: '~/components', pathPrefix: false },
