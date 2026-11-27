@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import KycReviewDetails from '@/features/kyc/components/KycReviewDetails.vue'
 import KycDecisionActions from '@/features/kyc/components/KycDecisionActions.vue'
-import { kycProviderLabel } from '@/features/kyc/types/index'
+import { kycAccountStatusLabel, kycProviderLabel } from '@/features/kyc/types/index'
 import type { AdminKycDetail } from '@/features/users/types/index'
 
 const props = defineProps<{
@@ -29,7 +29,7 @@ function fmt(d: string | null | undefined) { return d ? new Date(d).toLocaleStri
       <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
         <div>
           <dt class="text-text-muted">Statut du compte</dt>
-          <dd data-test="kyc-status">{{ props.kyc.kycStatus }}</dd>
+          <dd data-test="kyc-status">{{ kycAccountStatusLabel(props.kyc.kycStatus, props.kyc.verificationStatus, !!props.kyc.stripeSessionId) }}</dd>
         </div>
         <div>
           <dt class="text-text-muted">Statut de vérification</dt>

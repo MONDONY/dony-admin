@@ -7,7 +7,7 @@ const props = defineProps<{ filters: KycQueueFilters }>()
 
 /** Libellés courts : la file tient dans une colonne de 350 px. */
 const SHORT_LABELS: Record<KycQueueStatus, string> = {
-  IN_REVIEW: 'À décider', IN_PROGRESS: 'En cours', REJECTED: 'Refusées', VERIFIED: 'Validées', NOT_STARTED: 'Non commencées',
+  IN_REVIEW: 'À décider', IN_PROGRESS: 'En cours', REJECTED: 'Refusées', VERIFIED: 'Validées', ABANDONED: 'Abandonnées', NOT_STARTED: 'Non commencées',
 }
 const emit = defineEmits<{
   'update:status': [KycQueueStatus]

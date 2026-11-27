@@ -9,7 +9,7 @@ type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral'
 type Meta = { label: string; tone: Tone }
 
 /** Statuts filtrables de la file (paramètre `status` de GET /admin/kyc/verifications). */
-export const KYC_QUEUE_STATUSES = ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'VERIFIED', 'NOT_STARTED'] as const
+export const KYC_QUEUE_STATUSES = ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'VERIFIED', 'ABANDONED', 'NOT_STARTED'] as const
 export type KycQueueStatus = typeof KYC_QUEUE_STATUSES[number]
 
 export const KYC_PROVIDERS = ['DIDIT', 'STRIPE'] as const
@@ -74,6 +74,7 @@ export const KYC_QUEUE_STATUS_TABS: readonly { value: KycQueueStatus; label: str
   { value: 'IN_PROGRESS', label: 'Parcours en cours' },
   { value: 'REJECTED', label: 'Refusées' },
   { value: 'VERIFIED', label: 'Validées' },
+  { value: 'ABANDONED', label: 'Abandonnées' },
   { value: 'NOT_STARTED', label: 'Non commencées' },
 ]
 
@@ -87,6 +88,7 @@ const STATUS: Record<string, Meta> = {
   PENDING: { label: 'En cours chez le fournisseur', tone: 'info' },
   VERIFIED: { label: 'Validée', tone: 'success' },
   REJECTED: { label: 'Refusée', tone: 'danger' },
+  ABANDONED: { label: 'Abandonnée : à relancer', tone: 'warning' },
   NOT_STARTED: { label: 'Non commencée', tone: 'neutral' },
 }
 /** Statut inconnu (ajouté côté back avant le front) : affiché brut, ton neutre. */
@@ -213,3 +215,20 @@ export function kycDecisionCode(value: string): KycDecisionCode {
 
 export const KYC_QUEUE_UNAVAILABLE = 'File des vérifications indisponible pour le moment'
 export const KYC_DECISIONS_UNAVAILABLE = 'Les décisions manuelles ne sont pas encore disponibles sur ce serveur.'
+
+/**
+ * Libellé du statut du compte en tenant compte de la ligne de vérification : l'utilisateur qui
+ * ferme la webview repasse à `NOT_STARTED` alors que sa session reste ouverte chez le fournisseur
+ * (`verificationStatus` PENDING avec session) : c'est un parcours abandonné, pas « non commencé ».
+ */
+export function kycAccountStatusLabel(
+  kycStatus: string | null | undefined,
+  verificationStatus: string | null | undefined,
+  hasSession: boolean,
+): string {
+  if (kycStatus === 'NOT_STARTED' && verificationStatus === 'PENDING' && hasSession) {
+    return 'Parcours abandonné (session ouverte, à relancer)'
+  }
+  if (kycStatus === 'PENDING') return 'En cours'
+  return kycStatusMeta(kycStatus ?? '').label
+}
