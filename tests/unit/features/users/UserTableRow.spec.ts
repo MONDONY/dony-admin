@@ -36,4 +36,17 @@ describe('UserTableRow', () => {
     expect(cell.text()).toBe('abcdef12')
     expect(cell.attributes('title')).toBe('abcdef12-3456-7890')
   })
+
+  it('affiche « Abandonné » pour un parcours KYC quitté, le code brut sinon', () => {
+    const abandoned = mount(UserTableRow, {
+      props: { user: { ...baseUser, kycStatus: 'NOT_STARTED' as const, kycAbandoned: true } },
+    })
+    expect(abandoned.find('[data-test="cell-kyc"]').text()).toBe('Abandonné')
+    const fresh = mount(UserTableRow, {
+      props: { user: { ...baseUser, kycStatus: 'NOT_STARTED' as const, kycAbandoned: false } },
+    })
+    expect(fresh.find('[data-test="cell-kyc"]').text()).toBe('NOT_STARTED')
+    const legacy = mount(UserTableRow, { props: { user: baseUser } })
+    expect(legacy.find('[data-test="cell-kyc"]').text()).toBe('VERIFIED')
+  })
 })
