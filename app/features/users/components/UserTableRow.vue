@@ -50,7 +50,9 @@ const identity = computed(() => userIdentityLabel(props.user))
     <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ props.user.phoneNumber }}</td>
     <td class="px-4 py-3 text-sm text-text-muted">{{ props.user.city ?? '—' }}</td>
     <td class="px-4 py-3"><StatusBadge v-bind="userStatusMeta(props.user.status)" /></td>
-    <td class="px-4 py-3 text-sm text-text-muted">{{ props.user.kycStatus }}</td>
+    <td data-test="cell-kyc" class="px-4 py-3 text-sm text-text-muted">
+      {{ props.user.kycAbandoned && props.user.kycStatus === 'NOT_STARTED' ? 'Abandonné' : props.user.kycStatus }}
+    </td>
     <td class="px-4 py-3 text-sm text-text-muted tabular-nums">{{ props.user.averageRating ?? '—' }}</td>
   </tr>
 </template>

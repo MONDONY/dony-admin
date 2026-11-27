@@ -15,6 +15,8 @@ export interface AdminUserListItem {
   country: string | null
   status: UserStatus
   kycStatus: KycStatus
+  /** Parcours d'identité quitté (session ouverte, jamais soumise) ; absent d'un ancien back. */
+  kycAbandoned?: boolean
   isProAccount: boolean
   averageRating: number | null
   totalTrips: number
